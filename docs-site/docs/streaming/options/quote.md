@@ -9,7 +9,7 @@ description: "Real-time NBBO quote stream for an option contract."
 
 Streams every NBBO update for one option contract. Each change to the national best bid or offer delivers a `Quote` event to the registered callback.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

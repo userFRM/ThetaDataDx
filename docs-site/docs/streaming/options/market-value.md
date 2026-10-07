@@ -9,7 +9,7 @@ description: "Real-time calculated market value for an option contract."
 
 Streams the calculated market value for one option contract, delivered as a `MarketValue` event. Each update carries the calculated `market_bid`, `market_ask`, and `market_price`.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

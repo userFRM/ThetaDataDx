@@ -50,6 +50,7 @@
 //! - Per-stream `RST_STREAM` (any reason code) surfaces as
 //!   [`ChannelError::H2Stream`]; the connection itself is healthy and
 //!   the next RPC on the same channel can succeed.
+//!
 //! A per-call deadline is not this module's business: `crate::mdds`
 //! wraps a whole dispatch in one timeout and reports `Error::Timeout`,
 //! and dropping the stream sends RST_STREAM so the server releases its

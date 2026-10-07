@@ -2979,7 +2979,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
@@ -2992,7 +2992,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-rs"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "arc-swap",
  "arrow-array",

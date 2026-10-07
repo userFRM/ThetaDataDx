@@ -9,7 +9,7 @@ description: "Every option trade across all underlyings in one subscription."
 
 Streams every option trade print across the entire OPRA universe: one subscription, no per-contract management. For each traded contract the stream delivers more than the trade: a `Quote` (the last NBBO) and an `Ohlcvc` bar arrive before the `Trade` print, and the next two NBBO `Quote` updates for that contract arrive after it. Read the contract identity off each event's `contract`.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 
@@ -166,7 +166,7 @@ The `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. The
 
 ## OHLC bars
 
-The `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately.
+The `Ohlcvc` bars on this stream come from upstream automatically: one is sent for each traded contract before its trade, and you do not subscribe to them separately.
 
 ## Before you subscribe
 

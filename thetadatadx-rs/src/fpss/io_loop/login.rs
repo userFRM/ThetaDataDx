@@ -60,22 +60,6 @@ pub fn wait_for_login(
     wait_for_login_generic(stream, pending_control, read_timeout, shutdown)
 }
 
-/// Read-generic variant of [`wait_for_login`] for unit-testable handshake
-/// coverage. Holds the full dispatch logic so both the TLS-backed entry
-/// point above and in-memory test harnesses can drive it against a
-/// buffer of pre-canned frames.
-///
-/// Login is bounded by the socket read timeout in three ways: a mute peer that
-/// sends nothing surfaces a pre-header read timeout (`WouldBlock` / `TimedOut`),
-/// a peer that dribbles a partial frame then goes silent is cut off by the
-/// per-stall no-progress budget (`stall_timeout`), and the whole handshake has
-/// the same wall-clock budget so complete pre-`METADATA` control frames cannot
-/// reset the deadline forever. A supplied `shutdown` flag adds a per-frame
-/// cancellation check; shutdown wins over the wall-clock timeout so teardown
-/// still reports a user-initiated abort rather than a timeout.
-/// Say what a read timeout during login means, keeping the kind the reconnect
-/// path classifies on.
-///
 /// What the handshake had received when it gave up.
 ///
 /// A login that stalls stalls in one of two ways, and they point at different
@@ -152,6 +136,19 @@ fn mute_peer_timeout(e: Error, waited: Duration, progress: &HandshakeProgress) -
     }
 }
 
+/// Read-generic variant of [`wait_for_login`] for unit-testable handshake
+/// coverage. Holds the full dispatch logic so both the TLS-backed entry
+/// point above and in-memory test harnesses can drive it against a
+/// buffer of pre-canned frames.
+///
+/// Login is bounded by the socket read timeout in three ways: a mute peer that
+/// sends nothing surfaces a pre-header read timeout (`WouldBlock` / `TimedOut`),
+/// a peer that dribbles a partial frame then goes silent is cut off by the
+/// per-stall no-progress budget (`stall_timeout`), and the whole handshake has
+/// the same wall-clock budget so complete pre-`METADATA` control frames cannot
+/// reset the deadline forever. A supplied `shutdown` flag adds a per-frame
+/// cancellation check; shutdown wins over the wall-clock timeout so teardown
+/// still reports a user-initiated abort rather than a timeout.
 fn wait_for_login_generic<R>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
@@ -513,8 +510,7 @@ mod tests {
 
     /// A mute peer that never sends a login response must not wedge the
     /// handshake: the socket read timeout fires pre-header and propagates as an
-    /// error the caller reconnects on. This is the terminal's only bound on a
-    /// silent peer — there is no separate wall-clock handshake cap. Both the
+    /// error the caller reconnects on. Both the
     /// Linux/non-blocking (`WouldBlock`) and macOS/blocking (`TimedOut`)
     /// spellings of `SO_RCVTIMEO` must terminate the handshake identically.
     ///
@@ -651,8 +647,10 @@ mod tests {
             wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(30), None);
 
         let said = match result {
-            Err(Error::Io(ref io_err)) => io_err.to_string(),
-            Err(Error::Stream { ref message, .. }) => message.clone(),
+            Err(Error::Stream {
+                kind: crate::error::StreamErrorKind::Timeout,
+                ref message,
+            }) => message.clone(),
             Ok(_) => panic!("a withheld METADATA must not complete the login"),
             Err(other) => panic!("expected a timeout error, got {other:?}"),
         };

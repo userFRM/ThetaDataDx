@@ -174,7 +174,8 @@ pub fn connect_to_servers(
         // vendor blocks an address that opens connections faster than its
         // limit, and a reconnect here competes with the market-data
         // channels for that allowance. The wait is blocking, like the rest
-        // of this path, and bounded by the budget's spacing, but the
+        // of this path, and lasts as long as other connections keep taking
+        // the budget's slots, but the
         // thread that raises `shutdown` joins this one, so the wait gives
         // up on the flag rather than dialling a connection nobody will
         // read. That check also covers the gap between hosts: a Drop

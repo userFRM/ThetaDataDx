@@ -9,7 +9,7 @@ description: "Real-time BBO quote stream for a stock."
 
 Streams every BBO quote for one stock from the Nasdaq Basic feed. Each change to the best bid or offer delivers a `Quote` event to the registered callback.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

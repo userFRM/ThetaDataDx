@@ -15,7 +15,7 @@ Streaming open interest is not live on the upstream feed yet, so this subscripti
 
 Streams open-interest updates for one option contract. OPRA reports open interest each morning around 06:30 ET, reflecting the prior session; each report delivers an `OpenInterest` event.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 
