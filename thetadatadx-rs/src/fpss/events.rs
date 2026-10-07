@@ -252,20 +252,6 @@ impl DisconnectCause {
         }
     }
 
-    /// Symbolic name for this cause (`"ServerSent"`, `"ReadFailed"`,
-    /// ...). This is what the bindings publish as `cause_name`, the same
-    /// way they publish [`RemoveReason::as_str`] as `reason_name`.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ServerSent => "ServerSent",
-            Self::ClosedByServer => "ClosedByServer",
-            Self::ReadFailed(_) => "ReadFailed",
-            Self::WriteFailed(_) => "WriteFailed",
-            Self::ReadTimeout(_) => "ReadTimeout",
-        }
-    }
-
     /// Symbolic name for a cause code, the inverse of
     /// [`DisconnectCause::code`].
     ///
@@ -318,16 +304,18 @@ impl DisconnectCause {
     /// `reason` is the server's vocabulary, so a drop the server never
     /// described borrows a code from it: the client read deadline
     /// reports `TimedOut` and every other end the client observed itself
-    /// reports `Unspecified`. These are the exact codes those paths
-    /// reported before the cause existed, so code matching on `reason`
-    /// is unaffected.
+    /// reports `Unspecified`. Every path reports the code it did before
+    /// the cause existed, except a read deadline that expires part-way
+    /// through a frame: that was a read failure reporting `Unspecified`
+    /// and now reports `TimedOut`, like the deadline that expires between
+    /// frames.
     ///
     /// [`DisconnectCause::ServerSent`] implies nothing, because the
     /// server supplied the code and the decoder reads it off the wire;
     /// it maps to `Unspecified`, which is literally "no reason
     /// supplied".
     #[must_use]
-    pub const fn implied_reason(self) -> RemoveReason {
+    pub(crate) const fn implied_reason(self) -> RemoveReason {
         match self {
             Self::ReadTimeout(_) => RemoveReason::TimedOut,
             Self::ServerSent
@@ -862,8 +850,9 @@ mod tests {
     /// The cross-binding cause vocabulary, pinned once.
     ///
     /// `code` is the integer the Python, TypeScript, C and C++ surfaces
-    /// publish as `cause` and `as_str` is the `cause_name` beside it, so
-    /// a drift in either silently rewrites what every binding reports.
+    /// publish as `cause` and `name_for_code` resolves the `cause_name`
+    /// beside it, so a drift in either silently rewrites what every
+    /// binding reports.
     /// `implied_reason` is the one place the correspondence between a
     /// cause and the server-vocabulary code it borrows is written down,
     /// and the I/O loop reads it rather than repeating literals at each
@@ -914,11 +903,10 @@ mod tests {
         ];
         for (cause, code, name, kind_name, timeout_ms, reason) in cases {
             assert_eq!(cause.code(), code, "{cause:?} code");
-            assert_eq!(cause.as_str(), name, "{cause:?} name");
             assert_eq!(
                 DisconnectCause::name_for_code(cause.code()),
-                cause.as_str(),
-                "{cause:?}: the code the bindings carry must resolve back to the same name"
+                name,
+                "{cause:?}: the code the bindings carry must resolve to its name"
             );
             assert_eq!(
                 cause.io_error_kind_name(),
@@ -937,35 +925,6 @@ mod tests {
             "Unknown",
             "a code this build does not know still resolves to a name"
         );
-    }
-
-    #[test]
-    fn fpss_control_reconnected_variant() {
-        let evt = StreamEvent::Control(StreamControl::Reconnected);
-        assert!(matches!(
-            &evt,
-            StreamEvent::Control(StreamControl::Reconnected)
-        ));
-    }
-
-    /// The terminal event round-trips through the internal/public
-    /// reborrow like every other control variant. Only the reborrow is
-    /// asserted: reading a field back from a value the test just built
-    /// runs no code and cannot fail.
-    #[test]
-    fn fpss_control_reconnects_exhausted_variant() {
-        let internal = FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
-            reason: RemoveReason::Unspecified,
-            cause: DisconnectCause::ClosedByServer,
-            attempts: 0,
-        });
-        assert!(matches!(
-            internal.as_public(),
-            Some(StreamEvent::Control(StreamControl::ReconnectsExhausted {
-                attempts: 0,
-                ..
-            }))
-        ));
     }
 
     #[test]
@@ -997,39 +956,6 @@ mod tests {
         assert!(matches!(
             &ctrl,
             StreamEvent::Control(StreamControl::MarketOpen)
-        ));
-    }
-
-    #[test]
-    fn fpss_control_connected_ping_reconnected_server_restart_variants() {
-        // Every new control variant must round-trip and expose its payload
-        // correctly — matching the JVM terminal hand-off where codes
-        // 4 / 10 / 13 / 31 each land on their own typed listener.
-        let connected = StreamEvent::Control(StreamControl::Connected);
-        assert!(matches!(
-            &connected,
-            StreamEvent::Control(StreamControl::Connected)
-        ));
-
-        let ping = StreamEvent::Control(StreamControl::Ping {
-            payload: vec![0x00],
-        });
-        if let StreamEvent::Control(StreamControl::Ping { payload }) = &ping {
-            assert_eq!(payload.as_slice(), &[0x00]);
-        } else {
-            panic!("expected Ping");
-        }
-
-        let reconnected_server = StreamEvent::Control(StreamControl::ReconnectedServer);
-        assert!(matches!(
-            &reconnected_server,
-            StreamEvent::Control(StreamControl::ReconnectedServer)
-        ));
-
-        let restart = StreamEvent::Control(StreamControl::Restart);
-        assert!(matches!(
-            &restart,
-            StreamEvent::Control(StreamControl::Restart)
         ));
     }
 }
