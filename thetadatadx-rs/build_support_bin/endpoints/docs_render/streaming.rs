@@ -615,7 +615,7 @@ fn full_trade_delivery(spec: &StreamSpec) -> String {
     // OHLC behavior: the server sends one bar per traded contract,
     // automatically, ahead of the trade — no subscription, no toggle.
     out.push_str(
-        "## OHLC bars\n\nThe `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately.\n\n",
+        "## OHLC bars\n\nThe `Ohlcvc` bars on this stream come from upstream automatically: one is sent for each traded contract before its trade, and you do not subscribe to them separately.\n\n",
     );
 
     // Caveats carried from ThetaData's reference that apply to the request.
@@ -712,7 +712,7 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         }
         let _ = writeln!(out, "{}\n", spec.prose);
         out.push_str(
-            "The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.\n",
+            "The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.\n",
         );
 
         out.push_str("\n<SdkTabs>\n\n");

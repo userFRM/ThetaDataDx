@@ -9,7 +9,7 @@ description: "Real-time trade stream for a stock."
 
 Streams every trade print for one stock. Each execution delivers a `Trade` event to the registered callback.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

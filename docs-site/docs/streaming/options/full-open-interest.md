@@ -15,7 +15,7 @@ Streaming open interest is not live on the upstream feed yet, so this subscripti
 
 Streams the morning open-interest reports for every option contract: one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

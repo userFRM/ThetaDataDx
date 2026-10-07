@@ -9,7 +9,7 @@ description: "Real-time price stream for an index."
 
 Streams every index value update. Indices publish price prints through the trade feed, so each update delivers a `Trade` event whose `price` field carries the index value. Indices have no full-stream broadcast; subscribe per index.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 

@@ -9,7 +9,7 @@ description: "Every trade across all stocks in one subscription."
 
 Streams every trade print across the entire stock universe: one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.
 
-The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
+The snippets below assume a connected client with streaming started; see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
 <SdkTabs>
 
@@ -162,7 +162,7 @@ trade  QQQ  price, size, exchange, condition
 
 ## OHLC bars
 
-The `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately.
+The `Ohlcvc` bars on this stream come from upstream automatically: one is sent for each traded contract before its trade, and you do not subscribe to them separately.
 
 ## Before you subscribe
 
