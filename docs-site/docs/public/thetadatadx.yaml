@@ -1152,7 +1152,7 @@ paths:
             auto strikes = client.market_data().option_list_strikes("SPY", "20250321");
 
   /v3/option/list/contracts:
-    x-min-subscription: free
+    x-min-subscription: value
     get:
       operationId: optionListContracts
       summary: List all option contracts for a date
@@ -1184,7 +1184,7 @@ paths:
             auto option_contracts = client.market_data().option_list_contracts("TRADE", "20250303");
 
   /v3/option/list/contracts/{request_type}:
-    x-min-subscription: free
+    x-min-subscription: value
     get:
       operationId: optionListContractsByRequestType
       summary: List all option contracts for a date (path form)
@@ -3482,7 +3482,7 @@ paths:
             auto calendar_days = client.market_data().calendar_open_today();
 
   /v3/calendar/on_date:
-    x-min-subscription: free
+    x-min-subscription: value
     get:
       operationId: calendarOnDate
       summary: Calendar info for a specific date
@@ -3510,7 +3510,7 @@ paths:
             auto calendar_days = client.market_data().calendar_on_date("20250303");
 
   /v3/calendar/year:
-    x-min-subscription: free
+    x-min-subscription: value
     get:
       operationId: calendarYear
       summary: Calendar for an entire year
@@ -3572,7 +3572,7 @@ paths:
             auto calendar_days = client.market_data().calendar_open_today();
 
   /v3/calendar/year_holidays:
-    x-min-subscription: free
+    x-min-subscription: value
     get:
       operationId: calendarYearHolidays
       summary: Calendar for an entire year

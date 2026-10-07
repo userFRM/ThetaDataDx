@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The package pages count the endpoints the SDK exposes.** Every README advertised 64 typed endpoints, the figure from before the binomial Greeks routes landed, so the crates.io, PyPI and npm pages understated the surface. The number is 73, one per endpoint a caller can call, and the documentation gate now derives it from the endpoint registry rather than trusting a figure kept by hand in ten places. The four streaming builders are not added to it: they are the callback delivery mode of endpoints the count already covers, on the same paths.
 
+- **The published contract states the subscription a route really needs.** The contract listed the option contract listing and three calendar routes as available on the free tier, while the vendor sells them at the value tier and the reference page for each already showed that badge, so the site disagreed with itself and a reader could plan against a route their account cannot call. All of them now publish the tier the vendor states, and the documentation gate reads the tiers in the contract against the same pinned vendor spec the reference badges are checked against.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed
