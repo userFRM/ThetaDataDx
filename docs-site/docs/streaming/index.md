@@ -1,5 +1,5 @@
 ---
-title: Streaming: Getting Started
+title: "Streaming: Getting Started"
 description: Connect, register a callback, subscribe, and shut down cleanly, in every language.
 ---
 
