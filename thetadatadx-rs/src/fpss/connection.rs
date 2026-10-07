@@ -170,22 +170,22 @@ pub fn connect_to_servers(
     let mut last_err = None;
 
     for &(host, port) in servers {
-        // A Drop raised mid-reconnect must not be blocked for the full
-        // dial + login of every remaining host. Check between attempts so a
-        // shutting-down thread stops trying rather than dialling on.
-        if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+        // Take a slot in the process-wide connection budget first: the
+        // vendor blocks an address that opens connections faster than its
+        // limit, and a reconnect here competes with the market-data
+        // channels for that allowance. The wait is blocking, like the rest
+        // of this path, and bounded by the budget's spacing, but the
+        // thread that raises `shutdown` joins this one, so the wait gives
+        // up on the flag rather than dialling a connection nobody will
+        // read. That check also covers the gap between hosts: a Drop
+        // raised mid-reconnect must not be blocked for the full dial plus
+        // login of every remaining host.
+        if !crate::connect_budget::acquire_blocking(shutdown) {
             return Err(crate::error::Error::Stream {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "connection aborted: client shutting down".to_string(),
             });
         }
-        // Take a slot in the process-wide connection budget first: the
-        // vendor blocks an address that opens connections faster than its
-        // limit, and a reconnect here competes with the market-data
-        // channels for that allowance. The wait is blocking, like the rest
-        // of this path, and spans at most the budget's spacing per
-        // queued connection.
-        crate::connect_budget::acquire_blocking();
 
         let addr = format!("{host}:{port}");
         tracing::debug!(server = %addr, "attempting FPSS connection");

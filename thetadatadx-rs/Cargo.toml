@@ -445,6 +445,13 @@ name = "grpc_mock_server"
 path = "tests/grpc_mock_server.rs"
 required-features = ["__test-helpers"]
 
+# Own binary: the connection budget is process-wide, so this test has to
+# be the only thing dialling in its process.
+[[test]]
+name = "connect_budget"
+path = "tests/connect_budget.rs"
+required-features = ["__test-helpers"]
+
 # Drives sharded bulk-fetch pulls (buffered + streaming) end-to-end
 # through the generated `stock_history_trade` builder against a
 # per-band scripted mock: fan-out shape, band merge, empty-band

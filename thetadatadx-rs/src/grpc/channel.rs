@@ -212,19 +212,15 @@ pub struct Channel {
     transport: Transport,
     /// `scheme://host:port` of the server. Every request URI is this
     /// origin plus the method path, which pins the `:scheme` and
-    /// `:authority` pseudo-headers to the transport and target.
+    /// `:authority` pseudo-headers to the transport and target: `https`
+    /// over TLS and `http` over plaintext h2c, as the gRPC HTTP/2 spec
+    /// requires, so strict L7 proxies and routers accept the request.
     origin: Uri,
     /// Per-frame decode ceiling propagated to every RPC dispatched on
     /// this channel. Mirrors `DirectConfig::mdds.max_message_size`;
     /// response frames above it are rejected by the decode layer
     /// before allocation.
     max_message_size: usize,
-    /// `:scheme` this channel speaks — `https` over TLS, `http` over
-    /// plaintext h2c. Derived from the connect constructor; the request
-    /// pseudo-header follows [`Self::origin`], so the field exists only
-    /// for the test-surface accessor ([`Self::scheme_str`]).
-    #[cfg(any(test, feature = "__test-helpers"))]
-    scheme: Scheme,
     /// Number of currently-open streams on this channel. Incremented
     /// at request dispatch, decremented when the [`ServerStreaming`]
     /// adapter is dropped. The [`super::ChannelPool`] uses this as a
@@ -453,8 +449,6 @@ impl Channel {
             transport,
             origin,
             max_message_size,
-            #[cfg(any(test, feature = "__test-helpers"))]
-            scheme,
             in_flight: Arc::new(AtomicUsize::new(0)),
         })
     }
@@ -480,25 +474,6 @@ impl Channel {
     #[must_use]
     pub const fn max_message_size(&self) -> usize {
         self.max_message_size
-    }
-
-    /// `:scheme` pseudo-header this channel sends on every request —
-    /// `"https"` over TLS, `"http"` over plaintext h2c. The gRPC
-    /// HTTP/2 spec pins the scheme to the underlying transport so
-    /// strict L7 proxies and routers accept the request.
-    ///
-    /// Hidden from the public docs — exposed for integration tests
-    /// that need to confirm the channel records the right scheme for
-    /// each transport.
-    #[cfg(any(test, feature = "__test-helpers"))]
-    #[doc(hidden)]
-    #[must_use]
-    pub fn scheme_str(&self) -> &'static str {
-        if self.scheme == Scheme::HTTPS {
-            "https"
-        } else {
-            "http"
-        }
     }
 
     /// Take a pre-dispatch in-flight token. Used by

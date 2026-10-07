@@ -288,7 +288,10 @@ async fn dead_reconnect_target_stays_connection_closed() {
     // Tear the listener down so the reconnect dial has no target.
     drop(mock);
 
-    let followup = tokio::time::timeout(Duration::from_secs(10), one_rpc(&channel))
+    // The guard is for a hang, not for latency: the redial this dispatch
+    // makes waits for a slot in the process-wide connection budget, which
+    // every other test in this binary is also drawing on.
+    let followup = tokio::time::timeout(Duration::from_secs(30), one_rpc(&channel))
         .await
         .expect("dead-target dispatch must fail fast, not hang");
     assert!(
