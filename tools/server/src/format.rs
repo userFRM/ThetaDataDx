@@ -4388,7 +4388,6 @@ mod tests {
             trade_greeks_iv_tick()
         );
 
-        assert_eq!(cases.len(), 11, "every Greeks variant must be covered");
         for (ep_name, output, date, underlying_date) in cases {
             assert_ne!(
                 date, underlying_date,

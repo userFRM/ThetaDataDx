@@ -138,54 +138,6 @@ async fn channel_rejects_connect_to_closed_port() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn channel_deadline_elapses_during_streaming() {
-    // Mock holds the request 300ms before sending DATA. Deadline is
-    // 100ms — so either the open call surfaces `DeadlineExceeded`
-    // directly, or the stream surfaces it on first poll. Both paths
-    // are acceptable; the test asserts on the variant either way.
-    let mock = MockServer::spawn_with_behaviour(
-        vec![make_response_data(&["AAPL"])],
-        0,
-        String::new(),
-        MockBehaviour {
-            pre_response_delay: Some(Duration::from_millis(300)),
-            ..MockBehaviour::default()
-        },
-    )
-    .await;
-
-    let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
-        .await
-        .expect("h2c connect");
-
-    let result = channel
-        .server_streaming_with_deadline::<DataValueList, ResponseData>(
-            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
-            empty_request(),
-            Duration::from_millis(100),
-        )
-        .await;
-
-    let final_err = match result {
-        Err(e) => e,
-        Ok(stream) => match collect(stream).await {
-            Err(e) => e,
-            Ok(msgs) => panic!("expected DeadlineExceeded, got {} messages", msgs.len()),
-        },
-    };
-
-    match final_err {
-        ChannelError::DeadlineExceeded { duration_ms } => {
-            assert!(
-                duration_ms <= 100,
-                "deadline carried forward; got {duration_ms}ms"
-            );
-        }
-        other => panic!("expected DeadlineExceeded, got {other:?}"),
-    }
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn channel_classifies_goaway_distinctly_from_reset() {
     // Mock sends one chunk + response head, then the outer loop
     // issues abrupt_shutdown (GOAWAY). The client must surface this

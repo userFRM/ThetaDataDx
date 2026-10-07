@@ -30,11 +30,11 @@ Lists all dates of data that are available for a stock with a given request type
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `request_type` | string | yes | — | Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`. |
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `request_type` | string | yes | - | Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
-A list of strings — one `date` value per row.
+A list of strings, one `date` value per row.
 

@@ -117,7 +117,7 @@ fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String,
         let _ = writeln!(out, "| `{}` | {ty} | {doc} |", col.name);
     }
     out.push_str(
-        "\nThe `contract` field carries `symbol`, the security type, and — for options — \
+        "\nThe `contract` field carries `symbol`, the security type, and, for options, \
          `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) \
          for the full event catalogue and per-language field shapes.\n\n",
     );
@@ -192,7 +192,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/stocks/full-trade",
         title: "Stock Full Trades",
         description: "Every trade across all stocks in one subscription.",
-        prose: "Streams every trade print across the entire stock universe — one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.",
+        prose: "Streams every trade print across the entire stock universe: one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.",
         event: "Trade",
         rust_sub: "SecType::Stock.full_trades()",
         python_sub: "SecType.STOCK.full_trades()",
@@ -277,7 +277,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/options/full-trade",
         title: "Option Full Trades",
         description: "Every option trade across all underlyings in one subscription.",
-        prose: "Streams every option trade print across the entire OPRA universe — one subscription, no per-contract management. For each traded contract the stream delivers more than the trade: a `Quote` (the last NBBO) and an `Ohlcvc` bar arrive before the `Trade` print, and the next two NBBO `Quote` updates for that contract arrive after it. Read the contract identity off each event's `contract`.",
+        prose: "Streams every option trade print across the entire OPRA universe: one subscription, no per-contract management. For each traded contract the stream delivers more than the trade: a `Quote` (the last NBBO) and an `Ohlcvc` bar arrive before the `Trade` print, and the next two NBBO `Quote` updates for that contract arrive after it. Read the contract identity off each event's `contract`.",
         event: "Trade",
         rust_sub: "SecType::Option.full_trades()",
         python_sub: "SecType.OPTION.full_trades()",
@@ -294,7 +294,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/options/full-open-interest",
         title: "Option Full Open Interest",
         description: "Open-interest updates for every option contract in one subscription.",
-        prose: "Streams the morning open-interest reports for every option contract — one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.",
+        prose: "Streams the morning open-interest reports for every option contract: one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.",
         event: "OpenInterest",
         rust_sub: "SecType::Option.full_open_interest()",
         python_sub: "SecType.OPTION.full_open_interest()",

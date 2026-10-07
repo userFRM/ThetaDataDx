@@ -13,7 +13,7 @@ Streaming open interest is not live on the upstream feed yet, so this subscripti
 
 :::
 
-Streams the morning open-interest reports for every option contract — one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.
+Streams the morning open-interest reports for every option contract: one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
@@ -132,5 +132,5 @@ Each update arrives as a `OpenInterest` event with these fields:
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 
-The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+The `contract` field carries `symbol`, the security type, and, for options, `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
 

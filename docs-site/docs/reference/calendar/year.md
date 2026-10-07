@@ -1,6 +1,6 @@
 ---
 title: Year
-description: "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day)."
+description: "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day)."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="value" />
 
-Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
 
 - Retrieves equity market holidays for a given year
 - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
@@ -34,8 +34,8 @@ Get equity market holidays and early-close days for a year (vendor `year_holiday
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `year` | string | yes | — | 4-digit year (e.g. 2024) |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `year` | string | yes | - | 4-digit year (e.g. 2024) |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

@@ -3292,8 +3292,12 @@ mod discriminant_conversion_tests {
             ),
         ];
         for (cause, kind_name, timeout_ms) in cases {
+            // The reason is incidental here: this test is about the three
+            // cause fields reaching the C struct. Which reason each cause
+            // pairs with is pinned in the core crate, where the pairing
+            // lives.
             let event = StreamEvent::Control(StreamControl::Disconnected {
-                reason: cause.implied_reason(),
+                reason: RemoveReason::Unspecified,
                 cause,
             });
             let buffered = fpss_event_to_ffi(&event);

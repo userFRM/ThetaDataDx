@@ -30,9 +30,9 @@ A symbol can be defined as a unique identifier for a stock / underlying asset. C
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
-A list of strings — one `symbol` value per row.
+A list of strings, one `symbol` value per row.
 

@@ -118,28 +118,38 @@ impl HandshakeProgress {
     }
 }
 
-/// A peer that accepts the connection and then stops surfaces here as a bare
-/// `WouldBlock` or `TimedOut`, which reaches a caller as `Resource temporarily
-/// unavailable` and nothing else: no hint that the server took the connection,
-/// that the login was sent, how long the wait was, or whether the server said
-/// anything at all before it stopped. The error keeps its `ErrorKind`, so
-/// `is_transient_read` and every reconnect decision above behave exactly as
-/// before, and carries the sentence a caller needs.
-fn mute_peer_context(e: Error, waited: Duration, progress: &HandshakeProgress) -> Error {
+/// A peer that accepts the connection and then stops surfaces from the read as
+/// a bare `WouldBlock` or `TimedOut`, which reaches a caller as `Resource
+/// temporarily unavailable` and nothing else: no hint that the server took the
+/// connection, that the login was sent, how long the wait was, or whether the
+/// server said anything at all before it stopped.
+///
+/// It is reported as the handshake deadline expiring, which is what it is, and
+/// matches the two other ways the same silence ends this handshake: a peer that
+/// goes quiet part-way through a frame, and one that keeps sending frames but
+/// never `METADATA`. A caller watching for a server that accepts the socket and
+/// never answers therefore gets one error class from `connect` instead of one
+/// that depends on whether a partial frame happened to be buffered. The
+/// reconnect path reads only whether the login failed, not how, so it is
+/// unaffected.
+///
+/// A non-transient I/O error is left alone: it is a real socket failure, not a
+/// deadline.
+fn mute_peer_timeout(e: Error, waited: Duration, progress: &HandshakeProgress) -> Error {
     let Error::Io(io_err) = &e else {
         return e;
     };
     if !crate::fpss::framing::is_transient_read(io_err) {
         return e;
     }
-    Error::Io(std::io::Error::new(
-        io_err.kind(),
-        format!(
+    Error::Stream {
+        kind: crate::error::StreamErrorKind::Timeout,
+        message: format!(
             "the server accepted the connection and {} within {}ms: {io_err}",
             progress.describe(),
             waited.as_millis()
         ),
-    ))
+    }
 }
 
 fn wait_for_login_generic<R>(
@@ -179,7 +189,7 @@ where
         }
         let (code, payload_len) =
             match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)
-                .map_err(|e| mute_peer_context(e, stall_timeout, &progress))?
+                .map_err(|e| mute_peer_timeout(e, stall_timeout, &progress))?
             {
                 FrameRead::Frame(code, len) => {
                     progress.saw(Some(code));
@@ -507,6 +517,13 @@ mod tests {
     /// silent peer — there is no separate wall-clock handshake cap. Both the
     /// Linux/non-blocking (`WouldBlock`) and macOS/blocking (`TimedOut`)
     /// spellings of `SO_RCVTIMEO` must terminate the handshake identically.
+    ///
+    /// It is reported as the handshake deadline expiring, the same class a peer
+    /// that goes quiet part-way through a frame produces (see
+    /// `wait_for_login_partial_frame_silence_hits_stall_timeout`). Both are one
+    /// server accepting the socket and then saying nothing, so `connect` must
+    /// not hand a caller a different error class depending on whether a partial
+    /// frame happened to be buffered first.
     #[test]
     fn wait_for_login_mute_peer_bounded_by_socket_read_timeout() {
         for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
@@ -515,30 +532,30 @@ mod tests {
             let result =
                 wait_for_login_generic(&mut reader, &mut pending, Duration::from_secs(10), None);
             match result {
-                // A pre-header transient surfaces as `Error::Io`; the io_loop
-                // reconnect path treats any login `Err` as a failed attempt.
-                Err(Error::Io(ref io_err)) => {
+                Err(Error::Stream {
+                    kind: err_kind,
+                    ref message,
+                }) => {
+                    assert_eq!(
+                        err_kind,
+                        crate::error::StreamErrorKind::Timeout,
+                        "a silent login is the handshake deadline expiring ({kind:?})"
+                    );
                     // And it says which silence this was. A bare errno reaches
                     // a caller as `Resource temporarily unavailable` and
                     // nothing else, with no hint that the server took the
                     // connection and then said nothing.
-                    let said = io_err.to_string();
                     assert!(
-                        said.contains("sent no login response") && said.contains("10000ms"),
-                        "a mute peer says what it did and how long it was given: {said}"
-                    );
-                    // The kind is what every reconnect decision above reads.
-                    assert!(
-                        crate::fpss::framing::is_transient_read(io_err),
-                        "and it is still classified as a transient read ({kind:?})"
+                        message.contains("sent no login response") && message.contains("10000ms"),
+                        "a mute peer says what it did and how long it was given: {message}"
                     );
                 }
                 Ok(_) => panic!(
                     "a mute peer that sends no login response must error, not succeed ({kind:?})"
                 ),
-                Err(other) => panic!(
-                    "a mute peer must surface the socket read timeout as Error::Io, got {other:?}"
-                ),
+                Err(other) => {
+                    panic!("a mute peer must surface the read deadline as a Timeout, got {other:?}")
+                }
             }
             assert!(
                 pending.is_empty(),

@@ -1,6 +1,6 @@
 ---
 title: API Reference
-description: Every endpoint, one page — signatures and runnable samples in Rust, Python, TypeScript, C++, and HTTP.
+description: Every endpoint, one page, with signatures and runnable samples in Rust, Python, TypeScript, C++, and HTTP.
 ---
 
 # API Reference

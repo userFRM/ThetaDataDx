@@ -163,7 +163,7 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
             .default
             .as_deref()
             .map(|d| format!("`{d}`"))
-            .unwrap_or_else(|| "—".to_string());
+            .unwrap_or_else(|| "-".to_string());
         let required = if param.required { "yes" } else { "no" };
         let _ = writeln!(
             out,
@@ -176,7 +176,7 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
         );
     }
     out.push_str(
-        "| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |\n\n",
+        "| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |\n\n",
     );
     out
 }

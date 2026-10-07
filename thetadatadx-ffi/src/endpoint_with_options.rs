@@ -4567,7 +4567,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
     })
 }
 
-/// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+/// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]

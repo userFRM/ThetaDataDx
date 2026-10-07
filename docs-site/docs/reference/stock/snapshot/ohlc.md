@@ -39,10 +39,10 @@ Provides a real-time Open, High, Low, Close for the current day.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | symbols | yes | — | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
+| `symbol` | symbols | yes | - | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |
-| `min_time` | string | no | — | Minimum time filter |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `min_time` | string | no | - | Minimum time filter |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

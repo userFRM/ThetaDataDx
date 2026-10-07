@@ -1,5 +1,5 @@
 ---
-title: Server — WebSocket Streaming
+title: "Server: WebSocket Streaming"
 description: Subscribe to real-time events over the local WebSocket endpoint.
 ---
 

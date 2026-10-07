@@ -48,13 +48,22 @@ CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
     ("ServerError", ("message",)),
     (
         "Disconnected",
-        ("reason", "cause", "cause_io_error_kind", "cause_timeout_ms"),
+        (
+            "reason",
+            "reason_name",
+            "cause",
+            "cause_name",
+            "cause_io_error_kind",
+            "cause_timeout_ms",
+        ),
     ),
     (
         "Reconnecting",
         (
             "reason",
+            "reason_name",
             "cause",
+            "cause_name",
             "cause_io_error_kind",
             "cause_timeout_ms",
             "attempt",
@@ -64,7 +73,15 @@ CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
     ("Reconnected", ()),
     (
         "ReconnectsExhausted",
-        ("reason", "cause", "cause_io_error_kind", "cause_timeout_ms", "attempts"),
+        (
+            "reason",
+            "reason_name",
+            "cause",
+            "cause_name",
+            "cause_io_error_kind",
+            "cause_timeout_ms",
+            "attempts",
+        ),
     ),
     ("ParseError", ("message",)),
     ("UnknownFrame", ("code", "payload")),
