@@ -68,17 +68,17 @@ fn render_timestamp_accessors(type_name: &str, def: &TickTypeDef) -> String {
     }
     let mut out = String::new();
     writeln!(out, "impl {type_name} {{").unwrap();
-    for (accessor, field) in &ms_fields {
+    for (accessor, field, date_field) in &ms_fields {
         writeln!(
             out,
-            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`\n\
+            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `{date_field}`\n\
              \x20   /// with `{field}` (Eastern-Time milliseconds-of-day). Returns\n\
-             \x20   /// `None` when `date` is absent (`0`) or `{field}` is outside\n\
+             \x20   /// `None` when `{date_field}` is absent (`0`) or `{field}` is outside\n\
              \x20   /// the milliseconds-of-day domain. The raw integer fields stay\n\
              \x20   /// primary; this accessor is a convenience at the epoch boundary.\n\
              \x20   #[must_use]\n\
              \x20   pub fn {accessor}(&self) -> Option<i64> {{\n\
-             \x20       crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.{field})\n\
+             \x20       crate::tdbe::time::date_ms_to_epoch_ms(self.{date_field}, self.{field})\n\
              \x20   }}"
         )
         .unwrap();
@@ -87,19 +87,43 @@ fn render_timestamp_accessors(type_name: &str, def: &TickTypeDef) -> String {
     out
 }
 
-/// `(accessor_name, ms_field)` pairs for [`render_timestamp_accessors`].
-/// Shared with the Python pyclass emitter so both bindings surface the
-/// same accessor set. Empty when the type has no `date` column.
-pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, String)> {
+/// `(accessor_name, ms_field, date_field)` triples for
+/// [`render_timestamp_accessors`]. Shared with the Python and TypeScript
+/// emitters so every binding surfaces the same accessor set, built from the
+/// same pair of columns. Empty when the type has no `date` column.
+///
+/// A prefixed time of day takes the date of its own prefix when the type
+/// carries one. The Greeks ticks hold two moments: the row's own
+/// (`date` + `ms_of_day`) and the underlying price's
+/// (`underlying_date` + `underlying_ms_of_day`), and the vendor sends them on
+/// different days whenever the option quote and the underlying price come
+/// from different sessions. Pairing a prefixed time of day with the row's
+/// `date` would hand back an instant a day out on exactly those rows.
+pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, String, String)> {
     if !def.columns.iter().any(|c| c.field == "date") {
         return Vec::new();
     }
+    let has_column = |name: &str| def.columns.iter().any(|c| c.field == name);
     let mut out = Vec::new();
     for column in &def.columns {
         if column.field == "ms_of_day" {
-            out.push(("timestamp_ms".to_string(), column.field.clone()));
+            out.push((
+                "timestamp_ms".to_string(),
+                column.field.clone(),
+                "date".to_string(),
+            ));
         } else if let Some(prefix) = column.field.strip_suffix("_ms_of_day") {
-            out.push((format!("{prefix}_timestamp_ms"), column.field.clone()));
+            let prefixed_date = format!("{prefix}_date");
+            let date_field = if has_column(&prefixed_date) {
+                prefixed_date
+            } else {
+                "date".to_string()
+            };
+            out.push((
+                format!("{prefix}_timestamp_ms"),
+                column.field.clone(),
+                date_field,
+            ));
         }
     }
     out

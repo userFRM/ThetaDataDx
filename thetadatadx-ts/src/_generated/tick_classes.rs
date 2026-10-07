@@ -91,9 +91,9 @@ pub struct GreeksAllTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -150,9 +150,9 @@ pub struct GreeksEodTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -183,9 +183,9 @@ pub struct GreeksFirstOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -215,9 +215,9 @@ pub struct GreeksSecondOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -246,9 +246,9 @@ pub struct GreeksThirdOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -307,9 +307,9 @@ pub struct IvTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -469,9 +469,9 @@ pub struct TradeGreeksAllTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -509,9 +509,9 @@ pub struct TradeGreeksFirstOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -543,9 +543,9 @@ pub struct TradeGreeksImpliedVolatilityTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -582,9 +582,9 @@ pub struct TradeGreeksSecondOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -620,9 +620,9 @@ pub struct TradeGreeksThirdOrderTick {
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
     pub timestamp_ms: Option<BigInt>,
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
     /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-    /// `date` is absent (`0`).
+    /// `underlying_date` is absent (`0`).
     pub underlying_timestamp_ms: Option<BigInt>,
 }
 
@@ -783,7 +783,7 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -839,7 +839,7 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -869,7 +869,7 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -898,7 +898,7 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -926,7 +926,7 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -987,7 +987,7 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1149,7 +1149,7 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1186,7 +1186,7 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1217,7 +1217,7 @@ fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeks
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1253,7 +1253,7 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -1288,7 +1288,7 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
-                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.underlying_ms_of_day).map(BigInt::from),
+                underlying_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.underlying_date, t.underlying_ms_of_day).map(BigInt::from),
             }
         })
         .collect()

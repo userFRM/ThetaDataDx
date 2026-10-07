@@ -546,15 +546,15 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     // field on types that also carry `date`. The raw integer fields
     // stay primary per the raw-ms doctrine; the property computes the
     // epoch value on read and returns `None` when `date` is absent.
-    for (accessor, field) in timestamp_accessor_fields(def) {
+    for (accessor, field, date_field) in timestamp_accessor_fields(def) {
         writeln!(
             out,
-            "\n    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with"
+            "\n    /// Unix epoch milliseconds (UTC, DST-aware) combining `{date_field}` with"
         )
         .unwrap();
         writeln!(
             out,
-            "    /// `{field}` (Eastern-Time milliseconds-of-day). `None` when `date`"
+            "    /// `{field}` (Eastern-Time milliseconds-of-day). `None` when `{date_field}`"
         )
         .unwrap();
         writeln!(
@@ -567,7 +567,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         writeln!(out, "    fn {accessor}(&self) -> Option<i64> {{").unwrap();
         writeln!(
             out,
-            "        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.{field})"
+            "        thetadatadx::time::date_ms_to_epoch_ms(self.{date_field}, self.{field})"
         )
         .unwrap();
         out.push_str("    }\n");

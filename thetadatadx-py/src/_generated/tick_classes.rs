@@ -234,13 +234,13 @@ impl GreeksAllTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -374,13 +374,13 @@ impl GreeksEodTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -450,13 +450,13 @@ impl GreeksFirstOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -524,13 +524,13 @@ impl GreeksSecondOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -597,13 +597,13 @@ impl GreeksThirdOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -759,13 +759,13 @@ impl IvTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1153,13 +1153,13 @@ impl TradeGreeksAllTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1242,13 +1242,13 @@ impl TradeGreeksFirstOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1320,13 +1320,13 @@ impl TradeGreeksImpliedVolatilityTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1407,13 +1407,13 @@ impl TradeGreeksSecondOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1493,13 +1493,13 @@ impl TradeGreeksThirdOrderTick {
         thetadatadx::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
 
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
-    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
+    /// `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date`
     /// is absent (`0`). The raw integer fields stay primary; this is a
     /// convenience at the epoch boundary.
     #[getter]
     fn underlying_timestamp_ms(&self) -> Option<i64> {
-        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        thetadatadx::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
