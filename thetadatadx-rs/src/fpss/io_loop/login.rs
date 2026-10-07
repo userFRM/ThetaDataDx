@@ -578,7 +578,7 @@ mod tests {
     /// the payload) and then goes permanently silent must be cut off by the
     /// per-stall no-progress timeout — not held indefinitely. The reader
     /// blocks inside the payload read until `stall_timeout` elapses with zero
-    /// progress, then surfaces a fatal `ProtocolError`, which the handshake
+    /// progress, then surfaces a fatal `Timeout`, which the handshake
     /// propagates. This is the terminal's only mid-frame bound.
     #[test]
     fn wait_for_login_partial_frame_silence_hits_stall_timeout() {
@@ -599,8 +599,8 @@ mod tests {
         match result {
             Err(Error::Stream { kind, message }) => {
                 assert!(
-                    matches!(kind, crate::error::StreamErrorKind::ProtocolError),
-                    "a mid-frame silence must surface as a fatal protocol error, got {kind:?}"
+                    matches!(kind, crate::error::StreamErrorKind::Timeout),
+                    "a mid-frame silence must surface as a fatal timeout, got {kind:?}"
                 );
                 assert!(
                     message.contains("mid-payload") && message.contains("without progress"),

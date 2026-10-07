@@ -1137,9 +1137,21 @@ where
                         // Otherwise, fall through to drain commands.
                     }
                     Err(e) => {
-                        let (reason, cause) =
-                            client_drop(DisconnectCause::ReadFailed(io_error_kind(&e)));
-                        tracing::error!(error = %e, cause = ?cause, "FPSS read error");
+                        let (reason, cause) = client_drop(read_failure_cause(&e, read_timeout));
+                        // A peer that went silent part-way through a frame
+                        // is the read deadline expiring, not a broken
+                        // socket, so it reads like the other deadline path
+                        // rather than like an I/O failure.
+                        if matches!(cause, DisconnectCause::ReadTimeout(_)) {
+                            tracing::warn!(
+                                error = %e,
+                                cause = ?cause,
+                                timeout_ms = read_timeout_ms_total,
+                                "FPSS read timed out mid-frame (no progress inside the read deadline)",
+                            );
+                        } else {
+                            tracing::error!(error = %e, cause = ?cause, "FPSS read error");
+                        }
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
@@ -1406,7 +1418,7 @@ where
         // drop, so it cannot be re-read on a subsequent failed-redial cycle:
         // every redial that does not reach a fresh authenticated session
         // (dial failure, transient login rejection, replay write failure)
-        // loops back to the reconnect decision with `pending_reason` carried,
+        // loops back to the reconnect decision with `pending_drop` carried,
         // and a stale anchor whose `elapsed()` only grows would re-fire the
         // stable-window reset on each such cycle — re-zeroing the per-class
         // counter and the envelope anchor and so defeating both the attempt
@@ -2282,7 +2294,7 @@ fn is_read_timeout(e: &Error) -> bool {
     }
 }
 
-/// The I/O error kind a failed read or write reports to the user.
+/// The I/O error kind a failed write reports to the user.
 ///
 /// A framing failure is not always an I/O error: a truncated or
 /// malformed frame arrives as a protocol error with no kind of its own,
@@ -2292,6 +2304,32 @@ fn io_error_kind(e: &Error) -> ErrorKind {
     match e {
         Error::Io(io_err) => io_err.kind(),
         _ => ErrorKind::Other,
+    }
+}
+
+/// Where a failed frame read leaves the session.
+///
+/// A read deadline reaches this function by two different routes and
+/// both of them are the same event for a user. With nothing buffered,
+/// the socket's own slice timeout comes back as [`Error::Io`] and the
+/// caller's `is_read_timeout` arm handles it. With part of a frame
+/// buffered, the framing layer keeps retrying under its own stall clock
+/// and, once `read_timeout` passes with no byte of progress, reports
+/// `StreamErrorKind::Timeout`. That is the client's own deadline
+/// expiring, so it is [`DisconnectCause::ReadTimeout`] here too:
+/// classifying it as a read failure told an operator the socket broke
+/// when nothing had, and which of the two they saw depended only on
+/// whether a partial frame happened to be in the buffer.
+///
+/// The framing stall clock is armed with the same `read_timeout` the
+/// caller passes to the read, so that is the deadline reported.
+fn read_failure_cause(e: &Error, read_timeout: Duration) -> DisconnectCause {
+    match e {
+        Error::Stream {
+            kind: crate::error::StreamErrorKind::Timeout,
+            ..
+        } => DisconnectCause::ReadTimeout(read_timeout),
+        other => DisconnectCause::ReadFailed(io_error_kind(other)),
     }
 }
 
@@ -2577,6 +2615,79 @@ mod tests {
             "the server-restart counter advances on its own class, independent of the prior transient attempt"
         );
         assert_eq!(counters.server_restart, 1);
+    }
+
+    /// A read deadline that expires part-way through a frame is the same
+    /// event, for a user, as one that expires with nothing buffered: the
+    /// peer went silent for longer than the client was willing to wait.
+    /// It used to depend on whether a partial frame happened to sit in
+    /// the buffer. With nothing buffered the socket's slice timeout
+    /// arrives as `Error::Io` and the session reported `ReadTimeout` with
+    /// the deadline; with part of a frame buffered the framing stall
+    /// clock fired instead and the session reported `ReadFailed(Other)`
+    /// with no deadline at all, pointing an operator at a socket error
+    /// that had not happened.
+    ///
+    /// Drives the real framing reader to a real stall rather than
+    /// hand-building the error, so the test fails if either the framing
+    /// layer stops reporting the stall distinguishably or the classifier
+    /// stops reading it.
+    #[test]
+    fn a_stall_part_way_through_a_frame_is_classified_as_the_read_deadline() {
+        /// Hands over `prefix`, then stalls for ever.
+        struct StallsAfter {
+            prefix: Vec<u8>,
+            pos: usize,
+        }
+        impl std::io::Read for StallsAfter {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                if self.pos < self.prefix.len() && !buf.is_empty() {
+                    buf[0] = self.prefix[self.pos];
+                    self.pos += 1;
+                    return Ok(1);
+                }
+                Err(std::io::Error::new(ErrorKind::WouldBlock, "silent peer"))
+            }
+        }
+
+        let read_timeout = Duration::from_millis(40);
+        // One header byte, then silence: the framing layer holds a
+        // partial frame and only the stall clock can end the read.
+        let mut reader = BufReader::new(StallsAfter {
+            prefix: vec![0x04],
+            pos: 0,
+        });
+        let mut frame_buf: Vec<u8> = Vec::with_capacity(framing::MAX_PAYLOAD_LEN);
+        let Err(err) =
+            read_frame_into_with_stall_timeout(&mut reader, &mut frame_buf, read_timeout)
+        else {
+            panic!("a permanently silent peer mid-frame must end the read");
+        };
+
+        let (reason, cause) = client_drop(read_failure_cause(&err, read_timeout));
+        assert_eq!(
+            cause,
+            DisconnectCause::ReadTimeout(read_timeout),
+            "a mid-frame stall is the client read deadline, not a socket failure: got {cause:?} from {err}"
+        );
+        assert_eq!(
+            cause.read_timeout_ms(),
+            40,
+            "the deadline that expired must reach the event"
+        );
+        assert_eq!(
+            reason,
+            RemoveReason::TimedOut,
+            "it must report the same reason as a deadline that expires with nothing buffered"
+        );
+
+        // A genuine socket failure still reports the kind it failed with,
+        // so the fix does not swallow real I/O errors into the timeout.
+        let broken = Error::Io(std::io::Error::new(ErrorKind::ConnectionReset, "reset"));
+        assert_eq!(
+            read_failure_cause(&broken, read_timeout),
+            DisconnectCause::ReadFailed(ErrorKind::ConnectionReset),
+        );
     }
 
     /// A decoded in-session DISCONNECTED frame must hand its server-supplied
