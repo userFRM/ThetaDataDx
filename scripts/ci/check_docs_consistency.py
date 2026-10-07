@@ -33,6 +33,7 @@ the workspace root from its own path so `cd` is not required.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 import re
 import subprocess
@@ -61,16 +62,12 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 
-# The pinned snapshot of the vendor's own v3 spec, the source of truth for
-# which option endpoints accept `expiration=*`. Upstream models the two cases
-# as separate components (`expiration` / `expiration_no_star`) and the Rust
-# generator already derives `supports_expiration_wildcard` per endpoint from
-# this file for the live validator's wildcard cells
-# (`thetadatadx-rs/build_support_bin/upstream_openapi.rs`). Our published
-# contract makes the same distinction by hand, with one anchor per case, so
-# the gate derives the expected answer from the same snapshot rather than
-# trusting 30-odd hand-written choices to stay right.
-UPSTREAM_OPENAPI_YAML = ROOT / "scripts/ci/data/upstream_openapi.yaml"
+# The chain-wide note the docs generator renders onto an `expiration` row when
+# the vendor's pinned spec says that endpoint accepts the wildcard
+# (`EXPIRATION_WILDCARD_NOTE` in `docs_render/page.rs`). Our published contract
+# makes the same distinction with one parameter anchor per case, so the gate
+# reads the generator's answer rather than deriving its own.
+EXPIRATION_WILDCARD_NOTE = "Pass `*` to select all expirations for the underlying"
 
 # The Rust source that is the single source of truth for the flat-file served
 # matrix: the `(SecType, ReqType)` pairs the distribution serves
@@ -246,20 +243,24 @@ GLOBAL_REQUEST_OPTIONS = {opt["name"] for opt in SURFACE.get("request_options_gl
 ALL_OPTION_FIELDS = BUILDER_PARAMS | GLOBAL_REQUEST_OPTIONS
 
 
-def endpoint_kind(endpoint: dict) -> str:
-    kind = endpoint.get("kind")
+def endpoint_attr(endpoint: dict, key: str) -> str | None:
+    """An endpoint attribute, resolved up its `[templates.*]` chain.
+
+    `endpoint_surface.toml` is validated by the build, which rejects an unknown
+    template and any cycle among them, so the walk only has to follow what is
+    there.
+    """
+    value = endpoint.get(key)
     template_name = endpoint.get("template")
-    seen: set[str] = set()
-    while kind is None and template_name is not None:
-        if template_name in seen:
-            fail(f"template cycle while resolving kind for endpoint {endpoint['name']}")
-        seen.add(template_name)
-        template = TEMPLATES.get(template_name)
-        if template is None:
-            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
-        kind = template.get("kind")
+    while value is None and template_name is not None:
+        template = TEMPLATES[template_name]
+        value = template.get(key)
         template_name = template.get("extends")
-    return kind or "parsed"
+    return value
+
+
+def endpoint_kind(endpoint: dict) -> str:
+    return endpoint_attr(endpoint, "kind") or "parsed"
 
 
 REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
@@ -1040,82 +1041,67 @@ def _enum_values(block: str) -> list[str]:
     return [v.strip().strip("'\"") for v in m.group(1).split(",") if v.strip()]
 
 
-def _expand_param_group(params: list[dict], chain: tuple[str, ...] = ()) -> list[dict]:
+def _expand_param_group(params: list[dict]) -> list[dict]:
     """Flatten `[[...params]]` rows, resolving every `use = "<group>"` row.
 
     A row either declares a param inline (`name = ...`) or references a
     reusable `[param_groups.*]` entry, which may itself reference further
-    groups. `chain` is the resolution path, so a group that references itself
-    fails by name instead of recursing until the interpreter gives up.
+    groups. The build rejects an unknown group and any cycle among them.
     """
     out: list[dict] = []
     for param in params:
         group_name = param.get("use")
         if group_name is None:
             out.append(param)
-            continue
-        if group_name in chain:
+        else:
+            out.extend(_expand_param_group(SURFACE["param_groups"][group_name]["params"]))
+    return out
+
+
+def endpoint_params(endpoint: dict) -> list[dict]:
+    """Every parameter an endpoint declares, its template chain first."""
+    chain: list[dict] = []
+    template_name = endpoint.get("template")
+    while template_name is not None:
+        template = TEMPLATES[template_name]
+        chain.insert(0, template)
+        template_name = template.get("extends")
+    params = [p for template in chain for p in _expand_param_group(template.get("params", []))]
+    return params + _expand_param_group(endpoint.get("params", []))
+
+
+def registry_routes(value: Callable[[dict], object]) -> dict:
+    """`{documented path: value(endpoint)}` for every route the registry owns.
+
+    A server-only path alias is a second spelling of one endpoint, served by
+    the same code, so it carries that endpoint's value.
+    """
+    by_name = {ep["name"]: value(ep) for ep in REGISTRY_ENDPOINTS}
+    routes = {ep["rest_path"]: by_name[ep["name"]] for ep in REGISTRY_ENDPOINTS}
+    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
+        if endpoint_name not in by_name:
             fail(
-                "endpoint_surface.toml param_group cycle: "
-                + " -> ".join((*chain, group_name))
+                f"OPENAPI_ALIAS_ENDPOINTS maps {alias} to {endpoint_name!r}, which is "
+                f"not a registry endpoint"
             )
-        group = SURFACE["param_groups"].get(group_name)
-        if group is None:
-            fail(f"endpoint_surface.toml references unknown param group {group_name!r}")
-        out.extend(_expand_param_group(group.get("params", []), (*chain, group_name)))
-    return out
-
-
-def _template_params(name: str, chain: tuple[str, ...] = ()) -> list[dict]:
-    """The params a `[templates.<name>]` contributes, base template first."""
-    if name in chain:
-        fail("endpoint_surface.toml template cycle: " + " -> ".join((*chain, name)))
-    template = TEMPLATES.get(name)
-    if template is None:
-        fail(f"endpoint_surface.toml references unknown template {name!r}")
-    out: list[dict] = []
-    base = template.get("extends")
-    if base is not None:
-        out.extend(_template_params(base, (*chain, name)))
-    out.extend(_expand_param_group(template.get("params", [])))
-    return out
+        routes[alias] = by_name[endpoint_name]
+    return routes
 
 
 def registry_route_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
     """`{rest_path: {param: (required, default)}}` for every registry route.
 
     The registry is the surface the SDK and `tools/server` actually implement,
-    so it is what the published contract has to agree with. Params come from
-    the endpoint's template chain plus its own inline rows, both resolved
-    through `[param_groups.*]`; a default is the registry literal verbatim
-    (`"*"`, `"1s"`, `"true"`), which is how the OpenAPI scalar reads too.
-
-    The server-only path aliases in `OPENAPI_ALIAS_ENDPOINTS` resolve to the
-    row of the endpoint they dispatch to.
+    so it is what the published contract has to agree with. A default is the
+    registry literal verbatim (`"*"`, `"1s"`, `"true"`), which is how the
+    OpenAPI scalar reads too.
     """
-    resolved: dict[str, dict[str, tuple[bool, str | None]]] = {}
-    by_name: dict[str, dict[str, tuple[bool, str | None]]] = {}
-    for endpoint in REGISTRY_ENDPOINTS:
-        params: list[dict] = []
-        template_name = endpoint.get("template")
-        if template_name is not None:
-            params.extend(_template_params(template_name))
-        params.extend(_expand_param_group(endpoint.get("params", [])))
-        row = {
+    return registry_routes(
+        lambda endpoint: {
             param["name"]: (bool(param.get("required", False)), param.get("default"))
-            for param in params
+            for param in endpoint_params(endpoint)
         }
-        resolved[endpoint["rest_path"]] = row
-        by_name[endpoint["name"]] = row
-    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
-        row = by_name.get(endpoint_name)
-        if row is None:
-            fail(
-                f"OPENAPI_ALIAS_ENDPOINTS maps {alias} to {endpoint_name!r}, which is "
-                f"not a registry endpoint"
-            )
-        resolved[alias] = row
-    return resolved
+    )
 
 
 # An `x-anchors` entry: `  <key>: &<anchor>` at the block's own indentation.
@@ -1279,44 +1265,35 @@ def registry_route_endpoint_names() -> dict[str, str]:
     resolve to the endpoint they dispatch to, so both spellings of one endpoint
     answer to the same upstream row.
     """
-    names = {ep["rest_path"]: ep["name"] for ep in REGISTRY_ENDPOINTS}
-    names.update(OPENAPI_ALIAS_ENDPOINTS)
-    return names
+    return registry_routes(lambda endpoint: endpoint["name"])
 
 
-def upstream_expiration_wildcard() -> dict[str, bool]:
-    """`{endpoint name: accepts `expiration=*`}` from the pinned vendor spec.
+def reference_page_expiration_wildcard() -> dict[str, bool]:
+    """`{endpoint name: accepts `expiration=*`}`, read off the generated pages.
 
-    Upstream references one of two parameter components per operation:
-    `expiration` accepts the wildcard, `expiration_no_star` rejects it. Only
-    operations that reference one of them get an entry, so an endpoint that
-    takes no expiration at all is simply absent.
+    The docs generator derives this per endpoint from the pinned vendor spec and
+    renders the chain-wide note onto the `expiration` row of the reference page
+    it writes, and the generator holds those pages to its own output byte for
+    byte. Reading the rendered answer leaves one parser of that spec instead of
+    a second one here, which had no reason to agree with the first and did not:
+    it counted commented-out parameter blocks as live ones.
 
-    An empty result means the snapshot was refreshed into a shape this parser
-    does not recognise (upstream renamed the components, or restructured the
-    parameter blocks), which must fail loudly rather than silently excuse every
-    route. The Rust derivation fails closed on the same condition.
+    An endpoint with no `expiration` row gets no entry. If the generator's note
+    is ever reworded, every option route reads as wildcard-rejecting and the
+    check below fails on the first one rather than passing quietly.
     """
-    text = UPSTREAM_OPENAPI_YAML.read_text()
     wildcard: dict[str, bool] = {}
-    operation: str | None = None
-    for line in text.splitlines():
-        match = re.match(r"^\s+operationId:\s*(\S+)\s*$", line)
-        if match:
-            operation = match.group(1)
-            continue
-        if operation is None:
-            continue
-        if "parameters/expiration_no_star" in line:
-            wildcard[operation] = False
-        elif re.search(r'parameters/expiration"?\'?\s*$', line):
-            wildcard[operation] = True
-    if not wildcard:
-        fail(
-            f"{rel(UPSTREAM_OPENAPI_YAML)} yielded no expiration component "
-            f"references, so the wildcard rule could not be derived for any "
-            f"endpoint. Upstream changed the spec's shape; update this parser."
+    for endpoint in REGISTRY_ENDPOINTS:
+        row = next(
+            (
+                line
+                for line in endpoint_page_path(endpoint).read_text().splitlines()
+                if line.startswith("| `expiration` |")
+            ),
+            None,
         )
+        if row is not None:
+            wildcard[endpoint["name"]] = EXPIRATION_WILDCARD_NOTE in row
     return wildcard
 
 
@@ -1335,7 +1312,7 @@ def check_openapi_expiration_wildcard() -> None:
     a future pattern spells the wildcard.
     """
     endpoint_names = registry_route_endpoint_names()
-    wildcard = upstream_expiration_wildcard()
+    wildcard = reference_page_expiration_wildcard()
     documented = openapi_route_params(OPENAPI_YAML.read_text(), set(endpoint_names))
     checked = 0
     for path, params in sorted(documented.items()):
@@ -1345,9 +1322,9 @@ def check_openapi_expiration_wildcard() -> None:
         name = endpoint_names[path]
         if name not in wildcard:
             fail(
-                f"{rel(OPENAPI_YAML)} {path} documents an `expiration`, but "
-                f"{rel(UPSTREAM_OPENAPI_YAML)} records no expiration component "
-                f"for {name}, so the wildcard rule cannot be verified"
+                f"{rel(OPENAPI_YAML)} {path} documents an `expiration`, but the "
+                f"generated reference page for {name} carries no `expiration` row, "
+                f"so the wildcard rule cannot be verified"
             )
         pattern = expiration[2]
         if pattern is None:
@@ -1368,7 +1345,7 @@ def check_openapi_expiration_wildcard() -> None:
             ours = "accepts" if allows_wildcard else "rejects"
             fail(
                 f"{rel(OPENAPI_YAML)} {path} documents an `expiration` that "
-                f"{ours} the `*` wildcard, but {rel(UPSTREAM_OPENAPI_YAML)} says "
+                f"{ours} the `*` wildcard, but the generated reference page says "
                 f"{name} {upstream} it. Alias the matching expiration anchor."
             )
     if checked == 0:
@@ -1392,21 +1369,6 @@ OPENAPI_EXAMPLE_OPTIONALS = ("strike", "right", "interval")
 OPENAPI_EXAMPLE_LANGS = (("rust", "Rust"), ("python", "Python"), ("cpp", "C++"))
 
 
-def _endpoint_attr(endpoint: dict, key: str) -> str | None:
-    """An endpoint attribute, resolved through its template chain."""
-    value = endpoint.get(key)
-    template_name = endpoint.get("template")
-    seen: set[str] = set()
-    while value is None and template_name is not None and template_name not in seen:
-        seen.add(template_name)
-        template = TEMPLATES.get(template_name)
-        if template is None:
-            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
-        value = template.get(key)
-        template_name = template.get("extends")
-    return value
-
-
 def _example_value(endpoint: dict, param: dict) -> str:
     """The literal an example passes for `param`, from `[test_fixtures]`.
 
@@ -1424,7 +1386,7 @@ def _example_value(endpoint: dict, param: dict) -> str:
     if override is not None:
         return override
     if param_type in ("Symbol", "Symbols"):
-        category = _endpoint_attr(endpoint, "category")
+        category = endpoint_attr(endpoint, "category")
         symbol = fixtures.get("category_symbol", {}).get(category)
         if symbol is None:
             fail(
@@ -1451,7 +1413,7 @@ def _example_variable(endpoint: dict) -> str:
     list_column = endpoint.get("list_column")
     if list_column is not None:
         return f"{list_column}s"
-    returns = _endpoint_attr(endpoint, "returns")
+    returns = endpoint_attr(endpoint, "returns")
     if returns is None:
         fail(f"endpoint {endpoint['name']} declares no return type to name a variable after")
     out: list[str] = []
@@ -1516,59 +1478,49 @@ def render_openapi_examples() -> dict[str, str]:
     builder chain, Python keyword arguments, and a C++ `EndpointRequestOptions`
     with fluent setters.
     """
-    blocks: dict[str, str] = {}
-    by_name: dict[str, str] = {}
-    for endpoint in REGISTRY_ENDPOINTS:
-        params: list[dict] = []
-        template_name = endpoint.get("template")
-        if template_name is not None:
-            params.extend(_template_params(template_name))
-        params.extend(_expand_param_group(endpoint.get("params", [])))
-        required = [p for p in params if p.get("binding") == "method"]
-        optional = _example_optionals(params)
-        name = endpoint["name"]
-        variable = _example_variable(endpoint)
-        lines = ["      x-code-examples:"]
-        for lang, label in OPENAPI_EXAMPLE_LANGS:
-            args = ", ".join(
-                _example_literal(p, _example_value(endpoint, p), lang) for p in required
+    return registry_routes(_render_example_block)
+
+
+def _render_example_block(endpoint: dict) -> str:
+    """One route's `x-code-examples` block, one snippet per language."""
+    params = endpoint_params(endpoint)
+    required = [p for p in params if p.get("binding") == "method"]
+    optional = _example_optionals(params)
+    name = endpoint["name"]
+    variable = _example_variable(endpoint)
+    lines = ["      x-code-examples:"]
+    for lang, label in OPENAPI_EXAMPLE_LANGS:
+        args = ", ".join(
+            _example_literal(p, _example_value(endpoint, p), lang) for p in required
+        )
+        if lang == "rust":
+            chain = "".join(
+                f'.{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                for p in optional
             )
-            if lang == "rust":
-                chain = "".join(
-                    f'.{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
-                    for p in optional
-                )
-                call = f"let {variable} = client.market_data().{name}({args}){chain}.await?;"
-            elif lang == "python":
-                kwargs = "".join(
-                    f', {p["name"]}={_example_literal(p, _example_value(endpoint, p), lang)}'
-                    for p in optional
-                )
-                call = f"{variable} = client.market_data.{name}({args}{kwargs})"
-            else:
-                setters = "".join(
-                    f'.with_{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
-                    for p in optional
-                )
-                options = (
-                    f", thetadatadx::EndpointRequestOptions{{}}{setters}" if setters else ""
-                )
-                call = f"auto {variable} = client.market_data().{name}({args}{options});"
-            lines += [
-                f"        - lang: {lang}",
-                f"          label: {label}",
-                "          source: |",
-                f"            {call}",
-            ]
-        block = "\n".join(lines) + "\n"
-        blocks[endpoint["rest_path"]] = block
-        by_name[name] = block
-    # A server-only path alias is a second spelling of one endpoint, served by
-    # the same code through the same SDK method, so it carries that endpoint's
-    # example.
-    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
-        blocks[alias] = by_name[endpoint_name]
-    return blocks
+            call = f"let {variable} = client.market_data().{name}({args}){chain}.await?;"
+        elif lang == "python":
+            kwargs = "".join(
+                f', {p["name"]}={_example_literal(p, _example_value(endpoint, p), lang)}'
+                for p in optional
+            )
+            call = f"{variable} = client.market_data.{name}({args}{kwargs})"
+        else:
+            setters = "".join(
+                f'.with_{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                for p in optional
+            )
+            options = (
+                f", thetadatadx::EndpointRequestOptions{{}}{setters}" if setters else ""
+            )
+            call = f"auto {variable} = client.market_data().{name}({args}{options});"
+        lines += [
+            f"        - lang: {lang}",
+            f"          label: {label}",
+            "          source: |",
+            f"            {call}",
+        ]
+    return "\n".join(lines) + "\n"
 
 
 def _openapi_example_blocks(text: str) -> dict[str, tuple[str, int, int]]:
@@ -1625,26 +1577,21 @@ def check_openapi_examples(write: bool = False) -> None:
         OPENAPI_YAML.write_text(text)
         print(f"openapi examples: rewrote {rel(OPENAPI_YAML)}")
         return
-    checked = 0
     for path, want in sorted(expected.items()):
         entry = documented.get(path)
         if entry is None:
             fail(
                 f"{rel(OPENAPI_YAML)} {path} carries no `x-code-examples`, so the "
-                f"route publishes no runnable call. Run with --write-examples."
+                f"route publishes no runnable call. Add the key to the route; "
+                f"--write-examples fills in a block that is there and wrong, not "
+                f"one that is missing."
             )
-        checked += 1
         if entry[0] != want:
             fail(
                 f"{rel(OPENAPI_YAML)} {path} `x-code-examples` is not what the "
                 f"registry renders. Run with --write-examples.\n"
                 f"--- documented ---\n{entry[0]}--- registry ---\n{want}"
             )
-    if checked == 0:
-        fail(
-            f"{rel(OPENAPI_YAML)} parsed to no `x-code-examples` blocks (the "
-            f"spec's layout changed: the gate would be blind to example drift)"
-        )
 
 
 def check_flatfile_matrix() -> None:
