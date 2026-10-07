@@ -1,6 +1,6 @@
 ---
 title: Flat Files
-description: Whole-universe daily archives: every contract for a date in one call.
+description: "Whole-universe daily archives: every contract for a date in one call."
 ---
 
 # Flat Files
