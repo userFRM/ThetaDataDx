@@ -50,7 +50,7 @@ describe('endpoint options objects', () => {
 });
 
 describe('market-data methods resolve off the execution thread', () => {
-  // The 60 buffered data-fetch methods declared on the `client.marketData`
+  // The buffered data-fetch methods declared on the `client.marketData`
   // `MarketDataView` sub-namespace. Each runs the network round-trip on a
   // worker and resolves a Promise with the full typed row array, so a
   // fetch never holds the Node event loop. Element types are unchanged —
@@ -91,6 +91,7 @@ describe('market-data methods resolve off the execution thread', () => {
     .filter((line) => familyRe.test(line) && !/Stream\(/.test(line) && !/WithColumns\(/.test(line));
 
   it('every data-fetch method returns a Promise', () => {
+    assert.ok(methodLines.length > 0, 'no data-fetch method matched: the declaration layout changed');
     for (const line of methodLines) {
       assert.match(
         line,
