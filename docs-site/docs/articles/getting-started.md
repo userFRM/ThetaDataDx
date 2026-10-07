@@ -16,7 +16,7 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx-rs = "0.5.1"
+thetadatadx-rs = "0.6.0"
 ```
 
 The market-data client is async; call it from your application's async runtime.
