@@ -48,8 +48,8 @@ use thetadatadx::mdds::MarketDataClient;
 use thetadatadx::wire as proto;
 use thetadatadx::DirectConfig;
 
-#[path = "grpc_mock_server.rs"]
-mod mock;
+#[path = "common/grpc_mock.rs"]
+pub mod mock;
 
 #[path = "common/capture_loader.rs"]
 mod capture_loader;

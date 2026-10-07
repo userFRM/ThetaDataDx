@@ -62,6 +62,10 @@ CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
         ),
     ),
     ("Reconnected", ()),
+    (
+        "ReconnectsExhausted",
+        ("reason", "cause", "cause_io_error_kind", "cause_timeout_ms", "attempts"),
+    ),
     ("ParseError", ("message",)),
     ("UnknownFrame", ("code", "payload")),
     ("Connected", ()),
@@ -112,6 +116,7 @@ def test_kind_getter_per_variant(thetadatadx_mod):
         "Disconnected": "disconnected",
         "Reconnecting": "reconnecting",
         "Reconnected": "reconnected",
+        "ReconnectsExhausted": "reconnects_exhausted",
         "ParseError": "parse_error",
         "UnknownFrame": "unknown_frame",
         "Connected": "connected",

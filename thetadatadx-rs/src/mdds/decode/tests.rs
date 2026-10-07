@@ -936,6 +936,14 @@ fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases(
         t.underlying_date, 20_260_401,
         "underlying_date must come from `underlying_timestamp`, not from `date`"
     );
+    // The epoch accessor composes that pair, so it hands back the very instant
+    // the vendor sent. Pairing the underlying's time of day with the row's
+    // `date` instead returns the same clock time a session early.
+    assert_eq!(
+        t.underlying_timestamp_ms(),
+        Some(1_775_050_200_000),
+        "underlying_timestamp_ms must combine `underlying_date`, not `date`"
+    );
 }
 
 #[test]

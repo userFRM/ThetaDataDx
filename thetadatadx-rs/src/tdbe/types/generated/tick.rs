@@ -214,14 +214,14 @@ impl GreeksAllTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -361,14 +361,14 @@ impl GreeksEodTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -428,14 +428,14 @@ impl GreeksFirstOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -493,14 +493,14 @@ impl GreeksSecondOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -557,14 +557,14 @@ impl GreeksThirdOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -713,14 +713,14 @@ impl IvTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1081,14 +1081,14 @@ impl TradeGreeksAllTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1185,14 +1185,14 @@ impl TradeGreeksFirstOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1278,14 +1278,14 @@ impl TradeGreeksImpliedVolatilityTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1380,14 +1380,14 @@ impl TradeGreeksSecondOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
@@ -1481,14 +1481,14 @@ impl TradeGreeksThirdOrderTick {
     pub fn timestamp_ms(&self) -> Option<i64> {
         crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.ms_of_day)
     }
-    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date`
     /// with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
-    /// `None` when `date` is absent (`0`) or `underlying_ms_of_day` is outside
+    /// `None` when `underlying_date` is absent (`0`) or `underlying_ms_of_day` is outside
     /// the milliseconds-of-day domain. The raw integer fields stay
     /// primary; this accessor is a convenience at the epoch boundary.
     #[must_use]
     pub fn underlying_timestamp_ms(&self) -> Option<i64> {
-        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.underlying_ms_of_day)
+        crate::tdbe::time::date_ms_to_epoch_ms(self.underlying_date, self.underlying_ms_of_day)
     }
 }
 
