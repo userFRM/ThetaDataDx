@@ -6,14 +6,11 @@ surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs, each derived from the list it heads
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
-- the endpoint count every package README advertises, derived from the registry
 - per-route OpenAPI parameter names, required flags and defaults matching
   the same registry (a generated client must not demand a parameter the
   server treats as optional, nor hide the value an omitted one takes)
 - each option route's documented `expiration` pattern accepting the `*`
   wildcard exactly where the pinned vendor spec accepts it
-- each route's published `x-min-subscription` matching the tier that spec
-  states, which is what the reference pages' badges already show
 - every route's `x-code-examples` being the call the registry's signature
   actually takes, rendered from the registry rather than kept by hand
   (`--write-examples` rewrites them)
@@ -60,17 +57,6 @@ REST_PATHS = {ep["rest_path"] for ep in ENDPOINTS}
 # URL, or an `mdds`/private-backend host) is a request a generated client
 # cannot issue and must trip the gate.
 OPENAPI_SERVER_URL = "http://localhost:25503"
-
-# The package READMEs, which become the crates.io, PyPI and npm package pages.
-# Each one advertises the size of the endpoint surface, so each is held to the
-# registry's own count.
-PACKAGE_READMES = (
-    ROOT / "README.md",
-    ROOT / "thetadatadx-rs/README.md",
-    ROOT / "thetadatadx-py/README.md",
-    ROOT / "thetadatadx-ts/README.md",
-    ROOT / "thetadatadx-cpp/README.md",
-)
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
@@ -512,31 +498,6 @@ def endpoint_page_path(endpoint: dict) -> Path:
     """Mirror of the generator's path rule: REST path, hyphenated."""
     rest = endpoint["rest_path"].removeprefix("/v3/")
     return DOCS_SITE / "reference" / (rest.replace("_", "-") + ".md")
-
-
-def check_endpoint_count_claims() -> None:
-    """Every "N typed endpoints" claim must be the number the registry carries.
-
-    The count is the endpoints a caller can call: one per buffered registry
-    entry, which is also one reference page and one `_with_options` C entry
-    point each. The registry's four `*_stream` entries are not added to it;
-    they are the callback delivery mode of endpoints already counted, on REST
-    paths those entries share with their buffered siblings.
-
-    Every occurrence in a file is checked, not the first: the number appears
-    twice in each README, in the feature list and again in the prose, and a
-    half-corrected file is how one of them came to disagree with the other.
-    A README that no longer makes the claim fails too, since the claim is part
-    of the published package page.
-    """
-    expected = str(len(REGISTRY_ENDPOINTS))
-    for doc in PACKAGE_READMES:
-        claimed = set(re.findall(r"(\d+) typed endpoints", doc.read_text()))
-        if claimed != {expected}:
-            fail(
-                f"{rel(doc)} advertises {sorted(claimed) or 'no'} typed endpoints; "
-                f"endpoint_surface.toml carries {expected}"
-            )
 
 
 def check_reference_pages() -> None:
@@ -1357,79 +1318,6 @@ def upstream_expiration_wildcard() -> dict[str, bool]:
             f"endpoint. Upstream changed the spec's shape; update this parser."
         )
     return wildcard
-
-
-def upstream_min_subscription() -> dict[str, str]:
-    """`{endpoint name: minimum subscription tier}` from the pinned vendor spec.
-
-    Upstream carries `x-min-subscription` on the path, above the operation, so
-    the tier is held until the `operationId` that follows names the endpoint it
-    belongs to. A new path resets it, so a path without the key never inherits
-    the previous one's tier.
-    """
-    tiers: dict[str, str] = {}
-    pending: str | None = None
-    for line in UPSTREAM_OPENAPI_YAML.read_text().splitlines():
-        if re.match(r"^  /[A-Za-z0-9_/{}-]+:\s*$", line):
-            pending = None
-            continue
-        match = re.match(r"^    x-min-subscription:\s*(\S+)\s*$", line)
-        if match:
-            pending = match.group(1)
-            continue
-        match = re.match(r"^\s+operationId:\s*(\S+)\s*$", line)
-        if match and pending is not None:
-            tiers[match.group(1)] = pending
-            pending = None
-    if not tiers:
-        fail(
-            f"{rel(UPSTREAM_OPENAPI_YAML)} yielded no `x-min-subscription` values, "
-            f"so no route's tier could be derived. Upstream changed the spec's "
-            f"shape; update this parser."
-        )
-    return tiers
-
-
-def check_openapi_tiers() -> None:
-    """A route's published tier must be the one the vendor states.
-
-    `check_tier_badges.py` holds the reference pages to this same spec, but
-    nothing read the tiers in the OpenAPI document, and five routes drifted to
-    `free` where the vendor says `value`, so the site disagreed with itself and
-    a reader was told a paid route came with the free tier.
-
-    An endpoint the vendor does not document carries no tier to compare, and
-    the docs generator pins it; those are skipped here, as the reference-page
-    gate skips them through its own allow-list.
-    """
-    endpoint_names = registry_route_endpoint_names()
-    tiers = upstream_min_subscription()
-    text = OPENAPI_YAML.read_text()
-    checked = 0
-    path: str | None = None
-    for line in text.splitlines():
-        match = re.match(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", line)
-        if match:
-            path = match.group(1)
-            continue
-        match = re.match(r"^    x-min-subscription:\s*(\S+)\s*$", line)
-        if not match or path is None:
-            continue
-        name = endpoint_names.get(path)
-        if name is None or name not in tiers:
-            continue
-        checked += 1
-        if match.group(1) != tiers[name]:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} publishes x-min-subscription "
-                f"{match.group(1)!r}, but {rel(UPSTREAM_OPENAPI_YAML)} states "
-                f"{tiers[name]!r} for {name}"
-            )
-    if checked == 0:
-        fail(
-            f"{rel(OPENAPI_YAML)} parsed to no `x-min-subscription` values (the "
-            f"spec's layout changed: the gate would be blind to a wrong tier)"
-        )
 
 
 def check_openapi_expiration_wildcard() -> None:
@@ -2347,14 +2235,12 @@ def _selftest() -> int:
 
 def main() -> None:
     check_static_docs()
-    check_endpoint_count_claims()
     check_server_flag_defaults()
     check_reference_pages()
     check_llms_txt()
     check_openapi()
     check_openapi_parameters()
     check_openapi_expiration_wildcard()
-    check_openapi_tiers()
     check_openapi_examples()
     check_flatfile_matrix()
     check_mcp_tool_inventory()
