@@ -50,8 +50,10 @@
 //! - Per-stream `RST_STREAM` (any reason code) surfaces as
 //!   [`ChannelError::H2Stream`]; the connection itself is healthy and
 //!   the next RPC on the same channel can succeed.
-//! - A per-call deadline surfaces as [`ChannelError::DeadlineExceeded`]
-//!   whether it fires during the open phase or mid-stream.
+//! A per-call deadline is not this module's business: `crate::mdds`
+//! wraps a whole dispatch in one timeout and reports `Error::Timeout`,
+//! and dropping the stream sends RST_STREAM so the server releases its
+//! side.
 
 // Sub-modules carry transport infrastructure consumed only by the
 // crate itself and by `__test-helpers`-gated integration tests + benches.

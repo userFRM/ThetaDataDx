@@ -32,12 +32,16 @@
 //! giving up, so a client whose requests all time out during an outage
 //! still dials the moment the service is back.
 //!
-//! Waiters are not served in order. Each one sleeps until the due
-//! instant and takes the slot if it is still there, so a caller can be
-//! overtaken by one that arrived later and waits another interval. Every
-//! waiter is a connection about to be opened and any order opens them at
-//! the same rate, so the arithmetic that matters is unaffected and the
-//! wait stays bounded by the number of connections being opened at once.
+//! Waiters are unordered, and an individual wait is not bounded. Each
+//! waiter sleeps until the due instant and takes the slot if it is still
+//! there, and the runtime decides which woken waiter runs first, so a
+//! waiter can be overtaken by one that arrived later and can go on
+//! losing for as long as connections are being opened faster than one
+//! per interval. What holds is the rate and the horizon: no 2-second
+//! window exceeds 12 connections, and the due instant never runs more
+//! than one interval ahead of the present. Nothing here depends on which
+//! waiter goes first, every one of them being a connection about to be
+//! opened, so they are left unordered rather than ticketed.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex, PoisonError};

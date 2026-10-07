@@ -180,14 +180,6 @@ pub enum ChannelError {
         /// The parsed status returned by the server.
         status: Status,
     },
-    /// The per-call deadline elapsed before the RPC completed. The
-    /// underlying h2 stream is dropped when this error surfaces,
-    /// sending RST_STREAM to the server.
-    #[error("rpc deadline {duration_ms}ms elapsed")]
-    DeadlineExceeded {
-        /// The deadline (in milliseconds) the caller supplied.
-        duration_ms: u64,
-    },
     /// Connection-level death — the HTTP/2 connection that carried (or
     /// was about to carry) this RPC is no longer usable. Covers
     /// `GOAWAY` in either direction, IO failure at the transport
@@ -528,6 +520,13 @@ impl Channel {
     ///
     /// Returns a [`ChannelError`] when the request cannot be built or
     /// the RPC fails to open.
+    ///
+    /// A request carries no deadline of its own. The caller's deadline is
+    /// applied a layer up, where `crate::mdds::macros` wraps the whole
+    /// dispatch (this open phase, the response stream and any retry) in
+    /// one `tokio::time::timeout` and surfaces `Error::Timeout`. Dropping
+    /// the returned stream on expiry sends RST_STREAM, so the server
+    /// releases its side either way.
     pub async fn server_streaming<Req, Resp>(
         &self,
         method: &'static str,
@@ -537,55 +536,6 @@ impl Channel {
         Req: prost::Message + Send + Sync + 'static,
         Resp: prost::Message + Default + Send + Sync + 'static,
     {
-        self.server_streaming_inner(method, req, None).await
-    }
-
-    /// Same as [`Self::server_streaming`] with a per-call deadline.
-    ///
-    /// The deadline covers the entire RPC: opening the stream,
-    /// sending the request, receiving every response frame, and the
-    /// trailers. It is advertised to the server via the `grpc-timeout`
-    /// request header and enforced locally; on elapse the underlying
-    /// h2 stream is dropped (sending RST_STREAM to the server) and
-    /// [`ChannelError::DeadlineExceeded`] surfaces — directly from
-    /// this call if the open phase blew the deadline, or on the next
-    /// poll of the returned stream otherwise.
-    ///
-    /// # Errors
-    ///
-    /// Same as [`Self::server_streaming`], plus
-    /// [`ChannelError::DeadlineExceeded`].
-    ///
-    /// Reachable only under `__test-helpers` — production deadlines are
-    /// handled at the `MarketDataClient` layer via `tokio::time::timeout`
-    /// around the streaming consumer.
-    #[cfg(feature = "__test-helpers")]
-    pub async fn server_streaming_with_deadline<Req, Resp>(
-        &self,
-        method: &'static str,
-        req: Req,
-        deadline: Duration,
-    ) -> Result<ServerStreaming<Resp>, ChannelError>
-    where
-        Req: prost::Message + Send + Sync + 'static,
-        Resp: prost::Message + Default + Send + Sync + 'static,
-    {
-        self.server_streaming_inner(method, req, Some(deadline))
-            .await
-    }
-
-    /// Shared dispatch path for the deadline and no-deadline variants.
-    async fn server_streaming_inner<Req, Resp>(
-        &self,
-        method: &'static str,
-        req: Req,
-        deadline: Option<Duration>,
-    ) -> Result<ServerStreaming<Resp>, ChannelError>
-    where
-        Req: prost::Message + Send + Sync + 'static,
-        Resp: prost::Message + Default + Send + Sync + 'static,
-    {
-        let start = tokio::time::Instant::now();
         let path = PathAndQuery::try_from(method).map_err(|e| ChannelError::InvalidPath {
             path: method.to_string(),
             message: e.to_string(),
@@ -604,14 +554,7 @@ impl Channel {
         let mut grpc =
             tonic::client::Grpc::with_origin(self.transport.clone(), self.origin.clone())
                 .max_decoding_message_size(self.max_message_size);
-        let mut request = tonic::Request::new(req);
-        if let Some(d) = deadline {
-            // Advertised via the `grpc-timeout` request header so the
-            // server can release resources on expiry. Enforced locally
-            // by the timeout around the open phase below and by the
-            // stream wrapper for the streaming phase.
-            request.set_timeout(d);
-        }
+        let request = tonic::Request::new(req);
 
         let codec = tonic_prost::ProstCodec::<Req, Resp>::default();
         let open = async {
@@ -634,26 +577,14 @@ impl Channel {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| open.as_mut().poll(cx)))
                 .unwrap_or_else(|payload| Poll::Ready(Err(classify_poll_panic(payload))))
         });
-        let response = match deadline {
-            Some(d) => match tokio::time::timeout(d, open).await {
-                Ok(r) => r,
-                Err(_) => return Err(deadline_error(d)),
-            },
-            None => open.await,
-        }?;
+        let response = open.await?;
 
         let streaming = response.into_inner();
-        let stream = ServerStreaming::new(streaming, self.max_message_size, token);
-        Ok(match deadline {
-            Some(d) => {
-                let remaining = d.saturating_sub(start.elapsed());
-                if remaining.is_zero() {
-                    return Err(deadline_error(d));
-                }
-                stream.with_deadline(remaining, u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
-            }
-            None => stream,
-        })
+        Ok(ServerStreaming::new(
+            streaming,
+            self.max_message_size,
+            token,
+        ))
     }
 }
 
@@ -662,14 +593,6 @@ impl Channel {
 /// not silently accept frames a production decoder would reject.
 #[cfg(feature = "__test-helpers")]
 const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
-
-/// Build a [`ChannelError::DeadlineExceeded`] from a `Duration` so the
-/// open-phase error sites stay in lockstep.
-fn deadline_error(d: Duration) -> ChannelError {
-    ChannelError::DeadlineExceeded {
-        duration_ms: u64::try_from(d.as_millis()).unwrap_or(u64::MAX),
-    }
-}
 
 // ─── Transport ──────────────────────────────────────────────────────
 

@@ -891,13 +891,12 @@ impl From<crate::grpc::Status> for Error {
 impl From<crate::grpc::ChannelError> for Error {
     fn from(err: crate::grpc::ChannelError) -> Self {
         use crate::grpc::ChannelError;
-        // Rpc / DeadlineExceeded route to their own variants — everything
-        // else folds into a typed `Transport { kind, message }` so retry
-        // classifiers downstream can dispatch on the structured fault
-        // without parsing `Display`.
+        // Rpc routes to its own variant. Everything else folds into a
+        // typed `Transport { kind, message }` so retry classifiers
+        // downstream can dispatch on the structured fault without
+        // parsing `Display`.
         match err {
             ChannelError::Rpc { status } => Self::from(status),
-            ChannelError::DeadlineExceeded { duration_ms } => Self::Timeout { duration_ms },
             other => {
                 let kind = match &other {
                     ChannelError::Tcp { .. } => TransportErrorKind::Tcp,
@@ -908,11 +907,9 @@ impl From<crate::grpc::ChannelError> for Error {
                     ChannelError::H2StreamRefused(_) => TransportErrorKind::H2StreamRefused,
                     ChannelError::InvalidPath { .. } => TransportErrorKind::InvalidPath,
                     ChannelError::ConnectionClosed(_) => TransportErrorKind::ConnectionClosed,
-                    // Rpc / DeadlineExceeded handled above — keep compiler
-                    // exhaustiveness happy without a runtime branch.
-                    ChannelError::Rpc { .. } | ChannelError::DeadlineExceeded { .. } => {
-                        TransportErrorKind::ConnectionClosed
-                    }
+                    // Rpc handled above; this arm only keeps compiler
+                    // exhaustiveness happy, with no runtime branch.
+                    ChannelError::Rpc { .. } => TransportErrorKind::ConnectionClosed,
                 };
                 Self::Transport {
                     kind,
@@ -1304,15 +1301,6 @@ mod tests {
     }
 
     #[test]
-    fn from_channel_error_routes_deadline_to_timeout() {
-        let err: Error = crate::grpc::ChannelError::DeadlineExceeded { duration_ms: 123 }.into();
-        match err {
-            Error::Timeout { duration_ms } => assert_eq!(duration_ms, 123),
-            other => panic!("expected Error::Timeout, got {other:?}"),
-        }
-    }
-
-    #[test]
     fn from_channel_error_routes_rpc_to_grpc() {
         let status = crate::grpc::Status::new(13, "internal");
         let err: Error = crate::grpc::ChannelError::Rpc { status }.into();
@@ -1325,7 +1313,7 @@ mod tests {
         }
     }
 
-    /// Every non-Rpc / non-DeadlineExceeded `ChannelError` variant must
+    /// Every `ChannelError` variant other than `Rpc` must
     /// round-trip through `From<ChannelError> for Error` with a typed
     /// [`TransportErrorKind`] that mirrors the variant. Pins the
     /// structured payload promise the binding layer relies on.
