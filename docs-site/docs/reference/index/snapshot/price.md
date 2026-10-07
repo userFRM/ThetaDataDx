@@ -35,9 +35,9 @@ Get the latest price snapshot for one or more indices.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | symbols | yes | — | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
-| `min_time` | string | no | — | Minimum time filter |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `symbol` | symbols | yes | - | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
+| `min_time` | string | no | - | Minimum time filter |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

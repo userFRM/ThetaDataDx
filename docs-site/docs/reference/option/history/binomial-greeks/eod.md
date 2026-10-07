@@ -37,21 +37,21 @@ Fetch end-of-day binomial Greeks history for an option contract.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
-| `start_date` | date | yes | — | Start date YYYYMMDD |
-| `end_date` | date | yes | — | End date YYYYMMDD |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `expiration` | date | yes | - | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
+| `start_date` | date | yes | - | Start date YYYYMMDD |
+| `end_date` | date | yes | - | End date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
-| `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
+| `annual_dividend` | float | no | - | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
-| `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
+| `rate_value` | float | no | - | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
 | `binomial_steps` | int | no | `101` | Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. |
 | `version` | string | no | `latest` | Greeks model version. Accepted values: `latest`, `1`. |
 | `underlyer_use_nbbo` | bool | no | `false` | When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade. |
-| `max_dte` | int | no | — | Maximum days to expiration |
-| `strike_range` | int | no | — | Strike range filter |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `max_dte` | int | no | - | Maximum days to expiration |
+| `strike_range` | int | no | - | Strike range filter |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

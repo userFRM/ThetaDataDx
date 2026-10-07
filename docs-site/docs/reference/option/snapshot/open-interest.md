@@ -36,14 +36,14 @@ Get the latest open interest snapshot for an option contract.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `expiration` | date | yes | - | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
-| `max_dte` | int | no | — | Maximum days to expiration |
-| `strike_range` | int | no | — | Strike range filter |
-| `min_time` | string | no | — | Minimum time filter |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `max_dte` | int | no | - | Maximum days to expiration |
+| `strike_range` | int | no | - | Strike range filter |
+| `min_time` | string | no | - | Minimum time filter |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

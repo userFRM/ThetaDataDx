@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/stock/history/quote",
   method: { rust: "stock_history_quote", python: "stock_history_quote", ts: "stockHistoryQuote", cpp: "stock_history_quote" },
   required: [{ key: "symbol", type: "string", default: "AAPL" }],
-  optional: [{ key: "date", type: "date", default: "" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "date", type: "date", default: "20250303" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
   print: ["date", "ms_of_day", "bid", "ask"],
   returns: "QuoteTick",
   sample: [
@@ -39,15 +39,15 @@ Fetch NBBO quotes for a stock on a given date at a given interval.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
-| `interval` | string | no | `1s` | Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `date` | date | no | - | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
+| `interval` | string | no | `1s` | Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |
-| `start_date` | date | no | — | Start date YYYYMMDD |
-| `end_date` | date | no | — | End date YYYYMMDD |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `start_date` | date | no | - | Start date YYYYMMDD |
+| `end_date` | date | no | - | End date YYYYMMDD |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

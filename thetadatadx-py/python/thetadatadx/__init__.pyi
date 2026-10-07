@@ -6138,7 +6138,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> List[CalendarDay]:
-        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
 
         - Retrieves equity market holidays for a given year
         - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
@@ -6153,7 +6153,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[CalendarDay]]:
-        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
 
         - Retrieves equity market holidays for a given year
         - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year

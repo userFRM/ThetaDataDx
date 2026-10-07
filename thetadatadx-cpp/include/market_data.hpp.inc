@@ -1085,7 +1085,7 @@
         });
     }
 
-    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
     std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the

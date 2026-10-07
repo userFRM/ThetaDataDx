@@ -236,8 +236,8 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
+| Stock | 13 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Option | 47 | Every stock surface plus five Greeks tiers in both the Black-Scholes and binomial families, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |

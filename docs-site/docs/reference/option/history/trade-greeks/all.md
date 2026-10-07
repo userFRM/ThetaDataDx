@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/trade_greeks/all",
   method: { rust: "option_history_trade_greeks_all", python: "option_history_trade_greeks_all", ts: "optionHistoryTradeGreeksAll", cpp: "option_history_trade_greeks_all" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
   print: ["ms_of_day", "price", "delta", "implied_volatility"],
   returns: "TradeGreeksAllTick",
   sample: [
@@ -39,23 +39,23 @@ Fetch all Greeks on each trade for an option contract.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `expiration` | date | yes | - | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
-| `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
+| `date` | date | no | - | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
-| `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
+| `annual_dividend` | float | no | - | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
-| `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
+| `rate_value` | float | no | - | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
 | `version` | string | no | `latest` | Greeks model version. Accepted values: `latest`, `1`. |
-| `max_dte` | int | no | — | Maximum days to expiration |
-| `strike_range` | int | no | — | Strike range filter |
-| `start_date` | date | no | — | Start date YYYYMMDD |
-| `end_date` | date | no | — | End date YYYYMMDD |
+| `max_dte` | int | no | - | Maximum days to expiration |
+| `strike_range` | int | no | - | Strike range filter |
+| `start_date` | date | no | - | Start date YYYYMMDD |
+| `end_date` | date | no | - | End date YYYYMMDD |
 | `perf_boost_intraday` | bool | no | `false` | When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

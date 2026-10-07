@@ -1,6 +1,6 @@
-//! `llms.txt` — terse machine-readable index of every docs page.
+//! `llms.txt`: terse machine-readable index of every docs page.
 //!
-//! One line per page: `path — description`. Composed from the
+//! One line per page: `path: description`. Composed from the
 //! in-memory generated set plus the hand-written pages on disk, so the
 //! `--check` mode also catches a stale index after article edits.
 
@@ -75,7 +75,7 @@ fn walk_markdown(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Resu
     Ok(())
 }
 
-/// Renders `llms.txt`: one `path — summary` line per docs page, merging
+/// Renders `llms.txt`: one `path: summary` line per docs page, merging
 /// the generated set with the hand-written pages found on disk.
 pub(super) fn render_llms_txt(
     repo_root: &Path,
@@ -126,7 +126,7 @@ pub(super) fn render_llms_txt(
     let mut out = String::from(
         "# ThetaDataDx documentation\n\
          # SDK for ThetaData market data: Rust, Python, TypeScript, C++, plus a local HTTP/WebSocket server and an MCP server.\n\
-         # One line per page: path — summary. All paths are relative to the docs site root.\n\n",
+         # One line per page: path: summary. All paths are relative to the docs site root.\n\n",
     );
     for (url, title, description) in entries {
         let label = match (title.is_empty(), description.is_empty()) {
@@ -135,7 +135,7 @@ pub(super) fn render_llms_txt(
             (true, false) => description,
             (true, true) => String::from("(untitled)"),
         };
-        let _ = writeln!(out, "{url} — {label}");
+        let _ = writeln!(out, "{url}: {label}");
     }
     Ok(out)
 }

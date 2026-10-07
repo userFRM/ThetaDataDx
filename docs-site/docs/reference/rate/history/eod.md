@@ -35,10 +35,10 @@ Fetch end-of-day interest rate history.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `start_date` | date | yes | — | Start date YYYYMMDD |
-| `end_date` | date | yes | — | End date YYYYMMDD |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `start_date` | date | yes | - | Start date YYYYMMDD |
+| `end_date` | date | yes | - | End date YYYYMMDD |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
