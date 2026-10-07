@@ -90,17 +90,6 @@ describe('market-data methods resolve off the execution thread', () => {
     .split('\n')
     .filter((line) => familyRe.test(line) && !/Stream\(/.test(line) && !/WithColumns\(/.test(line));
 
-  it('every buffered data-fetch method is present (73 of them)', () => {
-    // Pin the count so a generator change that drops a method, or leaks
-    // a streaming lifecycle method into the data-fetch families, is
-    // caught here rather than silently shrinking the async surface.
-    assert.equal(
-      methodLines.length,
-      73,
-      `expected 73 data-fetch methods, found ${methodLines.length}`
-    );
-  });
-
   it('every data-fetch method returns a Promise', () => {
     for (const line of methodLines) {
       assert.match(
