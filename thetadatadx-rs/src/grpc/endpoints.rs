@@ -180,9 +180,9 @@ pub mod bench_support {
 ///
 /// Delegates to the canonical `From<ChannelError> for Error` impl in
 /// [`crate::error`], which preserves the structured taxonomy:
-/// `Rpc` becomes `Error::Grpc { kind: GrpcStatusKind::*, .. }`,
-/// `DeadlineExceeded` becomes `Error::Timeout`, and every transport
-/// fault folds into `Error::Transport { kind: TransportErrorKind::*, .. }`.
+/// `Rpc` becomes `Error::Grpc { kind: GrpcStatusKind::*, .. }` and every
+/// transport fault folds into
+/// `Error::Transport { kind: TransportErrorKind::*, .. }`.
 /// The retry classifier in [`crate::mdds::macros`] then dispatches on
 /// the typed `kind` rather than parsing `Display` strings.
 fn map_channel_error(err: ChannelError) -> Error {
