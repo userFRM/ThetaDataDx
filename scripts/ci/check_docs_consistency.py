@@ -6,6 +6,7 @@ surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs, each derived from the list it heads
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
+- the endpoint count every package README advertises, derived from the registry
 - per-route OpenAPI parameter names, required flags and defaults matching
   the same registry (a generated client must not demand a parameter the
   server treats as optional, nor hide the value an omitted one takes)
@@ -57,6 +58,17 @@ REST_PATHS = {ep["rest_path"] for ep in ENDPOINTS}
 # URL, or an `mdds`/private-backend host) is a request a generated client
 # cannot issue and must trip the gate.
 OPENAPI_SERVER_URL = "http://localhost:25503"
+
+# The package READMEs, which become the crates.io, PyPI and npm package pages.
+# Each one advertises the size of the endpoint surface, so each is held to the
+# registry's own count.
+PACKAGE_READMES = (
+    ROOT / "README.md",
+    ROOT / "thetadatadx-rs/README.md",
+    ROOT / "thetadatadx-py/README.md",
+    ROOT / "thetadatadx-ts/README.md",
+    ROOT / "thetadatadx-cpp/README.md",
+)
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
@@ -498,6 +510,31 @@ def endpoint_page_path(endpoint: dict) -> Path:
     """Mirror of the generator's path rule: REST path, hyphenated."""
     rest = endpoint["rest_path"].removeprefix("/v3/")
     return DOCS_SITE / "reference" / (rest.replace("_", "-") + ".md")
+
+
+def check_endpoint_count_claims() -> None:
+    """Every "N typed endpoints" claim must be the number the registry carries.
+
+    The count is the endpoints a caller can call: one per buffered registry
+    entry, which is also one reference page and one `_with_options` C entry
+    point each. The registry's four `*_stream` entries are not added to it;
+    they are the callback delivery mode of endpoints already counted, on REST
+    paths those entries share with their buffered siblings.
+
+    Every occurrence in a file is checked, not the first: the number appears
+    twice in each README, in the feature list and again in the prose, and a
+    half-corrected file is how one of them came to disagree with the other.
+    A README that no longer makes the claim fails too, since the claim is part
+    of the published package page.
+    """
+    expected = str(len(REGISTRY_ENDPOINTS))
+    for doc in PACKAGE_READMES:
+        claimed = set(re.findall(r"(\d+) typed endpoints", doc.read_text()))
+        if claimed != {expected}:
+            fail(
+                f"{rel(doc)} advertises {sorted(claimed) or 'no'} typed endpoints; "
+                f"endpoint_surface.toml carries {expected}"
+            )
 
 
 def check_reference_pages() -> None:
@@ -2235,6 +2272,7 @@ def _selftest() -> int:
 
 def main() -> None:
     check_static_docs()
+    check_endpoint_count_claims()
     check_server_flag_defaults()
     check_reference_pages()
     check_llms_txt()

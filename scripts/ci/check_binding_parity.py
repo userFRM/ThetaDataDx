@@ -48,7 +48,7 @@ async-query, and server-stream surfaces per endpoint. Each carries a
 `thetadatadx-rs/endpoint_surface.toml` — the file the build pipeline
 generates every binding's market-data method from. The Rust buffered
 surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
-subscription endpoints (60 endpoints); the Rust streaming subset mirrors
+subscription endpoints (every buffered endpoint); the Rust streaming subset mirrors
 the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
 get no server-stream terminal). `[[market_data_base]]` additionally pins
 the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
@@ -11361,7 +11361,7 @@ def _run_selftest() -> int:
 
     def _case_hist_base_live_sources_clean() -> None:
         """The live buffered base surface is symmetric across all five
-        surfaces: every one of the 60 endpoints present on Rust / Python /
+        surfaces: every buffered endpoint present on Rust / Python /
         TypeScript / C++ / the C-ABI base, and the shipped header agrees with
         the `thetadatadx-ffi/src` source and the Rust registry."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
