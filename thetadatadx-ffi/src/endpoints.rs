@@ -2,8 +2,8 @@
 //!
 //! The generated `endpoint_request_options.rs` declares `ThetaDataDxEndpointRequestOptions`
 //! and the private helper `apply_endpoint_request_options`. The generated
-//! `endpoint_with_options.rs` declares the 60 `thetadatadx_<endpoint>_with_options`
-//! entry points. The generated `endpoint_stream.rs` declares the
+//! `endpoint_with_options.rs` declares one
+//! `thetadatadx_<endpoint>_with_options` entry point per buffered endpoint. The generated `endpoint_stream.rs` declares the
 //! `thetadatadx_<endpoint>_stream` server-stream entry points. All three are
 //! `include!`'d here so the shared helper + callback ABI are in scope when the
 //! generated wrappers expand.

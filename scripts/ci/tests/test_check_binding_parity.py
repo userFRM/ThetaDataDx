@@ -1029,7 +1029,7 @@ def test_market_data_base_untracked_orphan_trips() -> None:
 
 def test_market_data_base_live_sources_clean() -> None:
     """The live buffered base surface is symmetric across all five surfaces:
-    every one of the 60 endpoints present on Rust / Python / TypeScript /
+    every buffered endpoint present on Rust / Python / TypeScript /
     C++ / the C-ABI base, with the shipped header, the `thetadatadx-ffi/src` source, and
     the Rust registry in agreement.
     """

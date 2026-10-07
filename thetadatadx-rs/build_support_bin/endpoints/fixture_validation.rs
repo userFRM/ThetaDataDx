@@ -336,12 +336,15 @@ pub(super) fn validate_test_fixtures(
     // validators send the fixture verbatim.
     //
     // Scoped to the maps keyed by parameter name. `concrete_by_type` is keyed
-    // by wire type and its two enum rows deliberately carry spellings the
-    // vendor accepts beside the wire value (`C` for a call, `TRADE` for the
-    // request type) which the SDK's own validators normalise, so holding it
-    // to the wire values alone would reject requests the server serves.
-    // Covering it needs the validators' accepted-spelling tables, which live
-    // in the crate rather than here.
+    // by wire type, so the name-keyed lookup below does not reach its rows at
+    // all. The one row there that is not a wire value is `Right = "C"`, a
+    // short form `validate_right` parses and `wire_right_opt` normalises to
+    // the wire value before the request is sent; holding that row to the wire
+    // values would reject a spelling the SDK accepts, and covering it properly
+    // needs the validator's accepted-spelling table, which lives in the crate
+    // rather than here. Its `RequestType` row carries the wire value, because
+    // nothing normalises that parameter: no validator reads it and the
+    // generated list endpoints copy it straight onto the wire.
     let enum_wires: HashMap<&str, HashSet<&str>> = enums
         .iter()
         .map(|e| {

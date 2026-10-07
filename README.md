@@ -32,7 +32,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Features
 
-- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 73 typed endpoints.
 - **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Greeks on demand**: first- through third-order Greeks and implied volatility, served straight from the option endpoints.
@@ -314,7 +314,7 @@ with client.streaming(on_full_trade) as session:
 
 ## Endpoint coverage
 
-64 typed endpoints across stocks, options, indices, the market calendar, and
+73 typed endpoints across stocks, options, indices, the market calendar, and
 interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |

@@ -136,7 +136,7 @@ int main(int argc, char** argv) {
         cell("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_list_dates::basic
         //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_dates("TRADE", "AAPL", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_dates("trade", "AAPL", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::concrete
         //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
         cell("stock_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -229,7 +229,7 @@ int main(int argc, char** argv) {
         cell("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_dates::basic
         //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_dates("TRADE", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_dates("trade", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_expirations::basic
         //   rationale: list/calendar/rate baseline call — no parameter variation
         cell("option_list_expirations", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_expirations("SPY", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -238,16 +238,16 @@ int main(int argc, char** argv) {
         cell("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_strikes("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::concrete
         //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_list_contracts("TRADE", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::with_symbol
         //   rationale: symbol=SPY optional symbol-filter wiring
-        cell("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", [&] { return client.option_list_contracts("TRADE", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::with_max_dte
         //   rationale: max_dte=30 optional filter wiring
-        cell("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_list_contracts("TRADE", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_list_contracts("TRADE", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::concrete
         //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
         cell("option_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });

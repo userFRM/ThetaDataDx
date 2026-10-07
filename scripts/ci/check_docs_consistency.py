@@ -1410,10 +1410,13 @@ def _endpoint_attr(endpoint: dict, key: str) -> str | None:
 def _example_value(endpoint: dict, param: dict) -> str:
     """The literal an example passes for `param`, from `[test_fixtures]`.
 
-    The same table the generated live validators draw from, so every published
-    example is a request those validators exercise against production. A param
-    the table cannot answer for fails the gate rather than being handed an
-    invented literal.
+    The same table the generated live validators draw from, so a published
+    example passes the values those validators send. A param the table cannot
+    answer for fails the gate rather than being handed an invented literal.
+
+    The values are not on their own a promise that the vendor answers the
+    request: that also needs every parameter the vendor requires to be set,
+    which is `_example_optionals`' business.
     """
     fixtures = SURFACE["test_fixtures"]
     name, param_type = param["name"], param["param_type"]
@@ -1467,12 +1470,39 @@ def _example_literal(param: dict, value: str, lang: str) -> str:
     if param_type in ("Int", "Float"):
         return value
     if param_type == "Symbols":
+        # The C++ method is overloaded on `const std::string&` and
+        # `const std::vector<std::string>&`, and a braced list converts to
+        # either through a user-defined conversion, so a bare `{"AAPL"}` is an
+        # ambiguous call that does not compile. Name the vector, as the
+        # generated C++ validator does.
         return {
             "rust": f'&["{value}"]',
             "python": f'["{value}"]',
-            "cpp": f'{{"{value}"}}',
+            "cpp": f'std::vector<std::string>{{"{value}"}}',
         }[lang]
     return f'"{value}"'
+
+
+def _example_optionals(params: list[dict]) -> list[dict]:
+    """The optional parameters an example sets, in the registry's own order.
+
+    Two sources. `OPENAPI_EXAMPLE_OPTIONALS` are the knobs a reader wants to
+    see set. The rest is a date: the vendor marks `date`, `start_date` and
+    `end_date` optional on the history routes and then refuses a request that
+    carries none of them, so an example that sets no date is a call that can
+    only fail. The validator generator anchors every cell the same way and for
+    the same reason (`anchor_dates` in
+    `build_support_bin/endpoints/modes.rs`): a single `date` where the route
+    takes one, both ends of the range where it takes a range instead.
+    """
+    builder = [p for p in params if p.get("binding") == "builder"]
+    names = {p["name"] for p in builder}
+    shown = names & set(OPENAPI_EXAMPLE_OPTIONALS)
+    if "date" in names:
+        shown.add("date")
+    elif {"start_date", "end_date"} <= names:
+        shown |= {"start_date", "end_date"}
+    return [p for p in builder if p["name"] in shown]
 
 
 def render_openapi_examples() -> dict[str, str]:
@@ -1495,12 +1525,7 @@ def render_openapi_examples() -> dict[str, str]:
             params.extend(_template_params(template_name))
         params.extend(_expand_param_group(endpoint.get("params", [])))
         required = [p for p in params if p.get("binding") == "method"]
-        optional = [
-            p
-            for name in OPENAPI_EXAMPLE_OPTIONALS
-            for p in params
-            if p["name"] == name and p.get("binding") == "builder"
-        ]
+        optional = _example_optionals(params)
         name = endpoint["name"]
         variable = _example_variable(endpoint)
         lines = ["      x-code-examples:"]
