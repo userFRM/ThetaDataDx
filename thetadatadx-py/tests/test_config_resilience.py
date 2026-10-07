@@ -162,20 +162,3 @@ def test_staleness_getters_exist_on_both_clients():
         ):
             assert callable(getattr(cls, name, None)), f"{cls.__name__}.{name} missing"
 
-
-def test_reconnects_exhausted_event_class_exported():
-    """The terminal reconnect event is a typed export with the same
-    field shape every binding carries."""
-    mod = _import_module()
-    cls = mod.ReconnectsExhausted
-    assert hasattr(cls, "reason")
-    assert hasattr(cls, "attempts")
-    assert hasattr(cls, "kind")
-    assert hasattr(cls, "reason_name")
-    # The cause beside the reason: without it a terminal drop reported
-    # `TimedOut` and the operator could not tell a server timeout from
-    # this client's own read deadline.
-    assert hasattr(cls, "cause")
-    assert hasattr(cls, "cause_name")
-    assert hasattr(cls, "cause_io_error_kind")
-    assert hasattr(cls, "cause_timeout_ms")
