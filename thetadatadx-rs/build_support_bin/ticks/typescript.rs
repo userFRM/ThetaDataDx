@@ -473,10 +473,10 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     // conversion time through the same DST-aware core. The raw integer
     // milliseconds-of-day columns stay primary; this is a convenience at
     // the epoch boundary, `undefined` when `date` is absent (`0`).
-    for (accessor, field) in timestamp_accessor_fields(def) {
+    for (accessor, field, date_field) in timestamp_accessor_fields(def) {
         writeln!(
             out,
-            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with"
+            "    /// Unix epoch milliseconds (UTC, DST-aware) combining `{date_field}` with"
         )
         .unwrap();
         writeln!(
@@ -484,7 +484,7 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
             "    /// `{field}` (Eastern-Time milliseconds-of-day). `undefined` when"
         )
         .unwrap();
-        writeln!(out, "    /// `date` is absent (`0`).").unwrap();
+        writeln!(out, "    /// `{date_field}` is absent (`0`).").unwrap();
         writeln!(out, "    pub {accessor}: Option<BigInt>,").unwrap();
     }
     out.push_str("}\n");
@@ -566,10 +566,10 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
     // the same function the Python accessor and the `thetadatadx_timestamp_ms`
     // FFI call) and ride it as a precomputed `Option<BigInt>` field — no
     // date math is reimplemented in the binding.
-    for (accessor, field) in timestamp_accessor_fields(def) {
+    for (accessor, field, date_field) in timestamp_accessor_fields(def) {
         writeln!(
             out,
-            "                {accessor}: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.{field}).map(BigInt::from),"
+            "                {accessor}: thetadatadx::time::date_ms_to_epoch_ms(t.{date_field}, t.{field}).map(BigInt::from),"
         )
         .unwrap();
     }

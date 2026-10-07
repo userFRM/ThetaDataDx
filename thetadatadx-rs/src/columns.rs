@@ -158,15 +158,26 @@ impl ColumnPresence {
 /// emitted in schema order regardless of which pass claimed them, honouring
 /// the [`ColumnPresence::present_names`] contract.
 ///
-/// Two derived fields are handled specially because they are not their own
-/// physical column:
+/// The date fields are handled specially because they are not their own
+/// physical column. The vendor sends a moment, and the schema splits it into a
+/// `YYYYMMDD` date beside a milliseconds-of-day time, both reading the one
+/// header:
 ///
-///   * `date` is resolved after the time fields. When its header is still
-///     unclaimed it is the primary claimant (the interest-rate `created` ->
-///     `date` column) and claims it; when a `*_ms_of_day` field already
-///     claimed the shared `Timestamp` header, `date` is that column's derived
-///     `YYYYMMDD` sibling and rides it without a second claim. Either way it
-///     is present whenever it resolves.
+///   * `date` and any `<prefix>_date` are resolved after the time fields. When
+///     the header is still unclaimed the date field is the primary claimant
+///     (the interest-rate `created` -> `date` column) and claims it; when the
+///     matching `*_ms_of_day` field already claimed the shared `Timestamp`
+///     header, the date field is that column's derived `YYYYMMDD` sibling and
+///     rides it without a second claim. Either way it is present whenever it
+///     resolves.
+///
+/// Keying this on the literal name `date` alone silently dropped
+/// `underlying_date` from every real response: it aliases to the same
+/// `underlying_timestamp` header its `underlying_ms_of_day` sibling had
+/// already claimed, so it never became present and every surface that
+/// projects on presence (the Arrow, Polars and pandas frames, the projected
+/// Arrow IPC and the MCP rows) left the column out while the decoded struct
+/// held the value.
 #[must_use]
 pub(crate) fn present_columns_from(
     headers: &[&str],
@@ -175,14 +186,22 @@ pub(crate) fn present_columns_from(
 ) -> ColumnPresence {
     use crate::mdds::decode::headers::find_header;
 
+    // A date field is the derived `YYYYMMDD` sibling of a moment the vendor
+    // sends as one column, never a physical column of its own, so it is
+    // resolved after the time fields rather than competing with them.
+    fn is_derived_date(field: &str) -> bool {
+        field == "date" || field.ends_with("_date")
+    }
+
     let mut claimed = vec![false; headers.len()];
     // Per-column claimed header index; `Some` marks the column present.
     let mut owner: Vec<Option<usize>> = vec![None; schema_columns.len()];
 
-    // Pass 1: exact header matches claim first. `date` is deferred (it may be
-    // a derived sibling of a `*_ms_of_day` field on the same header).
+    // Pass 1: exact header matches claim first. The date fields are deferred
+    // (each may be a derived sibling of a `*_ms_of_day` field on the same
+    // header).
     for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
-        if field == "date" {
+        if is_derived_date(field) {
             continue;
         }
         if let Some(i) = headers.iter().position(|&h| h == wire) {
@@ -194,7 +213,7 @@ pub(crate) fn present_columns_from(
     }
     // Pass 2: alias matches claim any header still unclaimed.
     for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
-        if field == "date" || owner[ci].is_some() || headers.contains(&wire) {
+        if is_derived_date(field) || owner[ci].is_some() || headers.contains(&wire) {
             continue;
         }
         if let Some(i) = find_header(headers, wire) {
@@ -204,13 +223,14 @@ pub(crate) fn present_columns_from(
             }
         }
     }
-    // `date`: primary claimant when its header is free, derived sibling when a
-    // time field already claimed the shared `Timestamp` — present either way.
+    // Date fields: primary claimant when the header is free, derived sibling
+    // when a time field already claimed the shared `Timestamp` — present
+    // either way.
     for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
-        if field == "date" {
+        if is_derived_date(field) {
             if let Some(i) = find_header(headers, wire) {
                 owner[ci] = Some(i);
-                // Keep `claimed` consistent: `date` feeds a present column, so
+                // Keep `claimed` consistent: the date feeds a present column, so
                 // its header is claimed (idempotent when a `*_ms_of_day` sibling
                 // already claimed the shared `Timestamp`).
                 claimed[i] = true;
@@ -449,8 +469,16 @@ mod tests {
         assert_eq!(got, ["a", "b", "c"]);
     }
 
-    /// `date` rides the shared `created` Timestamp header: both the ms-of-day
-    /// field and `date` are present even though they resolve to one column.
+    /// Each date rides the shared Timestamp header it is derived from: the
+    /// ms-of-day field and the date field are both present even though they
+    /// resolve to one column.
+    ///
+    /// The second case is the Greeks shape, where the row carries two moments
+    /// on two headers. `underlying_date` resolves to the `underlying_timestamp`
+    /// header its `underlying_ms_of_day` sibling has already claimed, so a
+    /// claim-once rule keyed on the literal name `date` dropped it from every
+    /// real response while the decoded struct held the value, and every surface
+    /// that projects on presence left the column out.
     #[test]
     fn present_date_rides_shared_timestamp() {
         const COLS: &[(&str, &str)] = &[
@@ -464,6 +492,32 @@ mod tests {
         assert!(
             p.contains("date"),
             "date must ride the shared Timestamp column"
+        );
+
+        const GREEKS_COLS: &[(&str, &str)] = &[
+            ("ms_of_day", "ms_of_day"),
+            ("underlying_ms_of_day", "underlying_ms_of_day"),
+            ("underlying_price", "underlying_price"),
+            ("date", "date"),
+            ("underlying_date", "underlying_date"),
+        ];
+        let p = present_columns_from(
+            &["timestamp", "underlying_timestamp", "underlying_price"],
+            GREEKS_COLS,
+            false,
+        );
+        for field in [
+            "ms_of_day",
+            "underlying_ms_of_day",
+            "underlying_price",
+            "date",
+        ] {
+            assert!(p.contains(field), "{field} must be present");
+        }
+        assert!(
+            p.contains("underlying_date"),
+            "underlying_date must ride the `underlying_timestamp` column its \
+             ms-of-day sibling claimed"
         );
     }
 
