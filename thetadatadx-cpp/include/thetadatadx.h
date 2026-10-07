@@ -2447,10 +2447,22 @@ int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t
  *   if (event->kind == THETADATADX_STREAM_DISCONNECTED)
  *       printf("reason=%d\n", event->disconnected.reason);
  *
+ * `Disconnected`, `Reconnecting` and `ReconnectsExhausted` also carry
+ * `cause`, saying where the disconnect came from: 0 the server sent a
+ * disconnect message, 1 the server ended the stream without one, 2 a
+ * read failed, 3 a write failed, 4 nothing arrived inside the client
+ * read deadline. `cause_io_error_kind` names the I/O error kind behind
+ * a read or write failure and is empty otherwise; `cause_timeout_ms`
+ * is the read deadline that expired and is zero otherwise. C++ callers
+ * resolve the code with thetadatadx::cause_name().
+ *
  * Borrowed pointers (`Contract.symbol`, `LoginSuccess.permissions`,
- * `ServerError.message`, `Error.message`, `Ping.payload`,
- * `UnknownFrame.payload`) are valid only for the duration of the
- * user callback — copy out before returning. Do NOT free. */
+ * `ServerError.message`, `ParseError.message`, `Ping.payload`,
+ * `UnknownFrame.payload`, and `cause_io_error_kind` on `Disconnected`,
+ * `Reconnecting` and `ReconnectsExhausted`) are valid only for the
+ * duration of the user callback — copy out before returning. Copying
+ * the payload struct by value copies these pointers, not what they
+ * point at. Do NOT free. */
 #include "fpss_event_structs.h.inc"
 
 /** Read the option strike of a streaming ThetaDataDxContract in dollars, folding

@@ -29,6 +29,7 @@ const CONTROL_VARIANTS = [
   { name: 'Disconnected',       kind: 'disconnected',         payload: 'disconnected',       fields: ['reason', 'cause', 'causeIoErrorKind', 'causeTimeoutMs', 'causeName'] },
   { name: 'Reconnecting',       kind: 'reconnecting',         payload: 'reconnecting',       fields: ['reason', 'cause', 'causeIoErrorKind', 'causeTimeoutMs', 'attempt', 'delayMs', 'causeName'] },
   { name: 'Reconnected',        kind: 'reconnected',          payload: 'reconnected',        fields: [] },
+  { name: 'ReconnectsExhausted', kind: 'reconnects_exhausted', payload: 'reconnectsExhausted', fields: ['reason', 'cause', 'causeIoErrorKind', 'causeTimeoutMs', 'attempts', 'causeName'] },
   // Named `ParseError` so the SDK ships no interface that shadows the
   // JS global `Error` class.
   { name: 'ParseError',         kind: 'parse_error',          payload: 'parseError',         fields: ['message'] },

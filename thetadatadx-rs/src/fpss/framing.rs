@@ -77,7 +77,8 @@ pub const MAX_PAYLOAD_LEN: usize = 255;
 /// - Mid-header `WouldBlock` / `TimedOut` (n > 0) → retry. The stall
 ///   deadline is **re-armed on every successful byte**, matching the
 ///   terminal's per-`read()` socket-timeout semantics. Fatal only if
-///   `stall_timeout` elapses without any forward progress.
+///   `stall_timeout` elapses without any forward progress, which
+///   surfaces as `Error::Stream { kind: Timeout }`.
 ///
 /// Earlier revisions treated the first mid-header `WouldBlock` as
 /// fatal desync. Captured raw-byte dumps showed the bytes were valid
@@ -130,8 +131,13 @@ fn read_header_with_timeout<R: Read>(
                 let now = Instant::now();
                 let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
                 if now >= deadline {
+                    // `Timeout`, not `ProtocolError`: nothing about the
+                    // frame was wrong, the peer simply stopped sending
+                    // inside the caller's deadline. The I/O loop reads
+                    // this kind to report the drop as a read timeout
+                    // rather than an unclassified read failure.
                     return Err(crate::error::Error::Stream {
-                        kind: crate::error::StreamErrorKind::ProtocolError,
+                        kind: crate::error::StreamErrorKind::Timeout,
                         message: format!(
                             "mid-header read timeout after {n} of 2 byte(s) without progress for {} ms: {e}",
                             stall_timeout.as_millis()
@@ -160,7 +166,9 @@ fn read_header_with_timeout<R: Read>(
 /// The terminal tolerates that gap silently; so do we now.
 ///
 /// `Interrupted` is retried (POSIX signal wakeups are benign).
-/// `EOF` and going `stall_timeout` without progress are still fatal.
+/// `EOF` and going `stall_timeout` without progress are still fatal; the
+/// stall surfaces as `Error::Stream { kind: Timeout }`, EOF as
+/// `ProtocolError`.
 fn read_exact_payload_with_timeout<R: Read>(
     reader: &mut R,
     buf: &mut [u8],
@@ -190,8 +198,10 @@ fn read_exact_payload_with_timeout<R: Read>(
                 let now = Instant::now();
                 let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
                 if now >= deadline {
+                    // `Timeout` for the same reason as the header path:
+                    // the frame is intact, the peer went silent.
                     return Err(crate::error::Error::Stream {
-                        kind: crate::error::StreamErrorKind::ProtocolError,
+                        kind: crate::error::StreamErrorKind::Timeout,
                         message: format!(
                             "mid-payload read timeout after {n} of {} byte(s) without progress for {} ms: {e}",
                             buf.len(),
@@ -430,8 +440,10 @@ mod tests {
     }
 
     /// A prolonged mid-payload stall (no progress past the stall deadline)
-    /// must escalate to a fatal `ProtocolError`. The reader never delivers
-    /// the remaining payload bytes.
+    /// must escalate to a fatal `Timeout`. The reader never delivers the
+    /// remaining payload bytes. The kind is what the I/O loop reads to
+    /// tell a silent peer from a broken socket, so it is pinned here
+    /// rather than left to the message text.
     #[test]
     fn mid_payload_stall_past_deadline_escalates_to_fatal() {
         // LEN=4, CODE=PING; 2 of 4 payload bytes arrive; then infinite stall.
@@ -451,14 +463,14 @@ mod tests {
                 .unwrap_err();
         match err {
             crate::error::Error::Stream { kind, message } => {
-                assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
+                assert_eq!(kind, crate::error::StreamErrorKind::Timeout);
                 assert!(
                     message.contains("mid-payload")
                         && message.contains("without progress for 20 ms"),
                     "unexpected message: {message}"
                 );
             }
-            other => panic!("expected fatal ProtocolError, got {other:?}"),
+            other => panic!("expected a fatal Timeout, got {other:?}"),
         }
     }
 
@@ -545,10 +557,10 @@ mod tests {
                 .unwrap_err();
         match err {
             crate::error::Error::Stream { kind, message } => {
-                assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
+                assert_eq!(kind, crate::error::StreamErrorKind::Timeout);
                 assert!(message.contains("mid-payload"), "got: {message}");
             }
-            other => panic!("expected fatal ProtocolError, got {other:?}"),
+            other => panic!("expected a fatal Timeout, got {other:?}"),
         }
     }
 
@@ -565,19 +577,19 @@ mod tests {
         let err = read_header_with_timeout(&mut reader, Duration::from_millis(20)).unwrap_err();
         match err {
             crate::error::Error::Stream { kind, message } => {
-                assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
+                assert_eq!(kind, crate::error::StreamErrorKind::Timeout);
                 assert!(
                     message.contains("mid-header")
                         && message.contains("without progress for 20 ms"),
                     "unexpected message: {message}"
                 );
             }
-            other => panic!("expected fatal ProtocolError, got {other:?}"),
+            other => panic!("expected a fatal Timeout, got {other:?}"),
         }
     }
 
     /// A pre-header transient (zero bytes in flight) must surface as
-    /// `Error::Io`, not a fatal `ProtocolError`: the I/O loop treats this
+    /// `Error::Io`, not a fatal stream error: the I/O loop treats this
     /// as a benign drain-cadence tick and drains pings + commands. This is
     /// the boundary that keeps the command drain alive between frames.
     #[test]
