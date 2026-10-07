@@ -554,15 +554,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let dates = client.market_data().stock_list_dates("TRADE", "AAPL").await?;
+            let dates = client.market_data().stock_list_dates("trade", "AAPL").await?;
         - lang: python
           label: Python
           source: |
-            dates = client.market_data.stock_list_dates("TRADE", "AAPL")
+            dates = client.market_data.stock_list_dates("trade", "AAPL")
         - lang: cpp
           label: C++
           source: |
-            auto dates = client.market_data().stock_list_dates("TRADE", "AAPL");
+            auto dates = client.market_data().stock_list_dates("trade", "AAPL");
 
   /v3/stock/list/dates/{request_type}:
     x-min-subscription: free
@@ -585,15 +585,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let dates = client.market_data().stock_list_dates("TRADE", "AAPL").await?;
+            let dates = client.market_data().stock_list_dates("trade", "AAPL").await?;
         - lang: python
           label: Python
           source: |
-            dates = client.market_data.stock_list_dates("TRADE", "AAPL")
+            dates = client.market_data.stock_list_dates("trade", "AAPL")
         - lang: cpp
           label: C++
           source: |
-            auto dates = client.market_data().stock_list_dates("TRADE", "AAPL");
+            auto dates = client.market_data().stock_list_dates("trade", "AAPL");
 
   # =========================================================================
   # STOCK / SNAPSHOT
@@ -1050,15 +1050,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let dates = client.market_data().option_list_dates("TRADE", "SPY", "20250321").strike("570").right("C").await?;
+            let dates = client.market_data().option_list_dates("trade", "SPY", "20250321").strike("570").right("C").await?;
         - lang: python
           label: Python
           source: |
-            dates = client.market_data.option_list_dates("TRADE", "SPY", "20250321", strike="570", right="C")
+            dates = client.market_data.option_list_dates("trade", "SPY", "20250321", strike="570", right="C")
         - lang: cpp
           label: C++
           source: |
-            auto dates = client.market_data().option_list_dates("TRADE", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+            auto dates = client.market_data().option_list_dates("trade", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 
   /v3/option/list/dates/{request_type}:
     x-min-subscription: free
@@ -1084,15 +1084,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let dates = client.market_data().option_list_dates("TRADE", "SPY", "20250321").strike("570").right("C").await?;
+            let dates = client.market_data().option_list_dates("trade", "SPY", "20250321").strike("570").right("C").await?;
         - lang: python
           label: Python
           source: |
-            dates = client.market_data.option_list_dates("TRADE", "SPY", "20250321", strike="570", right="C")
+            dates = client.market_data.option_list_dates("trade", "SPY", "20250321", strike="570", right="C")
         - lang: cpp
           label: C++
           source: |
-            auto dates = client.market_data().option_list_dates("TRADE", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
+            auto dates = client.market_data().option_list_dates("trade", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 
   /v3/option/list/expirations:
     x-min-subscription: free
@@ -1173,15 +1173,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let option_contracts = client.market_data().option_list_contracts("TRADE", "20250303").await?;
+            let option_contracts = client.market_data().option_list_contracts("trade", "20250303").await?;
         - lang: python
           label: Python
           source: |
-            option_contracts = client.market_data.option_list_contracts("TRADE", "20250303")
+            option_contracts = client.market_data.option_list_contracts("trade", "20250303")
         - lang: cpp
           label: C++
           source: |
-            auto option_contracts = client.market_data().option_list_contracts("TRADE", "20250303");
+            auto option_contracts = client.market_data().option_list_contracts("trade", "20250303");
 
   /v3/option/list/contracts/{request_type}:
     x-min-subscription: value
@@ -1207,15 +1207,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let option_contracts = client.market_data().option_list_contracts("TRADE", "20250303").await?;
+            let option_contracts = client.market_data().option_list_contracts("trade", "20250303").await?;
         - lang: python
           label: Python
           source: |
-            option_contracts = client.market_data.option_list_contracts("TRADE", "20250303")
+            option_contracts = client.market_data.option_list_contracts("trade", "20250303")
         - lang: cpp
           label: C++
           source: |
-            auto option_contracts = client.market_data().option_list_contracts("TRADE", "20250303");
+            auto option_contracts = client.market_data().option_list_contracts("trade", "20250303");
 
   # =========================================================================
   # OPTION / SNAPSHOT

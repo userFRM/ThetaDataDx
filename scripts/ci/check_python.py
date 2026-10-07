@@ -49,7 +49,7 @@ CELLS = [
     ("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.stock_list_symbols(timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_list_dates::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.stock_list_dates("TRADE", "AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.stock_list_dates("trade", "AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_ohlc::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_snapshot_ohlc(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -142,7 +142,7 @@ CELLS = [
     ("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.option_list_symbols(timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_dates::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
-    ("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.option_list_dates("TRADE", "SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.option_list_dates("trade", "SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_expirations::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
     ("option_list_expirations", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.option_list_expirations("SPY", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -151,16 +151,16 @@ CELLS = [
     ("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: market_data.option_list_strikes("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-    ("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_list_contracts("TRADE", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_list_contracts("trade", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::with_symbol
     #   rationale: symbol=SPY optional symbol-filter wiring
-    ("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", lambda: market_data.option_list_contracts("TRADE", "20250303", symbol="SPY", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", lambda: market_data.option_list_contracts("trade", "20250303", symbol="SPY", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: market_data.option_list_contracts("TRADE", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: market_data.option_list_contracts("trade", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_list_contracts("TRADE", "20250303", symbol="SPY", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_list_contracts("trade", "20250303", symbol="SPY", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_ohlc("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
