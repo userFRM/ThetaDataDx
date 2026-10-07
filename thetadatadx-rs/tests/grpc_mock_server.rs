@@ -460,10 +460,11 @@ async fn channel_contains_undecodable_status_trailer_at_end_of_stream() {
 async fn channel_sets_http_scheme_for_h2c_transport() {
     // h2c (plaintext HTTP/2) clients must send `:scheme = http` on
     // every request. The mock asserts the inbound pseudo-header — a
-    // mismatch panics the handler and fails the test. The matching
-    // TLS-side assertion (scheme=https) is covered by the unit test
-    // in `thetadatadx-rs/src/grpc/channel.rs` that drives the
-    // handshake helper over an in-memory IO pair.
+    // mismatch panics the handler and fails the test. The TLS side
+    // (`:scheme = https`) has no equivalent here: the client would have
+    // to accept a certificate for a loopback listener, and the SDK
+    // builds its market-data TLS from webpki roots, so nothing in this
+    // suite covers that half.
     let mock = MockServer::spawn_with_behaviour(
         vec![make_response_data(&["AAPL"])],
         0,
@@ -478,11 +479,6 @@ async fn channel_sets_http_scheme_for_h2c_transport() {
     let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
         .await
         .expect("h2c connect");
-    assert_eq!(
-        channel.scheme_str(),
-        "http",
-        "h2c channel records :scheme=http"
-    );
 
     let stream = channel
         .server_streaming::<DataValueList, ResponseData>(

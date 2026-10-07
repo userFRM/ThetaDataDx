@@ -69,8 +69,11 @@ async fn in_house_stock_list_symbols_returns_decoded_symbols() {
     )
     .await;
 
+    // A hang guard, not a latency bound: a dial first waits for a slot in
+    // the process-wide connection budget, and every other test in this
+    // binary is competing for the same slots.
     let channel = tokio::time::timeout(
-        Duration::from_secs(5),
+        Duration::from_secs(30),
         Channel::connect_h2c("127.0.0.1", server.addr.port()),
     )
     .await
