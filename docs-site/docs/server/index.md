@@ -1,5 +1,5 @@
 ---
-title: Server — Getting Started
+title: Server: Getting Started
 description: Run the local HTTP REST and WebSocket server speaking the v3 route surface.
 ---
 

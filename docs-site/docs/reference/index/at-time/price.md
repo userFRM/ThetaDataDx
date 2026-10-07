@@ -37,11 +37,11 @@ Fetch the index price at a specific time of day across a date range.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `start_date` | date | yes | — | Start date YYYYMMDD |
-| `end_date` | date | yes | — | End date YYYYMMDD |
-| `time_of_day` | string | yes | — | ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted) |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `start_date` | date | yes | - | Start date YYYYMMDD |
+| `end_date` | date | yes | - | End date YYYYMMDD |
+| `time_of_day` | string | yes | - | ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted) |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

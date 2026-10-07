@@ -545,7 +545,7 @@ def check_llms_txt() -> None:
     if not llms_path.is_file():
         fail("docs-site/docs/public/llms.txt missing — run the docs generator")
     listed = {
-        line.split(" — ", 1)[0].strip()
+        line.split(": ", 1)[0].strip()
         for line in llms_path.read_text().splitlines()
         if line.strip() and not line.startswith("#")
     }

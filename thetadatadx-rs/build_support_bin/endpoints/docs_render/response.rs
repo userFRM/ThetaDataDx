@@ -86,7 +86,7 @@ pub(super) fn render_response_section(
             .as_deref()
             .expect("list endpoint must declare list_column");
         out.push_str(&format!(
-            "A list of strings — one `{column}` value per row.\n\n"
+            "A list of strings, one `{column}` value per row.\n\n"
         ));
         return Ok(out);
     }

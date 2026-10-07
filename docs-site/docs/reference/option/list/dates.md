@@ -31,14 +31,14 @@ This endpoint is updated overnight.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `request_type` | string | yes | — | Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`. |
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `request_type` | string | yes | - | Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `expiration` | date | yes | - | Expiration date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
-A list of strings — one `date` value per row.
+A list of strings, one `date` value per row.
 

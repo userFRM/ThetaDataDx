@@ -125,7 +125,7 @@ Each update arrives as a `IndexMarketValue` event with these fields:
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 
-The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+The `contract` field carries `symbol`, the security type, and, for options, `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
 
 ## WebSocket frame
 

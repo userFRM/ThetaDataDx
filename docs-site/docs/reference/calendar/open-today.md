@@ -33,7 +33,7 @@ Check whether the market is open today.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

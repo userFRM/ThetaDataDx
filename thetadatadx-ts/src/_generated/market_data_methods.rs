@@ -123,7 +123,7 @@ pub struct StockHistoryEODOptions {
 pub struct StockHistoryOHLCOptions {
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -177,7 +177,7 @@ pub struct StockHistoryTradeOptions {
 pub struct StockHistoryQuoteOptions {
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -819,7 +819,7 @@ pub struct OptionHistoryOHLCOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -883,7 +883,7 @@ pub struct OptionHistoryQuoteOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1045,7 +1045,7 @@ pub struct OptionHistoryGreeksAllOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1085,7 +1085,7 @@ pub struct OptionHistoryBinomialGreeksAllOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1213,7 +1213,7 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1253,7 +1253,7 @@ pub struct OptionHistoryBinomialGreeksFirstOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1381,7 +1381,7 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1421,7 +1421,7 @@ pub struct OptionHistoryBinomialGreeksSecondOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1549,7 +1549,7 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1589,7 +1589,7 @@ pub struct OptionHistoryBinomialGreeksThirdOrderOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1717,7 +1717,7 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     pub right: Option<String>,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1927,7 +1927,7 @@ pub struct IndexHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryOHLCOptions {
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -1949,7 +1949,7 @@ pub struct IndexHistoryOHLCOptions {
 pub struct IndexHistoryPriceOptions {
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: Option<String>,
-    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
     pub start_time: Option<String>,
@@ -14588,7 +14588,7 @@ impl MarketDataView {
         })
     }
 
-    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
     ///
     /// - Retrieves equity market holidays for a given year
     /// - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
@@ -26765,7 +26765,7 @@ impl MarketDataClient {
         })
     }
 
-    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
+    /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
     ///
     /// - Retrieves equity market holidays for a given year
     /// - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year

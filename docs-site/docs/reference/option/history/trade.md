@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/trade",
   method: { rust: "option_history_trade", python: "option_history_trade", ts: "optionHistoryTrade", cpp: "option_history_trade" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
   print: ["date", "ms_of_day", "price", "size"],
   returns: "TradeTick",
   sample: [
@@ -39,18 +39,18 @@ Fetch all trades for an option contract on a given date.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `expiration` | date | yes | - | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
-| `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
+| `date` | date | no | - | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
-| `max_dte` | int | no | — | Maximum days to expiration |
-| `strike_range` | int | no | — | Strike range filter |
-| `start_date` | date | no | — | Start date YYYYMMDD |
-| `end_date` | date | no | — | End date YYYYMMDD |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `max_dte` | int | no | - | Maximum days to expiration |
+| `strike_range` | int | no | - | Strike range filter |
+| `start_date` | date | no | - | Start date YYYYMMDD |
+| `end_date` | date | no | - | End date YYYYMMDD |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 

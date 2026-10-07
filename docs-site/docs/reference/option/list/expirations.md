@@ -31,10 +31,10 @@ This endpoint is updated overnight.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `symbol` | string | yes | - | Ticker symbol (e.g. AAPL) |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
-A list of strings — one `expiration` value per row.
+A list of strings, one `expiration` value per row.
 

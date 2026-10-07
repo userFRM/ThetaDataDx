@@ -34,8 +34,8 @@ Get calendar information for a specific date.
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `date` | date | yes | — | Date YYYYMMDD |
-| `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
+| `date` | date | yes | - | Date YYYYMMDD |
+| `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
