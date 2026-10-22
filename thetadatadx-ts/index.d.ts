@@ -6047,7 +6047,7 @@ export interface OptionHistoryBinomialGreeksAllOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6085,7 +6085,7 @@ export interface OptionHistoryBinomialGreeksEodOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6133,7 +6133,7 @@ export interface OptionHistoryBinomialGreeksFirstOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6179,7 +6179,7 @@ export interface OptionHistoryBinomialGreeksSecondOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6225,7 +6225,7 @@ export interface OptionHistoryBinomialGreeksThirdOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6269,7 +6269,7 @@ export interface OptionHistoryBinomialTradeGreeksAllOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6317,7 +6317,7 @@ export interface OptionHistoryBinomialTradeGreeksFirstOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6365,7 +6365,7 @@ export interface OptionHistoryBinomialTradeGreeksSecondOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6413,7 +6413,7 @@ export interface OptionHistoryBinomialTradeGreeksThirdOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6487,7 +6487,7 @@ export interface OptionHistoryGreeksAllOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6523,7 +6523,7 @@ export interface OptionHistoryGreeksEodOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6569,7 +6569,7 @@ export interface OptionHistoryGreeksFirstOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6613,7 +6613,7 @@ export interface OptionHistoryGreeksImpliedVolatilityOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6657,7 +6657,7 @@ export interface OptionHistoryGreeksSecondOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6701,7 +6701,7 @@ export interface OptionHistoryGreeksThirdOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6843,7 +6843,7 @@ export interface OptionHistoryTradeGreeksAllOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6889,7 +6889,7 @@ export interface OptionHistoryTradeGreeksFirstOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6935,7 +6935,7 @@ export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -6981,7 +6981,7 @@ export interface OptionHistoryTradeGreeksSecondOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7027,7 +7027,7 @@ export interface OptionHistoryTradeGreeksThirdOrderOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7251,7 +7251,7 @@ export interface OptionSnapshotBinomialGreeksAllOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7295,7 +7295,7 @@ export interface OptionSnapshotBinomialGreeksFirstOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7339,7 +7339,7 @@ export interface OptionSnapshotBinomialGreeksSecondOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7383,7 +7383,7 @@ export interface OptionSnapshotBinomialGreeksThirdOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7427,7 +7427,7 @@ export interface OptionSnapshotGreeksAllOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7469,7 +7469,7 @@ export interface OptionSnapshotGreeksFirstOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7511,7 +7511,7 @@ export interface OptionSnapshotGreeksImpliedVolatilityOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7553,7 +7553,7 @@ export interface OptionSnapshotGreeksSecondOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number
@@ -7595,7 +7595,7 @@ export interface OptionSnapshotGreeksThirdOrderOptions {
   strike?: string
   /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
   right?: string
-  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  /** Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`. */
   annualDividend?: number
   /** Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. */
   annualDividendAmount?: number

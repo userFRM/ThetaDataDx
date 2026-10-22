@@ -87,9 +87,8 @@ fn slice_sections<'a>(
 /// mid-stream truncation, a server `DISCONNECTED`, a read error, or a
 /// decode fault all leave the blob on disk. Whoever owns the artifact
 /// cleans it, so the scratch is removed on the error path as well as on
-/// success — a caller that passes its own scratch path (the REST server
-/// renames a `.partial` onto a final path) cannot see the SDK's distinct
-/// `.raw` sibling and so could never reap it. Cleanup failure is
+/// success — a caller that passes its own scratch path cannot see the
+/// SDK's distinct `.raw` sibling and so could never reap it. Cleanup failure is
 /// non-fatal: on success the caller already has the decoded file, and on
 /// error the original fault is the one worth surfacing.
 ///

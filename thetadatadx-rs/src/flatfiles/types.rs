@@ -223,8 +223,7 @@ pub const SERVED_DATASETS: &[(SecType, ReqType)] = &[
 /// further distinguishes a *no-data* `DISCONNECTED` (the requested slice
 /// simply does not exist for this account/date — the daily snapshot is not
 /// yet generated, or the date is outside the entitlement window) from a
-/// genuine auth/transport fault. The server maps the former to `404` and
-/// the latter to `502`.
+/// genuine auth/transport fault.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FlatFilesUnavailableReason {
