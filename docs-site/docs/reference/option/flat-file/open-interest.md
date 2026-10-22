@@ -10,7 +10,7 @@ aside: false
 const cfg = {
   httpPath: "v3/option/flat_file/open_interest",
   method: { rust: "option_flat_file_open_interest", python: "option_flat_file_open_interest", ts: "optionFlatFileOpenInterest", cpp: "option_flat_file_open_interest" },
-  required: [{ key: "date", type: "date", default: "20250303" }],
+  required: [{ key: "date", type: "date", default: "" }],
   optional: [],
   print: ["date", "open_interest"],
   returns: "OpenInterestTick",

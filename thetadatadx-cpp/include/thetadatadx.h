@@ -995,8 +995,9 @@ void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
  * `symbol` carries a constant root value for responses whose wire has one
  * symbol across every row.
  *
- * `symbols` carries a multi-symbol snapshot's per-row `symbol` (root) values —
- * one NUL-terminated C string per decoded row — so the projected serialiser
+ * `symbols` carries the per-row `symbol` (root) values of a response whose
+ * rows span several roots, such as a multi-symbol snapshot or a flat file:
+ * one NUL-terminated C string per decoded row, so the projected serialiser
  * emits a leading per-row `symbol` column attributing each row to its
  * underlying. It is NULL for every other response and takes precedence over
  * the constant `symbol` field. */

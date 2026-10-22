@@ -204,11 +204,18 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
     let required: Vec<String> = method_params(endpoint)
         .into_iter()
         .map(|p| {
+            // A flat file keeps only the vendor's most recent days, so any
+            // fixed sample date goes stale; the reader enters one.
+            let default = if endpoint.subcategory == "flat_file" && p.param_type == "Date" {
+                ""
+            } else {
+                lang::sample_value(p, category)
+            };
             format!(
                 "{{ key: {}, type: {}, default: {} }}",
                 js_str(&p.name),
                 js_str(docs_param_type(&p.param_type)),
-                js_str(lang::sample_value(p, category)),
+                js_str(default),
             )
         })
         .collect();

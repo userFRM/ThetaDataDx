@@ -1516,7 +1516,7 @@ pub fn calendar_day_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `calendarDayPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `calendarDayToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -1612,7 +1612,7 @@ pub fn eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `eodTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `eodTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -1716,7 +1716,7 @@ pub fn greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksAllTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `greeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -1836,7 +1836,7 @@ pub fn greeks_eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksEodTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `greeksEodTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -1926,7 +1926,7 @@ pub fn greeks_first_order_tick_present_columns(headers: Vec<String>) -> Vec<Stri
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `greeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2015,7 +2015,7 @@ pub fn greeks_second_order_tick_present_columns(headers: Vec<String>) -> Vec<Str
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `greeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2103,7 +2103,7 @@ pub fn greeks_third_order_tick_present_columns(headers: Vec<String>) -> Vec<Stri
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `greeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2192,7 +2192,7 @@ pub fn index_price_at_time_tick_present_columns(headers: Vec<String>) -> Vec<Str
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `indexPriceAtTimeTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `indexPriceAtTimeTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2266,7 +2266,7 @@ pub fn interest_rate_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `interestRateTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `interestRateTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2356,7 +2356,7 @@ pub fn interval_quote_tick_present_columns(headers: Vec<String>) -> Vec<String> 
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `intervalQuoteTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `intervalQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2443,7 +2443,7 @@ pub fn iv_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `ivTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `ivTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2523,7 +2523,7 @@ pub fn market_value_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `marketValueTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `marketValueTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2607,7 +2607,7 @@ pub fn ohlc_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `ohlcTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `ohlcTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2685,7 +2685,7 @@ pub fn open_interest_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `openInterestTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `openInterestTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2761,7 +2761,7 @@ pub fn option_contract_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `optionContractPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `optionContractToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2836,7 +2836,7 @@ pub fn price_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `priceTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `priceTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -2925,7 +2925,7 @@ pub fn quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `quoteTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `quoteTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3042,7 +3042,7 @@ pub fn trade_greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksAllTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeGreeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3145,7 +3145,7 @@ pub fn trade_greeks_first_order_tick_present_columns(headers: Vec<String>) -> Ve
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeGreeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3242,7 +3242,7 @@ pub fn trade_greeks_implied_volatility_tick_present_columns(headers: Vec<String>
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksImpliedVolatilityTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeGreeksImpliedVolatilityTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3344,7 +3344,7 @@ pub fn trade_greeks_second_order_tick_present_columns(headers: Vec<String>) -> V
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeGreeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3445,7 +3445,7 @@ pub fn trade_greeks_third_order_tick_present_columns(headers: Vec<String>) -> Ve
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeGreeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3554,7 +3554,7 @@ pub fn trade_quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeQuoteTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
@@ -3650,7 +3650,7 @@ pub fn trade_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeTickPresentColumns` from the response headers), optionally broadcasting
 /// `symbol` as the leading column, or emitting a per-row `symbols` column
-/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over
 /// `symbol`). The decode-fed sibling of
 /// `tradeTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C

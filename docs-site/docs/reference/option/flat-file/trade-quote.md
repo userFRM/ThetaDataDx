@@ -10,7 +10,7 @@ aside: false
 const cfg = {
   httpPath: "v3/option/flat_file/trade_quote",
   method: { rust: "option_flat_file_trade_quote", python: "option_flat_file_trade_quote", ts: "optionFlatFileTradeQuote", cpp: "option_flat_file_trade_quote" },
-  required: [{ key: "date", type: "date", default: "20250303" }],
+  required: [{ key: "date", type: "date", default: "" }],
   optional: [],
   print: ["ms_of_day", "price", "bid", "ask"],
   returns: "TradeQuoteTick",

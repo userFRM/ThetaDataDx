@@ -260,7 +260,7 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> String {
     )
     .unwrap();
     out.push_str("/// `symbol` as the leading column, or emitting a per-row `symbols` column\n");
-    out.push_str("/// for a multi-symbol snapshot (one value per row; takes precedence over\n");
+    out.push_str("/// for a multi-symbol snapshot or a flat file (one value per row; takes precedence over\n");
     out.push_str("/// `symbol`). The decode-fed sibling of\n");
     writeln!(
         out,

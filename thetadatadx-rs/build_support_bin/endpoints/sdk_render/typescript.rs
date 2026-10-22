@@ -524,9 +524,8 @@ fn render_typescript_with_columns_struct(return_type: &str) -> String {
     out.push_str("    /// responses), else `undefined`.\n");
     out.push_str("    pub symbol: Option<String>,\n");
     out.push_str("    /// The response's per-row `symbol` values when the wire carried a\n");
-    out.push_str(
-        "    /// `symbol` column that varies across rows (a multi-symbol snapshot), one\n",
-    );
+    out.push_str("    /// `symbol` column that varies across rows (a multi-symbol snapshot or a\n");
+    out.push_str("    /// flat file), one\n");
     out.push_str("    /// value per row so each row is attributable to its underlying, else\n");
     out.push_str(
         "    /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.\n",
@@ -555,9 +554,9 @@ fn render_typescript_endpoint_with_columns_method(endpoint: &GeneratedEndpoint) 
          response's wire carried, so a projected Arrow-IPC frame is drivable from a \
          live call. Same parameters and result rows as the `{camel}` method; the \
          returned object adds `presentColumns` (the schema columns the wire sent, in \
-         schema order), `symbol` (the response's constant root, set for option, index, \
-         and single-symbol snapshot responses), and `symbols` (the per-row root values \
-         for a multi-symbol snapshot, one per row). Feed them to \
+         schema order), `symbol` (the root every row shares, set for option and index \
+         history and single-symbol snapshot responses), and `symbols` (the per-row \
+         roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to \
          `{tick_camel}ToArrowIpcProjected` for a terminal-exact columnar export that \
          omits the columns the wire omitted and attributes each row to its symbol.",
         camel = camel_name,

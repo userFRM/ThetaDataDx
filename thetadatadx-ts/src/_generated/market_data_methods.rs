@@ -2274,7 +2274,8 @@ pub struct OhlcTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2298,7 +2299,8 @@ pub struct TradeTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2322,7 +2324,8 @@ pub struct QuoteTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2346,7 +2349,8 @@ pub struct MarketValueTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2370,7 +2374,8 @@ pub struct EodTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2394,7 +2399,8 @@ pub struct TradeQuoteTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2418,7 +2424,8 @@ pub struct IntervalQuoteTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2442,7 +2449,8 @@ pub struct OptionContractWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2466,7 +2474,8 @@ pub struct OpenInterestTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2490,7 +2499,8 @@ pub struct IvTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2514,7 +2524,8 @@ pub struct GreeksAllTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2538,7 +2549,8 @@ pub struct GreeksFirstOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2562,7 +2574,8 @@ pub struct GreeksSecondOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2586,7 +2599,8 @@ pub struct GreeksThirdOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2610,7 +2624,8 @@ pub struct GreeksEodTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2634,7 +2649,8 @@ pub struct TradeGreeksAllTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2658,7 +2674,8 @@ pub struct TradeGreeksFirstOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2682,7 +2699,8 @@ pub struct TradeGreeksSecondOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2706,7 +2724,8 @@ pub struct TradeGreeksThirdOrderTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2730,7 +2749,8 @@ pub struct TradeGreeksImpliedVolatilityTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2754,7 +2774,8 @@ pub struct PriceTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2778,7 +2799,8 @@ pub struct IndexPriceAtTimeTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2802,7 +2824,8 @@ pub struct CalendarDayWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2826,7 +2849,8 @@ pub struct InterestRateTickWithColumns {
     /// responses), else `undefined`.
     pub symbol: Option<String>,
     /// The response's per-row `symbol` values when the wire carried a
-    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// `symbol` column that varies across rows (a multi-symbol snapshot or a
+    /// flat file), one
     /// value per row so each row is attributable to its underlying, else
     /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
     pub symbols: Option<Vec<String>>,
@@ -2929,7 +2953,7 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotOHLCWithColumns")]
     pub async fn stock_snapshot_ohlc_with_columns(
         &self,
@@ -3018,7 +3042,7 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotTradeWithColumns")]
     pub async fn stock_snapshot_trade_with_columns(
         &self,
@@ -3107,7 +3131,7 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotQuoteWithColumns")]
     pub async fn stock_snapshot_quote_with_columns(
         &self,
@@ -3196,7 +3220,7 @@ impl MarketDataView {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotMarketValueWithColumns")]
     pub async fn stock_snapshot_market_value_with_columns(
         &self,
@@ -3320,7 +3344,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryEODWithColumns")]
     pub async fn stock_history_eod_with_columns(
         &self,
@@ -3490,7 +3514,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryOHLCWithColumns")]
     pub async fn stock_history_ohlc_with_columns(
         &self,
@@ -3674,7 +3698,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryTradeWithColumns")]
     pub async fn stock_history_trade_with_columns(
         &self,
@@ -3865,7 +3889,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryQuoteWithColumns")]
     pub async fn stock_history_quote_with_columns(
         &self,
@@ -4067,7 +4091,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryTradeQuoteWithColumns")]
     pub async fn stock_history_trade_quote_with_columns(
         &self,
@@ -4230,7 +4254,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockAtTimeTradeWithColumns")]
     pub async fn stock_at_time_trade_with_columns(
         &self,
@@ -4371,7 +4395,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockAtTimeQuoteWithColumns")]
     pub async fn stock_at_time_quote_with_columns(
         &self,
@@ -4483,7 +4507,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileEODWithColumns")]
     pub async fn stock_flat_file_eod_with_columns(
         &self,
@@ -4586,7 +4610,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileTradeQuoteWithColumns")]
     pub async fn stock_flat_file_trade_quote_with_columns(
         &self,
@@ -4689,7 +4713,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileQuoteWithColumns")]
     pub async fn stock_flat_file_quote_with_columns(
         &self,
@@ -4932,7 +4956,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionListContractsWithColumns")]
     pub async fn option_list_contracts_with_columns(
         &self,
@@ -5028,7 +5052,7 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotOHLCWithColumns")]
     pub async fn option_snapshot_ohlc_with_columns(
         &self,
@@ -5137,7 +5161,7 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotTradeWithColumns")]
     pub async fn option_snapshot_trade_with_columns(
         &self,
@@ -5246,7 +5270,7 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotQuoteWithColumns")]
     pub async fn option_snapshot_quote_with_columns(
         &self,
@@ -5360,7 +5384,7 @@ impl MarketDataView {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotOpenInterestWithColumns")]
     pub async fn option_snapshot_open_interest_with_columns(
         &self,
@@ -5472,7 +5496,7 @@ impl MarketDataView {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotMarketValueWithColumns")]
     pub async fn option_snapshot_market_value_with_columns(
         &self,
@@ -5617,7 +5641,7 @@ impl MarketDataView {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatilityWithColumns")]
     pub async fn option_snapshot_greeks_implied_volatility_with_columns(
         &self,
@@ -5789,7 +5813,7 @@ impl MarketDataView {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksAllWithColumns")]
     pub async fn option_snapshot_greeks_all_with_columns(
         &self,
@@ -5967,7 +5991,7 @@ impl MarketDataView {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksAllWithColumns")]
     pub async fn option_snapshot_binomial_greeks_all_with_columns(
         &self,
@@ -6143,7 +6167,7 @@ impl MarketDataView {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksFirstOrderWithColumns")]
     pub async fn option_snapshot_greeks_first_order_with_columns(
         &self,
@@ -6321,7 +6345,7 @@ impl MarketDataView {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_first_order_with_columns(
         &self,
@@ -6497,7 +6521,7 @@ impl MarketDataView {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksSecondOrderWithColumns")]
     pub async fn option_snapshot_greeks_second_order_with_columns(
         &self,
@@ -6675,7 +6699,7 @@ impl MarketDataView {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_second_order_with_columns(
         &self,
@@ -6851,7 +6875,7 @@ impl MarketDataView {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksThirdOrderWithColumns")]
     pub async fn option_snapshot_greeks_third_order_with_columns(
         &self,
@@ -7029,7 +7053,7 @@ impl MarketDataView {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_third_order_with_columns(
         &self,
@@ -7240,7 +7264,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryEODWithColumns")]
     pub async fn option_history_eod_with_columns(
         &self,
@@ -7449,7 +7473,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryOHLCWithColumns")]
     pub async fn option_history_ohlc_with_columns(
         &self,
@@ -7674,7 +7698,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeWithColumns")]
     pub async fn option_history_trade_with_columns(
         &self,
@@ -7907,7 +7931,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryQuoteWithColumns")]
     pub async fn option_history_quote_with_columns(
         &self,
@@ -8154,7 +8178,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeQuoteWithColumns")]
     pub async fn option_history_trade_quote_with_columns(
         &self,
@@ -8368,7 +8392,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryOpenInterestWithColumns")]
     pub async fn option_history_open_interest_with_columns(
         &self,
@@ -8610,7 +8634,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksEODWithColumns")]
     pub async fn option_history_greeks_eod_with_columns(
         &self,
@@ -8882,7 +8906,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksEODWithColumns")]
     pub async fn option_history_binomial_greeks_eod_with_columns(
         &self,
@@ -9166,7 +9190,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksAllWithColumns")]
     pub async fn option_history_greeks_all_with_columns(
         &self,
@@ -9464,7 +9488,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksAllWithColumns")]
     pub async fn option_history_binomial_greeks_all_with_columns(
         &self,
@@ -9764,7 +9788,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksAllWithColumns")]
     pub async fn option_history_trade_greeks_all_with_columns(
         &self,
@@ -10074,7 +10098,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksAllWithColumns")]
     pub async fn option_history_binomial_trade_greeks_all_with_columns(
         &self,
@@ -10370,7 +10394,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksFirstOrderWithColumns")]
     pub async fn option_history_greeks_first_order_with_columns(
         &self,
@@ -10668,7 +10692,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderWithColumns")]
     pub async fn option_history_binomial_greeks_first_order_with_columns(
         &self,
@@ -10968,7 +10992,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrderWithColumns")]
     pub async fn option_history_trade_greeks_first_order_with_columns(
         &self,
@@ -11278,7 +11302,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_first_order_with_columns(
         &self,
@@ -11574,7 +11598,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksSecondOrderWithColumns")]
     pub async fn option_history_greeks_second_order_with_columns(
         &self,
@@ -11872,7 +11896,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderWithColumns")]
     pub async fn option_history_binomial_greeks_second_order_with_columns(
         &self,
@@ -12172,7 +12196,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrderWithColumns")]
     pub async fn option_history_trade_greeks_second_order_with_columns(
         &self,
@@ -12482,7 +12506,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_second_order_with_columns(
         &self,
@@ -12778,7 +12802,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksThirdOrderWithColumns")]
     pub async fn option_history_greeks_third_order_with_columns(
         &self,
@@ -13076,7 +13100,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderWithColumns")]
     pub async fn option_history_binomial_greeks_third_order_with_columns(
         &self,
@@ -13376,7 +13400,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrderWithColumns")]
     pub async fn option_history_trade_greeks_third_order_with_columns(
         &self,
@@ -13686,7 +13710,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_third_order_with_columns(
         &self,
@@ -13981,7 +14005,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithColumns")]
     pub async fn option_history_greeks_implied_volatility_with_columns(
         &self,
@@ -14276,7 +14300,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityWithColumns")]
     pub async fn option_history_trade_greeks_implied_volatility_with_columns(
         &self,
@@ -14495,7 +14519,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionAtTimeTradeWithColumns")]
     pub async fn option_at_time_trade_with_columns(
         &self,
@@ -14674,7 +14698,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionAtTimeQuoteWithColumns")]
     pub async fn option_at_time_quote_with_columns(
         &self,
@@ -14800,7 +14824,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileEODWithColumns")]
     pub async fn option_flat_file_eod_with_columns(
         &self,
@@ -14903,7 +14927,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileTradeQuoteWithColumns")]
     pub async fn option_flat_file_trade_quote_with_columns(
         &self,
@@ -15006,7 +15030,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileOpenInterestWithColumns")]
     pub async fn option_flat_file_open_interest_with_columns(
         &self,
@@ -15109,7 +15133,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileQuoteWithColumns")]
     pub async fn option_flat_file_quote_with_columns(
         &self,
@@ -15226,7 +15250,7 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotOHLCWithColumns")]
     pub async fn index_snapshot_ohlc_with_columns(
         &self,
@@ -15305,7 +15329,7 @@ impl MarketDataView {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotPriceWithColumns")]
     pub async fn index_snapshot_price_with_columns(
         &self,
@@ -15384,7 +15408,7 @@ impl MarketDataView {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotMarketValueWithColumns")]
     pub async fn index_snapshot_market_value_with_columns(
         &self,
@@ -15504,7 +15528,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryEODWithColumns")]
     pub async fn index_history_eod_with_columns(
         &self,
@@ -15649,7 +15673,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryOHLCWithColumns")]
     pub async fn index_history_ohlc_with_columns(
         &self,
@@ -15823,7 +15847,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryPriceWithColumns")]
     pub async fn index_history_price_with_columns(
         &self,
@@ -15962,7 +15986,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexAtTimePriceWithColumns")]
     pub async fn index_at_time_price_with_columns(
         &self,
@@ -16070,7 +16094,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexFlatFileEODWithColumns")]
     pub async fn index_flat_file_eod_with_columns(
         &self,
@@ -16127,7 +16151,7 @@ impl MarketDataView {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarOpenTodayWithColumns")]
     pub async fn calendar_open_today_with_columns(
         &self,
@@ -16185,7 +16209,7 @@ impl MarketDataView {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarOnDateWithColumns")]
     pub async fn calendar_on_date_with_columns(
         &self,
@@ -16244,7 +16268,7 @@ impl MarketDataView {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarYearWithColumns")]
     pub async fn calendar_year_with_columns(
         &self,
@@ -16358,7 +16382,7 @@ impl MarketDataView {
         .await
     }
 
-    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "interestRateHistoryEODWithColumns")]
     pub async fn interest_rate_history_eod_with_columns(
         &self,
@@ -16489,7 +16513,7 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotOHLCWithColumns")]
     pub async fn stock_snapshot_ohlc_with_columns(
         &self,
@@ -16578,7 +16602,7 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotTradeWithColumns")]
     pub async fn stock_snapshot_trade_with_columns(
         &self,
@@ -16667,7 +16691,7 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotQuoteWithColumns")]
     pub async fn stock_snapshot_quote_with_columns(
         &self,
@@ -16756,7 +16780,7 @@ impl MarketDataClient {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockSnapshotMarketValueWithColumns")]
     pub async fn stock_snapshot_market_value_with_columns(
         &self,
@@ -16880,7 +16904,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryEODWithColumns")]
     pub async fn stock_history_eod_with_columns(
         &self,
@@ -17050,7 +17074,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryOHLCWithColumns")]
     pub async fn stock_history_ohlc_with_columns(
         &self,
@@ -17234,7 +17258,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryTradeWithColumns")]
     pub async fn stock_history_trade_with_columns(
         &self,
@@ -17425,7 +17449,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryQuoteWithColumns")]
     pub async fn stock_history_quote_with_columns(
         &self,
@@ -17627,7 +17651,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockHistoryTradeQuoteWithColumns")]
     pub async fn stock_history_trade_quote_with_columns(
         &self,
@@ -17790,7 +17814,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockAtTimeTradeWithColumns")]
     pub async fn stock_at_time_trade_with_columns(
         &self,
@@ -17931,7 +17955,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockAtTimeQuoteWithColumns")]
     pub async fn stock_at_time_quote_with_columns(
         &self,
@@ -18043,7 +18067,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileEODWithColumns")]
     pub async fn stock_flat_file_eod_with_columns(
         &self,
@@ -18146,7 +18170,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileTradeQuoteWithColumns")]
     pub async fn stock_flat_file_trade_quote_with_columns(
         &self,
@@ -18249,7 +18273,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "stockFlatFileQuoteWithColumns")]
     pub async fn stock_flat_file_quote_with_columns(
         &self,
@@ -18492,7 +18516,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionListContractsWithColumns")]
     pub async fn option_list_contracts_with_columns(
         &self,
@@ -18588,7 +18612,7 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotOHLCWithColumns")]
     pub async fn option_snapshot_ohlc_with_columns(
         &self,
@@ -18697,7 +18721,7 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotTradeWithColumns")]
     pub async fn option_snapshot_trade_with_columns(
         &self,
@@ -18806,7 +18830,7 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotQuoteWithColumns")]
     pub async fn option_snapshot_quote_with_columns(
         &self,
@@ -18920,7 +18944,7 @@ impl MarketDataClient {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotOpenInterestWithColumns")]
     pub async fn option_snapshot_open_interest_with_columns(
         &self,
@@ -19032,7 +19056,7 @@ impl MarketDataClient {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotMarketValueWithColumns")]
     pub async fn option_snapshot_market_value_with_columns(
         &self,
@@ -19177,7 +19201,7 @@ impl MarketDataClient {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatilityWithColumns")]
     pub async fn option_snapshot_greeks_implied_volatility_with_columns(
         &self,
@@ -19349,7 +19373,7 @@ impl MarketDataClient {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksAllWithColumns")]
     pub async fn option_snapshot_greeks_all_with_columns(
         &self,
@@ -19527,7 +19551,7 @@ impl MarketDataClient {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksAllWithColumns")]
     pub async fn option_snapshot_binomial_greeks_all_with_columns(
         &self,
@@ -19703,7 +19727,7 @@ impl MarketDataClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksFirstOrderWithColumns")]
     pub async fn option_snapshot_greeks_first_order_with_columns(
         &self,
@@ -19881,7 +19905,7 @@ impl MarketDataClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_first_order_with_columns(
         &self,
@@ -20057,7 +20081,7 @@ impl MarketDataClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksSecondOrderWithColumns")]
     pub async fn option_snapshot_greeks_second_order_with_columns(
         &self,
@@ -20235,7 +20259,7 @@ impl MarketDataClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_second_order_with_columns(
         &self,
@@ -20411,7 +20435,7 @@ impl MarketDataClient {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotGreeksThirdOrderWithColumns")]
     pub async fn option_snapshot_greeks_third_order_with_columns(
         &self,
@@ -20589,7 +20613,7 @@ impl MarketDataClient {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrderWithColumns")]
     pub async fn option_snapshot_binomial_greeks_third_order_with_columns(
         &self,
@@ -20800,7 +20824,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryEODWithColumns")]
     pub async fn option_history_eod_with_columns(
         &self,
@@ -21009,7 +21033,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryOHLCWithColumns")]
     pub async fn option_history_ohlc_with_columns(
         &self,
@@ -21234,7 +21258,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeWithColumns")]
     pub async fn option_history_trade_with_columns(
         &self,
@@ -21467,7 +21491,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryQuoteWithColumns")]
     pub async fn option_history_quote_with_columns(
         &self,
@@ -21714,7 +21738,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeQuoteWithColumns")]
     pub async fn option_history_trade_quote_with_columns(
         &self,
@@ -21928,7 +21952,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryOpenInterestWithColumns")]
     pub async fn option_history_open_interest_with_columns(
         &self,
@@ -22170,7 +22194,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksEODWithColumns")]
     pub async fn option_history_greeks_eod_with_columns(
         &self,
@@ -22442,7 +22466,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksEODWithColumns")]
     pub async fn option_history_binomial_greeks_eod_with_columns(
         &self,
@@ -22726,7 +22750,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksAllWithColumns")]
     pub async fn option_history_greeks_all_with_columns(
         &self,
@@ -23024,7 +23048,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksAllWithColumns")]
     pub async fn option_history_binomial_greeks_all_with_columns(
         &self,
@@ -23324,7 +23348,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksAllWithColumns")]
     pub async fn option_history_trade_greeks_all_with_columns(
         &self,
@@ -23634,7 +23658,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksAllWithColumns")]
     pub async fn option_history_binomial_trade_greeks_all_with_columns(
         &self,
@@ -23930,7 +23954,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksFirstOrderWithColumns")]
     pub async fn option_history_greeks_first_order_with_columns(
         &self,
@@ -24228,7 +24252,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderWithColumns")]
     pub async fn option_history_binomial_greeks_first_order_with_columns(
         &self,
@@ -24528,7 +24552,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrderWithColumns")]
     pub async fn option_history_trade_greeks_first_order_with_columns(
         &self,
@@ -24838,7 +24862,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_first_order_with_columns(
         &self,
@@ -25134,7 +25158,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksSecondOrderWithColumns")]
     pub async fn option_history_greeks_second_order_with_columns(
         &self,
@@ -25432,7 +25456,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderWithColumns")]
     pub async fn option_history_binomial_greeks_second_order_with_columns(
         &self,
@@ -25732,7 +25756,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrderWithColumns")]
     pub async fn option_history_trade_greeks_second_order_with_columns(
         &self,
@@ -26042,7 +26066,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_second_order_with_columns(
         &self,
@@ -26338,7 +26362,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksThirdOrderWithColumns")]
     pub async fn option_history_greeks_third_order_with_columns(
         &self,
@@ -26636,7 +26660,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderWithColumns")]
     pub async fn option_history_binomial_greeks_third_order_with_columns(
         &self,
@@ -26936,7 +26960,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrderWithColumns")]
     pub async fn option_history_trade_greeks_third_order_with_columns(
         &self,
@@ -27246,7 +27270,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderWithColumns")]
     pub async fn option_history_binomial_trade_greeks_third_order_with_columns(
         &self,
@@ -27541,7 +27565,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithColumns")]
     pub async fn option_history_greeks_implied_volatility_with_columns(
         &self,
@@ -27836,7 +27860,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityWithColumns")]
     pub async fn option_history_trade_greeks_implied_volatility_with_columns(
         &self,
@@ -28055,7 +28079,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionAtTimeTradeWithColumns")]
     pub async fn option_at_time_trade_with_columns(
         &self,
@@ -28234,7 +28258,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionAtTimeQuoteWithColumns")]
     pub async fn option_at_time_quote_with_columns(
         &self,
@@ -28360,7 +28384,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileEODWithColumns")]
     pub async fn option_flat_file_eod_with_columns(
         &self,
@@ -28463,7 +28487,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileTradeQuoteWithColumns")]
     pub async fn option_flat_file_trade_quote_with_columns(
         &self,
@@ -28566,7 +28590,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileOpenInterestWithColumns")]
     pub async fn option_flat_file_open_interest_with_columns(
         &self,
@@ -28669,7 +28693,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "optionFlatFileQuoteWithColumns")]
     pub async fn option_flat_file_quote_with_columns(
         &self,
@@ -28786,7 +28810,7 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotOHLCWithColumns")]
     pub async fn index_snapshot_ohlc_with_columns(
         &self,
@@ -28865,7 +28889,7 @@ impl MarketDataClient {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotPriceWithColumns")]
     pub async fn index_snapshot_price_with_columns(
         &self,
@@ -28944,7 +28968,7 @@ impl MarketDataClient {
         Ok(market_value_ticks_to_class_vec(&ticks))
     }
 
-    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexSnapshotMarketValueWithColumns")]
     pub async fn index_snapshot_market_value_with_columns(
         &self,
@@ -29064,7 +29088,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryEODWithColumns")]
     pub async fn index_history_eod_with_columns(
         &self,
@@ -29209,7 +29233,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryOHLCWithColumns")]
     pub async fn index_history_ohlc_with_columns(
         &self,
@@ -29383,7 +29407,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexHistoryPriceWithColumns")]
     pub async fn index_history_price_with_columns(
         &self,
@@ -29522,7 +29546,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexAtTimePriceWithColumns")]
     pub async fn index_at_time_price_with_columns(
         &self,
@@ -29630,7 +29654,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "indexFlatFileEODWithColumns")]
     pub async fn index_flat_file_eod_with_columns(
         &self,
@@ -29687,7 +29711,7 @@ impl MarketDataClient {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarOpenTodayWithColumns")]
     pub async fn calendar_open_today_with_columns(
         &self,
@@ -29745,7 +29769,7 @@ impl MarketDataClient {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarOnDateWithColumns")]
     pub async fn calendar_on_date_with_columns(
         &self,
@@ -29804,7 +29828,7 @@ impl MarketDataClient {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
-    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "calendarYearWithColumns")]
     pub async fn calendar_year_with_columns(
         &self,
@@ -29918,7 +29942,7 @@ impl MarketDataClient {
         .await
     }
 
-    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
     #[napi(js_name = "interestRateHistoryEODWithColumns")]
     pub async fn interest_rate_history_eod_with_columns(
         &self,
