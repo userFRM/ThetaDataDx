@@ -14,10 +14,10 @@
   },
   "devDependencies": {
     "vitepress": "^1.6.3",
-    "vue": "^3.5.43"
+    "vue": "^3.5.44"
   },
   "overrides": {
-    "vite": "6.4.3",
+    "vite": "6.4.5",
     "esbuild": "0.28.1",
     "uuid": "^14.0.0"
   },
