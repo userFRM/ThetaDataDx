@@ -1291,6 +1291,10 @@ def _example_value(endpoint: dict, param: dict) -> str:
                 f"{category!r} ({endpoint['name']}), so no example value exists"
             )
         return symbol
+    # A flat file keeps only the vendor's most recent days, so a fixed date
+    # goes stale; its examples show the form instead.
+    if param_type == "Date" and endpoint_attr(endpoint, "subcategory") == "flat_file":
+        return "YYYYMMDD"
     value = fixtures.get("concrete_by_type", {}).get(param_type)
     if value is None:
         fail(
