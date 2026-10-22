@@ -340,6 +340,8 @@ pub struct StockHistoryTradeQuoteRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "8")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "9")]
+    pub use_time_based_trade_quote: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StockHistoryTradeQuoteRequest {
@@ -1035,6 +1037,8 @@ pub struct OptionHistoryTradeQuoteRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "10")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "11")]
+    pub use_time_based_trade_quote: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeQuoteRequest {

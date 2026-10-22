@@ -318,6 +318,16 @@ required = false
 binding = "builder"
 default = "true"
 
+[param_groups.use_time_based_trade_quote_flag]
+
+[[param_groups.use_time_based_trade_quote_flag.params]]
+name = "use_time_based_trade_quote"
+description = "Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted."
+param_type = "Bool"
+required = false
+binding = "builder"
+default = "true"
+
 [param_groups.max_dte_filter]
 
 [[param_groups.max_dte_filter.params]]
@@ -603,6 +613,9 @@ use = "stock_venue_filter"
 [[templates.stock_history_trade_quote.params]]
 use = "date_range_optional"
 
+[[templates.stock_history_trade_quote.params]]
+use = "use_time_based_trade_quote_flag"
+
 [templates.stock_at_time]
 extends = "stock_parsed"
 subcategory = "at_time"
@@ -838,6 +851,9 @@ use = "strike_range_filter"
 
 [[templates.option_history_trade_quote.params]]
 use = "date_range_optional"
+
+[[templates.option_history_trade_quote.params]]
+use = "use_time_based_trade_quote_flag"
 
 [templates.option_history_open_interest]
 extends = "option_parsed"
@@ -2301,6 +2317,7 @@ perf_boost_intraday = "true"
 current_day_only = "true"
 annual_dividend_amount = "0.96"
 option_use_nbbo = "false"
+use_time_based_trade_quote = "false"
 
 [test_fixtures.mode_overrides.concrete_iso]
 # ISO-dashed expiration acceptance is scoped to `Expiration` params.

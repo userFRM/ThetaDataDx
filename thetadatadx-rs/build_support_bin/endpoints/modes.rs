@@ -113,7 +113,8 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
         | "underlyer_use_nbbo"
         | "perf_boost_intraday"
         | "current_day_only"
-        | "option_use_nbbo" => "optional flag wiring",
+        | "option_use_nbbo"
+        | "use_time_based_trade_quote" => "optional flag wiring",
         _ => panic!(
             "with_optional_rationale: unknown optional param '{param_name}'; \
              add a rationale class before adding a new optional fixture"

@@ -152,9 +152,12 @@ CELLS = [
     # stock_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
     ("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: market_data.stock_history_trade_quote("AAPL", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_trade_quote::with_use_time_based_trade_quote
+    #   rationale: use_time_based_trade_quote=false optional flag wiring
+    ("stock_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", lambda: market_data.stock_history_trade_quote("AAPL", use_time_based_trade_quote=False, date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_history_trade_quote("AAPL", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_history_trade_quote("AAPL", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", use_time_based_trade_quote=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_at_time_trade::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -866,9 +869,12 @@ CELLS = [
     # option_history_trade_quote::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_trade_quote("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
+    # option_history_trade_quote::with_use_time_based_trade_quote
+    #   rationale: use_time_based_trade_quote=false optional flag wiring
+    ("option_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", lambda: market_data.option_history_trade_quote("SPY", "20250321", use_time_based_trade_quote=False, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_quote("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_quote("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", use_time_based_trade_quote=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_open_interest("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),

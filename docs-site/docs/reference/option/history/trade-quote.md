@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/trade_quote",
   method: { rust: "option_history_trade_quote", python: "option_history_trade_quote", ts: "optionHistoryTradeQuote", cpp: "option_history_trade_quote" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "exclusive", type: "bool", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "exclusive", type: "bool", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "use_time_based_trade_quote", type: "bool", default: "" }],
   print: ["ms_of_day", "price", "bid", "ask"],
   returns: "TradeQuoteTick",
   sample: [
@@ -51,6 +51,7 @@ Fetch combined trade + quote ticks for an option contract.
 | `strike_range` | int | no | - | Strike range filter |
 | `start_date` | date | no | - | Start date YYYYMMDD |
 | `end_date` | date | no | - | End date YYYYMMDD |
+| `use_time_based_trade_quote` | bool | no | `true` | Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

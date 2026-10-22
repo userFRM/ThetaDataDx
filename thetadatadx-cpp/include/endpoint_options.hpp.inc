@@ -36,6 +36,8 @@ struct EndpointRequestOptions {
     std::optional<std::string> end_date;
     /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted.
     std::optional<bool> exclusive;
+    /// Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    std::optional<bool> use_time_based_trade_quote;
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     std::optional<std::string> strike;
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
@@ -109,6 +111,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_exclusive(bool value) {
         exclusive = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_use_time_based_trade_quote(bool value) {
+        use_time_based_trade_quote = value;
         return *this;
     }
     EndpointRequestOptions& with_strike(std::string value) {
@@ -247,6 +253,10 @@ struct FfiEndpointRequestOptions {
         if (options.exclusive) {
             raw.exclusive = *options.exclusive ? 1 : 0;
             raw.has_exclusive = 1;
+        }
+        if (options.use_time_based_trade_quote) {
+            raw.use_time_based_trade_quote = *options.use_time_based_trade_quote ? 1 : 0;
+            raw.has_use_time_based_trade_quote = 1;
         }
         if (options.strike) {
             strike_storage = *options.strike;

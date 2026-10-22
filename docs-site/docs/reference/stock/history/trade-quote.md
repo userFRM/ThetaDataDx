@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/stock/history/trade_quote",
   method: { rust: "stock_history_trade_quote", python: "stock_history_trade_quote", ts: "stockHistoryTradeQuote", cpp: "stock_history_trade_quote" },
   required: [{ key: "symbol", type: "string", default: "AAPL" }],
-  optional: [{ key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "exclusive", type: "bool", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "exclusive", type: "bool", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "use_time_based_trade_quote", type: "bool", default: "" }],
   print: ["ms_of_day", "price", "bid", "ask"],
   returns: "TradeQuoteTick",
   sample: [
@@ -45,6 +45,7 @@ Returns every trade reported by UTP & CTA paired with the last BBO quote reporte
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |
 | `start_date` | date | no | - | Start date YYYYMMDD |
 | `end_date` | date | no | - | End date YYYYMMDD |
+| `use_time_based_trade_quote` | bool | no | `true` | Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

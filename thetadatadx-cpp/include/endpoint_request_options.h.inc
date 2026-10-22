@@ -12,6 +12,8 @@ typedef struct {
     const char* end_date;
     int32_t exclusive;
     int32_t has_exclusive;
+    int32_t use_time_based_trade_quote;
+    int32_t has_use_time_based_trade_quote;
     const char* strike;
     const char* right;
     const char* symbol;
