@@ -1987,7 +1987,7 @@ class MarketDataView:
         use_time_based_trade_quote: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
-        """Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+        """Fetch combined trade + quote ticks for a stock on a given date.
 
         Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
         - Multi-day requests are limited to 1 month of data.
@@ -2015,7 +2015,7 @@ class MarketDataView:
         use_time_based_trade_quote: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
-        """Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+        """Fetch combined trade + quote ticks for a stock on a given date.
 
         Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
         - Multi-day requests are limited to 1 month of data.
@@ -2171,7 +2171,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> EodTickList:
-        """Fetch the end-of-day report of every stock for one date."""
+        """Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def stock_flat_file_eod_async(
@@ -2180,7 +2180,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[EodTickList]:
-        """Fetch the end-of-day report of every stock for one date.
+        """Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -2199,7 +2199,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
-        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade."""
+        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def stock_flat_file_trade_quote_async(
@@ -2208,7 +2208,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
-        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -2227,7 +2227,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> IntervalQuoteTickList:
-        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."""
+        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def stock_flat_file_quote_async(
@@ -2236,7 +2236,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[IntervalQuoteTickList]:
-        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -5920,7 +5920,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> EodTickList:
-        """Fetch the end-of-day report of every option contract for one date."""
+        """Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def option_flat_file_eod_async(
@@ -5929,7 +5929,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[EodTickList]:
-        """Fetch the end-of-day report of every option contract for one date.
+        """Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -5948,7 +5948,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
-        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade."""
+        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def option_flat_file_trade_quote_async(
@@ -5957,7 +5957,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
-        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -5976,7 +5976,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> OpenInterestTickList:
-        """Fetch the open interest of every option contract for one date."""
+        """Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def option_flat_file_open_interest_async(
@@ -5985,7 +5985,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OpenInterestTickList]:
-        """Fetch the open interest of every option contract for one date.
+        """Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -6004,7 +6004,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> IntervalQuoteTickList:
-        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."""
+        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def option_flat_file_quote_async(
@@ -6013,7 +6013,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[IntervalQuoteTickList]:
-        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
@@ -6440,7 +6440,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> EodTickList:
-        """Fetch the end-of-day report of every index for one date."""
+        """Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days."""
         ...
 
     def index_flat_file_eod_async(
@@ -6449,7 +6449,7 @@ class MarketDataView:
         *,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[EodTickList]:
-        """Fetch the end-of-day report of every index for one date.
+        """Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """

@@ -33,7 +33,7 @@
         );
 
         // The reconnect re-runs the FPSS connect and authentication
-        // handshake plus a paced subscription restore — all network-bound.
+        // handshake plus a paced subscription restore, all network-bound.
         // Move it onto a blocking worker so the single libuv thread stays
         // free for timers, IO, and queued promises. The stored callback
         // handle stays in place; `reconnect_streaming` re-uses the same

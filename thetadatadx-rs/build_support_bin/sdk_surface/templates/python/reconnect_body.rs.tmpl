@@ -21,7 +21,7 @@
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
-        // WEAK, not strong — see `start_streaming`: a strong `Arc<Client>` in
+        // WEAK, not strong (see `start_streaming`): a strong `Arc<Client>` in
         // the long-lived dispatcher closure would pin the core client alive
         // past the user's drop and defeat `Client::Drop`'s teardown.
         let panic_recorder = Arc::downgrade(&self.client);
@@ -30,14 +30,14 @@
         // `reconnect_streaming_scoped` tears the old session down, opens a
         // fresh FPSS TLS connection, re-runs the `CREDENTIALS` handshake,
         // and paces the saved-subscription replay (sleeping
-        // `replay_pace_ms` between bursts) — all synchronously on the
+        // `replay_pace_ms` between bursts), all synchronously on the
         // calling thread. The whole call is released from the interpreter
         // lock via `py.detach` so a sibling Python thread keeps running
         // while the reconnect is in flight. The reconnect path and its
         // `Result` are pure Rust; `to_py_err` maps the failure AFTER the
         // GIL is re-acquired.
         //
-        // GIL once per batch, not per event — see `start_streaming`. The
+        // GIL once per batch, not per event; see `start_streaming`. The
         // dispatcher scope holds the GIL across each batch drain and
         // releases it across the idle wait; the per-event
         // `Python::attach` is the cheap reentrant fast path.
@@ -58,7 +58,7 @@
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            // Weak upgrade — see `start_streaming`.
+                            // Weak upgrade; see `start_streaming`.
                             if let Some(client) = panic_recorder.upgrade() {
                                 client.stream().record_panic();
                             }
@@ -66,7 +66,7 @@
                     });
                 },
                 |drain| Python::attach(|_py| drain()),
-                // No teardown wake hook — see `start_streaming` above.
+                // No teardown wake hook; see `start_streaming` above.
                 None,
             )
         })

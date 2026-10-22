@@ -1,6 +1,6 @@
 ---
 title: EOD
-description: "Fetch the end-of-day report of every option contract for one date."
+description: "Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="professional" />
 
-Fetch the end-of-day report of every option contract for one date.
+Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
 
 <RequestBuilder :cfg="cfg" />
 
@@ -56,5 +56,5 @@ Rows of `EodTick`:
 | `ask_condition` | i32 | Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
+Every row carries `expiration` (YYYYMMDD), `strike` (dollars) and `right` ("C" / "P"); with the row's root, which the whole result carries per row, they identify the contract.
 

@@ -1,6 +1,6 @@
 ---
 title: Quote
-description: "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+description: "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="professional" />
 
-Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 
 <RequestBuilder :cfg="cfg" />
 

@@ -63,7 +63,7 @@
         // thread before it spawns the dispatcher, so the whole call is
         // released from the interpreter lock via `py.detach`. A sibling
         // Python thread keeps running while the handshake is in flight.
-        // The connect path and the resulting `Result` are pure Rust — no
+        // The connect path and the resulting `Result` are pure Rust: no
         // Python object is touched inside the detached region; the typed
         // exception mapping (`to_py_err`) runs AFTER the GIL is
         // re-acquired, leaving the error surface unchanged.
@@ -74,7 +74,7 @@
         // releases it across the idle inter-batch wait. The per-event
         // `Python::attach` is the cheap reentrant fast path (the GIL is
         // already held by the scope), not a full acquire-from-detached
-        // every event — which is what lifts sustained drain throughput.
+        // every event, which is what lifts sustained drain throughput.
         // The no-GIL discipline holds: the lock never spans the blocking
         // connect and never spans the idle wait.
         //
@@ -93,7 +93,7 @@
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Convert the borrowed `&StreamEvent` straight to its
-                        // typed pyclass — no owned intermediate. The
+                        // typed pyclass, with no owned intermediate. The
                         // contract is stored inline on the event; the
                         // nested `ContractRef` Python object is built only
                         // if the callback reads `event.contract`. `call1`
@@ -103,7 +103,7 @@
                             Ok(obj) => obj,
                             Err(err) => {
                                 // Don't propagate from the dispatcher
-                                // thread — there's no Python frame to
+                                // thread: there's no Python frame to
                                 // raise into. Surface via the standard
                                 // PyErr -> sys.stderr writer so logging
                                 // pipelines and Jupyter both see it.

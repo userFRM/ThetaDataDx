@@ -1,6 +1,6 @@
     // Context the C ABI carries through `stream_chunk_shim`: the erased
     // handler plus a slot for the first exception it throws. A C++ exception
-    // must never unwind across the C ABI into Rust, so the shim catches it —
+    // must never unwind across the C ABI into Rust, so the shim catches it,
     // but rather than DISCARD it (which would lose a chunk while the stream
     // still reported success) it retains the FIRST one and skips every later
     // chunk. The `_stream` method rethrows it once the synchronous drain

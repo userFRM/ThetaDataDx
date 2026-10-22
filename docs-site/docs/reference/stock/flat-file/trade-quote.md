@@ -1,6 +1,6 @@
 ---
 title: Trade Quote
-description: "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade."
+description: "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="professional" />
 
-Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 
 <RequestBuilder :cfg="cfg" />
 

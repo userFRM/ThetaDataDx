@@ -2,7 +2,7 @@
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
         // is `Send + Sync` but does not implement `Clone` in napi-rs
-        // 3.x — the outer `Arc` is the canonical way to share the
+        // 3.x; the outer `Arc` is the canonical way to share the
         // handle between the closure and the stored copy on `self`.
         let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
         {
@@ -47,8 +47,8 @@
         // event ring: once the bounded callback queue is full it blocks inside
         // the `Blocking` `dispatch_cb.call(...)` below, waiting for the Node
         // main thread to drain the queue. On `stopStreaming()` the main thread
-        // is itself inside the dispatcher join, so it can never drain the queue
-        // — the consumer would block forever and the join would hang. The hook
+        // is itself inside the dispatcher join, so it can never drain the queue,
+        // so the consumer would block forever and the join would hang. The hook
         // aborts the threadsafe function so the in-flight `Blocking` call
         // returns `Status::Closing`, the consumer resumes, observes the client
         // shutdown, exits `for_each_scoped`, and the join completes. It is
@@ -98,7 +98,7 @@
                     //
                     // `ErrorStrategy::Fatal` (the fifth `false` const generic
                     // on `TsfnCallback`) means we pass `T` directly, not
-                    // `Result<T, _>` — exceptions in the JS callback are
+                    // `Result<T, _>`; exceptions in the JS callback are
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.
                     let status = dispatch_cb.call(

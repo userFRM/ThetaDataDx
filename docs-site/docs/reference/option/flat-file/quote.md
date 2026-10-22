@@ -1,6 +1,6 @@
 ---
 title: Quote
-description: "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+description: "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="professional" />
 
-Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 
 <RequestBuilder :cfg="cfg" />
 
@@ -50,5 +50,5 @@ Rows of `IntervalQuoteTick`:
 | `ask_condition` | i32 | Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
-Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
+Every row carries `expiration` (YYYYMMDD), `strike` (dollars) and `right` ("C" / "P"); with the row's root, which the whole result carries per row, they identify the contract.
 

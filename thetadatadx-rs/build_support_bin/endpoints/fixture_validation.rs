@@ -308,7 +308,7 @@ pub(super) fn validate_test_fixtures(
     if !unused_mode_param_keys.is_empty() {
         unused_mode_param_keys.sort();
         errors.push(format!(
-            "[test_fixtures.mode_overrides] contains dead keys — not bound by any endpoint \
+            "[test_fixtures.mode_overrides] contains dead keys, not bound by any endpoint \
              emitting that mode: {}",
             unused_mode_param_keys.join(", ")
         ));
