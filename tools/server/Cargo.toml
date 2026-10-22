@@ -23,7 +23,7 @@ path = "src/main.rs"
 
 [dependencies]
 thetadatadx = { package = "thetadatadx-rs", path = "../../thetadatadx-rs", features = ["config-file", "__internal"] }
-rustls = { version = "0.23.38", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }
 sonic-rs = "0.5.8"

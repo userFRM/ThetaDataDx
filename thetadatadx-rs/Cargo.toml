@@ -132,8 +132,8 @@ tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "
 # inherit the same `rustls/ring`-only feature union through Cargo's
 # feature unification, so the entire dep graph compiles a single provider.
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12", "logging"] }
-rustls = { version = "0.23.40", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-webpki-roots = "1.0.7"
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "1.0.10"
 
 # FPSS SPKI certificate pinning (see `fpss::pinning`). We parse the leaf
 # DER to extract the SubjectPublicKeyInfo, SHA-256 it, and constant-time
