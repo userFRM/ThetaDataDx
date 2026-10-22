@@ -3858,6 +3858,7 @@ class MarketDataView:
         underlyer_use_nbbo: Optional[bool] = False,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> GreeksEodTickList:
         """Fetch end-of-day Greeks history for an option contract.
@@ -3872,6 +3873,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
         """
         ...
 
@@ -3892,6 +3894,7 @@ class MarketDataView:
         underlyer_use_nbbo: Optional[bool] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksEodTickList]:
         """Fetch end-of-day Greeks history for an option contract.
@@ -3906,6 +3909,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3940,6 +3944,7 @@ class MarketDataView:
         underlyer_use_nbbo: Optional[bool] = False,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> GreeksEodTickList:
         """Fetch end-of-day binomial Greeks history for an option contract.
@@ -3956,6 +3961,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
         """
         ...
 
@@ -3977,6 +3983,7 @@ class MarketDataView:
         underlyer_use_nbbo: Optional[bool] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksEodTickList]:
         """Fetch end-of-day binomial Greeks history for an option contract.
@@ -3993,6 +4000,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.

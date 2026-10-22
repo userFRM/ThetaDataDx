@@ -447,6 +447,16 @@ required = false
 binding = "builder"
 default = "false"
 
+[param_groups.option_use_nbbo_flag]
+
+[[param_groups.option_use_nbbo_flag.params]]
+name = "option_use_nbbo"
+description = "Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted."
+param_type = "Bool"
+required = false
+binding = "builder"
+default = "true"
+
 [param_groups.binomial_steps_input]
 
 [[param_groups.binomial_steps_input.params]]
@@ -870,6 +880,9 @@ use = "max_dte_filter"
 [[templates.option_history_greeks_eod.params]]
 use = "strike_range_filter"
 
+[[templates.option_history_greeks_eod.params]]
+use = "option_use_nbbo_flag"
+
 [templates.option_history_greeks]
 extends = "option_parsed"
 subcategory = "history_greeks"
@@ -950,6 +963,9 @@ use = "max_dte_filter"
 
 [[templates.option_history_binomial_greeks_eod.params]]
 use = "strike_range_filter"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "option_use_nbbo_flag"
 
 [templates.option_history_binomial_greeks]
 extends = "option_parsed"
@@ -2284,6 +2300,7 @@ binomial_steps = "51"
 perf_boost_intraday = "true"
 current_day_only = "true"
 annual_dividend_amount = "0.96"
+option_use_nbbo = "false"
 
 [test_fixtures.mode_overrides.concrete_iso]
 # ISO-dashed expiration acceptance is scoped to `Expiration` params.

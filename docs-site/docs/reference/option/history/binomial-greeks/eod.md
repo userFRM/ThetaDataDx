@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/binomial_greeks/eod",
   method: { rust: "option_history_binomial_greeks_eod", python: "option_history_binomial_greeks_eod", ts: "optionHistoryBinomialGreeksEOD", cpp: "option_history_binomial_greeks_eod" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }, { key: "start_date", type: "date", default: "20250303" }, { key: "end_date", type: "date", default: "20250306" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "underlyer_use_nbbo", type: "bool", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "underlyer_use_nbbo", type: "bool", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "option_use_nbbo", type: "bool", default: "" }],
   print: ["date", "close", "delta", "implied_volatility"],
   returns: "GreeksEodTick",
   sample: [
@@ -52,6 +52,7 @@ Fetch end-of-day binomial Greeks history for an option contract.
 | `underlyer_use_nbbo` | bool | no | `false` | When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade. |
 | `max_dte` | int | no | - | Maximum days to expiration |
 | `strike_range` | int | no | - | Strike range filter |
+| `option_use_nbbo` | bool | no | `true` | Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

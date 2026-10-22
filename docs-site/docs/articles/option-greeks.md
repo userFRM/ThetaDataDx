@@ -11,7 +11,7 @@ The `option/*/greeks/*` [reference endpoints](/reference/option/snapshot/greeks/
 
 - **Risk-free rate** defaults to SOFR; override the source with `rate_type` (SOFR or a Treasury tenor) or pin an exact rate with `rate_value`.
 - **Dividends** are ignored unless you pass `annual_dividend`, or `annual_dividend_amount` for a dividend in dollars per share per year; the server refuses the two together.
-- **Option price input** is the NBBO midpoint by default; `use_market_value` switches snapshot calculations to the market value, and trade-Greeks endpoints use the trade price.
+- **Option price input** is the NBBO midpoint by default; `use_market_value` switches snapshot calculations to the market value, `option_use_nbbo=false` switches the end-of-day endpoints to the last trade price, and trade-Greeks endpoints use the trade price.
 - **Underlying price input** is the last underlying trade; `underlyer_use_nbbo` switches to the underlying NBBO midpoint.
 - **Implied volatility** is solved numerically from the option price; each row carries an `iv_error` residual so you can judge the fit.
 - `version` selects the calculation revision; `latest` uses real time-to-expiration down to a one-hour floor.

@@ -35,6 +35,8 @@ typedef struct {
     int32_t has_binomial_steps;
     int32_t underlyer_use_nbbo;
     int32_t has_underlyer_use_nbbo;
+    int32_t option_use_nbbo;
+    int32_t has_option_use_nbbo;
     int32_t perf_boost_intraday;
     int32_t has_perf_boost_intraday;
     /* Per-call deadline. Set has_timeout_ms = 1 to apply. */

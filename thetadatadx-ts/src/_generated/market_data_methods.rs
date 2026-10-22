@@ -1047,6 +1047,8 @@ pub struct OptionHistoryGreeksEODOptions {
     pub max_dte: Option<f64>,
     /// Strike range filter
     pub strike_range: Option<f64>,
+    /// Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    pub option_use_nbbo: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1083,6 +1085,8 @@ pub struct OptionHistoryBinomialGreeksEODOptions {
     pub max_dte: Option<f64>,
     /// Strike range filter
     pub strike_range: Option<f64>,
+    /// Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    pub option_use_nbbo: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -7960,6 +7964,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     #[napi(js_name = "optionHistoryGreeksEOD")]
     pub async fn option_history_greeks_eod(
         &self,
@@ -7988,6 +7993,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -8019,6 +8025,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8059,6 +8068,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -8092,6 +8102,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8151,6 +8164,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -8183,6 +8197,9 @@ impl MarketDataView {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8211,6 +8228,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     #[napi(js_name = "optionHistoryBinomialGreeksEOD")]
     pub async fn option_history_binomial_greeks_eod(
         &self,
@@ -8240,6 +8258,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -8274,6 +8293,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8315,6 +8337,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -8351,6 +8374,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8411,6 +8437,7 @@ impl MarketDataView {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -8445,6 +8472,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20644,6 +20674,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     #[napi(js_name = "optionHistoryGreeksEOD")]
     pub async fn option_history_greeks_eod(
         &self,
@@ -20672,6 +20703,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -20703,6 +20735,9 @@ impl MarketDataClient {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20743,6 +20778,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -20776,6 +20812,9 @@ impl MarketDataClient {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20835,6 +20874,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -20867,6 +20907,9 @@ impl MarketDataClient {
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
             }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -20895,6 +20938,7 @@ impl MarketDataClient {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     #[napi(js_name = "optionHistoryBinomialGreeksEOD")]
     pub async fn option_history_binomial_greeks_eod(
         &self,
@@ -20924,6 +20968,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -20958,6 +21003,9 @@ impl MarketDataClient {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20999,6 +21047,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -21035,6 +21084,9 @@ impl MarketDataClient {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21095,6 +21147,7 @@ impl MarketDataClient {
         let underlyer_use_nbbo = options.underlyer_use_nbbo;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let option_use_nbbo = options.option_use_nbbo;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
@@ -21129,6 +21182,9 @@ impl MarketDataClient {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));

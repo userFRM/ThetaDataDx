@@ -8684,6 +8684,7 @@ impl OptionHistoryOpenInterestBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `underlyer_use_nbbo`: `false`
+/// - `option_use_nbbo`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryGreeksEodBuilder")]
 pub struct OptionHistoryGreeksEodBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -8701,6 +8702,7 @@ pub struct OptionHistoryGreeksEodBuilder {
     underlyer_use_nbbo: Option<bool>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
+    option_use_nbbo: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -8766,6 +8768,12 @@ impl OptionHistoryGreeksEodBuilder {
         slf
     }
 
+    /// Set `option_use_nbbo` on the pending request.
+    fn option_use_nbbo<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.option_use_nbbo = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -8816,6 +8824,7 @@ impl OptionHistoryGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
@@ -8849,6 +8858,9 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8874,6 +8886,7 @@ impl OptionHistoryGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
@@ -8907,6 +8920,9 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8931,6 +8947,7 @@ impl OptionHistoryGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -8972,6 +8989,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
+            }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9019,6 +9039,7 @@ impl OptionHistoryGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -9057,6 +9078,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
+            }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9132,6 +9156,7 @@ impl OptionHistoryGreeksEodBuilder {
 /// - `binomial_steps`: `101`
 /// - `version`: `"latest"`
 /// - `underlyer_use_nbbo`: `false`
+/// - `option_use_nbbo`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksEodBuilder")]
 pub struct OptionHistoryBinomialGreeksEodBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -9150,6 +9175,7 @@ pub struct OptionHistoryBinomialGreeksEodBuilder {
     underlyer_use_nbbo: Option<bool>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
+    option_use_nbbo: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -9221,6 +9247,12 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         slf
     }
 
+    /// Set `option_use_nbbo` on the pending request.
+    fn option_use_nbbo<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.option_use_nbbo = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -9272,6 +9304,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
@@ -9308,6 +9341,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9334,6 +9370,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
@@ -9370,6 +9407,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
             }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9395,6 +9435,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -9439,6 +9480,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
+            }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9487,6 +9531,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let underlyer_use_nbbo = self.underlyer_use_nbbo;
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
+        let option_use_nbbo = self.option_use_nbbo;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -9528,6 +9573,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &strike_range {
                 request = request.strike_range(*value);
+            }
+            if let Some(value) = &option_use_nbbo {
+                request = request.option_use_nbbo(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -26971,7 +27019,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
+    /// - `option_use_nbbo`: `true`
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, option_use_nbbo=true, timeout_ms=None))]
     fn option_history_greeks_eod(
         &self,
         py: Python<'_>,
@@ -26989,6 +27038,7 @@ impl MarketDataView {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        option_use_nbbo: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksEodTickList>> {
         let mut request = self.client.market_data().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -27022,6 +27072,9 @@ impl MarketDataView {
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
+        if let Some(value) = option_use_nbbo {
+            request = request.option_use_nbbo(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -27041,12 +27094,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, option_use_nbbo=None, timeout_ms=None))]
     fn option_history_greeks_eod_async<'py>(
         &self,
         py: Python<'py>,
@@ -27064,6 +27118,7 @@ impl MarketDataView {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        option_use_nbbo: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -27098,6 +27153,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -27136,6 +27194,7 @@ impl MarketDataView {
             underlyer_use_nbbo: None,
             max_dte: None,
             strike_range: None,
+            option_use_nbbo: None,
             timeout_ms: None,
         }
     }
@@ -27154,7 +27213,8 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
+    /// - `option_use_nbbo`: `true`
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, option_use_nbbo=true, timeout_ms=None))]
     fn option_history_binomial_greeks_eod(
         &self,
         py: Python<'_>,
@@ -27173,6 +27233,7 @@ impl MarketDataView {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        option_use_nbbo: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksEodTickList>> {
         let mut request = self.client.market_data().option_history_binomial_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
@@ -27209,6 +27270,9 @@ impl MarketDataView {
         if let Some(value) = strike_range {
             request = request.strike_range(value);
         }
+        if let Some(value) = option_use_nbbo {
+            request = request.option_use_nbbo(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -27230,12 +27294,13 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
+    /// - `option_use_nbbo`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, option_use_nbbo=None, timeout_ms=None))]
     fn option_history_binomial_greeks_eod_async<'py>(
         &self,
         py: Python<'py>,
@@ -27254,6 +27319,7 @@ impl MarketDataView {
         underlyer_use_nbbo: Option<bool>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
+        option_use_nbbo: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -27291,6 +27357,9 @@ impl MarketDataView {
             }
             if let Some(value) = strike_range {
                 request = request.strike_range(value);
+            }
+            if let Some(value) = option_use_nbbo {
+                request = request.option_use_nbbo(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -27330,6 +27399,7 @@ impl MarketDataView {
             underlyer_use_nbbo: None,
             max_dte: None,
             strike_range: None,
+            option_use_nbbo: None,
             timeout_ms: None,
         }
     }

@@ -710,6 +710,7 @@ message OptionHistoryGreeksEodRequestQuery {
   optional bool underlyer_use_nbbo = 9;
   optional int32 max_dte = 10;
   optional int32 strike_range = 11;
+  optional bool option_use_nbbo = 12;
   optional double annual_dividend_amount = 13;
 }
 
@@ -731,6 +732,7 @@ message OptionHistoryBinomialGreeksEodRequestQuery {
   optional bool underlyer_use_nbbo = 10;
   optional int32 max_dte = 11;
   optional int32 strike_range = 12;
+  optional bool option_use_nbbo = 13;
   optional double annual_dividend_amount = 14;
 }
 

@@ -1091,6 +1091,8 @@ pub struct OptionHistoryGreeksEodRequestQuery {
     pub max_dte: ::core::option::Option<i32>,
     #[prost(int32, optional, tag = "11")]
     pub strike_range: ::core::option::Option<i32>,
+    #[prost(bool, optional, tag = "12")]
+    pub option_use_nbbo: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "13")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
 }
@@ -1127,6 +1129,8 @@ pub struct OptionHistoryBinomialGreeksEodRequestQuery {
     pub max_dte: ::core::option::Option<i32>,
     #[prost(int32, optional, tag = "12")]
     pub strike_range: ::core::option::Option<i32>,
+    #[prost(bool, optional, tag = "13")]
+    pub option_use_nbbo: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
 }
