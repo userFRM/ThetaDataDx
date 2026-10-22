@@ -186,6 +186,21 @@ fn row_price_f64_accepts_number_cell() {
 }
 
 #[test]
+fn row_price_f64_reads_a_decimal_text_cell_and_refuses_any_other_text() {
+    // The flat-file responses send every price as its decimal text.
+    let row = row_of(vec![
+        dv_text("10.26"),
+        dv_text("0.00010"),
+        dv_text("SPY"),
+        dv_text("NaN"),
+    ]);
+    assert_eq!(row_price_f64(&row, 0).unwrap(), Some(10.26));
+    assert_eq!(row_price_f64(&row, 1).unwrap(), Some(0.0001));
+    assert!(row_price_f64(&row, 2).is_err());
+    assert!(row_price_f64(&row, 3).is_err());
+}
+
+#[test]
 fn row_price_value_returns_value_for_price_cell() {
     let row = row_of(vec![dv_price(12345, 10)]);
     assert_eq!(row_price_value(&row, 0).unwrap(), Some(12345));

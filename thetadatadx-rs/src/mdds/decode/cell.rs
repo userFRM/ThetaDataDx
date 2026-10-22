@@ -187,7 +187,9 @@ pub(crate) fn row_price_type(
 ///
 /// Accepts both `Price` (the schema type) and `Number` — v3 MDDS occasionally
 /// sends whole-dollar quantities as plain `Number` cells where the schema
-/// would otherwise expect `Price`. `NullValue` returns `Ok(None)`.
+/// would otherwise expect `Price`, and the flat-file responses send prices as
+/// decimal `Text`, which must parse to a finite number. `NullValue` returns
+/// `Ok(None)`.
 ///
 /// # Errors
 ///
@@ -212,10 +214,19 @@ pub(crate) fn row_price_f64(
             Ok(Some(price.to_f64()))
         }
         Some(proto::data_value::DataType::Number(n)) => Ok(Some(*n as f64)),
+        // The flat-file responses send every price as its decimal text.
+        Some(proto::data_value::DataType::Text(s)) => match s.parse::<f64>() {
+            Ok(v) if v.is_finite() => Ok(Some(v)),
+            _ => Err(DecodeError::TypeMismatch {
+                column: idx,
+                expected: "Price|Number|decimal Text",
+                observed: "Text",
+            }),
+        },
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
-            expected: "Price|Number",
+            expected: "Price|Number|decimal Text",
             observed: observed_name(other),
         }),
     }
