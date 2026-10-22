@@ -134,6 +134,10 @@ tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring", "tls12", "logging"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 webpki-roots = "1.0.10"
+# Not used directly: rustls 0.23.46 accepts rustls-webpki 0.103.14 and up, and
+# 0.103.16 is the first release that rejects the distrusted emSign
+# intermediates (RUSTSEC-2026-0382), so the floor is declared here.
+rustls-webpki = { version = "0.103.16", default-features = false }
 
 # FPSS SPKI certificate pinning (see `fpss::pinning`). We parse the leaf
 # DER to extract the SubjectPublicKeyInfo, SHA-256 it, and constant-time
