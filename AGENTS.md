@@ -21,7 +21,7 @@ binaries.
 | `thetadatadx-ts/` | TypeScript/Node bindings (napi-rs). |
 | `thetadatadx-cpp/` | Header-and-source C++ SDK over the C ABI. CMake. |
 | `tools/server/` | A drop-in replacement for the vendor's JVM terminal, serving the user's own tooling. Like the terminal, it binds all interfaces by default; `--bind 127.0.0.1` restricts it to loopback. |
-| `tools/mcp/` | An MCP server. Holds live subscriptions and answers questions about them, plus history and flat-file tools. |
+| `tools/mcp/` | An MCP server: one tool per market-data endpoint, plus flat-file tools. |
 | `scripts/ci/` | The gate suite. One script per gate, dispatched by `scripts/ci.py`. |
 | `docs-site/` | The published documentation. Its changelog is kept identical to `CHANGELOG.md`. |
 
@@ -370,7 +370,7 @@ teardown as visible outside this program.
 
 Any surface that answers a question about data it holds rather than data it fetches only works if
 every answer is honest about its own limits. These rules are the repository's standard for that, and
-they are why the streaming MCP tools are parked on `wip/mcp-streaming-parked` rather than shipped.
+they are why the MCP server ships no streaming tools.
 
 - An age describes the rows returned, not the newest thing on the feed.
 - A window's stated bounds contain the rows it came back with.
