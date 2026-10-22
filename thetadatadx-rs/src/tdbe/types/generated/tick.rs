@@ -646,7 +646,7 @@ impl IndexPriceAtTimeTick {
 /// Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`:
 ///
 /// The `date` decode flows through `thetadatadx::decode::row_date`, which
-/// accepts `Number`, `Timestamp`, and `Text` cells uniformly — so this tick
+/// accepts `Number`, `Timestamp`, and `Text` cells uniformly; so this tick
 /// decodes either the documented Text-ISO shape or any future
 /// Number/Timestamp narrowing without a per-parser branch.
 #[must_use]

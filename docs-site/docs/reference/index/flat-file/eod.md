@@ -1,6 +1,6 @@
 ---
 title: EOD
-description: "Fetch the end-of-day report of every index for one date."
+description: "Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days."
 aside: false
 ---
 
@@ -21,7 +21,7 @@ const cfg = {
 
 <TierBadge tier="professional" />
 
-Fetch the end-of-day report of every index for one date.
+Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
 
 <RequestBuilder :cfg="cfg" />
 

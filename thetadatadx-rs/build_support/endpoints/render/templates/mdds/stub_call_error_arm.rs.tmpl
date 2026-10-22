@@ -1,5 +1,5 @@
                     // Bind the channel lease so its pre-dispatch
-                    // reservation outlives the await — see
+                    // reservation outlives the await; see
                     // `thetadatadx-rs/src/mdds/macros.rs` for the
                     // full rationale. Deref coercion from
                     // `&ChannelLease` to `&Channel` satisfies the

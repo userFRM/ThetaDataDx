@@ -84,7 +84,7 @@ fn rationale_for_mode(name: &str) -> &'static str {
         "bulk_chain" => "expiration=* + strike=* + right=both; tests full-chain server mode",
         "with_intraday_window" => "start_time + end_time pair; intraday window optional wiring",
         "with_date_range" => "start_date + end_date pair; date range optional wiring",
-        "all_optionals" => "every applicable optional set at once; proves multi-optional wiring",
+        "all_optionals" => "several optionals set together; proves multi-optional wiring",
         _ => panic!(
             "rationale_for_mode: unknown mode '{name}'; add a rationale to TestMode generation"
         ),
@@ -593,7 +593,7 @@ fn append_optional_modes(
         });
     }
 
-    // `all_optionals` mode — set every applicable optional at once.
+    // `all_optionals` mode: set several optionals together.
     let mut all_overrides: Vec<(String, String)> = Vec::new();
     for param_name in &optional_names {
         // The vendor refuses `annual_dividend_amount` beside a non-zero

@@ -35,7 +35,7 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
         msg = str(exc).lower()
         # Per-call deadline elapsed: SDK cancelled the in-flight gRPC
         # stream and raised RuntimeError carrying our timeout sentinel.
-        # No daemon threads to clean up — the next cell runs immediately.
+        # No daemon threads to clean up; the next cell runs immediately.
         if "request deadline exceeded" in msg:
             print(f"  {label:60s} FAIL  timeout after {duration_ms//1000}s", flush=True)
             fail_count += 1

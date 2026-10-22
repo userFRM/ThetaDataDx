@@ -1,6 +1,6 @@
 ---
 title: Trade Quote
-description: "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
+description: "Fetch combined trade + quote ticks for a stock on a given date."
 aside: false
 ---
 
@@ -26,7 +26,7 @@ const cfg = {
 
 <TierBadge tier="standard" />
 
-Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+Fetch combined trade + quote ticks for a stock on a given date.
 
 Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp `<=` the trade timestamp. If you prefer to match quotes with timestamps that are `<` the trade timestamp, specify the `exclusive` parameter to `true`. Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
 - Multi-day requests are limited to 1 month of data.

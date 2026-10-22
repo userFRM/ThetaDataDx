@@ -111,7 +111,13 @@ pub(super) fn render_response_section(
             doc
         ));
     }
-    if def.contract_id && endpoint.category == "option" {
+    if def.contract_id && endpoint.category == "option" && endpoint.subcategory == "flat_file" {
+        out.push_str(
+            "\nEvery row carries `expiration` (YYYYMMDD), `strike` (dollars) and `right` \
+             (\"C\" / \"P\"); with the row's root, which the whole result carries per row, \
+             they identify the contract.\n",
+        );
+    } else if def.contract_id && endpoint.category == "option" {
         out.push_str(
             "\nWildcard requests additionally populate `expiration` (YYYYMMDD), `strike` \
              (dollars), and `right` (\"C\" / \"P\") on every row to identify the contract; \

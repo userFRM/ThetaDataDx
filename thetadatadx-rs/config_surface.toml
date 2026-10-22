@@ -108,7 +108,7 @@ out_safety = """
         // SAFETY: out_ms checked non-null at line 279; FFI contract pins
         // the `u64` storage for the call. Writing
         // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
-        // reader — FFI handles are not thread-safe per the public contract.
+        // reader; FFI handles are not thread-safe per the public contract.
 """
 doc = """
 Read the current reconnect `wait_rate_limited_ms` setting. Same
@@ -681,10 +681,10 @@ doc = """
 Set how the streaming consumer waits when the event ring is momentarily
 empty.
 
-- `mode = 0`: Spin (default) — adaptive spin then a yield ramp; never sleeps.
-- `mode = 1`: BusySpin — pure spin, no yield, never sleeps. Lowest jitter.
-- `mode = 2`: Park — spin/yield ramp then sleep the park interval. Low CPU.
-- `mode = 3`: Backoff — spins while events flow, sleeps once idle, resumes.
+- `mode = 0`: Spin (default); adaptive spin then a yield ramp; never sleeps.
+- `mode = 1`: BusySpin; pure spin, no yield, never sleeps. Lowest jitter.
+- `mode = 2`: Park; spin/yield ramp then sleep the park interval. Low CPU.
+- `mode = 3`: Backoff; spins while events flow, sleeps once idle, resumes.
 
 `Spin` and `BusySpin` both hold ~100% of one core and differ only in
 jitter; only `Park` and `Backoff` lower idle CPU. The park / backoff sleep
@@ -1405,11 +1405,11 @@ Set the market-data gRPC port. Companion to
 @c set_market_data_host.
 """
 py_doc = """
-Override the market-data gRPC port. Companion to `market_data_host` —
+Override the market-data gRPC port. Companion to `market_data_host`:
 same rationale and same test-only usage.
 """
 ts_doc = """
-Override the market-data gRPC port. Companion to `setMarketDataHost` —
+Override the market-data gRPC port. Companion to `setMarketDataHost`:
 same test-only rationale. Rejects values outside the `0..=65535`
 port range.
 """
@@ -1771,7 +1771,7 @@ doc = """
 Set the automatic bulk-fetch sharding policy for history pulls, covering
 both the buffered and the chunk-streaming call paths.
 
-- `policy = 0`: Auto (default) — a large history pull's requested time
+- `policy = 0`: Auto (default); a large history pull's requested time
   or date range is split into equal concurrent bands across the
   account's concurrent-request budget, decided from the request shape
   alone (no sizing request is issued). Buffered
@@ -1784,7 +1784,7 @@ both the buffered and the chunk-streaming call paths.
   chunk exactly once, but chunks from different bands interleave in
   arrival order rather than the single stream's order. Small pulls and
   non-history endpoints are never sharded.
-- `policy = 1`: Off — every query runs as a single stream, in the
+- `policy = 1`: Off; every query runs as a single stream, in the
   server's own row and chunk order.
 
 Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
@@ -1796,7 +1796,7 @@ out-of-domain enum int surfaces the same typed class across every binding.
 cpp_doc = """
 Set the automatic bulk-fetch sharding policy for history pulls (buffered
 and chunk-streaming alike): 0=Auto (default; a large pull's requested
-time or date range is split into equal concurrent bands — buffered
+time or date range is split into equal concurrent bands; buffered
 pulls merge back into
 exactly the single-stream rows, with option-chain pulls in a
 deterministic canonical contract order and every other pull in the
@@ -1812,7 +1812,7 @@ py_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
 chunk-streaming alike). Accepts ``"auto"`` (default: a large history
 pull's requested time or date range is split into equal concurrent
-bands across the account's concurrent-request budget — buffered
+bands across the account's concurrent-request budget; buffered
 pulls are merged back
 into exactly the rows of the single-stream response, single-contract,
 stock, and index pulls in the exact single-stream order and
@@ -1827,7 +1827,7 @@ ts_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
 chunk-streaming alike). Accepts `"auto"` (default: a large history
 pull's requested time or date range is split into equal concurrent
-bands across the account's concurrent-request budget — buffered pulls
+bands across the account's concurrent-request budget; buffered pulls
 are merged back into exactly
 the rows of the single-stream response, single-contract, stock, and
 index pulls in the exact single-stream order and option-chain pulls in
@@ -1893,8 +1893,8 @@ Set the upper bound on concurrent sub-requests per sharded bulk fetch.
   from `max_concurrent_requests`). `n` is ignored.
 * `has_value = true` encodes `Some(n)`: a sharded pull spreads across at
   most `n` sub-requests. The applied value is clamped into
-  `[1, pool_size]` when a plan is built — the pool size is resolved
-  from `max_concurrent_requests` — and validation floors an explicit
+  `[1, pool_size]` when a plan is built; the pool size is resolved
+  from `max_concurrent_requests`; and validation floors an explicit
   `0` to `1`.
 
 Returns `0` on success, `-1` if `config` is null.
@@ -1976,7 +1976,7 @@ requests onto it, resolved at connect time.
   to the account's subscription tier from the auth response (Free 1 /
   Value 2 / Standard 4 / Pro 8). `n` is ignored.
 * `has_value = true` encodes `Some(n)`: the pool is `n` verbatim, with
-  no client-side cap — the allowance is enforced server-side, so an
+  no client-side cap; the allowance is enforced server-side, so an
   account boosted above its base tier sets the boosted value and runs
   that wide. Requests past the server's allowance surface as
   `ResourceExhausted` and are retried with backoff. Validation floors
@@ -1989,7 +1989,7 @@ Set the number of concurrent in-flight market-data requests (gRPC
 channel-pool + request-semaphore size, resolved at connect time). Pass
 @c std::nullopt (the @c None default) to size the pool to the account's
 subscription tier from the auth response (Free 1 / Value 2 / Standard 4
-/ Pro 8); pass an explicit @c std::uint32_t to use it verbatim — no
+/ Pro 8); pass an explicit @c std::uint32_t to use it verbatim; no
 client-side cap, so a server-boosted account sets its boosted
 allowance. Requests past the server-enforced allowance are rejected
 upstream and retried with backoff. Validation floors an explicit `0`
@@ -2003,7 +2003,7 @@ Number of concurrent in-flight market-data requests (gRPC channel-pool
 + request-semaphore size, resolved at connect time). ``None`` (the
 default) sizes the pool to the account's subscription tier from the
 auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is
-used verbatim with no client-side cap — the allowance is enforced
+used verbatim with no client-side cap; the allowance is enforced
 server-side, so a boosted account sets its boosted value. Requests
 past the allowance are retried with backoff. Validation floors an
 explicit ``0`` to ``1``.
@@ -2018,7 +2018,7 @@ Set the number of concurrent in-flight market-data requests (gRPC
 channel-pool + request-semaphore size, resolved at connect time). Pass
 `null` or `undefined` (the default) to size the pool to the account's
 subscription tier from the auth response (Free 1 / Value 2 / Standard 4
-/ Pro 8); pass a `number` to use it verbatim — no client-side cap, so
+/ Pro 8); pass a `number` to use it verbatim; no client-side cap, so
 a server-boosted account sets its boosted allowance. Requests past the
 server-enforced allowance are retried with backoff. Validation floors
 an explicit `0` to `1`.
@@ -2631,8 +2631,8 @@ ts_err = 'setReconnectJitter: unknown mode {mode:?}; expected "full" or "none"'
 doc = """
 Set the jitter strategy applied to every reconnect delay.
 
-- `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
-- `mode = 1`: None — deterministic delays (tests only).
+- `mode = 0`: Full (default); sample uniformly from `[0, delay]`.
+- `mode = 1`: None; deterministic delays (tests only).
 
 Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
 `mode` is outside the documented `{0, 1}` set or `config` is

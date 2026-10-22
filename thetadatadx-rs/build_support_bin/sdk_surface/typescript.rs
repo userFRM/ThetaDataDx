@@ -121,7 +121,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Open a pull-based columnar reader over the live stream.\n\
                  \n\
-                 Returns a reader handle — a sibling to the per-event\n\
+                 Returns a reader handle, a sibling to the per-event\n\
                  `startStreaming(callback)`. The same subscriptions feed it,\n\
                  but market-data events arrive as apache-arrow `RecordBatch`\n\
                  values under a fixed schema, consumed with `for await`. The\n\
@@ -358,7 +358,7 @@ fn ts_util_method(utility: &UtilitySpec) -> String {
                 "    ",
                 "Convert a signed wire-encoded trade-sequence value to its unsigned\n\
                  monotonic form. Accepts a JS BigInt in the **32-bit signed wire\n\
-                 range** (`-2_147_483_648 ..= 2_147_483_647`) — the upstream feed\n\
+                 range** (`-2_147_483_648 ..= 2_147_483_647`); the upstream feed\n\
                  encodes trade sequences as a 32-bit signed integer. Returns a JS\n\
                  BigInt because the unsigned monotonic sequence id can exceed\n\
                  `Number.MAX_SAFE_INTEGER`. Inputs outside the wire range throw so\n\
@@ -397,7 +397,7 @@ fn ts_util_method(utility: &UtilitySpec) -> String {
                  signed wire encoding. Accepts a JS BigInt in the unsigned wire\n\
                  range (`0 ..= 2^32 - 1`); returns a JS BigInt for symmetry with\n\
                  `sequenceSignedToUnsigned`. Negative inputs and inputs above the\n\
-                 wire range throw — the unsigned monotonic sequence id is always\n\
+                 wire range throw; the unsigned monotonic sequence id is always\n\
                  non-negative and never wider than the 32-bit wire range.",
             );
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();

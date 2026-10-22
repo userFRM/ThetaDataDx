@@ -1421,7 +1421,7 @@ returns = "QuoteTicks"
 [[endpoints]]
 name = "stock_history_trade_quote"
 template = "stock_history_trade_quote"
-description = "Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable."
+description = "Fetch combined trade + quote ticks for a stock on a given date."
 vendor_docstring = """
 Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
 - Multi-day requests are limited to 1 month of data.
@@ -1464,21 +1464,21 @@ returns = "QuoteTicks"
 [[endpoints]]
 name = "stock_flat_file_eod"
 template = "stock_flat_file"
-description = "Fetch the end-of-day report of every stock for one date."
+description = "Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/stock/flat_file/eod"
 returns = "EodTicks"
 
 [[endpoints]]
 name = "stock_flat_file_trade_quote"
 template = "stock_flat_file"
-description = "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade."
+description = "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/stock/flat_file/trade_quote"
 returns = "TradeQuoteTicks"
 
 [[endpoints]]
 name = "stock_flat_file_quote"
 template = "stock_flat_file"
-description = "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+description = "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/stock/flat_file/quote"
 returns = "IntervalQuoteTicks"
 
@@ -2101,28 +2101,28 @@ returns = "QuoteTicks"
 [[endpoints]]
 name = "option_flat_file_eod"
 template = "option_flat_file"
-description = "Fetch the end-of-day report of every option contract for one date."
+description = "Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/option/flat_file/eod"
 returns = "EodTicks"
 
 [[endpoints]]
 name = "option_flat_file_trade_quote"
 template = "option_flat_file"
-description = "Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade."
+description = "Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/option/flat_file/trade_quote"
 returns = "TradeQuoteTicks"
 
 [[endpoints]]
 name = "option_flat_file_open_interest"
 template = "option_flat_file"
-description = "Fetch the open interest of every option contract for one date."
+description = "Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/option/flat_file/open_interest"
 returns = "OpenInterestTicks"
 
 [[endpoints]]
 name = "option_flat_file_quote"
 template = "option_flat_file"
-description = "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+description = "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/option/flat_file/quote"
 returns = "IntervalQuoteTicks"
 
@@ -2231,7 +2231,7 @@ returns = "IndexPriceAtTimeTicks"
 [[endpoints]]
 name = "index_flat_file_eod"
 template = "index_flat_file"
-description = "Fetch the end-of-day report of every index for one date."
+description = "Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days."
 rest_path = "/v3/index/flat_file/eod"
 returns = "EodTicks"
 

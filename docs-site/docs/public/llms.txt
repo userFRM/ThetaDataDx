@@ -26,7 +26,7 @@
 /reference/calendar/open-today: Open Today: Check whether the market is open today.
 /reference/calendar/year: Year: Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
 /reference/index/at-time/price: Price: Fetch the index price at a specific time of day across a date range.
-/reference/index/flat-file/eod: EOD: Fetch the end-of-day report of every index for one date.
+/reference/index/flat-file/eod: EOD: Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
 /reference/index/history/eod: EOD: Fetch end-of-day index data for a date range.
 /reference/index/history/ohlc: OHLC: Fetch intraday OHLC bars for an index.
 /reference/index/history/price: Price: Fetch intraday price history for an index.
@@ -37,10 +37,10 @@
 /reference/index/snapshot/price: Price: Get the latest price snapshot for one or more indices.
 /reference/option/at-time/quote: Quote: Fetch the quote at a specific time of day across a date range for an option.
 /reference/option/at-time/trade: Trade: Fetch the trade at a specific time of day across a date range for an option.
-/reference/option/flat-file/eod: EOD: Fetch the end-of-day report of every option contract for one date.
-/reference/option/flat-file/open-interest: Open Interest: Fetch the open interest of every option contract for one date.
-/reference/option/flat-file/quote: Quote: Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
-/reference/option/flat-file/trade-quote: Trade Quote: Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+/reference/option/flat-file/eod: EOD: Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
+/reference/option/flat-file/open-interest: Open Interest: Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
+/reference/option/flat-file/quote: Quote: Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
+/reference/option/flat-file/trade-quote: Trade Quote: Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 /reference/option/history/binomial-greeks/all: All Binomial Greeks: Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
 /reference/option/history/binomial-greeks/eod: EOD Binomial Greeks: Fetch end-of-day binomial Greeks history for an option contract.
 /reference/option/history/binomial-greeks/first-order: First-Order Binomial Greeks: Fetch first-order binomial Greeks history (intraday, sampled by interval).
@@ -89,14 +89,14 @@
 /reference/rate/history/eod: EOD: Fetch end-of-day interest rate history.
 /reference/stock/at-time/quote: Quote: Fetch the quote at a specific time of day across a date range.
 /reference/stock/at-time/trade: Trade: Fetch the trade at a specific time of day across a date range.
-/reference/stock/flat-file/eod: EOD: Fetch the end-of-day report of every stock for one date.
-/reference/stock/flat-file/quote: Quote: Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
-/reference/stock/flat-file/trade-quote: Trade Quote: Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+/reference/stock/flat-file/eod: EOD: Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
+/reference/stock/flat-file/quote: Quote: Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
+/reference/stock/flat-file/trade-quote: Trade Quote: Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 /reference/stock/history/eod: EOD: Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
 /reference/stock/history/ohlc: OHLC: Fetch intraday OHLC bars for a stock on a single date.
 /reference/stock/history/quote: Quote: Fetch NBBO quotes for a stock on a given date at a given interval.
 /reference/stock/history/trade: Trade: Fetch all trades for a stock on a given date.
-/reference/stock/history/trade-quote: Trade Quote: Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
+/reference/stock/history/trade-quote: Trade Quote: Fetch combined trade + quote ticks for a stock on a given date.
 /reference/stock/list/dates: Dates: List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
 /reference/stock/list/symbols: Symbols: List all available stock ticker symbols.
 /reference/stock/snapshot/market-value: Market Value: Get the latest market value snapshot for one or more stocks.

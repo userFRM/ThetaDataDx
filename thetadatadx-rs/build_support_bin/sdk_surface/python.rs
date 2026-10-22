@@ -123,7 +123,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  via `Python::attach` to call `callback(event)` for\n\
                  every typed streaming event, with each invocation wrapped\n\
                  in `catch_unwind`. `callback` must accept exactly one\n\
-                 positional argument — a typed streaming event class\n\
+                 positional argument, a typed streaming event class\n\
                  (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`,\n\
                  `LoginSuccess`, `ContractAssigned`, `ReqResponse`,\n\
                  `MarketOpen`, `MarketClose`, `ServerError`,\n\
@@ -177,7 +177,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                 "    ",
                 "Open a pull-based columnar reader over the live stream.\n\
                  \n\
-                 Returns a `RecordBatchStream` — a sibling to the per-event\n\
+                 Returns a `RecordBatchStream`, a sibling to the per-event\n\
                  `start_streaming(callback)`. The same subscriptions feed it,\n\
                  but market-data events arrive as `pyarrow.RecordBatch`\n\
                  values under a fixed schema. The reader is both a\n\
@@ -248,7 +248,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  Requires a prior `start_streaming(callback)`; raises\n\
                  `RuntimeError` if no callback is registered. All\n\
                  active subscriptions are restored on the new\n\
-                 connection — see `thetadatadx::Client::reconnect_streaming`\n\
+                 connection; see `thetadatadx::Client::reconnect_streaming`\n\
                  for partial-failure semantics.\n\
                  \n\
                  # Callback lifetime across `stop_streaming`\n\
@@ -370,7 +370,7 @@ fn python_utility_doc(utility: &UtilitySpec) -> Option<&str> {
             "Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into\n\
              Unix epoch milliseconds (UTC, DST-aware). Usable with any\n\
              `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when\n\
-             `date` is absent (`0`) or either input is out of domain — the same\n\
+             `date` is absent (`0`) or either input is out of domain, the same\n\
              `std::nullopt` contract the C++ `thetadatadx::timestamp_ms` returns (the C\n\
              ABI `thetadatadx_timestamp_ms` encodes that absence as the `-1` sentinel).",
         ),
