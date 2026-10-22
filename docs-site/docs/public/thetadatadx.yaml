@@ -448,6 +448,17 @@ x-anchors:
       (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server
       refuses it beside a non-zero annual_dividend.
 
+  option_use_nbbo-param: &option_use_nbbo-param
+    name: option_use_nbbo
+    in: query
+    required: false
+    schema:
+      type: boolean
+      default: true
+    description: >-
+      Selects the option price used in the Greeks calculation: true uses the
+      midpoint of the closing NBBO, false uses the last trade price.
+
   # --- Response shape ---
   # Every registry route answers in the same envelope; only the columns of a
   # row differ. Each route's reference page lists its columns in order, and a
@@ -2114,6 +2125,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *annual_dividend_amount-param
+        - *option_use_nbbo-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2156,6 +2168,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *annual_dividend_amount-param
+        - *option_use_nbbo-param
         - *format-param
       responses:
         '200': *v3-response

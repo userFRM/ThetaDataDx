@@ -64,6 +64,8 @@ struct EndpointRequestOptions {
     std::optional<int32_t> binomial_steps;
     /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     std::optional<bool> underlyer_use_nbbo;
+    /// Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    std::optional<bool> option_use_nbbo;
     /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
     std::optional<bool> perf_boost_intraday;
     /// Per-call deadline in milliseconds.
@@ -163,6 +165,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_underlyer_use_nbbo(bool value) {
         underlyer_use_nbbo = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_option_use_nbbo(bool value) {
+        option_use_nbbo = value;
         return *this;
     }
     EndpointRequestOptions& with_perf_boost_intraday(bool value) {
@@ -297,6 +303,10 @@ struct FfiEndpointRequestOptions {
         if (options.underlyer_use_nbbo) {
             raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
             raw.has_underlyer_use_nbbo = 1;
+        }
+        if (options.option_use_nbbo) {
+            raw.option_use_nbbo = *options.option_use_nbbo ? 1 : 0;
+            raw.has_option_use_nbbo = 1;
         }
         if (options.perf_boost_intraday) {
             raw.perf_boost_intraday = *options.perf_boost_intraday ? 1 : 0;

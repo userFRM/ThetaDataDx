@@ -2,10 +2,10 @@
 //!
 //! Several parameters are optional on the vendor's query messages, yet the
 //! terminal fills a value in on every request: 101 `binomial_steps`,
-//! `perf_boost_intraday = false` and `current_day_only = false`. An omitted
-//! field is therefore not the same request the terminal makes, and the
-//! difference is invisible to the caller: the server applies whatever default
-//! it holds and answers normally. The values come from a declared default in
+//! `perf_boost_intraday = false`, `current_day_only = false` and
+//! `option_use_nbbo = true`. An omitted field is therefore not the same
+//! request the terminal makes, and the difference is invisible to the caller:
+//! the server applies whatever default it holds and answers normally. The values come from a declared default in
 //! `endpoint_surface.toml`, so losing one leaves the surface compiling, the
 //! parity gate green and the request quietly different.
 //!
@@ -65,6 +65,13 @@ struct OptionSnapshotQuoteQuery {
 struct OptionSnapshotGreeksAllQuery {
     #[prost(double, optional, tag = "13")]
     annual_dividend_amount: Option<f64>,
+}
+
+/// `OptionHistoryGreeksEodRequestQuery`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct OptionHistoryGreeksEodQuery {
+    #[prost(bool, optional, tag = "12")]
+    option_use_nbbo: Option<bool>,
 }
 
 #[path = "common/grpc_mock.rs"]
@@ -166,4 +173,12 @@ async fn optional_parameters_carry_the_terminal_defaults_or_the_callers_values()
         .await;
     let query: OptionSnapshotGreeksAllQuery = sent_query(&captured);
     assert_eq!(query.annual_dividend_amount, Some(0.96));
+
+    // option_use_nbbo on the end-of-day Greeks route.
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .option_history_greeks_eod("SPY", "20250321", "20250303", "20250303")
+        .await;
+    let query: OptionHistoryGreeksEodQuery = sent_query(&captured);
+    assert_eq!(query.option_use_nbbo, Some(true));
 }

@@ -81,6 +81,10 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub underlyer_use_nbbo: i32,
     /// Presence flag for `underlyer_use_nbbo`; set to `1` to apply the value.
     pub has_underlyer_use_nbbo: i32,
+    /// Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    pub option_use_nbbo: i32,
+    /// Presence flag for `option_use_nbbo`; set to `1` to apply the value.
+    pub has_option_use_nbbo: i32,
     /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
     pub perf_boost_intraday: i32,
     /// Presence flag for `perf_boost_intraday`; set to `1` to apply the value.
@@ -128,11 +132,13 @@ const _: () = {
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 212);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 216);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 220);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 224);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 228);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 232);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 240);
-    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 248);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, option_use_nbbo) == 224);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_option_use_nbbo) == 228);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 232);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 236);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 240);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 248);
+    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 256);
     assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);
 };
 
@@ -192,6 +198,9 @@ fn apply_endpoint_request_options(
     }
     if options.has_underlyer_use_nbbo != 0 {
         insert_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
+    }
+    if options.has_option_use_nbbo != 0 {
+        insert_bool_arg(args, "option_use_nbbo", options.option_use_nbbo)?;
     }
     if options.has_perf_boost_intraday != 0 {
         insert_bool_arg(args, "perf_boost_intraday", options.perf_boost_intraday)?;

@@ -1503,6 +1503,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
+   * - `option_use_nbbo`: `true`
    */
   optionHistoryGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1524,6 +1525,7 @@ export declare class MarketDataClient {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
+   * - `option_use_nbbo`: `true`
    */
   optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2733,6 +2735,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
+   * - `option_use_nbbo`: `true`
    */
   optionHistoryGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2754,6 +2757,7 @@ export declare class MarketDataView {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
+   * - `option_use_nbbo`: `true`
    */
   optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -5824,6 +5828,8 @@ export interface OptionHistoryBinomialGreeksEodOptions {
   maxDte?: number
   /** Strike range filter */
   strikeRange?: number
+  /** Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted. */
+  optionUseNbbo?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6258,6 +6264,8 @@ export interface OptionHistoryGreeksEodOptions {
   maxDte?: number
   /** Strike range filter */
   strikeRange?: number
+  /** Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted. */
+  optionUseNbbo?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request

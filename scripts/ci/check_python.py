@@ -929,9 +929,12 @@ CELLS = [
     # option_history_greeks_eod::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike_range=10, timeout_ms=SLOW_MODE_TIMEOUT_MS)),
+    # option_history_greeks_eod::with_option_use_nbbo
+    #   rationale: option_use_nbbo=false optional flag wiring
+    ("option_history_greeks_eod", "with_option_use_nbbo", "standard", "option_use_nbbo=false optional flag wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", option_use_nbbo=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, option_use_nbbo=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -968,9 +971,12 @@ CELLS = [
     # option_history_binomial_greeks_eod::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_binomial_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike_range=10, timeout_ms=SLOW_MODE_TIMEOUT_MS)),
+    # option_history_binomial_greeks_eod::with_option_use_nbbo
+    #   rationale: option_use_nbbo=false optional flag wiring
+    ("option_history_binomial_greeks_eod", "with_option_use_nbbo", "standard", "option_use_nbbo=false optional flag wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", option_use_nbbo=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, option_use_nbbo=False, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_all("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
