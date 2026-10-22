@@ -133,8 +133,9 @@ async fn stream_file(
 /// Writes one file's chunks in the requested format.
 struct FileWriter {
     format: FlatFileFormat,
-    headers: Option<Vec<String>>,
+    wrote_header: bool,
     wrote_rows: bool,
+    failed: bool,
     chunks: mpsc::Sender<Chunk>,
     started: Option<oneshot::Sender<Result<(), EndpointError>>>,
 }
@@ -147,8 +148,9 @@ impl FileWriter {
     ) -> Self {
         Self {
             format,
-            headers: None,
+            wrote_header: false,
             wrote_rows: false,
+            failed: false,
             chunks,
             started: Some(started),
         }
@@ -161,15 +163,40 @@ impl FileWriter {
         headers: &[String],
         rows: &[DataValueList],
     ) -> impl std::future::Future<Output = ControlFlow<()>> + Send + 'static {
-        let rendered = self.render(headers, rows);
-        if let Some(started) = self.started.take() {
-            let _ = started.send(Ok(()));
-        }
+        let started = self.started.take();
+        let rendered = match self.render(headers, rows) {
+            Ok(rendered) => {
+                if let Some(started) = started {
+                    let _ = started.send(Ok(()));
+                }
+                Some(Ok(Bytes::from(rendered)))
+            }
+            Err(error) => {
+                self.failed = true;
+                tracing::warn!(%error, "flat-file chunk could not be written");
+                match started {
+                    // Nothing has been sent: the response carries the failure.
+                    Some(started) => {
+                        let _ = started.send(Err(EndpointError::Server(
+                            thetadatadx::Error::config_internal(error.to_string()),
+                        )));
+                        None
+                    }
+                    None => Some(Err(error)),
+                }
+            }
+        };
+        let failed = self.failed;
         let chunks = self.chunks.clone();
         async move {
-            match chunks.send(rendered.map(Bytes::from)).await {
-                Ok(()) => ControlFlow::Continue(()),
-                Err(_) => ControlFlow::Break(()),
+            let sent = match rendered {
+                Some(chunk) => chunks.send(chunk).await.is_ok(),
+                None => true,
+            };
+            if sent && !failed {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
             }
         }
     }
@@ -180,9 +207,9 @@ impl FileWriter {
         rows: &[DataValueList],
     ) -> Result<String, std::io::Error> {
         let mut out = String::with_capacity(rows.len() * 160);
-        if self.headers.is_none() {
+        if !self.wrote_header {
             prefix(&mut out, self.format, headers);
-            self.headers = Some(headers.to_vec());
+            self.wrote_header = true;
         }
         for cells in rows {
             row(
@@ -200,6 +227,10 @@ impl FileWriter {
     /// Close the file once the download ends: write what remains of it, or
     /// report the failure the way the response can still carry it.
     async fn finish(mut self, outcome: Result<(), thetadatadx::Error>) {
+        if self.failed {
+            // `chunk` already reported the failure.
+            return;
+        }
         match outcome {
             Ok(()) => {
                 let mut out = String::new();
@@ -464,5 +495,42 @@ mod tests {
             matches!(body.recv().await, Some(Err(_))),
             "the body ends in an error"
         );
+
+        // A cell the file cannot carry stops the download the same way: as
+        // the response's status before any data, as a body error after it.
+        let bad = DataValueList {
+            values: vec![DataValue {
+                data_type: Some(DataType::Price(thetadatadx::wire::Price {
+                    value: 1,
+                    r#type: 10,
+                })),
+            }],
+        };
+        let headers = vec!["bid".to_owned()];
+        let (chunks, mut body) = mpsc::channel(4);
+        let (started, start) = oneshot::channel();
+        let mut file = FileWriter::new(FlatFileFormat::Csv, chunks, started);
+        assert!(file
+            .chunk(&headers, std::slice::from_ref(&bad))
+            .await
+            .is_break());
+        file.finish(Ok(())).await;
+        assert!(matches!(start.await, Ok(Err(EndpointError::Server(_)))));
+        assert!(body.recv().await.is_none(), "nothing reaches the body");
+
+        let (chunks, mut body) = mpsc::channel(4);
+        let (started, start) = oneshot::channel();
+        let mut file = FileWriter::new(FlatFileFormat::Csv, chunks, started);
+        let (good_headers, rows) = chunk("root,date\n\"HCMA\",20261021\n");
+        assert!(file.chunk(&good_headers, &rows).await.is_continue());
+        assert!(file.chunk(&headers, &[bad]).await.is_break());
+        file.finish(Ok(())).await;
+        assert!(matches!(start.await, Ok(Ok(()))));
+        assert!(matches!(body.recv().await, Some(Ok(_))));
+        assert!(
+            matches!(body.recv().await, Some(Err(_))),
+            "the body ends in an error"
+        );
+        assert!(body.recv().await.is_none(), "nothing follows the error");
     }
 }
