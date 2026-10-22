@@ -53,6 +53,10 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub annual_dividend: f64,
     /// Presence flag for `annual_dividend`; set to `1` to apply the value.
     pub has_annual_dividend: i32,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: f64,
+    /// Presence flag for `annual_dividend_amount`; set to `1` to apply the value.
+    pub has_annual_dividend_amount: i32,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: *const c_char,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -110,23 +114,25 @@ const _: () = {
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 116);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 120);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 128);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 136);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 144);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 152);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 160);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 168);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 176);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 184);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 188);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, binomial_steps) == 192);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 196);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 200);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 204);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 208);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 212);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 216);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 224);
-    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 232);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend_amount) == 136);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend_amount) == 144);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 152);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 160);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 168);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 176);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 184);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 192);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 200);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 204);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, binomial_steps) == 208);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 212);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 216);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 220);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 224);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 228);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 232);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 240);
+    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 248);
     assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);
 };
 
@@ -166,6 +172,9 @@ fn apply_endpoint_request_options(
     }
     if options.has_annual_dividend != 0 {
         insert_float_arg(args, "annual_dividend", options.annual_dividend);
+    }
+    if options.has_annual_dividend_amount != 0 {
+        insert_float_arg(args, "annual_dividend_amount", options.annual_dividend_amount);
     }
     insert_optional_str_arg(args, "rate_type", options.rate_type)?;
     if options.has_rate_value != 0 {

@@ -21,6 +21,8 @@ typedef struct {
     int32_t has_strike_range;
     double annual_dividend;
     int32_t has_annual_dividend;
+    double annual_dividend_amount;
+    int32_t has_annual_dividend_amount;
     const char* rate_type;
     double rate_value;
     int32_t has_rate_value;

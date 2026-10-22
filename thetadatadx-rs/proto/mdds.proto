@@ -419,6 +419,7 @@ message OptionSnapshotGreeksImpliedVolatilityRequestQuery {
   optional string min_time = 10;
   optional bool use_market_value = 11;
   optional bool current_day_only = 12;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionSnapshotGreeksImpliedVolatilityRequest {
@@ -439,6 +440,7 @@ message OptionSnapshotGreeksAllRequestQuery {
   optional string min_time = 10;
   optional bool use_market_value = 11;
   optional bool current_day_only = 12;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionSnapshotGreeksAllRequest {
@@ -460,6 +462,7 @@ message OptionSnapshotBinomialGreeksAllRequestQuery {
   optional string min_time = 11;
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionSnapshotBinomialGreeksAllRequest {
@@ -480,6 +483,7 @@ message OptionSnapshotGreeksFirstOrderRequestQuery {
   optional string min_time = 10;
   optional bool use_market_value = 11;
   optional bool current_day_only = 12;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionSnapshotGreeksFirstOrderRequest {
@@ -501,6 +505,7 @@ message OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
   optional string min_time = 11;
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionSnapshotBinomialGreeksFirstOrderRequest {
@@ -521,6 +526,7 @@ message OptionSnapshotGreeksSecondOrderRequestQuery {
   optional string min_time = 10;
   optional bool use_market_value = 11;
   optional bool current_day_only = 12;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionSnapshotGreeksSecondOrderRequest {
@@ -542,6 +548,7 @@ message OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
   optional string min_time = 11;
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionSnapshotBinomialGreeksSecondOrderRequest {
@@ -562,6 +569,7 @@ message OptionSnapshotGreeksThirdOrderRequestQuery {
   optional string min_time = 10;
   optional bool use_market_value = 11;
   optional bool current_day_only = 12;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionSnapshotGreeksThirdOrderRequest {
@@ -583,6 +591,7 @@ message OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
   optional string min_time = 11;
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionSnapshotBinomialGreeksThirdOrderRequest {
@@ -701,6 +710,7 @@ message OptionHistoryGreeksEodRequestQuery {
   optional bool underlyer_use_nbbo = 9;
   optional int32 max_dte = 10;
   optional int32 strike_range = 11;
+  optional double annual_dividend_amount = 13;
 }
 
 message OptionHistoryGreeksEodRequest {
@@ -721,6 +731,7 @@ message OptionHistoryBinomialGreeksEodRequestQuery {
   optional bool underlyer_use_nbbo = 10;
   optional int32 max_dte = 11;
   optional int32 strike_range = 12;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionHistoryBinomialGreeksEodRequest {
@@ -742,6 +753,7 @@ message OptionHistoryGreeksAllRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionHistoryGreeksAllRequest {
@@ -764,6 +776,7 @@ message OptionHistoryBinomialGreeksAllRequestQuery {
   optional int32 strike_range = 12;
   optional string start_date = 13;
   optional string end_date = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryBinomialGreeksAllRequest {
@@ -786,6 +799,7 @@ message OptionHistoryTradeGreeksAllRequestQuery {
   optional string start_date = 12;
   optional string end_date = 13;
   optional bool perf_boost_intraday = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryTradeGreeksAllRequest {
@@ -809,6 +823,7 @@ message OptionHistoryBinomialTradeGreeksAllRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
+  optional double annual_dividend_amount = 16;
 }
 
 message OptionHistoryBinomialTradeGreeksAllRequest {
@@ -830,6 +845,7 @@ message OptionHistoryGreeksFirstOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 // Request envelope for the option first-order Greeks history endpoint.
@@ -855,6 +871,7 @@ message OptionHistoryBinomialGreeksFirstOrderRequestQuery {
   optional int32 strike_range = 12;
   optional string start_date = 13;
   optional string end_date = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryBinomialGreeksFirstOrderRequest {
@@ -877,6 +894,7 @@ message OptionHistoryTradeGreeksFirstOrderRequestQuery {
   optional string start_date = 12;
   optional string end_date = 13;
   optional bool perf_boost_intraday = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryTradeGreeksFirstOrderRequest {
@@ -900,6 +918,7 @@ message OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
+  optional double annual_dividend_amount = 16;
 }
 
 message OptionHistoryBinomialTradeGreeksFirstOrderRequest {
@@ -921,6 +940,7 @@ message OptionHistoryGreeksSecondOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionHistoryGreeksSecondOrderRequest {
@@ -943,6 +963,7 @@ message OptionHistoryBinomialGreeksSecondOrderRequestQuery {
   optional int32 strike_range = 12;
   optional string start_date = 13;
   optional string end_date = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryBinomialGreeksSecondOrderRequest {
@@ -965,6 +986,7 @@ message OptionHistoryTradeGreeksSecondOrderRequestQuery {
   optional string start_date = 12;
   optional string end_date = 13;
   optional bool perf_boost_intraday = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryTradeGreeksSecondOrderRequest {
@@ -988,6 +1010,7 @@ message OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
+  optional double annual_dividend_amount = 16;
 }
 
 message OptionHistoryBinomialTradeGreeksSecondOrderRequest {
@@ -1009,6 +1032,7 @@ message OptionHistoryGreeksThirdOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 message OptionHistoryGreeksThirdOrderRequest {
@@ -1031,6 +1055,7 @@ message OptionHistoryBinomialGreeksThirdOrderRequestQuery {
   optional int32 strike_range = 12;
   optional string start_date = 13;
   optional string end_date = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryBinomialGreeksThirdOrderRequest {
@@ -1053,6 +1078,7 @@ message OptionHistoryTradeGreeksThirdOrderRequestQuery {
   optional string start_date = 12;
   optional string end_date = 13;
   optional bool perf_boost_intraday = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryTradeGreeksThirdOrderRequest {
@@ -1076,6 +1102,7 @@ message OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
+  optional double annual_dividend_amount = 16;
 }
 
 message OptionHistoryBinomialTradeGreeksThirdOrderRequest {
@@ -1097,6 +1124,7 @@ message OptionHistoryGreeksImpliedVolatilityRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional double annual_dividend_amount = 14;
 }
 
 // Request envelope for the option implied-volatility history endpoint.
@@ -1122,6 +1150,7 @@ message OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
   optional string start_date = 12;
   optional string end_date = 13;
   optional bool perf_boost_intraday = 14;
+  optional double annual_dividend_amount = 15;
 }
 
 message OptionHistoryTradeGreeksImpliedVolatilityRequest {

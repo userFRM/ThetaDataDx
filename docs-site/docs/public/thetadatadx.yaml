@@ -436,6 +436,18 @@ x-anchors:
       When true, only snapshot data from the current trading day (New York
       date) is returned. Applied before min_time.
 
+  annual_dividend_amount-param: &annual_dividend_amount-param
+    name: annual_dividend_amount
+    in: query
+    required: false
+    schema:
+      type: number
+      format: double
+    description: >-
+      Annual dividend per share, in dollars, used in the Greeks calculation
+      (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server
+      refuses it beside a non-zero annual_dividend.
+
   # --- Response shape ---
   # Every registry route answers in the same envelope; only the columns of a
   # row differ. Each route's reference page lists its columns in order, and a
@@ -1438,6 +1450,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1480,6 +1493,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1522,6 +1536,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1563,6 +1578,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1605,6 +1621,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1646,6 +1663,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1688,6 +1706,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1729,6 +1748,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1775,6 +1795,7 @@ paths:
         - *greeks_version-param
         - *use_market_value-param
         - *current_day_only-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2092,6 +2113,7 @@ paths:
         - *underlyer_use_nbbo-param
         - *max_dte-param
         - *strike_range-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2133,6 +2155,7 @@ paths:
         - *underlyer_use_nbbo-param
         - *max_dte-param
         - *strike_range-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2185,6 +2208,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2238,6 +2262,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2290,6 +2315,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2343,6 +2369,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2395,6 +2422,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2448,6 +2476,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2500,6 +2529,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2553,6 +2583,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2605,6 +2636,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2662,6 +2694,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2716,6 +2749,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2769,6 +2803,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2823,6 +2858,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2876,6 +2912,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2930,6 +2967,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2983,6 +3021,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3037,6 +3076,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3090,6 +3130,7 @@ paths:
             type: string
           description: End date (YYYYMMDD)
         - *perf_boost_intraday-param
+        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response

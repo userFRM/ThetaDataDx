@@ -483,6 +483,8 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -521,6 +523,8 @@ pub struct OptionSnapshotGreeksAllOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -559,6 +563,8 @@ pub struct OptionSnapshotBinomialGreeksAllOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -599,6 +605,8 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -637,6 +645,8 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -677,6 +687,8 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -715,6 +727,8 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -755,6 +769,8 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -793,6 +809,8 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1015,6 +1033,8 @@ pub struct OptionHistoryGreeksEODOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1047,6 +1067,8 @@ pub struct OptionHistoryBinomialGreeksEODOptions {
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1089,6 +1111,8 @@ pub struct OptionHistoryGreeksAllOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1129,6 +1153,8 @@ pub struct OptionHistoryBinomialGreeksAllOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1169,6 +1195,8 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1211,6 +1239,8 @@ pub struct OptionHistoryBinomialTradeGreeksAllOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1257,6 +1287,8 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1297,6 +1329,8 @@ pub struct OptionHistoryBinomialGreeksFirstOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1337,6 +1371,8 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1379,6 +1415,8 @@ pub struct OptionHistoryBinomialTradeGreeksFirstOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1425,6 +1463,8 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1465,6 +1505,8 @@ pub struct OptionHistoryBinomialGreeksSecondOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1505,6 +1547,8 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1547,6 +1591,8 @@ pub struct OptionHistoryBinomialTradeGreeksSecondOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1593,6 +1639,8 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1633,6 +1681,8 @@ pub struct OptionHistoryBinomialGreeksThirdOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1673,6 +1723,8 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1715,6 +1767,8 @@ pub struct OptionHistoryBinomialTradeGreeksThirdOrderOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1761,6 +1815,8 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -1799,6 +1855,8 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     pub end_time: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    pub annual_dividend_amount: Option<f64>,
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -5033,6 +5091,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5052,6 +5111,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5107,6 +5169,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5126,6 +5189,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5197,6 +5263,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5216,6 +5283,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5271,6 +5341,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5290,6 +5361,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5363,6 +5437,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5383,6 +5458,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5441,6 +5519,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5461,6 +5540,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5535,6 +5617,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5554,6 +5637,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5609,6 +5695,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5628,6 +5715,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5701,6 +5791,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5721,6 +5812,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5779,6 +5873,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5799,6 +5894,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5873,6 +5971,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5892,6 +5991,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -5947,6 +6049,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -5966,6 +6069,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6039,6 +6145,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6059,6 +6166,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6117,6 +6227,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6137,6 +6248,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6211,6 +6325,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6230,6 +6345,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6285,6 +6403,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6304,6 +6423,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6377,6 +6499,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6397,6 +6520,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -6455,6 +6581,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -6475,6 +6602,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -7851,6 +7981,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -7867,6 +7998,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -7918,6 +8052,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -7936,6 +8071,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8006,6 +8144,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -8022,6 +8161,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8090,6 +8232,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8107,6 +8250,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8161,6 +8307,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8180,6 +8327,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8253,6 +8403,7 @@ impl MarketDataView {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8270,6 +8421,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8342,6 +8496,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -8370,6 +8525,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8421,6 +8579,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -8451,6 +8610,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8521,6 +8683,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -8549,6 +8712,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8620,6 +8786,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8649,6 +8816,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8703,6 +8873,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8734,6 +8905,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8807,6 +8981,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -8836,6 +9011,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8907,6 +9085,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -8934,6 +9113,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -8990,6 +9172,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -9019,6 +9202,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9094,6 +9280,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -9121,6 +9308,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9197,6 +9387,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9225,6 +9416,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9284,6 +9478,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9314,6 +9509,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9392,6 +9590,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9420,6 +9619,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9498,6 +9700,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -9526,6 +9729,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9577,6 +9783,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -9607,6 +9814,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9677,6 +9887,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -9705,6 +9916,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9776,6 +9990,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9805,6 +10020,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9859,6 +10077,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9890,6 +10109,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -9963,6 +10185,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -9992,6 +10215,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10063,6 +10289,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10090,6 +10317,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10146,6 +10376,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10175,6 +10406,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10250,6 +10484,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10277,6 +10512,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10353,6 +10591,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -10381,6 +10620,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10440,6 +10682,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -10470,6 +10713,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10548,6 +10794,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -10576,6 +10823,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10654,6 +10904,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10682,6 +10933,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10733,6 +10987,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10763,6 +11018,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10833,6 +11091,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -10861,6 +11120,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -10932,6 +11194,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -10961,6 +11224,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11015,6 +11281,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -11046,6 +11313,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11119,6 +11389,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -11148,6 +11419,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11219,6 +11493,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -11246,6 +11521,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11302,6 +11580,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -11331,6 +11610,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11406,6 +11688,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -11433,6 +11716,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11509,6 +11795,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -11537,6 +11824,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11596,6 +11886,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -11626,6 +11917,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11704,6 +11998,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -11732,6 +12027,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11810,6 +12108,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -11838,6 +12137,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11889,6 +12191,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -11919,6 +12222,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -11989,6 +12295,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -12017,6 +12324,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12088,6 +12398,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12117,6 +12428,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12171,6 +12485,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12202,6 +12517,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12275,6 +12593,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12304,6 +12623,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12375,6 +12697,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -12402,6 +12725,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12458,6 +12784,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -12487,6 +12814,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12562,6 +12892,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -12589,6 +12920,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12665,6 +12999,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12693,6 +13028,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12752,6 +13090,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12782,6 +13121,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12860,6 +13202,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -12888,6 +13231,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -12965,6 +13311,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -12993,6 +13340,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -13044,6 +13394,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -13074,6 +13425,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -13144,6 +13498,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -13172,6 +13527,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -13239,6 +13597,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -13266,6 +13625,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -13322,6 +13684,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -13351,6 +13714,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -13426,6 +13792,7 @@ impl MarketDataView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -13453,6 +13820,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17405,6 +17775,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17424,6 +17795,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17479,6 +17853,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17498,6 +17873,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17569,6 +17947,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17588,6 +17967,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17643,6 +18025,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17662,6 +18045,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17735,6 +18121,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17755,6 +18142,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17813,6 +18203,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17833,6 +18224,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17907,6 +18301,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -17926,6 +18321,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -17981,6 +18379,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18000,6 +18399,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18073,6 +18475,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18093,6 +18496,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18151,6 +18557,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18171,6 +18578,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18245,6 +18655,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18264,6 +18675,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18319,6 +18733,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18338,6 +18753,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18411,6 +18829,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18431,6 +18850,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18489,6 +18911,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18509,6 +18932,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18583,6 +19009,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18602,6 +19029,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18657,6 +19087,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18676,6 +19107,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18749,6 +19183,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18769,6 +19204,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -18827,6 +19265,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let stock_price = options.stock_price;
@@ -18847,6 +19286,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20223,6 +20665,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20239,6 +20682,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20290,6 +20736,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20308,6 +20755,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20378,6 +20828,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20394,6 +20845,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20462,6 +20916,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -20479,6 +20934,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20533,6 +20991,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -20552,6 +21011,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20625,6 +21087,7 @@ impl MarketDataClient {
         let strike = options.strike;
         let right = options.right;
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -20642,6 +21105,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20714,6 +21180,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20742,6 +21209,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20793,6 +21263,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20823,6 +21294,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20893,6 +21367,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -20921,6 +21396,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -20992,6 +21470,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21021,6 +21500,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21075,6 +21557,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21106,6 +21589,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21179,6 +21665,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21208,6 +21695,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21279,6 +21769,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -21306,6 +21797,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21362,6 +21856,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -21391,6 +21886,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21466,6 +21964,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -21493,6 +21992,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21569,6 +22071,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21597,6 +22100,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21656,6 +22162,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21686,6 +22193,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21764,6 +22274,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -21792,6 +22303,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21870,6 +22384,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -21898,6 +22413,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -21949,6 +22467,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -21979,6 +22498,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22049,6 +22571,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -22077,6 +22600,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22148,6 +22674,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22177,6 +22704,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22231,6 +22761,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22262,6 +22793,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22335,6 +22869,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22364,6 +22899,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22435,6 +22973,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -22462,6 +23001,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22518,6 +23060,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -22547,6 +23090,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22622,6 +23168,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -22649,6 +23196,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22725,6 +23275,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22753,6 +23304,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22812,6 +23366,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22842,6 +23397,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -22920,6 +23478,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -22948,6 +23507,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23026,6 +23588,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23054,6 +23617,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23105,6 +23671,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23135,6 +23702,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23205,6 +23775,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23233,6 +23804,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23304,6 +23878,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -23333,6 +23908,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23387,6 +23965,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -23418,6 +23997,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23491,6 +24073,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -23520,6 +24103,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23591,6 +24177,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23618,6 +24205,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23674,6 +24264,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23703,6 +24294,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23778,6 +24372,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -23805,6 +24400,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23881,6 +24479,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -23909,6 +24508,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23968,6 +24570,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -23998,6 +24601,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24076,6 +24682,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -24104,6 +24711,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24182,6 +24792,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24210,6 +24821,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24261,6 +24875,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24291,6 +24906,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24361,6 +24979,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24389,6 +25008,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24460,6 +25082,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -24489,6 +25112,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24543,6 +25169,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -24574,6 +25201,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24647,6 +25277,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -24676,6 +25307,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24747,6 +25381,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24774,6 +25409,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24830,6 +25468,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24859,6 +25498,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24934,6 +25576,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -24961,6 +25604,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25037,6 +25683,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -25065,6 +25712,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25124,6 +25774,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -25154,6 +25805,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25232,6 +25886,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
@@ -25260,6 +25915,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25337,6 +25995,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25365,6 +26024,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25416,6 +26078,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25446,6 +26109,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25516,6 +26182,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25544,6 +26211,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25611,6 +26281,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25638,6 +26309,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25694,6 +26368,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25723,6 +26398,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25798,6 +26476,7 @@ impl MarketDataClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
+        let annual_dividend_amount = options.annual_dividend_amount;
         let rate_type = options.rate_type;
         let rate_value = options.rate_value;
         let version = options.version;
@@ -25825,6 +26504,9 @@ impl MarketDataClient {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());

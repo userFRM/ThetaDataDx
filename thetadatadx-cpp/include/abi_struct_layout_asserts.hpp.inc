@@ -150,37 +150,41 @@ static_assert(offsetof(ThetaDataDxEndpointRequestOptions, annual_dividend) == 12
               "ThetaDataDxEndpointRequestOptions::annual_dividend offset drifted from Rust");
 static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 128,
               "ThetaDataDxEndpointRequestOptions::has_annual_dividend offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, rate_type) == 136,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, annual_dividend_amount) == 136,
+              "ThetaDataDxEndpointRequestOptions::annual_dividend_amount offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_annual_dividend_amount) == 144,
+              "ThetaDataDxEndpointRequestOptions::has_annual_dividend_amount offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, rate_type) == 152,
               "ThetaDataDxEndpointRequestOptions::rate_type offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, rate_value) == 144,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, rate_value) == 160,
               "ThetaDataDxEndpointRequestOptions::rate_value offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_rate_value) == 152,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_rate_value) == 168,
               "ThetaDataDxEndpointRequestOptions::has_rate_value offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, stock_price) == 160,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, stock_price) == 176,
               "ThetaDataDxEndpointRequestOptions::stock_price offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_stock_price) == 168,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_stock_price) == 184,
               "ThetaDataDxEndpointRequestOptions::has_stock_price offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, version) == 176,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, version) == 192,
               "ThetaDataDxEndpointRequestOptions::version offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, use_market_value) == 184,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, use_market_value) == 200,
               "ThetaDataDxEndpointRequestOptions::use_market_value offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 188,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 204,
               "ThetaDataDxEndpointRequestOptions::has_use_market_value offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, binomial_steps) == 192,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, binomial_steps) == 208,
               "ThetaDataDxEndpointRequestOptions::binomial_steps offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 196,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 212,
               "ThetaDataDxEndpointRequestOptions::has_binomial_steps offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 200,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 216,
               "ThetaDataDxEndpointRequestOptions::underlyer_use_nbbo offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 204,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 220,
               "ThetaDataDxEndpointRequestOptions::has_underlyer_use_nbbo offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 208,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 224,
               "ThetaDataDxEndpointRequestOptions::perf_boost_intraday offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 212,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 228,
               "ThetaDataDxEndpointRequestOptions::has_perf_boost_intraday offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, timeout_ms) == 216,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, timeout_ms) == 232,
               "ThetaDataDxEndpointRequestOptions::timeout_ms offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 224,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 240,
               "ThetaDataDxEndpointRequestOptions::has_timeout_ms offset drifted from Rust");
-static_assert(sizeof(ThetaDataDxEndpointRequestOptions) == 232,
+static_assert(sizeof(ThetaDataDxEndpointRequestOptions) == 248,
               "ThetaDataDxEndpointRequestOptions total size drifted from Rust");
