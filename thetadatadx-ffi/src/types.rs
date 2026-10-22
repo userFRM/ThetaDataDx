@@ -589,12 +589,13 @@ pub struct ThetaDataDxColumnPresence {
     /// value across every row. Null when absent or when `symbols` carries
     /// per-row values.
     pub symbol: *const c_char,
-    /// Per-row `symbol` (root) values for a multi-symbol snapshot — one
+    /// Per-row `symbol` (root) values for a response whose rows span several
+    /// roots, such as a multi-symbol snapshot or a flat file: one
     /// NUL-terminated C string per decoded row, so the projected serialiser
     /// emits a leading per-row `symbol` column attributing each row to its
-    /// underlying. Null for every other response (option/index and
-    /// single-symbol snapshots carry the constant `symbol` field above; stock
-    /// history carries none). When non-null it takes precedence over both the
+    /// underlying. Null for every other response (option and index history
+    /// and single-symbol snapshots carry the constant `symbol` field above;
+    /// stock history carries none). When non-null it takes precedence over both the
     /// constant `symbol` field and the projected serialiser's legacy `symbol`
     /// argument.
     pub symbols: *const *const c_char,

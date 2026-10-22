@@ -10,7 +10,7 @@ aside: false
 const cfg = {
   httpPath: "v3/option/flat_file/quote",
   method: { rust: "option_flat_file_quote", python: "option_flat_file_quote", ts: "optionFlatFileQuote", cpp: "option_flat_file_quote" },
-  required: [{ key: "date", type: "date", default: "20250303" }],
+  required: [{ key: "date", type: "date", default: "" }],
   optional: [],
   print: ["interval_ms_of_day", "bid", "ask"],
   returns: "IntervalQuoteTick",

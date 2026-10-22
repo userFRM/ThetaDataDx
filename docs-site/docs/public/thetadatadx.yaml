@@ -3900,15 +3900,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let eod = client.market_data().option_flat_file_eod("20250303").await?;
+            let eod = client.market_data().option_flat_file_eod("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            eod = client.market_data.option_flat_file_eod("20250303")
+            eod = client.market_data.option_flat_file_eod("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto eod = client.market_data().option_flat_file_eod("20250303");
+            auto eod = client.market_data().option_flat_file_eod("YYYYMMDD");
 
   /v3/option/flat_file/trade_quote:
     x-min-subscription: professional
@@ -3928,15 +3928,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trade_quote = client.market_data().option_flat_file_trade_quote("20250303").await?;
+            let trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            trade_quote = client.market_data.option_flat_file_trade_quote("20250303")
+            trade_quote = client.market_data.option_flat_file_trade_quote("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto trade_quote = client.market_data().option_flat_file_trade_quote("20250303");
+            auto trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD");
 
   /v3/option/flat_file/open_interest:
     x-min-subscription: professional
@@ -3956,15 +3956,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let open_interest = client.market_data().option_flat_file_open_interest("20250303").await?;
+            let open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            open_interest = client.market_data.option_flat_file_open_interest("20250303")
+            open_interest = client.market_data.option_flat_file_open_interest("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto open_interest = client.market_data().option_flat_file_open_interest("20250303");
+            auto open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD");
 
   /v3/option/flat_file/quote:
     x-min-subscription: professional
@@ -3984,15 +3984,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let interval_quote = client.market_data().option_flat_file_quote("20250303").await?;
+            let interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            interval_quote = client.market_data.option_flat_file_quote("20250303")
+            interval_quote = client.market_data.option_flat_file_quote("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto interval_quote = client.market_data().option_flat_file_quote("20250303");
+            auto interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD");
 
   /v3/stock/flat_file/eod:
     x-min-subscription: professional
@@ -4012,15 +4012,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let eod = client.market_data().stock_flat_file_eod("20250303").await?;
+            let eod = client.market_data().stock_flat_file_eod("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            eod = client.market_data.stock_flat_file_eod("20250303")
+            eod = client.market_data.stock_flat_file_eod("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto eod = client.market_data().stock_flat_file_eod("20250303");
+            auto eod = client.market_data().stock_flat_file_eod("YYYYMMDD");
 
   /v3/stock/flat_file/trade_quote:
     x-min-subscription: professional
@@ -4040,15 +4040,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trade_quote = client.market_data().stock_flat_file_trade_quote("20250303").await?;
+            let trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            trade_quote = client.market_data.stock_flat_file_trade_quote("20250303")
+            trade_quote = client.market_data.stock_flat_file_trade_quote("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto trade_quote = client.market_data().stock_flat_file_trade_quote("20250303");
+            auto trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD");
 
   /v3/stock/flat_file/quote:
     x-min-subscription: professional
@@ -4068,15 +4068,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let interval_quote = client.market_data().stock_flat_file_quote("20250303").await?;
+            let interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            interval_quote = client.market_data.stock_flat_file_quote("20250303")
+            interval_quote = client.market_data.stock_flat_file_quote("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto interval_quote = client.market_data().stock_flat_file_quote("20250303");
+            auto interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD");
 
   /v3/index/flat_file/eod:
     x-min-subscription: professional
@@ -4096,15 +4096,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let eod = client.market_data().index_flat_file_eod("20250303").await?;
+            let eod = client.market_data().index_flat_file_eod("YYYYMMDD").await?;
         - lang: python
           label: Python
           source: |
-            eod = client.market_data.index_flat_file_eod("20250303")
+            eod = client.market_data.index_flat_file_eod("YYYYMMDD")
         - lang: cpp
           label: C++
           source: |
-            auto eod = client.market_data().index_flat_file_eod("20250303");
+            auto eod = client.market_data().index_flat_file_eod("YYYYMMDD");
 
 # ---------------------------------------------------------------------------
 # COMPONENTS

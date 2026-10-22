@@ -10,7 +10,7 @@ aside: false
 const cfg = {
   httpPath: "v3/index/flat_file/eod",
   method: { rust: "index_flat_file_eod", python: "index_flat_file_eod", ts: "indexFlatFileEOD", cpp: "index_flat_file_eod" },
-  required: [{ key: "date", type: "date", default: "20250303" }],
+  required: [{ key: "date", type: "date", default: "" }],
   optional: [],
   print: ["date", "open", "close", "volume"],
   returns: "EodTick",
