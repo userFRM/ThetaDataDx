@@ -258,7 +258,7 @@ impl MarketDataClient {
                 let request = proto::$req {
                     query_info: Some(self.build_query_info($snap.uuid.clone())),
                     params: Some(proto::$query {
-                        date: date.to_owned(),
+                        date: super::wire_semantics::normalize_date(date),
                     }),
                 };
                 let lease = self.channel();
