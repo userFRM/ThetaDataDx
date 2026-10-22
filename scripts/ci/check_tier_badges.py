@@ -52,6 +52,16 @@ ALLOWLIST: dict[str, str | None] = {
     # Upstream does not document the rate endpoint; the generator pins
     # it to the free tier (see `endpoint_tier` in the docs generator).
     "reference/rate/history/eod.md": None,
+    # The flat files postdate the pinned snapshot; the generator pins them
+    # to the professional tier (see `endpoint_tier` in the docs generator).
+    "reference/index/flat-file/eod.md": None,
+    "reference/option/flat-file/eod.md": None,
+    "reference/option/flat-file/open-interest.md": None,
+    "reference/option/flat-file/quote.md": None,
+    "reference/option/flat-file/trade-quote.md": None,
+    "reference/stock/flat-file/eod.md": None,
+    "reference/stock/flat-file/quote.md": None,
+    "reference/stock/flat-file/trade-quote.md": None,
 }
 
 TIER_RE = re.compile(r'<TierBadge\s+tier="([^"]+)"\s*/>')

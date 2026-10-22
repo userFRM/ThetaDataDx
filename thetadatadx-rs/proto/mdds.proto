@@ -288,6 +288,33 @@ message StockAtTimeQuoteRequest {
   StockAtTimeQuoteRequestQuery params = 2;
 }
 
+message StockFlatFileEodRequestQuery {
+  string date = 1;
+}
+
+message StockFlatFileEodRequest {
+  QueryInfo query_info = 1;
+  StockFlatFileEodRequestQuery params = 2;
+}
+
+message StockFlatFileTradeQuoteRequestQuery {
+  string date = 1;
+}
+
+message StockFlatFileTradeQuoteRequest {
+  QueryInfo query_info = 1;
+  StockFlatFileTradeQuoteRequestQuery params = 2;
+}
+
+message StockFlatFileQuoteRequestQuery {
+  string date = 1;
+}
+
+message StockFlatFileQuoteRequest {
+  QueryInfo query_info = 1;
+  StockFlatFileQuoteRequestQuery params = 2;
+}
+
 message OptionListSymbolsRequestQuery {
 }
 
@@ -1192,6 +1219,42 @@ message OptionAtTimeQuoteRequest {
   OptionAtTimeQuoteRequestQuery params = 2;
 }
 
+message OptionFlatFileEodRequestQuery {
+  string date = 1;
+}
+
+message OptionFlatFileEodRequest {
+  QueryInfo query_info = 1;
+  OptionFlatFileEodRequestQuery params = 2;
+}
+
+message OptionFlatFileTradeQuoteRequestQuery {
+  string date = 1;
+}
+
+message OptionFlatFileTradeQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionFlatFileTradeQuoteRequestQuery params = 2;
+}
+
+message OptionFlatFileOpenInterestRequestQuery {
+  string date = 1;
+}
+
+message OptionFlatFileOpenInterestRequest {
+  QueryInfo query_info = 1;
+  OptionFlatFileOpenInterestRequestQuery params = 2;
+}
+
+message OptionFlatFileQuoteRequestQuery {
+  string date = 1;
+}
+
+message OptionFlatFileQuoteRequest {
+  QueryInfo query_info = 1;
+  OptionFlatFileQuoteRequestQuery params = 2;
+}
+
 message IndexListSymbolsRequestQuery {
 }
 
@@ -1294,6 +1357,15 @@ message IndexAtTimePriceRequest {
   IndexAtTimePriceRequestQuery params = 2;
 }
 
+message IndexFlatFileEodRequestQuery {
+  string date = 1;
+}
+
+message IndexFlatFileEodRequest {
+  QueryInfo query_info = 1;
+  IndexFlatFileEodRequestQuery params = 2;
+}
+
 message CalendarOpenTodayRequestQuery {
 }
 
@@ -1360,6 +1432,12 @@ service BetaThetaTerminal {
   rpc GetStockAtTimeTrade (StockAtTimeTradeRequest) returns (stream ResponseData);
 
   rpc GetStockAtTimeQuote (StockAtTimeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetStockFlatFileEod (StockFlatFileEodRequest) returns (stream ResponseData);
+
+  rpc GetStockFlatFileTradeQuote (StockFlatFileTradeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetStockFlatFileQuote (StockFlatFileQuoteRequest) returns (stream ResponseData);
 
   rpc GetOptionListSymbols (OptionListSymbolsRequest) returns (stream ResponseData);
 
@@ -1455,6 +1533,14 @@ service BetaThetaTerminal {
 
   rpc GetOptionAtTimeQuote (OptionAtTimeQuoteRequest) returns (stream ResponseData);
 
+  rpc GetOptionFlatFileEod (OptionFlatFileEodRequest) returns (stream ResponseData);
+
+  rpc GetOptionFlatFileTradeQuote (OptionFlatFileTradeQuoteRequest) returns (stream ResponseData);
+
+  rpc GetOptionFlatFileOpenInterest (OptionFlatFileOpenInterestRequest) returns (stream ResponseData);
+
+  rpc GetOptionFlatFileQuote (OptionFlatFileQuoteRequest) returns (stream ResponseData);
+
   rpc GetIndexListSymbols (IndexListSymbolsRequest) returns (stream ResponseData);
 
   rpc GetIndexListDates (IndexListDatesRequest) returns (stream ResponseData);
@@ -1472,6 +1558,8 @@ service BetaThetaTerminal {
   rpc GetIndexHistoryPrice (IndexHistoryPriceRequest) returns (stream ResponseData);
 
   rpc GetIndexAtTimePrice (IndexAtTimePriceRequest) returns (stream ResponseData);
+
+  rpc GetIndexFlatFileEod (IndexFlatFileEodRequest) returns (stream ResponseData);
 
   rpc GetCalendarOpenToday (CalendarOpenTodayRequest) returns (stream ResponseData);
 

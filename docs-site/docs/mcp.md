@@ -71,6 +71,8 @@ When credentials are present the connected surface also carries the flat-file to
 - `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
 - `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
 
+The endpoint tools named `*_flat_file_*` return a flat file's rows like any other endpoint tool, under the 50,000-row limit below, so a larger file is refused with its row count. The tools above write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
+
 The `entitlements` tool reports the subscription tier held for each asset class, which is what decides the rest of the tool list.
 
 Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.

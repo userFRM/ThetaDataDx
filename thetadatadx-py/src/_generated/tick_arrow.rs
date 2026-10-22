@@ -198,6 +198,22 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("date", DataType::Int32, false),
             Field::new("rate", DataType::Float64, false),
         ]))),
+        "IntervalQuoteTick" => Some(Arc::new(Schema::new(vec![
+            Field::new("interval_ms_of_day", DataType::Int32, false),
+            Field::new("quote_ms_of_day", DataType::Int32, false),
+            Field::new("bid_size", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, true),
+            Field::new("bid", DataType::Float64, false),
+            Field::new("bid_condition", DataType::Int32, true),
+            Field::new("ask_size", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, true),
+            Field::new("ask", DataType::Float64, false),
+            Field::new("ask_condition", DataType::Int32, true),
+            Field::new("date", DataType::Int32, false),
+            Field::new("expiration", DataType::Int32, true),
+            Field::new("strike", DataType::Float64, true),
+            Field::new("right", DataType::Utf8, true),
+        ]))),
         "IvTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("bid", DataType::Float64, false),
@@ -1869,6 +1885,127 @@ pub(crate) mod slice_arrow {
     /// `pyarrow.Table` carrying only the columns present on the wire.
     pub(crate) fn interest_rate_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::InterestRateTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
         let batch = py.detach(|| read_arrow_batch_from_interest_rate_tick_slice_projected(ticks, present))?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_interval_quote_tick_slice_projected(ticks: &[tick::IntervalQuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let has_interval_ms_of_day = present.contains("interval_ms_of_day");
+        let has_quote_ms_of_day = present.contains("quote_ms_of_day");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_interval_ms_of_day: Vec<i32> = Vec::with_capacity(if has_interval_ms_of_day { n } else { 0 });
+        let mut col_quote_ms_of_day: Vec<i32> = Vec::with_capacity(if has_quote_ms_of_day { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<Option<i32>> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<Option<i32>> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in ticks {
+            if has_interval_ms_of_day { col_interval_ms_of_day.push(t.interval_ms_of_day); }
+            if has_quote_ms_of_day { col_quote_ms_of_day.push(t.quote_ms_of_day); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.has_bid_exchange.then_some(t.bid_exchange)); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.has_bid_condition.then_some(t.bid_condition)); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.has_ask_exchange.then_some(t.ask_exchange)); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.has_ask_condition.then_some(t.ask_condition)); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
+        if has_interval_ms_of_day {
+            fields.push(Field::new("interval_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_interval_ms_of_day)) as ArrayRef);
+        }
+        if has_quote_ms_of_day {
+            fields.push(Field::new("quote_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_quote_ms_of_day)) as ArrayRef);
+        }
+        if has_bid_size {
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
+        }
+        if has_bid_exchange {
+            fields.push(Field::new("bid_exchange", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_condition {
+            fields.push(Field::new("bid_condition", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
+        }
+        if has_ask_size {
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
+        }
+        if has_ask_exchange {
+            fields.push(Field::new("ask_exchange", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_condition {
+            fields.push(Field::new("ask_condition", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::IntervalQuoteTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn interval_quote_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::IntervalQuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = py.detach(|| read_arrow_batch_from_interval_quote_tick_slice_projected(ticks, present))?;
         record_batch_to_pyarrow_table(py, batch)
     }
 

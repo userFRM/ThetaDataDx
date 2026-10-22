@@ -2054,7 +2054,6 @@ version = "0.6.1"
 dependencies = [
  "axum",
  "clap",
- "rand 0.10.2",
  "rpassword",
  "rustls",
  "serde",
@@ -2063,7 +2062,7 @@ dependencies = [
  "thetadatadx-rs",
  "time",
  "tokio",
- "tokio-util",
+ "tokio-stream",
  "tower",
  "tower-http",
  "tracing",

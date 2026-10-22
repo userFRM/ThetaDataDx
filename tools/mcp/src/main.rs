@@ -844,6 +844,24 @@ fn quote_row(t: &thetadatadx::QuoteTick) -> Value {
     row
 }
 
+fn interval_quote_row(t: &thetadatadx::IntervalQuoteTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "interval_ms_of_day": t.interval_ms_of_day,
+        "quote_ms_of_day": t.quote_ms_of_day,
+        "bid": t.bid,
+        "bid_size": t.bid_size,
+        "bid_exchange": code_or_null(t.bid_exchange, t.has_bid_exchange),
+        "bid_condition": code_or_null(t.bid_condition, t.has_bid_condition),
+        "ask": t.ask,
+        "ask_size": t.ask_size,
+        "ask_exchange": code_or_null(t.ask_exchange, t.has_ask_exchange),
+        "ask_condition": code_or_null(t.ask_condition, t.has_ask_condition),
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
+}
+
 fn trade_quote_row(t: &thetadatadx::TradeQuoteTick) -> Value {
     let mut row = json!({
         "date": t.date,
@@ -1164,6 +1182,7 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Result<Valu
         EndpointOutput::TradeTicks(ticks) => tick_rows("ticks", ticks, trade_row),
         EndpointOutput::QuoteTicks(ticks) => tick_rows("ticks", ticks, quote_row),
         EndpointOutput::TradeQuoteTicks(ticks) => tick_rows("ticks", ticks, trade_quote_row),
+        EndpointOutput::IntervalQuoteTicks(ticks) => tick_rows("ticks", ticks, interval_quote_row),
         EndpointOutput::OpenInterestTicks(ticks) => tick_rows("ticks", ticks, open_interest_row),
         EndpointOutput::MarketValueTicks(ticks) => tick_rows("ticks", ticks, market_value_row),
         EndpointOutput::GreeksAllTicks(ticks) => tick_rows("ticks", ticks, greeks_all_row),

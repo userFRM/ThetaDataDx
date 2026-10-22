@@ -22,10 +22,11 @@ use super::headers::find_header;
 use crate::proto;
 use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
-    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
-    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
-    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
-    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick,
+    IntervalQuoteTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick, OptionContract,
+    PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+    TradeQuoteTick, TradeTick,
 };
 
 /// Extract a date (YYYYMMDD) from a `Number`, `Timestamp`, or `Text` cell,
@@ -571,8 +572,8 @@ pub use decode_generated::{
     parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_eod_ticks,
     parse_greeks_first_order_ticks, parse_greeks_second_order_ticks,
     parse_greeks_third_order_ticks, parse_index_price_at_time_ticks, parse_interest_rate_ticks,
-    parse_iv_ticks, parse_market_value_ticks, parse_ohlc_ticks, parse_open_interest_ticks,
-    parse_price_ticks, parse_quote_ticks, parse_trade_greeks_all_ticks,
+    parse_interval_quote_ticks, parse_iv_ticks, parse_market_value_ticks, parse_ohlc_ticks,
+    parse_open_interest_ticks, parse_price_ticks, parse_quote_ticks, parse_trade_greeks_all_ticks,
     parse_trade_greeks_first_order_ticks, parse_trade_greeks_implied_volatility_ticks,
     parse_trade_greeks_second_order_ticks, parse_trade_greeks_third_order_ticks,
     parse_trade_quote_ticks, parse_trade_ticks,

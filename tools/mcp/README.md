@@ -132,13 +132,14 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 
 - `ping` - server status
 
-### Stock Data (13 tools)
+### Stock Data (16 tools)
 - `stock_list_symbols`, `stock_list_dates`
 - `stock_snapshot_ohlc`, `stock_snapshot_trade`, `stock_snapshot_quote`, `stock_snapshot_market_value`
 - `stock_history_eod`, `stock_history_ohlc`, `stock_history_trade`, `stock_history_quote`, `stock_history_trade_quote`
 - `stock_at_time_trade`, `stock_at_time_quote`
+- `stock_flat_file_eod`, `stock_flat_file_trade_quote`, `stock_flat_file_quote`
 
-### Option Data (47 tools)
+### Option Data (51 tools)
 - `option_list_symbols`, `option_list_dates`, `option_list_expirations`, `option_list_strikes`, `option_list_contracts`
 - `option_snapshot_ohlc`, `option_snapshot_trade`, `option_snapshot_quote`, `option_snapshot_open_interest`, `option_snapshot_market_value`
 - `option_snapshot_greeks_implied_volatility`, `option_snapshot_greeks_all`, `option_snapshot_greeks_first_order`, `option_snapshot_greeks_second_order`, `option_snapshot_greeks_third_order`
@@ -154,6 +155,7 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 - `option_history_binomial_greeks_third_order`, `option_history_binomial_trade_greeks_third_order`
 - `option_history_greeks_implied_volatility`, `option_history_trade_greeks_implied_volatility`
 - `option_at_time_trade`, `option_at_time_quote`
+- `option_flat_file_eod`, `option_flat_file_trade_quote`, `option_flat_file_open_interest`, `option_flat_file_quote`
 
 ### Wildcard Option Queries
 
@@ -164,11 +166,12 @@ For option tools, `"*"` is the wildcard value for `strike` and `expiration`, as 
 - `strike_range` filters a wildcard bulk selection around spot / ATM. It does **not** fan out a pinned strike into neighboring strikes.
 
 
-### Index Data (9 tools)
+### Index Data (10 tools)
 - `index_list_symbols`, `index_list_dates`
 - `index_snapshot_ohlc`, `index_snapshot_price`, `index_snapshot_market_value`
 - `index_history_eod`, `index_history_ohlc`, `index_history_price`
 - `index_at_time_price`
+- `index_flat_file_eod`
 
 ### Calendar & Rates (4 tools)
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
@@ -183,6 +186,8 @@ Advertised only when a client is connected.
 ### Flat Files (6 tools)
 
 Advertised only when a client is connected, and by class: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+
+The `*_flat_file_*` endpoint tools listed by asset class above return a flat file's rows like any other endpoint tool, under the same 50,000-row limit per call, so a larger file is refused with its row count. The tools below write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
 
 - `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
 - `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file

@@ -245,6 +245,30 @@ mod layout_asserts {
     }
 
     #[test]
+    fn interval_quote_tick_layout() {
+        assert_eq!(size_of::<IntervalQuoteTick>(), 128);
+        assert_eq!(align_of::<IntervalQuoteTick>(), 64);
+        assert_eq!(offset_of!(IntervalQuoteTick, interval_ms_of_day), 0);
+        assert_eq!(offset_of!(IntervalQuoteTick, quote_ms_of_day), 4);
+        assert_eq!(offset_of!(IntervalQuoteTick, bid_size), 8);
+        assert_eq!(offset_of!(IntervalQuoteTick, bid_exchange), 12);
+        assert_eq!(offset_of!(IntervalQuoteTick, has_bid_exchange), 16);
+        assert_eq!(offset_of!(IntervalQuoteTick, bid), 24);
+        assert_eq!(offset_of!(IntervalQuoteTick, bid_condition), 32);
+        assert_eq!(offset_of!(IntervalQuoteTick, has_bid_condition), 36);
+        assert_eq!(offset_of!(IntervalQuoteTick, ask_size), 40);
+        assert_eq!(offset_of!(IntervalQuoteTick, ask_exchange), 44);
+        assert_eq!(offset_of!(IntervalQuoteTick, has_ask_exchange), 48);
+        assert_eq!(offset_of!(IntervalQuoteTick, ask), 56);
+        assert_eq!(offset_of!(IntervalQuoteTick, ask_condition), 64);
+        assert_eq!(offset_of!(IntervalQuoteTick, has_ask_condition), 68);
+        assert_eq!(offset_of!(IntervalQuoteTick, date), 72);
+        assert_eq!(offset_of!(IntervalQuoteTick, expiration), 76);
+        assert_eq!(offset_of!(IntervalQuoteTick, strike), 80);
+        assert_eq!(offset_of!(IntervalQuoteTick, right), 88);
+    }
+
+    #[test]
     fn iv_tick_layout() {
         assert_eq!(size_of::<IvTick>(), 128);
         assert_eq!(align_of::<IvTick>(), 64);

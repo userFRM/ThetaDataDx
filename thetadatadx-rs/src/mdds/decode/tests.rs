@@ -12,10 +12,12 @@ use super::dual_type_columns::{
 use super::extract_number_column;
 use super::{
     parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
-    parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_quote_ticks,
-    parse_trade_ticks, DecodeError,
+    parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_interval_quote_ticks,
+    parse_quote_ticks, parse_trade_quote_ticks, parse_trade_ticks, DecodeError,
 };
+use crate::columns::WireColumns;
 use crate::proto;
+use crate::tdbe::types::tick::{EodTick, IntervalQuoteTick, TradeQuoteTick};
 
 /// Build a DataValue containing a Number.
 fn dv_number(n: i64) -> proto::DataValue {
@@ -301,6 +303,78 @@ fn parse_eod_timestamp_aliases_decode_time_and_date_separately() {
     assert_eq!(ticks[0].date, 20260401);
     assert!((ticks[0].open - 15000.0).abs() < 1e-10);
     assert!((ticks[0].close - 15100.0).abs() < 1e-10);
+}
+
+/// A one-row table whose cells are written the way the terminal writes a flat
+/// file: a quoted decimal is a price, other quoted text is text, anything bare
+/// an integer.
+fn flat_file_table(headers: &str, line: &str) -> proto::DataTable {
+    let cell = |cell: &str| match cell.strip_prefix('"').and_then(|c| c.strip_suffix('"')) {
+        None => dv_number(cell.parse().expect("integer cell")),
+        Some(text) => match text.split_once('.') {
+            Some((whole, fraction)) => dv_price(
+                format!("{whole}{fraction}").parse().expect("price cell"),
+                10 - i32::try_from(fraction.len()).expect("short fraction"),
+            ),
+            None => dv_text(text),
+        },
+    };
+    proto::DataTable {
+        headers: headers.split(',').map(str::to_string).collect(),
+        data_table: vec![row_of(line.split(',').map(cell).collect())],
+    }
+}
+
+/// The flat files name their time columns the way the terminal writes them:
+/// `ms_of_day` is the EOD report time, `ms_of_day2` the last trade on an EOD
+/// row and the paired quote on a trade_quote row, and the quote file carries
+/// `interval_ms_of_day` beside `quote_ms_of_day`. Each must land in its field
+/// and count as present, or the file decodes with zeros in their place.
+#[test]
+fn flat_file_time_columns_decode_under_the_terminal_names() {
+    let eod = flat_file_table(
+        "root,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date",
+        "\"HCMA\",62128177,57600350,\"10.3\",\"10.3\",\"10.3\",\"10.3\",112241,101,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021",
+    );
+    let tick = parse_eod_ticks(&eod).unwrap()[0];
+    assert_eq!(
+        (tick.created_ms_of_day, tick.last_trade_ms_of_day, tick.date),
+        (62_128_177, 57_600_350, 20_261_021)
+    );
+    let headers: Vec<&str> = eod.headers.iter().map(String::as_str).collect();
+    let columns = EodTick::present_columns(&headers);
+    assert!(columns.contains("created_ms_of_day") && columns.contains("last_trade_ms_of_day"));
+
+    let trade_quote = flat_file_table(
+        "root,expiration,strike,right,ms_of_day,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,condition_flags,price_flags,volume_type,records_back,ms_of_day2,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date",
+        "\"SPY\",20261030,\"808.0\",\"C\",38866492,996731438,255,255,255,255,134,1,6,\"0.05\",0,7,0,0,38866311,631,6,\"0.05\",50,1217,42,\"0.06\",50,20261021",
+    );
+    let tick = parse_trade_quote_ticks(&trade_quote).unwrap()[0];
+    assert_eq!(
+        (
+            tick.ms_of_day,
+            tick.quote_ms_of_day,
+            tick.expiration,
+            tick.right
+        ),
+        (38_866_492, 38_866_311, 20_261_030, 'C')
+    );
+    let headers: Vec<&str> = trade_quote.headers.iter().map(String::as_str).collect();
+    assert!(TradeQuoteTick::present_columns(&headers).contains("quote_ms_of_day"));
+
+    let quote = flat_file_table(
+        "root,interval_ms_of_day,quote_ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date",
+        "\"HCMA\",14460000,14401256,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021",
+    );
+    let tick = parse_interval_quote_ticks(&quote).unwrap()[0];
+    assert_eq!(
+        (tick.interval_ms_of_day, tick.quote_ms_of_day, tick.date),
+        (14_460_000, 14_401_256, 20_261_021)
+    );
+    assert!((tick.bid - 10.26).abs() < 1e-9 && (tick.ask - 10.35).abs() < 1e-9);
+    let headers: Vec<&str> = quote.headers.iter().map(String::as_str).collect();
+    let columns = IntervalQuoteTick::present_columns(&headers);
+    assert!(columns.contains("interval_ms_of_day") && columns.contains("quote_ms_of_day"));
 }
 
 #[test]

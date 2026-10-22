@@ -52,7 +52,7 @@ The [HTTP server](/server/http) answers a failed data request the way the termin
 | 503 | Upstream capacity exhausted after retries; carries `Retry-After`. |
 | Set by the upstream | The upstream service rejected the request. The server answers with the HTTP status the service attaches to the rejection (for example its no-data status when a query matches no rows) and the service's description, or with 500 when the service attaches no status. |
 
-Three kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), every failure on the [flat-file](/articles/flat-files) routes, and an internal fault while the server renders a response.
+Two kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), and an internal fault while the server renders a response.
 
 ```json
 {
@@ -63,7 +63,5 @@ Three kinds of failure are answered with a JSON envelope instead, whose `error_t
 
 | HTTP status | `error_type` | Meaning |
 |---|---|---|
-| 400 | `bad_request` | The query string or a flat-file parameter was rejected; the message names it. |
-| 404 | `flatfiles_no_data` | No flat file is available to this account for the requested date. |
-| 502 | `flatfiles_unavailable` | The upstream failed while serving the flat file. |
+| 400 | `bad_request` | The query string was rejected; the message names it. |
 | 500 | `serialization_error`, `server_error` | The server failed to render the response. This is a defect in the server, not a data condition. |

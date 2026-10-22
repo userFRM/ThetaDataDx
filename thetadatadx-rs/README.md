@@ -16,7 +16,7 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ## Features
 
-- **Complete coverage**: stocks, options, indices, and rates across 73 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Greeks on demand** — first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
@@ -88,7 +88,7 @@ let creds = Credentials::from_file("creds.txt")?;
 let client = Client::connect(&creds, DirectConfig::production()).await?;
 ```
 
-73 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery, the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
+81 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery, the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
 
 ## Streaming
 
@@ -189,16 +189,21 @@ Beyond the iterator, `StreamingClient` exposes `next_event()` (blocking pop), `t
 
 ## Flat files
 
-Whole-universe daily snapshots for one `(security type, request type, date)` at a time, written straight to disk in the format you ask for:
+Whole-universe files for one date. Each file the vendor serves is an endpoint like any other: option `eod`, `trade_quote`, `open_interest` and `quote`; stock `eod`, `trade_quote` and `quote`; index `eod`:
 
 ```rust
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+let eod = client.market_data().stock_flat_file_eod("20260428").await?;
 
-let path = thetadatadx::flatfile_request(
-    &creds, SecType::Option, ReqType::TradeQuote, "20260428",
-    std::path::Path::new("/tmp/option-trade-quote"), FlatFileFormat::Csv,
-).await?;
+// The large files stream chunk by chunk, with the default deadline lifted.
+client
+    .market_data()
+    .option_flat_file_trade_quote("20260428")
+    .with_deadline(std::time::Duration::ZERO)
+    .stream(|chunk| println!("{}", chunk.len()))
+    .await?;
 ```
+
+The `flatfile_*` functions and the `flat_files()` view read the vendor's older flat-file service, which serves five of those datasets.
 
 ## DataFrames
 

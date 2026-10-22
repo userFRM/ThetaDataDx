@@ -20,6 +20,11 @@
     { "text": "At-Time", "collapsed": true, "items": [
       { "text": "Trade", "link": "/reference/stock/at-time/trade" },
       { "text": "Quote", "link": "/reference/stock/at-time/quote" }
+    ]},
+    { "text": "Flat File", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/stock/flat-file/eod" },
+      { "text": "Trade Quote", "link": "/reference/stock/flat-file/trade-quote" },
+      { "text": "Quote", "link": "/reference/stock/flat-file/quote" }
     ]}
   ]},
   { "text": "Option", "collapsed": true, "items": [
@@ -77,6 +82,12 @@
     { "text": "At-Time", "collapsed": true, "items": [
       { "text": "Trade", "link": "/reference/option/at-time/trade" },
       { "text": "Quote", "link": "/reference/option/at-time/quote" }
+    ]},
+    { "text": "Flat File", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/option/flat-file/eod" },
+      { "text": "Trade Quote", "link": "/reference/option/flat-file/trade-quote" },
+      { "text": "Open Interest", "link": "/reference/option/flat-file/open-interest" },
+      { "text": "Quote", "link": "/reference/option/flat-file/quote" }
     ]}
   ]},
   { "text": "Index", "collapsed": true, "items": [
@@ -96,6 +107,9 @@
     ]},
     { "text": "At-Time", "collapsed": true, "items": [
       { "text": "Price", "link": "/reference/index/at-time/price" }
+    ]},
+    { "text": "Flat File", "collapsed": true, "items": [
+      { "text": "EOD", "link": "/reference/index/flat-file/eod" }
     ]}
   ]},
   { "text": "Calendar", "collapsed": true, "items": [

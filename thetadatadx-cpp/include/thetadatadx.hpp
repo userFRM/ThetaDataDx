@@ -126,6 +126,7 @@ using MarketValueTick = ThetaDataDxMarketValueTick;
 using CalendarDay = ThetaDataDxCalendarDay;
 using InterestRateTick = ThetaDataDxInterestRateTick;
 using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
+using IntervalQuoteTick = ThetaDataDxIntervalQuoteTick;
 
 // Generated layout guards for the C mirror tick structs.
 #include "tick_layout_asserts.hpp.inc"

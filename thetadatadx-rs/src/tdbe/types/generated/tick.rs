@@ -659,6 +659,83 @@ pub struct InterestRateTick {
     pub rate: f64,
 }
 
+/// Interval quote tick -- 14 fields. The NBBO in effect at one interval.
+///
+/// Returned by the quote flat files (`*_flat_file_quote`), which carry one row
+/// per interval in which a new quote was reported. Each row holds two times:
+/// `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`,
+/// when the quote in effect at that interval was reported.
+#[must_use]
+#[derive(Debug, Clone, Copy)]
+#[repr(C, align(64))]
+pub struct IntervalQuoteTick {
+    /// Time of the interval the row samples, milliseconds since midnight ET.
+    pub interval_ms_of_day: i32,
+    /// Time the quote in effect at the interval was reported, milliseconds since midnight ET.
+    pub quote_ms_of_day: i32,
+    /// NBBO bid size.
+    pub bid_size: i32,
+    /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
+    pub bid_exchange: i32,
+    /// Whether the response carried a value for `bid_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_exchange: bool,
+    /// NBBO bid price.
+    pub bid: f64,
+    /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
+    pub bid_condition: i32,
+    /// Whether the response carried a value for `bid_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_condition: bool,
+    /// NBBO ask size.
+    pub ask_size: i32,
+    /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
+    pub ask_exchange: i32,
+    /// Whether the response carried a value for `ask_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_exchange: bool,
+    /// NBBO ask price.
+    pub ask: f64,
+    /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
+    pub ask_condition: i32,
+    /// Whether the response carried a value for `ask_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_condition: bool,
+    /// Trading date as a YYYYMMDD integer.
+    pub date: i32,
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
+    pub expiration: i32,
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
+    pub strike: f64,
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
+    pub right: char,
+}
+
+impl IntervalQuoteTick {
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// with `interval_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
+    /// `None` when `date` is absent (`0`) or `interval_ms_of_day` is outside
+    /// the milliseconds-of-day domain. The raw integer fields stay
+    /// primary; this accessor is a convenience at the epoch boundary.
+    #[must_use]
+    pub fn interval_timestamp_ms(&self) -> Option<i64> {
+        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.interval_ms_of_day)
+    }
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date`
+    /// with `quote_ms_of_day` (Eastern-Time milliseconds-of-day). Returns
+    /// `None` when `date` is absent (`0`) or `quote_ms_of_day` is outside
+    /// the milliseconds-of-day domain. The raw integer fields stay
+    /// primary; this accessor is a convenience at the epoch boundary.
+    #[must_use]
+    pub fn quote_timestamp_ms(&self) -> Option<i64> {
+        crate::tdbe::time::date_ms_to_epoch_ms(self.date, self.quote_ms_of_day)
+    }
+}
+
 /// Implied volatility tick -- 15 fields.
 ///
 /// The `option_history_greeks_implied_volatility` wire columns map as:

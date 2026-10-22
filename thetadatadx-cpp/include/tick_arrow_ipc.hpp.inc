@@ -385,6 +385,41 @@ inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc_projected(const std
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_interest_rate_ticks_to_arrow_ipc_projected);
 }
 
+/// Serialise a `IntervalQuoteTick` history result as Arrow IPC stream bytes,
+/// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
+/// gives. Throws `thetadatadx::Error` on serialisation failure. The returned
+/// vector owns its memory; the FFI buffer is freed before return.
+inline std::vector<uint8_t> interval_quote_ticks_to_arrow_ipc(const std::vector<IntervalQuoteTick>& rows) {
+    return detail::tick_to_arrow_ipc(rows, thetadatadx_interval_quote_ticks_to_arrow_ipc);
+}
+
+/// Build the wire-column presence set for a `IntervalQuoteTick` response from its
+/// header names (the response's `DataTable` headers), via the same decode
+/// logic the buffered `.await` path uses. Feed the result to
+/// `interval_quote_ticks_to_arrow_ipc_projected` for a terminal-exact columnar export.
+inline ColumnPresence interval_quote_ticks_present_columns(const std::vector<std::string>& headers) {
+    std::vector<const char*> ptrs;
+    ptrs.reserve(headers.size());
+    for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_interval_quote_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
+}
+
+/// Serialise a `IntervalQuoteTick` history result as a PROJECTED Arrow IPC stream —
+/// only the columns `presence` names (from the matching
+/// `_present_columns`), the terminal-exact output Python's
+/// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
+/// response's constant root, broadcast as the leading column
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
+/// `thetadatadx::Error` on failure; the returned vector owns its memory.
+inline std::vector<uint8_t> interval_quote_ticks_to_arrow_ipc_projected(const std::vector<IntervalQuoteTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
+    return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_interval_quote_ticks_to_arrow_ipc_projected);
+}
+
 /// Serialise a `IvTick` history result as Arrow IPC stream bytes,
 /// the same columnar exit the Python `<TickName>List.to_arrow()` terminal
 /// gives. Throws `thetadatadx::Error` on serialisation failure. The returned

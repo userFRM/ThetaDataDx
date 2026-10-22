@@ -26,10 +26,11 @@ use crate::mdds::registry::ParamType;
 #[cfg(feature = "__internal")]
 use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
-    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
-    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
-    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
-    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick,
+    IntervalQuoteTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick, OptionContract,
+    PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+    TradeQuoteTick, TradeTick,
 };
 #[cfg(feature = "__internal")]
 use std::collections::BTreeMap;
@@ -456,6 +457,10 @@ pub enum EndpointOutput {
     TradeQuoteTicks(Ticks<TradeQuoteTick>),
     /// `Vec<OpenInterestTick>` result.
     OpenInterestTicks(Ticks<OpenInterestTick>),
+    /// `Vec<IntervalQuoteTick>` result. Returned by the quote flat files
+    /// (`*_flat_file_quote`): one NBBO quote per interval, carrying both the
+    /// interval time and the time the quote was reported.
+    IntervalQuoteTicks(Ticks<IntervalQuoteTick>),
     /// `Vec<MarketValueTick>` result.
     MarketValueTicks(Ticks<MarketValueTick>),
     /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all`

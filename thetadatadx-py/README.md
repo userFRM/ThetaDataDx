@@ -17,7 +17,7 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 
 ## Features
 
-- **Complete coverage**: stocks, options, indices, and rates across 73 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
@@ -218,32 +218,30 @@ with client.stream.batches(batch_size=8192) as batches:
 
 ## Flat files
 
-Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so flat-file results chain through the same DataFrame terminals as history:
+Whole-universe files for one date. Each file the vendor serves is an endpoint like any other: option `eod`, `trade_quote`, `open_interest` and `quote`; stock `eod`, `trade_quote` and `quote`; index `eod`. Results chain through the same DataFrame terminals as history:
 
 ```python
-rows = client.flat_files.option_trade_quote(date="20260428")
-print(len(rows))
-df = rows.to_polars()                       # or .to_pandas() / .to_arrow() / .to_list()
+eod = client.market_data.stock_flat_file_eod("20260428")
+df = eod.to_polars()                        # leads with each row's `symbol`
 
-# Generic dispatcher when security type / request type come from config
-oi = client.flat_files.request("OPTION", "OPEN_INTEREST", "20260428")
-
-# Or write the raw vendor file straight to disk — no decode, no row materialise
-path = client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20260428",
-                            "/tmp/option-trade-quote", format="csv")
+# The large files stream chunk by chunk, with the default deadline lifted
+(client.market_data
+    .option_flat_file_trade_quote_builder("20260428")
+    .timeout_ms(0)
+    .stream(lambda chunk: print(len(chunk))))
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`. Available `flat_files.*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(sec_type, req_type, date)`. The generic `request(...)` and `flatfile_to_path(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
+The `flat_files` view (`option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, `request(...)`) and `flatfile_to_path(...)` read the vendor's older flat-file service, which serves five of those datasets and rejects an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 
-73 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+81 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 13 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 47 | Every stock surface plus every Greeks tier in both the Black-Scholes and binomial families, open interest, contract lists |
-| Index | 9 | EOD, OHLC, price, snapshots |
+| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time, flat files |
+| Option | 51 | Every stock surface plus every Greeks tier in both the Black-Scholes and binomial families, open interest, contract lists |
+| Index | 10 | EOD, OHLC, price, snapshots, flat files |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 

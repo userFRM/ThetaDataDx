@@ -695,6 +695,76 @@ impl InterestRateTick {
     }
 }
 
+/// Interval quote tick. The NBBO in effect at one interval.
+///
+/// Returned by the quote flat files (`*_flat_file_quote`), which carry one row
+/// per interval in which a new quote was reported. Each row holds two times:
+/// `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`,
+/// when the quote in effect at that interval was reported.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct IntervalQuoteTick {
+    #[pyo3(get)] pub interval_ms_of_day: i32,
+    #[pyo3(get)] pub quote_ms_of_day: i32,
+    #[pyo3(get)] pub bid_size: i32,
+    #[pyo3(get)] pub bid_exchange: Option<i32>,
+    #[pyo3(get)] pub bid: f64,
+    #[pyo3(get)] pub bid_condition: Option<i32>,
+    #[pyo3(get)] pub ask_size: i32,
+    #[pyo3(get)] pub ask_exchange: Option<i32>,
+    #[pyo3(get)] pub ask: f64,
+    #[pyo3(get)] pub ask_condition: Option<i32>,
+    #[pyo3(get)] pub date: i32,
+    #[pyo3(get)] pub expiration: Option<i32>,
+    #[pyo3(get)] pub strike: Option<f64>,
+    #[pyo3(get)] pub right: Option<String>,
+}
+#[pymethods]
+impl IntervalQuoteTick {
+    #[new]
+    #[pyo3(signature = (*, interval_ms_of_day = 0i32, quote_ms_of_day = 0i32, bid_size = 0i32, bid_exchange = None, bid = 0.0f64, bid_condition = None, ask_size = 0i32, ask_exchange = None, ask = 0.0f64, ask_condition = None, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(interval_ms_of_day: i32, quote_ms_of_day: i32, bid_size: i32, bid_exchange: Option<i32>, bid: f64, bid_condition: Option<i32>, ask_size: i32, ask_exchange: Option<i32>, ask: f64, ask_condition: Option<i32>, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
+        Self {
+            interval_ms_of_day,
+            quote_ms_of_day,
+            bid_size,
+            bid_exchange,
+            bid,
+            bid_condition,
+            ask_size,
+            ask_exchange,
+            ask,
+            ask_condition,
+            date,
+            expiration,
+            strike,
+            right,
+        }
+    }
+    fn __repr__(&self) -> String {
+        format!("IntervalQuoteTick(interval_ms_of_day={}, quote_ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={})", self.interval_ms_of_day, self.quote_ms_of_day, self.bid_size, self.bid_exchange.map_or_else(|| "None".to_string(), |v| v.to_string()), self.bid, self.bid_condition.map_or_else(|| "None".to_string(), |v| v.to_string()))
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `interval_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn interval_timestamp_ms(&self) -> Option<i64> {
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.interval_ms_of_day)
+    }
+
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date`
+    /// is absent (`0`). The raw integer fields stay primary; this is a
+    /// convenience at the epoch boundary.
+    #[getter]
+    fn quote_timestamp_ms(&self) -> Option<i64> {
+        thetadatadx::time::date_ms_to_epoch_ms(self.date, self.quote_ms_of_day)
+    }
+}
+
 /// Implied volatility tick.
 ///
 /// The `option_history_greeks_implied_volatility` wire columns map as:
@@ -3769,6 +3839,226 @@ impl InterestRateTickListIter {
         Some(            InterestRateTick {
                 date: t.date,
                 rate: t.rate,
+            }
+        )
+    }
+}
+
+/// Typed list of `IntervalQuoteTick` returned by every market-data endpoint
+/// whose response is `IntervalQuoteTick`. Wraps the decoder-owned `Vec<IntervalQuoteTick>`
+/// and exposes the Python list protocol (`len(ticks)`, `ticks[i]`,
+/// `for t in ticks: ...`, `bool(ticks)`) plus the chained terminals
+/// `.to_list()`, `.to_arrow()`, `.to_pandas()`, `.to_polars()`.
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct IntervalQuoteTickList {
+    inner: Vec<tick::IntervalQuoteTick>,
+    columns: thetadatadx::columns::ColumnPresence,
+}
+
+impl IntervalQuoteTickList {
+    pub(crate) fn new(inner: Vec<tick::IntervalQuoteTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
+    }
+}
+
+#[pymethods]
+impl IntervalQuoteTickList {
+    #[new]
+    #[pyo3(signature = (ticks = Vec::new()))]
+    fn py_new(ticks: Vec<pyo3::PyRef<'_, IntervalQuoteTick>>) -> PyResult<Self> {
+        let mut inner = Vec::with_capacity(ticks.len());
+        for t in &ticks {
+            inner.push(            tick::IntervalQuoteTick {
+                interval_ms_of_day: t.interval_ms_of_day,
+                quote_ms_of_day: t.quote_ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: t.bid_exchange.unwrap_or(0),
+                has_bid_exchange: t.bid_exchange.is_some(),
+                bid: t.bid,
+                bid_condition: t.bid_condition.unwrap_or(0),
+                has_bid_condition: t.bid_condition.is_some(),
+                ask_size: t.ask_size,
+                ask_exchange: t.ask_exchange.unwrap_or(0),
+                has_ask_exchange: t.ask_exchange.is_some(),
+                ask: t.ask,
+                ask_condition: t.ask_condition.unwrap_or(0),
+                has_ask_condition: t.ask_condition.is_some(),
+                date: t.date,
+                expiration: t.expiration.unwrap_or(0),
+                strike: t.strike.unwrap_or(0.0),
+                right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
+            }
+            );
+        }
+        let columns = <tick::IntervalQuoteTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn __bool__(&self) -> bool {
+        !self.inner.is_empty()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("IntervalQuoteTickList({} rows)", self.inner.len())
+    }
+
+    fn __getitem__(&self, py: Python<'_>, key: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
+            let indices = slice.indices(self.inner.len() as isize)?;
+            let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
+            let mut i = indices.start;
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
+            }
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, IntervalQuoteTickList::new(rows, columns))?.into_any());
+        }
+        let idx: isize = key.extract()?;
+        let len = self.inner.len() as isize;
+        let resolved = if idx < 0 { idx + len } else { idx };
+        if resolved < 0 || resolved >= len {
+            return Err(pyo3::exceptions::PyIndexError::new_err(format!(
+                "IntervalQuoteTickList index {} out of range (len={})", idx, self.inner.len()
+            )));
+        }
+        let t = &self.inner[resolved as usize];
+        let obj =             IntervalQuoteTick {
+                interval_ms_of_day: t.interval_ms_of_day,
+                quote_ms_of_day: t.quote_ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                bid: t.bid,
+                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
+                ask_size: t.ask_size,
+                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                ask: t.ask,
+                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
+                date: t.date,
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+            }
+        ;
+        Ok(Py::new(py, obj)?.into_any())
+    }
+
+    fn __iter__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<Py<IntervalQuoteTickListIter>> {
+        Py::new(py, IntervalQuoteTickListIter { inner: slf.inner.clone(), cursor: 0 })
+    }
+
+    /// Return a plain Python `list` of typed tick pyclass instances.
+    /// Explicit escape hatch for callers that want a mutable list or
+    /// need to pass the data into an API that only accepts `list`.
+    fn to_list(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let list = pyo3::types::PyList::empty(py);
+        for t in &self.inner {
+            let obj =                 IntervalQuoteTick {
+                    interval_ms_of_day: t.interval_ms_of_day,
+                    quote_ms_of_day: t.quote_ms_of_day,
+                    bid_size: t.bid_size,
+                    bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                    bid: t.bid,
+                    bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
+                    ask_size: t.ask_size,
+                    ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                    ask: t.ask,
+                    ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
+                    date: t.date,
+                    expiration: t.has_contract_id().then_some(t.expiration),
+                    strike: t.has_contract_id().then_some(t.strike),
+                    right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                }
+            ;
+            list.append(Py::new(py, obj)?)?;
+        }
+        Ok(list.into_any().unbind())
+    }
+
+    /// Return a `pyarrow.Table` backed by the decoder-owned slice.
+    /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
+    /// Data Interface; downstream pandas / polars / DuckDB alias the
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
+    fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        slice_arrow::interval_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
+    }
+
+    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
+    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::interval_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
+        pyarrow_table_to_pandas(py, table)
+    }
+
+    /// Return a `polars.DataFrame` via `polars.from_arrow`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
+    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        let table = slice_arrow::interval_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
+        pyarrow_table_to_polars(py, table)
+    }
+}
+
+/// Companion iterator for [`IntervalQuoteTickList`]. Yields `IntervalQuoteTick` pyclass
+/// instances until the wrapped `Vec` is exhausted, then raises
+/// `StopIteration`. One allocation at construction (Vec clone); each
+/// `__next__` only copies one tick out of the inner buffer.
+///
+/// `unsendable` opts the iterator into PyO3's single-thread affinity
+/// check under free-threaded Python (PEP 703). The cursor is a plain
+/// `usize` advanced by `&mut self` inside `__next__`; without the
+/// marker a nogil interpreter would let two threads drive the same
+/// iterator concurrently and lose ticks. Pythonic iterators are
+/// single-thread by contract — the affinity check enforces it at
+/// the binding boundary.
+#[pyclass(module = "thetadatadx", unsendable, skip_from_py_object)]
+pub(crate) struct IntervalQuoteTickListIter {
+    inner: Vec<tick::IntervalQuoteTick>,
+    cursor: usize,
+}
+
+#[pymethods]
+impl IntervalQuoteTickListIter {
+    fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __next__(&mut self) -> Option<IntervalQuoteTick> {
+        if self.cursor >= self.inner.len() {
+            return None;
+        }
+        let t = &self.inner[self.cursor];
+        self.cursor += 1;
+        Some(            IntervalQuoteTick {
+                interval_ms_of_day: t.interval_ms_of_day,
+                quote_ms_of_day: t.quote_ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                bid: t.bid,
+                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
+                ask_size: t.ask_size,
+                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                ask: t.ask,
+                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
+                date: t.date,
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         )
     }
@@ -7053,6 +7343,11 @@ pub(crate) fn interest_rate_ticks_to_pyclass_list(py: Python<'_>, ticks: thetada
     Py::new(py, InterestRateTickList::new(ticks.into_vec(), columns))
 }
 
+pub(crate) fn interval_quote_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IntervalQuoteTick>) -> PyResult<Py<IntervalQuoteTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, IntervalQuoteTickList::new(ticks.into_vec(), columns))
+}
+
 pub(crate) fn iv_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IvTick>) -> PyResult<Py<IvTickList>> {
     let columns = ticks.columns().clone();
     Py::new(py, IvTickList::new(ticks.into_vec(), columns))
@@ -7415,6 +7710,35 @@ pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadata
         let obj =             InterestRateTick {
                 date: t.date,
                 rate: t.rate,
+            }
+        ;
+        list.append(Py::new(py, obj)?)?;
+    }
+    Ok(list.unbind())
+}
+
+/// Snapshot-endpoint fast-path converter. Materialises a plain
+/// `PyList` of `IntervalQuoteTick` pyclass instances without allocating a
+/// `IntervalQuoteTickList` wrapper. Used by snapshot / calendar endpoints
+/// where callers never chain `.to_polars()` on the result.
+pub(crate) fn interval_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IntervalQuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
+    let list = pyo3::types::PyList::empty(py);
+    for t in &ticks {
+        let obj =             IntervalQuoteTick {
+                interval_ms_of_day: t.interval_ms_of_day,
+                quote_ms_of_day: t.quote_ms_of_day,
+                bid_size: t.bid_size,
+                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                bid: t.bid,
+                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
+                ask_size: t.ask_size,
+                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                ask: t.ask,
+                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
+                date: t.date,
+                expiration: t.has_contract_id().then_some(t.expiration),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
             }
         ;
         list.append(Py::new(py, obj)?)?;
@@ -8056,6 +8380,9 @@ pub(crate) fn register_tick_classes(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<InterestRateTick>()?;
     m.add_class::<InterestRateTickList>()?;
     m.add_class::<InterestRateTickListIter>()?;
+    m.add_class::<IntervalQuoteTick>()?;
+    m.add_class::<IntervalQuoteTickList>()?;
+    m.add_class::<IntervalQuoteTickListIter>()?;
     m.add_class::<IvTick>()?;
     m.add_class::<IvTickList>()?;
     m.add_class::<IvTickListIter>()?;

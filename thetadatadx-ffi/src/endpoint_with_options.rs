@@ -795,6 +795,183 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
     })
 }
 
+/// Fetch the end-of-day report of every stock for one date.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "stock_flat_file_eod", &args) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_flat_file_eod: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeQuoteTickArray {
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "stock_flat_file_trade_quote", &args) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_flat_file_trade_quote: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxIntervalQuoteTickArray {
+    ffi_boundary!(ThetaDataDxIntervalQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxIntervalQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "stock_flat_file_quote", &args) {
+            Ok(thetadatadx::EndpointOutput::IntervalQuoteTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxIntervalQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for stock_flat_file_quote: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// List all available option underlying symbols.
 ///
 /// Accepts optional builder parameters.
@@ -3911,6 +4088,242 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
     })
 }
 
+/// Fetch the end-of-day report of every option contract for one date.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "option_flat_file_eod", &args) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_flat_file_eod: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeQuoteTickArray {
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "option_flat_file_trade_quote", &args) {
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_flat_file_trade_quote: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch the open interest of every option contract for one date.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxOpenInterestTickArray {
+    ffi_boundary!(ThetaDataDxOpenInterestTickArray::EMPTY, {
+        let empty = ThetaDataDxOpenInterestTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "option_flat_file_open_interest", &args) {
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_flat_file_open_interest: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxIntervalQuoteTickArray {
+    ffi_boundary!(ThetaDataDxIntervalQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxIntervalQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "option_flat_file_quote", &args) {
+            Ok(thetadatadx::EndpointOutput::IntervalQuoteTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxIntervalQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_flat_file_quote: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// List all available index symbols.
 ///
 /// Accepts optional builder parameters.
@@ -4446,6 +4859,65 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_at_time_price: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch the end-of-day report of every index for one date.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxEodTickArray {
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        match invoke_endpoint_blocking(&client.inner, "index_flat_file_eod", &args) {
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for index_flat_file_eod: {other:?}"));
                 empty
             }
             Err(error) => {

@@ -109,6 +109,15 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(index_price_at_time_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
+        "index_flat_file_eod" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
         "index_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -189,6 +198,42 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_flat_file_eod" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_flat_file_open_interest" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OpenInterestTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(open_interest_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_flat_file_quote" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_interval_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::IntervalQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(interval_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_flat_file_trade_quote" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_binomial_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
@@ -576,6 +621,33 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "stock_flat_file_eod" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "stock_flat_file_quote" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_interval_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::IntervalQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(interval_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "stock_flat_file_trade_quote" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;

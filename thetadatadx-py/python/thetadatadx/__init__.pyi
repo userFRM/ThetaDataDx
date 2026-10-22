@@ -1361,6 +1361,10 @@ TradeQuoteTickList = Any
 StockHistoryTradeQuoteBuilder = Any
 StockAtTimeTradeBuilder = Any
 StockAtTimeQuoteBuilder = Any
+StockFlatFileEodBuilder = Any
+StockFlatFileTradeQuoteBuilder = Any
+IntervalQuoteTickList = Any
+StockFlatFileQuoteBuilder = Any
 OptionListSymbolsBuilder = Any
 OptionListDatesBuilder = Any
 OptionListExpirationsBuilder = Any
@@ -1431,6 +1435,10 @@ TradeGreeksImpliedVolatilityTickList = Any
 OptionHistoryTradeGreeksImpliedVolatilityBuilder = Any
 OptionAtTimeTradeBuilder = Any
 OptionAtTimeQuoteBuilder = Any
+OptionFlatFileEodBuilder = Any
+OptionFlatFileTradeQuoteBuilder = Any
+OptionFlatFileOpenInterestBuilder = Any
+OptionFlatFileQuoteBuilder = Any
 IndexListSymbolsBuilder = Any
 IndexListDatesBuilder = Any
 IndexSnapshotOhlcBuilder = Any
@@ -1442,6 +1450,7 @@ IndexHistoryOhlcBuilder = Any
 IndexHistoryPriceBuilder = Any
 IndexPriceAtTimeTickList = Any
 IndexAtTimePriceBuilder = Any
+IndexFlatFileEodBuilder = Any
 CalendarDay = Any
 CalendarOpenTodayBuilder = Any
 CalendarOnDateBuilder = Any
@@ -2154,6 +2163,90 @@ class MarketDataView:
         time_of_day: Union[str, time, datetime],
     ) -> StockAtTimeQuoteBuilder:
         """Fluent builder for `stock_at_time_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_eod(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch the end-of-day report of every stock for one date."""
+        ...
+
+    def stock_flat_file_eod_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch the end-of-day report of every stock for one date.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def stock_flat_file_eod_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileEodBuilder:
+        """Fluent builder for `stock_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_trade_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeQuoteTickList:
+        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade."""
+        ...
+
+    def stock_flat_file_trade_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeQuoteTickList]:
+        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def stock_flat_file_trade_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileTradeQuoteBuilder:
+        """Fluent builder for `stock_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> IntervalQuoteTickList:
+        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."""
+        ...
+
+    def stock_flat_file_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[IntervalQuoteTickList]:
+        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def stock_flat_file_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileQuoteBuilder:
+        """Fluent builder for `stock_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_list_symbols(
@@ -5821,6 +5914,118 @@ class MarketDataView:
         """Fluent builder for `option_at_time_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_flat_file_eod(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch the end-of-day report of every option contract for one date."""
+        ...
+
+    def option_flat_file_eod_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch the end-of-day report of every option contract for one date.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_eod_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> OptionFlatFileEodBuilder:
+        """Fluent builder for `option_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_flat_file_trade_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeQuoteTickList:
+        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade."""
+        ...
+
+    def option_flat_file_trade_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeQuoteTickList]:
+        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_trade_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> OptionFlatFileTradeQuoteBuilder:
+        """Fluent builder for `option_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_flat_file_open_interest(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> OpenInterestTickList:
+        """Fetch the open interest of every option contract for one date."""
+        ...
+
+    def option_flat_file_open_interest_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[OpenInterestTickList]:
+        """Fetch the open interest of every option contract for one date.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_open_interest_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> OptionFlatFileOpenInterestBuilder:
+        """Fluent builder for `option_flat_file_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_flat_file_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> IntervalQuoteTickList:
+        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."""
+        ...
+
+    def option_flat_file_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[IntervalQuoteTickList]:
+        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> OptionFlatFileQuoteBuilder:
+        """Fluent builder for `option_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def index_list_symbols(
         self,
         *,
@@ -6227,6 +6432,34 @@ class MarketDataView:
         time_of_day: Union[str, time, datetime],
     ) -> IndexAtTimePriceBuilder:
         """Fluent builder for `index_at_time_price`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def index_flat_file_eod(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch the end-of-day report of every index for one date."""
+        ...
+
+    def index_flat_file_eod_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch the end-of-day report of every index for one date.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_flat_file_eod_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> IndexFlatFileEodBuilder:
+        """Fluent builder for `index_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def calendar_open_today(

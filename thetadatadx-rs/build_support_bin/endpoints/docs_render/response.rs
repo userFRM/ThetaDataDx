@@ -27,6 +27,7 @@ pub(super) fn display_fields(collection: &str) -> &'static [&'static str] {
         "EodTicks" => &["date", "open", "close", "volume"],
         "TradeQuoteTicks" => &["ms_of_day", "price", "bid", "ask"],
         "OpenInterestTicks" => &["date", "open_interest"],
+        "IntervalQuoteTicks" => &["interval_ms_of_day", "bid", "ask"],
         "MarketValueTicks" => &["date", "market_price"],
         "IvTicks" => &["date", "implied_volatility", "iv_error"],
         "GreeksAllTicks" => &["date", "delta", "gamma", "theta", "implied_volatility"],

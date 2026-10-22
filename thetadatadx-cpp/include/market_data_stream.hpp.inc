@@ -114,6 +114,42 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void stock_at_time_quote_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch the end-of-day report of every stock for one date.
+    ///
+    /// Stream `stock_flat_file_eod` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void stock_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    ///
+    /// Stream `stock_flat_file_trade_quote` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void stock_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    ///
+    /// Stream `stock_flat_file_quote` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void stock_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch end-of-day option data for a contract over a date range.
     ///
     /// Stream `option_history_eod` rows into `handler` without materialising the full
@@ -450,6 +486,54 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_at_time_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch the end-of-day report of every option contract for one date.
+    ///
+    /// Stream `option_flat_file_eod` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    ///
+    /// Stream `option_flat_file_trade_quote` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch the open interest of every option contract for one date.
+    ///
+    /// Stream `option_flat_file_open_interest` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const OpenInterestTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_flat_file_open_interest_stream(const std::string& date, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    ///
+    /// Stream `option_flat_file_quote` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch end-of-day index data for a date range.
     ///
     /// Stream `index_history_eod` rows into `handler` without materialising the full
@@ -497,6 +581,18 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void index_at_time_price_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const IndexPriceAtTimeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch the end-of-day report of every index for one date.
+    ///
+    /// Stream `index_flat_file_eod` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void index_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day interest rate history.
     ///

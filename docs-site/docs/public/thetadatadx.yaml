@@ -65,7 +65,7 @@ tags:
   - name: System
     description: Server status and lifecycle endpoints
   - name: Flat Files
-    description: Whole-universe daily flat-file downloads (CSV or JSON Lines)
+    description: Whole-universe files for one date, streamed in the terminal's flat-file format
 
 # No security requirement: the server authenticates its upstream connection
 # once at startup, and request paths carry no per-request credential — matching
@@ -536,6 +536,47 @@ x-anchors:
               type: object
               additionalProperties:
                 type: array
+      application/x-ndjson:
+        schema:
+          type: string
+      text/html:
+        schema:
+          type: string
+
+  flat-file-format-param: &flat-file-format-param
+    name: format
+    in: query
+    required: false
+    schema:
+      type: string
+      enum: [csv, json, ndjson, jsonl, html]
+      default: csv
+    description: 'File representation. Defaults to csv; `jsonl` is an alias of `ndjson`.'
+
+  flat-file-response: &flat-file-response
+    description: |
+      The whole file for the date, written as it arrives in the terminal's
+      flat-file format. Columns carry the terminal's names: `root`, then
+      `expiration`, `strike` and `right` on option files, then the dataset's
+      own columns. Times are integer milliseconds since midnight ET and dates
+      `YYYYMMDD` integers. In CSV every text and price cell is quoted and
+      prices keep a decimal point (`"808.0"`); with `format=json` the rows sit
+      in a `response` array with prices as strings. A download that fails
+      after the first bytes ends in a broken transfer, never a short file.
+    content:
+      text/csv:
+        schema:
+          type: string
+      application/json:
+        schema:
+          type: object
+          required: [response]
+          properties:
+            response:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
       application/x-ndjson:
         schema:
           type: string
@@ -3838,84 +3879,229 @@ paths:
   # FLAT FILES
   # =========================================================================
 
-  /v3/{sec_type}/flat_file/{req_type}:
+  /v3/option/flat_file/eod:
+    x-min-subscription: professional
     get:
-      operationId: flatfileGetBySecType
-      tags: [Flat Files]
-      summary: Download a daily flat file (sec_type/flat_file/req_type path form)
+      operationId: optionFlatFileEod
+      summary: End-of-day report of every option contract
       description: |
-        The terminal's flat-file path form: the security type leads the path
-        and `flat_file` separates it from the request type. The `sec_type` and
-        `req_type` segments are matched case-insensitively. The response body
-        is the file bytes, streamed as an attachment. Only these pairs are
-        served (any other pairing returns 400):
-        `option/trade_quote`, `option/open_interest`, `option/eod`,
-        `stock/trade_quote`, `stock/eod`. The path form takes the
-        parameters independently, so an unserved pairing (for example
-        `stock/open_interest`) is accepted by the route but rejected at request
-        time with 400.
+        Returns the end-of-day report of every option contract for one date as one file. The most recent 7 calendar days are available.
+        gRPC: GetOptionFlatFileEod
+      tags: [Flat Files]
       parameters:
-        - name: sec_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [option, stock]
-          description: Security type (case-insensitive).
-        - name: req_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [trade_quote, open_interest, eod]
-          description: |
-            Request type (case-insensitive). `open_interest` is served for
-            `option` only.
-        - name: date
-          in: query
-          required: true
-          schema:
-            type: string
-            format: date
-          description: Trading date in YYYY-MM-DD or YYYYMMDD format.
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [csv, json, ndjson, jsonl, html]
-            default: csv
-          description: |
-            On-disk format. Defaults to csv. `json` streams a single JSON
-            array; `ndjson` (alias `jsonl`) newline-delimited JSON; `html` an
-            HTML table.
+        - *date-param
+        - *flat-file-format-param
       responses:
-        '200':
-          description: |
-            Flat-file bytes streamed as an attachment. Content type is
-            `text/csv` for csv, `application/json` for json,
-            `application/x-ndjson` for ndjson / jsonl, or `text/html` for html.
-          content:
-            text/csv:
-              schema:
-                type: string
-                format: binary
-            application/json:
-              schema:
-                type: string
-                format: binary
-            application/x-ndjson:
-              schema:
-                type: string
-                format: binary
-            text/html:
-              schema:
-                type: string
-                format: binary
-        '400':
-          description: Unknown security type, request type, format, or date, or an unserved pair.
-        '502':
-          description: The flat-file distribution is unavailable upstream.
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().option_flat_file_eod("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.option_flat_file_eod("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().option_flat_file_eod("20250303");
+
+  /v3/option/flat_file/trade_quote:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileTradeQuote
+      summary: Every option trade with its NBBO quote
+      description: |
+        Returns every option trade of one date as one file, each paired with the NBBO quote at the time of the trade. The most recent 7 calendar days are available.
+        gRPC: GetOptionFlatFileTradeQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trade_quote = client.market_data().option_flat_file_trade_quote("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            trade_quote = client.market_data.option_flat_file_trade_quote("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trade_quote = client.market_data().option_flat_file_trade_quote("20250303");
+
+  /v3/option/flat_file/open_interest:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileOpenInterest
+      summary: Open interest of every option contract
+      description: |
+        Returns the open interest of every option contract for one date as one file. The most recent 7 calendar days are available.
+        gRPC: GetOptionFlatFileOpenInterest
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let open_interest = client.market_data().option_flat_file_open_interest("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            open_interest = client.market_data.option_flat_file_open_interest("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto open_interest = client.market_data().option_flat_file_open_interest("20250303");
+
+  /v3/option/flat_file/quote:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileQuote
+      summary: 1-minute NBBO quote intervals of every option contract
+      description: |
+        Returns every option contract's 1-minute NBBO quote intervals for one date as one file: one row per minute in which a new quote was reported, with the interval time and the time of the quote. The most recent 7 calendar days are available.
+        gRPC: GetOptionFlatFileQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let interval_quote = client.market_data().option_flat_file_quote("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            interval_quote = client.market_data.option_flat_file_quote("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto interval_quote = client.market_data().option_flat_file_quote("20250303");
+
+  /v3/stock/flat_file/eod:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileEod
+      summary: End-of-day report of every stock
+      description: |
+        Returns the end-of-day report of every stock for one date as one file. The most recent 7 calendar days are available.
+        gRPC: GetStockFlatFileEod
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().stock_flat_file_eod("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.stock_flat_file_eod("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().stock_flat_file_eod("20250303");
+
+  /v3/stock/flat_file/trade_quote:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileTradeQuote
+      summary: Every stock trade with its NBBO quote
+      description: |
+        Returns every stock trade of one date as one file, each paired with the NBBO quote at the time of the trade. The most recent 7 calendar days are available.
+        gRPC: GetStockFlatFileTradeQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trade_quote = client.market_data().stock_flat_file_trade_quote("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            trade_quote = client.market_data.stock_flat_file_trade_quote("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trade_quote = client.market_data().stock_flat_file_trade_quote("20250303");
+
+  /v3/stock/flat_file/quote:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileQuote
+      summary: 1-minute NBBO quote intervals of every stock
+      description: |
+        Returns every stock's 1-minute NBBO quote intervals for one date as one file: one row per minute in which a new quote was reported, with the interval time and the time of the quote. The most recent 7 calendar days are available.
+        gRPC: GetStockFlatFileQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let interval_quote = client.market_data().stock_flat_file_quote("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            interval_quote = client.market_data.stock_flat_file_quote("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto interval_quote = client.market_data().stock_flat_file_quote("20250303");
+
+  /v3/index/flat_file/eod:
+    x-min-subscription: professional
+    get:
+      operationId: indexFlatFileEod
+      summary: End-of-day report of every index
+      description: |
+        Returns the end-of-day report of every index for one date as one file. The most recent 7 calendar days are available.
+        gRPC: GetIndexFlatFileEod
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *flat-file-format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().index_flat_file_eod("20250303").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.index_flat_file_eod("20250303")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().index_flat_file_eod("20250303");
 
 # ---------------------------------------------------------------------------
 # COMPONENTS

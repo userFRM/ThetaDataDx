@@ -281,15 +281,12 @@ impl FlatFilesUnavailableReason {
 
     /// Returns `true` when this is a terminal *no-data* condition: the
     /// upstream answered but no flat file exists for the requested
-    /// account/date, rather than a credential/transport fault. The server
-    /// maps this to `404 flatfiles_no_data`; every other terminal reason
-    /// stays `502`.
+    /// account/date, rather than a credential/transport fault.
     ///
     /// Only an `AuthRejected` whose `RemoveReason` ordinal classifies as
     /// `DisconnectReasonClass::TerminalNoData` (`NoStartDate`) is no-data.
     /// A `RequestRejected` no-data condition is carried in the server
-    /// diagnostic string instead and is recognised by the server's message
-    /// classifier, not here.
+    /// diagnostic string instead and is not classified here.
     #[must_use]
     pub fn is_no_data(&self) -> bool {
         matches!(
@@ -514,7 +511,7 @@ mod tests {
         assert!(!reason.is_transient(), "NoStartDate must not be retried");
         assert!(
             reason.is_no_data(),
-            "NoStartDate must surface as a no-data (404) condition"
+            "NoStartDate must surface as a no-data condition"
         );
     }
 
@@ -522,9 +519,8 @@ mod tests {
     /// NOT a no-data condition: the upstream handles it identically to
     /// `InvalidCredentials` on the `!madeConnect` login branch (a "reset
     /// your password" credential fault). It is terminal-*permanent*, so it
-    /// must report `is_no_data() == false` and surface as a `502` auth
-    /// fault, never a `404 flatfiles_no_data` that would mask the credential
-    /// failure as "nothing here".
+    /// must report `is_no_data() == false`: classing it no-data would mask
+    /// the credential failure as "nothing here".
     #[test]
     fn general_validation_error_disconnect_is_terminal_permanent() {
         assert_eq!(

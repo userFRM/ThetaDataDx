@@ -399,6 +399,153 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
     })
 }
 
+/// Fetch the end-of-day report of every stock for one date.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_flat_file_eod", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_flat_file_trade_quote", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_flat_file_quote", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch end-of-day option data for a contract over a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -2051,6 +2198,202 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
     })
 }
 
+/// Fetch the end-of-day report of every option contract for one date.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "option_flat_file_eod", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "option_flat_file_trade_quote", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch the open interest of every option contract for one date.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "option_flat_file_open_interest", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "option_flat_file_quote", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch end-of-day index data for a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -2287,6 +2630,55 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
         };
         let sink = TickChunkSink { callback, ctx };
         match invoke_endpoint_stream_blocking(&client.inner, "index_at_time_price", &args, sink) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch the end-of-day report of every index for one date.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let date = require_cstr!(date, empty);
+        args.insert(
+            "date".to_string(),
+            thetadatadx::EndpointArgValue::Str(date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match invoke_endpoint_stream_blocking(&client.inner, "index_flat_file_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));

@@ -718,6 +718,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     uint8_t _tail_padding[44];
 } ThetaDataDxQuoteTick THETADATADX_ALIGN64_END;
 
+/* Interval quote tick (*_flat_file_quote): the NBBO in effect at one
+ * interval, carrying both the interval time and the time the quote was
+ * reported. */
+THETADATADX_ALIGN64_BEGIN typedef struct {
+    int32_t interval_ms_of_day;
+    int32_t quote_ms_of_day;
+    int32_t bid_size;
+    int32_t bid_exchange;
+    bool has_bid_exchange;
+    /* 7 bytes padding before the double field */
+    double bid;
+    int32_t bid_condition;
+    bool has_bid_condition;
+    int32_t ask_size;
+    int32_t ask_exchange;
+    bool has_ask_exchange;
+    /* 7 bytes padding before the double field */
+    double ask;
+    int32_t ask_condition;
+    bool has_ask_condition;
+    int32_t date;
+    int32_t expiration;
+    double strike;
+    /* Unicode scalar value of the right character: 'C' (67) for a call,
+     * 'P' (80) for a put, 0 when contract identity is absent
+     * (single-contract queries). Cast to char for display. */
+    uint32_t right;
+    uint8_t _tail_padding[36];
+} ThetaDataDxIntervalQuoteTick THETADATADX_ALIGN64_END;
+
 /* Trade-with-quote tick (*_history_trade_quote): each trade print fused
  * with the bid/ask quote prevailing at execution time. */
 THETADATADX_ALIGN64_BEGIN typedef struct {
@@ -831,6 +861,7 @@ typedef struct { const ThetaDataDxMarketValueTick* data; size_t len; } ThetaData
 typedef struct { const ThetaDataDxCalendarDay* data; size_t len; } ThetaDataDxCalendarDayArray;
 typedef struct { const ThetaDataDxInterestRateTick* data; size_t len; } ThetaDataDxInterestRateTickArray;
 typedef struct { const ThetaDataDxTradeQuoteTick* data; size_t len; } ThetaDataDxTradeQuoteTickArray;
+typedef struct { const ThetaDataDxIntervalQuoteTick* data; size_t len; } ThetaDataDxIntervalQuoteTickArray;
 
 /* ── OptionContract (has heap-allocated symbol string) ── */
 
@@ -896,6 +927,7 @@ void thetadatadx_market_value_tick_array_free(ThetaDataDxMarketValueTickArray ar
 void thetadatadx_calendar_day_array_free(ThetaDataDxCalendarDayArray arr);
 void thetadatadx_interest_rate_tick_array_free(ThetaDataDxInterestRateTickArray arr);
 void thetadatadx_trade_quote_tick_array_free(ThetaDataDxTradeQuoteTickArray arr);
+void thetadatadx_interval_quote_tick_array_free(ThetaDataDxIntervalQuoteTickArray arr);
 void thetadatadx_option_contract_array_free(ThetaDataDxOptionContractArray arr);
 void thetadatadx_string_array_free(ThetaDataDxStringArray arr);
 /** Free a subscription array returned by an active-subscriptions query.
@@ -945,6 +977,7 @@ ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc(const ThetaDat
 ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc(const ThetaDataDxCalendarDay* rows, size_t len);
 ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc(const ThetaDataDxInterestRateTick* rows, size_t len);
 ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc(const ThetaDataDxTradeQuoteTick* rows, size_t len);
+ThetaDataDxArrowBytes thetadatadx_interval_quote_ticks_to_arrow_ipc(const ThetaDataDxIntervalQuoteTick* rows, size_t len);
 
 /** Free a byte buffer returned by any thetadatadx_*_to_arrow_ipc terminal.
  *  @param bytes Buffer from a thetadatadx_*_to_arrow_ipc call; a (data=NULL, len=0)
@@ -1007,6 +1040,7 @@ ThetaDataDxColumnPresence thetadatadx_market_value_ticks_present_columns(const c
 ThetaDataDxColumnPresence thetadatadx_calendar_days_present_columns(const char* const* headers, size_t len);
 ThetaDataDxColumnPresence thetadatadx_interest_rate_ticks_present_columns(const char* const* headers, size_t len);
 ThetaDataDxColumnPresence thetadatadx_trade_quote_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_interval_quote_ticks_present_columns(const char* const* headers, size_t len);
 
 /* Serialise a span of history tick rows as a PROJECTED Arrow IPC stream —
  * only the columns presence names (from the matching _present_columns), the
@@ -1037,6 +1071,7 @@ ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc_projected(cons
 ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc_projected(const ThetaDataDxCalendarDay* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
 ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc_projected(const ThetaDataDxInterestRateTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
 ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_interval_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxIntervalQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
 
 /* ── Streaming Arrow RecordBatch reader (pull-based) ── */
 

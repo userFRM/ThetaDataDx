@@ -8,7 +8,7 @@ Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
-> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/{sec_type}/flat_file/{req_type}?date=YYYYMMDD&format=csv|json|ndjson|jsonl|html`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged.
+> **Flat files:** the server answers the terminal's flat-file routes, `GET /v3/{option,stock,index}/flat_file/{dataset}?date=YYYYMMDD&format=csv|json|ndjson|jsonl|html`, for every file the terminal serves: option `eod`, `trade_quote`, `open_interest` and `quote`; stock `eod`, `trade_quote` and `quote`; index `eod`. Each file is written in the terminal's format, chunk by chunk as it arrives, so the first bytes leave at once and server memory stays flat at any file size.
 
 ## Quick start
 
