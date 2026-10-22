@@ -39,6 +39,8 @@ pub struct StockSnapshotOHLCOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -57,6 +59,8 @@ pub struct StockSnapshotTradeOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -75,6 +79,8 @@ pub struct StockSnapshotQuoteOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -93,6 +99,8 @@ pub struct StockSnapshotMarketValueOptions {
     pub venue: Option<String>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -351,6 +359,8 @@ pub struct OptionSnapshotOHLCOptions {
     pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -373,6 +383,8 @@ pub struct OptionSnapshotTradeOptions {
     pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -397,6 +409,8 @@ pub struct OptionSnapshotQuoteOptions {
     pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -421,6 +435,8 @@ pub struct OptionSnapshotOpenInterestOptions {
     pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -445,6 +461,8 @@ pub struct OptionSnapshotMarketValueOptions {
     pub strike_range: Option<f64>,
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -481,6 +499,8 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -517,6 +537,8 @@ pub struct OptionSnapshotGreeksAllOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -555,6 +577,8 @@ pub struct OptionSnapshotBinomialGreeksAllOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -591,6 +615,8 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -629,6 +655,8 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -665,6 +693,8 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -703,6 +733,8 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -739,6 +771,8 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -777,6 +811,8 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderOptions {
     pub min_time: Option<String>,
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     pub use_market_value: Option<bool>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1867,6 +1903,8 @@ pub struct IndexListDatesOptions {
 pub struct IndexSnapshotOHLCOptions {
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1883,6 +1921,8 @@ pub struct IndexSnapshotOHLCOptions {
 pub struct IndexSnapshotPriceOptions {
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1899,6 +1939,8 @@ pub struct IndexSnapshotPriceOptions {
 pub struct IndexSnapshotMarketValueOptions {
     /// Minimum time filter
     pub min_time: Option<String>,
+    /// When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub current_day_only: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -2647,6 +2689,7 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotOHLC")]
     pub async fn stock_snapshot_ohlc(
         &self,
@@ -2662,6 +2705,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_ohlc(&refs);
@@ -2670,6 +2714,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2696,6 +2743,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_ohlc(&refs);
@@ -2704,6 +2752,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2727,6 +2778,7 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotTrade")]
     pub async fn stock_snapshot_trade(
         &self,
@@ -2742,6 +2794,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_trade(&refs);
@@ -2750,6 +2803,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2776,6 +2832,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_trade(&refs);
@@ -2784,6 +2841,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2807,6 +2867,7 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotQuote")]
     pub async fn stock_snapshot_quote(
         &self,
@@ -2822,6 +2883,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_quote(&refs);
@@ -2830,6 +2892,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2856,6 +2921,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_quote(&refs);
@@ -2864,6 +2930,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2887,6 +2956,7 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotMarketValue")]
     pub async fn stock_snapshot_market_value(
         &self,
@@ -2902,6 +2972,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_market_value(&refs);
@@ -2910,6 +2981,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2936,6 +3010,7 @@ impl MarketDataView {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_market_value(&refs);
@@ -2944,6 +3019,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4376,6 +4454,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotOHLC")]
     pub async fn option_snapshot_ohlc(
         &self,
@@ -4395,6 +4474,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4411,6 +4491,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4441,6 +4524,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4457,6 +4541,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4480,6 +4567,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotTrade")]
     pub async fn option_snapshot_trade(
         &self,
@@ -4498,6 +4586,7 @@ impl MarketDataView {
         let right = options.right;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4511,6 +4600,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4540,6 +4632,7 @@ impl MarketDataView {
         let right = options.right;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4553,6 +4646,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4576,6 +4672,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotQuote")]
     pub async fn option_snapshot_quote(
         &self,
@@ -4595,6 +4692,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4611,6 +4709,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4641,6 +4742,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4657,6 +4759,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4681,6 +4786,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotOpenInterest")]
     pub async fn option_snapshot_open_interest(
         &self,
@@ -4700,6 +4806,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4716,6 +4823,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4746,6 +4856,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4762,6 +4873,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4784,6 +4898,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotMarketValue")]
     pub async fn option_snapshot_market_value(
         &self,
@@ -4803,6 +4918,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4819,6 +4935,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4849,6 +4968,7 @@ impl MarketDataView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4865,6 +4985,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4892,6 +5015,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatility")]
     pub async fn option_snapshot_greeks_implied_volatility(
         &self,
@@ -4917,6 +5041,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -4951,6 +5076,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -4987,6 +5115,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5022,6 +5151,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5047,6 +5179,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksAll")]
     pub async fn option_snapshot_greeks_all(
         &self,
@@ -5072,6 +5205,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5106,6 +5240,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5142,6 +5279,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5177,6 +5315,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5204,6 +5345,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksAll")]
     pub async fn option_snapshot_binomial_greeks_all(
         &self,
@@ -5230,6 +5372,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5267,6 +5410,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5304,6 +5450,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5342,6 +5489,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5367,6 +5517,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksFirstOrder")]
     pub async fn option_snapshot_greeks_first_order(
         &self,
@@ -5392,6 +5543,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5426,6 +5578,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5462,6 +5617,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5497,6 +5653,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5524,6 +5683,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrder")]
     pub async fn option_snapshot_binomial_greeks_first_order(
         &self,
@@ -5550,6 +5710,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5587,6 +5748,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5624,6 +5788,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5662,6 +5827,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5687,6 +5855,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksSecondOrder")]
     pub async fn option_snapshot_greeks_second_order(
         &self,
@@ -5712,6 +5881,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5746,6 +5916,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5782,6 +5955,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5817,6 +5991,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5844,6 +6021,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrder")]
     pub async fn option_snapshot_binomial_greeks_second_order(
         &self,
@@ -5870,6 +6048,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5907,6 +6086,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -5944,6 +6126,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -5982,6 +6165,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6007,6 +6193,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksThirdOrder")]
     pub async fn option_snapshot_greeks_third_order(
         &self,
@@ -6032,6 +6219,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -6066,6 +6254,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -6102,6 +6293,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -6137,6 +6329,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -6164,6 +6359,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrder")]
     pub async fn option_snapshot_binomial_greeks_third_order(
         &self,
@@ -6190,6 +6386,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -6227,6 +6424,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -6264,6 +6464,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -6301,6 +6502,9 @@ impl MarketDataView {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13699,6 +13903,9 @@ impl MarketDataView {
     ///
     /// - Retrieves the real-time current day OHLC.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotOHLC")]
     pub async fn index_snapshot_ohlc(
         &self,
@@ -13713,11 +13920,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13743,11 +13954,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13767,6 +13982,9 @@ impl MarketDataView {
     ///
     /// - Retrieves a real-time last index price.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotPrice")]
     pub async fn index_snapshot_price(
         &self,
@@ -13781,11 +13999,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13811,11 +14033,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13835,6 +14061,9 @@ impl MarketDataView {
     ///
     /// - Retrieves a real-time last index market value.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotMarketValue")]
     pub async fn index_snapshot_market_value(
         &self,
@@ -13849,11 +14078,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13879,11 +14112,15 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14824,6 +15061,7 @@ impl MarketDataClient {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotOHLC")]
     pub async fn stock_snapshot_ohlc(
         &self,
@@ -14839,6 +15077,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_ohlc(&refs);
@@ -14847,6 +15086,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14873,6 +15115,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_ohlc(&refs);
@@ -14881,6 +15124,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14904,6 +15150,7 @@ impl MarketDataClient {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotTrade")]
     pub async fn stock_snapshot_trade(
         &self,
@@ -14919,6 +15166,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_trade(&refs);
@@ -14927,6 +15175,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14953,6 +15204,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_trade(&refs);
@@ -14961,6 +15213,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14984,6 +15239,7 @@ impl MarketDataClient {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotQuote")]
     pub async fn stock_snapshot_quote(
         &self,
@@ -14999,6 +15255,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_quote(&refs);
@@ -15007,6 +15264,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15033,6 +15293,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_quote(&refs);
@@ -15041,6 +15302,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15064,6 +15328,7 @@ impl MarketDataClient {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "stockSnapshotMarketValue")]
     pub async fn stock_snapshot_market_value(
         &self,
@@ -15079,6 +15344,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_market_value(&refs);
@@ -15087,6 +15353,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15113,6 +15382,7 @@ impl MarketDataClient {
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().stock_snapshot_market_value(&refs);
@@ -15121,6 +15391,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16553,6 +16826,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotOHLC")]
     pub async fn option_snapshot_ohlc(
         &self,
@@ -16572,6 +16846,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16588,6 +16863,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16618,6 +16896,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16634,6 +16913,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16657,6 +16939,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotTrade")]
     pub async fn option_snapshot_trade(
         &self,
@@ -16675,6 +16958,7 @@ impl MarketDataClient {
         let right = options.right;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16688,6 +16972,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16717,6 +17004,7 @@ impl MarketDataClient {
         let right = options.right;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16730,6 +17018,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16753,6 +17044,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotQuote")]
     pub async fn option_snapshot_quote(
         &self,
@@ -16772,6 +17064,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16788,6 +17081,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16818,6 +17114,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16834,6 +17131,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16858,6 +17158,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotOpenInterest")]
     pub async fn option_snapshot_open_interest(
         &self,
@@ -16877,6 +17178,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16893,6 +17195,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16923,6 +17228,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16939,6 +17245,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16961,6 +17270,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotMarketValue")]
     pub async fn option_snapshot_market_value(
         &self,
@@ -16980,6 +17290,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16996,6 +17307,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17026,6 +17340,7 @@ impl MarketDataClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17042,6 +17357,9 @@ impl MarketDataClient {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17069,6 +17387,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksImpliedVolatility")]
     pub async fn option_snapshot_greeks_implied_volatility(
         &self,
@@ -17094,6 +17413,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17128,6 +17448,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17164,6 +17487,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17199,6 +17523,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17224,6 +17551,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksAll")]
     pub async fn option_snapshot_greeks_all(
         &self,
@@ -17249,6 +17577,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17283,6 +17612,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17319,6 +17651,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17354,6 +17687,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17381,6 +17717,7 @@ impl MarketDataClient {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksAll")]
     pub async fn option_snapshot_binomial_greeks_all(
         &self,
@@ -17407,6 +17744,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17444,6 +17782,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17481,6 +17822,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17519,6 +17861,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17544,6 +17889,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksFirstOrder")]
     pub async fn option_snapshot_greeks_first_order(
         &self,
@@ -17569,6 +17915,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17603,6 +17950,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17639,6 +17989,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17674,6 +18025,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17701,6 +18055,7 @@ impl MarketDataClient {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrder")]
     pub async fn option_snapshot_binomial_greeks_first_order(
         &self,
@@ -17727,6 +18082,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17764,6 +18120,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17801,6 +18160,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17839,6 +18199,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17864,6 +18227,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksSecondOrder")]
     pub async fn option_snapshot_greeks_second_order(
         &self,
@@ -17889,6 +18253,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17923,6 +18288,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17959,6 +18327,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17994,6 +18363,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -18021,6 +18393,7 @@ impl MarketDataClient {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrder")]
     pub async fn option_snapshot_binomial_greeks_second_order(
         &self,
@@ -18047,6 +18420,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18084,6 +18458,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -18121,6 +18498,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18159,6 +18537,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -18184,6 +18565,7 @@ impl MarketDataClient {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotGreeksThirdOrder")]
     pub async fn option_snapshot_greeks_third_order(
         &self,
@@ -18209,6 +18591,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18243,6 +18626,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -18279,6 +18665,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18314,6 +18701,9 @@ impl MarketDataClient {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -18341,6 +18731,7 @@ impl MarketDataClient {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrder")]
     pub async fn option_snapshot_binomial_greeks_third_order(
         &self,
@@ -18367,6 +18758,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18404,6 +18796,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -18441,6 +18836,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18478,6 +18874,9 @@ impl MarketDataClient {
             }
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -25876,6 +26275,9 @@ impl MarketDataClient {
     ///
     /// - Retrieves the real-time current day OHLC.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotOHLC")]
     pub async fn index_snapshot_ohlc(
         &self,
@@ -25890,11 +26292,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -25920,11 +26326,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -25944,6 +26354,9 @@ impl MarketDataClient {
     ///
     /// - Retrieves a real-time last index price.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotPrice")]
     pub async fn index_snapshot_price(
         &self,
@@ -25958,11 +26371,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -25988,11 +26405,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -26012,6 +26433,9 @@ impl MarketDataClient {
     ///
     /// - Retrieves a real-time last index market value.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
     #[napi(js_name = "indexSnapshotMarketValue")]
     pub async fn index_snapshot_market_value(
         &self,
@@ -26026,11 +26450,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -26056,11 +26484,15 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
+        let current_day_only = options.current_day_only;
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));

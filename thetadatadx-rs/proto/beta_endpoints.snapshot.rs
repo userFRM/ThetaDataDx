@@ -159,6 +159,8 @@ pub struct StockSnapshotOhlcRequestQuery {
     pub venue: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "3")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "4")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StockSnapshotOhlcRequest {
@@ -175,6 +177,8 @@ pub struct StockSnapshotTradeRequestQuery {
     pub venue: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "3")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "4")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StockSnapshotTradeRequest {
@@ -191,6 +195,8 @@ pub struct StockSnapshotQuoteRequestQuery {
     pub venue: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "3")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "4")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StockSnapshotQuoteRequest {
@@ -207,6 +213,8 @@ pub struct StockSnapshotMarketValueRequestQuery {
     pub venue: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "3")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "4")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct StockSnapshotMarketValueRequest {
@@ -461,6 +469,8 @@ pub struct OptionSnapshotOhlcRequestQuery {
     pub strike_range: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "5")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "6")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotOhlcRequest {
@@ -479,6 +489,8 @@ pub struct OptionSnapshotTradeRequestQuery {
     pub strike_range: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "4")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "5")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotTradeRequest {
@@ -499,6 +511,8 @@ pub struct OptionSnapshotQuoteRequestQuery {
     pub strike_range: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "5")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "6")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotQuoteRequest {
@@ -519,6 +533,8 @@ pub struct OptionSnapshotOpenInterestRequestQuery {
     pub strike_range: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "5")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "6")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotOpenInterestRequest {
@@ -539,6 +555,8 @@ pub struct OptionSnapshotMarketValueRequestQuery {
     pub strike_range: ::core::option::Option<i32>,
     #[prost(string, optional, tag = "5")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "6")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotMarketValueRequest {
@@ -571,6 +589,8 @@ pub struct OptionSnapshotGreeksImpliedVolatilityRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "11")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "12")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksImpliedVolatilityRequest {
@@ -605,6 +625,8 @@ pub struct OptionSnapshotGreeksAllRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "11")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "12")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksAllRequest {
@@ -639,6 +661,8 @@ pub struct OptionSnapshotBinomialGreeksAllRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "12")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "13")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksAllRequest {
@@ -671,6 +695,8 @@ pub struct OptionSnapshotGreeksFirstOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "11")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "12")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksFirstOrderRequest {
@@ -705,6 +731,8 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "12")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "13")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksFirstOrderRequest {
@@ -739,6 +767,8 @@ pub struct OptionSnapshotGreeksSecondOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "11")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "12")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksSecondOrderRequest {
@@ -773,6 +803,8 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "12")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "13")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksSecondOrderRequest {
@@ -807,6 +839,8 @@ pub struct OptionSnapshotGreeksThirdOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "11")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "12")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksThirdOrderRequest {
@@ -841,6 +875,8 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(bool, optional, tag = "12")]
     pub use_market_value: ::core::option::Option<bool>,
+    #[prost(bool, optional, tag = "13")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksThirdOrderRequest {
@@ -1856,6 +1892,8 @@ pub struct IndexSnapshotOhlcRequestQuery {
     pub symbol: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "2")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "3")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IndexSnapshotOhlcRequest {
@@ -1870,6 +1908,8 @@ pub struct IndexSnapshotPriceRequestQuery {
     pub symbol: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "2")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "3")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IndexSnapshotPriceRequest {
@@ -1884,6 +1924,8 @@ pub struct IndexSnapshotMarketValueRequestQuery {
     pub symbol: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "2")]
     pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "3")]
+    pub current_day_only: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct IndexSnapshotMarketValueRequest {

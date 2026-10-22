@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/snapshot/quote",
   method: { rust: "option_snapshot_quote", python: "option_snapshot_quote", ts: "optionSnapshotQuote", cpp: "option_snapshot_quote" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "ms_of_day", "bid", "ask"],
   returns: "QuoteTick",
   sample: [
@@ -42,6 +42,7 @@ Get the latest NBBO quote snapshot for an option contract.
 | `max_dte` | int | no | - | Maximum days to expiration |
 | `strike_range` | int | no | - | Strike range filter |
 | `min_time` | string | no | - | Minimum time filter |
+| `current_day_only` | bool | no | `false` | When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

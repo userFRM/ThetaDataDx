@@ -56,24 +56,48 @@ CELLS = [
     # stock_snapshot_ohlc::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: market_data.stock_snapshot_ohlc(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_ohlc::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("stock_snapshot_ohlc", "with_current_day_only", "value", "current_day_only=true optional flag wiring", lambda: market_data.stock_snapshot_ohlc(["AAPL"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_ohlc::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("stock_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_snapshot_ohlc(["AAPL"], venue="nqb", min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_trade::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_snapshot_trade(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_trade::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.stock_snapshot_trade(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_trade::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("stock_snapshot_trade", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.stock_snapshot_trade(["AAPL"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_trade::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("stock_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_snapshot_trade(["AAPL"], venue="nqb", min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_quote::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_snapshot_quote(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_quote::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: market_data.stock_snapshot_quote(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_quote::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("stock_snapshot_quote", "with_current_day_only", "value", "current_day_only=true optional flag wiring", lambda: market_data.stock_snapshot_quote(["AAPL"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_quote::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("stock_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_snapshot_quote(["AAPL"], venue="nqb", min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_market_value::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_snapshot_market_value(["AAPL"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_snapshot_market_value::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.stock_snapshot_market_value(["AAPL"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_market_value::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("stock_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.stock_snapshot_market_value(["AAPL"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_snapshot_market_value::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("stock_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.stock_snapshot_market_value(["AAPL"], venue="nqb", min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("stock_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.stock_history_eod("AAPL", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -182,9 +206,12 @@ CELLS = [
     # option_snapshot_ohlc::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("option_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: market_data.option_snapshot_ohlc("SPY", "20250321", min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_ohlc::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_ohlc", "with_current_day_only", "value", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_ohlc("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_ohlc("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_ohlc("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_trade::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_trade("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -200,9 +227,12 @@ CELLS = [
     # option_snapshot_trade::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("option_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.option_snapshot_trade("SPY", "20250321", min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_trade::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_trade", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_trade("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_trade::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_trade("SPY", "20250321", strike="570", right="call", strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_trade("SPY", "20250321", strike="570", right="call", strike_range=10, min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_quote("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -224,9 +254,12 @@ CELLS = [
     # option_snapshot_quote::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("option_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: market_data.option_snapshot_quote("SPY", "20250321", min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_quote::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_quote", "with_current_day_only", "value", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_quote("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_quote("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_quote("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_open_interest("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -248,9 +281,12 @@ CELLS = [
     # option_snapshot_open_interest::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("option_snapshot_open_interest", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", lambda: market_data.option_snapshot_open_interest("SPY", "20250321", min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_open_interest::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_open_interest", "with_current_day_only", "value", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_open_interest("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_open_interest::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_open_interest("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_open_interest("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_market_value("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -272,9 +308,12 @@ CELLS = [
     # option_snapshot_market_value::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("option_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.option_snapshot_market_value("SPY", "20250321", min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_market_value::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_market_value("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_market_value::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_market_value("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_market_value("SPY", "20250321", strike="570", right="call", max_dte=30, strike_range=10, min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -311,9 +350,12 @@ CELLS = [
     # option_snapshot_greeks_implied_volatility::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_greeks_implied_volatility", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_implied_volatility::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_greeks_implied_volatility", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -350,9 +392,12 @@ CELLS = [
     # option_snapshot_greeks_all::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_greeks_all", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_all::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_greeks_all", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -392,9 +437,12 @@ CELLS = [
     # option_snapshot_binomial_greeks_all::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_binomial_greeks_all", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_all::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_binomial_greeks_all", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -431,9 +479,12 @@ CELLS = [
     # option_snapshot_greeks_first_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_greeks_first_order", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_first_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_greeks_first_order", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -473,9 +524,12 @@ CELLS = [
     # option_snapshot_binomial_greeks_first_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_binomial_greeks_first_order", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_first_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_binomial_greeks_first_order", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -512,9 +566,12 @@ CELLS = [
     # option_snapshot_greeks_second_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_greeks_second_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_second_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_greeks_second_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -554,9 +611,12 @@ CELLS = [
     # option_snapshot_binomial_greeks_second_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_binomial_greeks_second_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_second_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_binomial_greeks_second_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -593,9 +653,12 @@ CELLS = [
     # option_snapshot_greeks_third_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_greeks_third_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_third_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_greeks_third_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -635,9 +698,12 @@ CELLS = [
     # option_snapshot_binomial_greeks_third_order::with_use_market_value
     #   rationale: use_market_value=true optional flag wiring
     ("option_snapshot_binomial_greeks_third_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_third_order::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("option_snapshot_binomial_greeks_third_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_eod("SPY", "20250321", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1625,18 +1691,36 @@ CELLS = [
     # index_snapshot_ohlc::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.index_snapshot_ohlc(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_ohlc::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("index_snapshot_ohlc", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.index_snapshot_ohlc(["SPX"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_ohlc::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("index_snapshot_ohlc", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.index_snapshot_ohlc(["SPX"], min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_price::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("index_snapshot_price", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.index_snapshot_price(["SPX"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_price::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.index_snapshot_price(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_price::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("index_snapshot_price", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.index_snapshot_price(["SPX"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_price::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("index_snapshot_price", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.index_snapshot_price(["SPX"], min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_market_value::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("index_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.index_snapshot_market_value(["SPX"], timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_snapshot_market_value::with_min_time
     #   rationale: min_time=09:45:00 optional filter wiring
     ("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", lambda: market_data.index_snapshot_market_value(["SPX"], min_time="09:45:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_market_value::with_current_day_only
+    #   rationale: current_day_only=true optional flag wiring
+    ("index_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", lambda: market_data.index_snapshot_market_value(["SPX"], current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_snapshot_market_value::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("index_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.index_snapshot_market_value(["SPX"], min_time="09:45:00", current_day_only=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("index_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.index_history_eod("SPX", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),

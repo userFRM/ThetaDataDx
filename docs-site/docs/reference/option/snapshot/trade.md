@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/snapshot/trade",
   method: { rust: "option_snapshot_trade", python: "option_snapshot_trade", ts: "optionSnapshotTrade", cpp: "option_snapshot_trade" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "ms_of_day", "price", "size"],
   returns: "TradeTick",
   sample: [
@@ -41,6 +41,7 @@ Get the latest trade snapshot for an option contract.
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
 | `strike_range` | int | no | - | Strike range filter |
 | `min_time` | string | no | - | Minimum time filter |
+| `current_day_only` | bool | no | `false` | When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

@@ -2,6 +2,8 @@
 typedef struct {
     const char* venue;
     const char* min_time;
+    int32_t current_day_only;
+    int32_t has_current_day_only;
     const char* date;
     const char* interval;
     const char* start_time;

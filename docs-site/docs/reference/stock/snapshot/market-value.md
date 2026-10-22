@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/stock/snapshot/market_value",
   method: { rust: "stock_snapshot_market_value", python: "stock_snapshot_market_value", ts: "stockSnapshotMarketValue", cpp: "stock_snapshot_market_value" },
   required: [{ key: "symbol", type: "symbols", default: "AAPL" }],
-  optional: [{ key: "venue", type: "string", default: "" }, { key: "min_time", type: "string", default: "" }],
+  optional: [{ key: "venue", type: "string", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "market_price"],
   returns: "MarketValueTick",
   sample: [
@@ -41,6 +41,7 @@ Get the latest market value snapshot for one or more stocks.
 | `symbol` | symbols | yes | - | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |
 | `min_time` | string | no | - | Minimum time filter |
+| `current_day_only` | bool | no | `false` | When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

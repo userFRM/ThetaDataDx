@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/index/snapshot/market_value",
   method: { rust: "index_snapshot_market_value", python: "index_snapshot_market_value", ts: "indexSnapshotMarketValue", cpp: "index_snapshot_market_value" },
   required: [{ key: "symbol", type: "symbols", default: "SPX" }],
-  optional: [{ key: "min_time", type: "string", default: "" }],
+  optional: [{ key: "min_time", type: "string", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "market_price"],
   returns: "MarketValueTick",
   sample: [
@@ -37,6 +37,7 @@ Get the latest market value snapshot for one or more indices.
 |---|---|---|---|---|
 | `symbol` | symbols | yes | - | Comma-separated ticker symbols (e.g. AAPL,MSFT) |
 | `min_time` | string | no | - | Minimum time filter |
+| `current_day_only` | bool | no | `false` | When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
