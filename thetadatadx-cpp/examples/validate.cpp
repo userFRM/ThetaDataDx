@@ -239,9 +239,12 @@ int main(int argc, char** argv) {
         // stock_history_trade_quote::with_date_range
         //   rationale: start_date + end_date pair — date range optional wiring
         cell("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        // stock_history_trade_quote::with_use_time_based_trade_quote
+        //   rationale: use_time_based_trade_quote=false optional flag wiring
+        cell("stock_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_use_time_based_trade_quote(false).with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_at_time_trade::concrete
         //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
         cell("stock_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
@@ -953,9 +956,12 @@ int main(int argc, char** argv) {
         // option_history_trade_quote::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        // option_history_trade_quote::with_use_time_based_trade_quote
+        //   rationale: use_time_based_trade_quote=false optional flag wiring
+        cell("option_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_use_time_based_trade_quote(false).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::concrete
         //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
         cell("option_history_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });

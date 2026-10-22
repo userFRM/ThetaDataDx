@@ -254,6 +254,7 @@ message StockHistoryTradeQuoteRequestQuery {
   optional string venue = 6;
   optional string start_date = 7;
   optional string end_date = 8;
+  optional bool use_time_based_trade_quote = 9;
 }
 
 message StockHistoryTradeQuoteRequest {
@@ -676,6 +677,7 @@ message OptionHistoryTradeQuoteRequestQuery {
   optional int32 strike_range = 8;
   optional string start_date = 9;
   optional string end_date = 10;
+  optional bool use_time_based_trade_quote = 11;
 }
 
 message OptionHistoryTradeQuoteRequest {

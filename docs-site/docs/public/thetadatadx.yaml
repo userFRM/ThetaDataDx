@@ -459,6 +459,17 @@ x-anchors:
       Selects the option price used in the Greeks calculation: true uses the
       midpoint of the closing NBBO, false uses the last trade price.
 
+  use_time_based_trade_quote-param: &use_time_based_trade_quote-param
+    name: use_time_based_trade_quote
+    in: query
+    required: false
+    schema:
+      type: boolean
+      default: true
+    description: >-
+      Affects requests for current-day data only. When true, each trade is
+      matched with a quote by millisecond timestamp.
+
   # --- Response shape ---
   # Every registry route answers in the same envelope; only the columns of a
   # row differ. Each route's reference page lists its columns in order, and a
@@ -949,6 +960,7 @@ paths:
           schema:
             type: string
           description: End date for multi-day range (YYYYMMDD)
+        - *use_time_based_trade_quote-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2034,6 +2046,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *use_time_based_trade_quote-param
         - *format-param
       responses:
         '200': *v3-response

@@ -1975,6 +1975,7 @@ class MarketDataView:
         venue: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
         """Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -1987,6 +1988,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `exclusive`: `true`
         - `venue`: `"nqb"`
+        - `use_time_based_trade_quote`: `true`
         """
         ...
 
@@ -2001,6 +2003,7 @@ class MarketDataView:
         venue: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
         """Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
@@ -2013,6 +2016,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `exclusive`: `true`
         - `venue`: `"nqb"`
+        - `use_time_based_trade_quote`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3716,6 +3720,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
         """Fetch combined trade + quote ticks for an option contract.
@@ -3731,6 +3736,7 @@ class MarketDataView:
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
         - `exclusive`: `true`
+        - `use_time_based_trade_quote`: `true`
         """
         ...
 
@@ -3749,6 +3755,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
         """Fetch combined trade + quote ticks for an option contract.
@@ -3764,6 +3771,7 @@ class MarketDataView:
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
         - `exclusive`: `true`
+        - `use_time_based_trade_quote`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.

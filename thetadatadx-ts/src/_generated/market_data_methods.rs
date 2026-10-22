@@ -225,6 +225,8 @@ pub struct StockHistoryTradeQuoteOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    pub use_time_based_trade_quote: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -985,6 +987,8 @@ pub struct OptionHistoryTradeQuoteOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted.
+    pub use_time_based_trade_quote: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -3792,6 +3796,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
+    /// - `use_time_based_trade_quote`: `true`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
         &self,
@@ -3811,6 +3816,7 @@ impl MarketDataView {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
@@ -3833,6 +3839,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3864,6 +3873,7 @@ impl MarketDataView {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -3888,6 +3898,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3938,6 +3951,7 @@ impl MarketDataView {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
@@ -3960,6 +3974,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7529,6 +7546,7 @@ impl MarketDataView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
+    /// - `use_time_based_trade_quote`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
@@ -7553,6 +7571,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7584,6 +7603,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7620,6 +7642,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -7653,6 +7676,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7708,6 +7734,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7739,6 +7766,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16502,6 +16532,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
+    /// - `use_time_based_trade_quote`: `true`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
         &self,
@@ -16521,6 +16552,7 @@ impl MarketDataClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
@@ -16543,6 +16575,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16574,6 +16609,7 @@ impl MarketDataClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -16598,6 +16634,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16648,6 +16687,7 @@ impl MarketDataClient {
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
@@ -16670,6 +16710,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20239,6 +20282,7 @@ impl MarketDataClient {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
+    /// - `use_time_based_trade_quote`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
@@ -20263,6 +20307,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -20294,6 +20339,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20330,6 +20378,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -20363,6 +20412,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20418,6 +20470,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let use_time_based_trade_quote = options.use_time_based_trade_quote;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -20449,6 +20502,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));

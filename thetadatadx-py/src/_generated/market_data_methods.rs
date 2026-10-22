@@ -1766,6 +1766,7 @@ impl StockHistoryQuoteBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `exclusive`: `true`
 /// - `venue`: `"nqb"`
+/// - `use_time_based_trade_quote`: `true`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -1777,6 +1778,7 @@ pub struct StockHistoryTradeQuoteBuilder {
     venue: Option<String>,
     start_date: Option<String>,
     end_date: Option<String>,
+    use_time_based_trade_quote: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -1824,6 +1826,12 @@ impl StockHistoryTradeQuoteBuilder {
         slf
     }
 
+    /// Set `use_time_based_trade_quote` on the pending request.
+    fn use_time_based_trade_quote<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_time_based_trade_quote = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -1850,6 +1858,7 @@ impl StockHistoryTradeQuoteBuilder {
         let venue = self.venue.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
@@ -1874,6 +1883,9 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -1893,6 +1905,7 @@ impl StockHistoryTradeQuoteBuilder {
         let venue = self.venue.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().stock_history_trade_quote(&symbol);
@@ -1917,6 +1930,9 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -1935,6 +1951,7 @@ impl StockHistoryTradeQuoteBuilder {
         let venue = self.venue.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -1967,6 +1984,9 @@ impl StockHistoryTradeQuoteBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2008,6 +2028,7 @@ impl StockHistoryTradeQuoteBuilder {
         let venue = self.venue.clone();
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -2037,6 +2058,9 @@ impl StockHistoryTradeQuoteBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7908,6 +7932,7 @@ impl OptionHistoryQuoteBuilder {
 /// - `start_time`: `"09:30:00"`
 /// - `end_time`: `"16:00:00"`
 /// - `exclusive`: `true`
+/// - `use_time_based_trade_quote`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -7923,6 +7948,7 @@ pub struct OptionHistoryTradeQuoteBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    use_time_based_trade_quote: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -7988,6 +8014,12 @@ impl OptionHistoryTradeQuoteBuilder {
         slf
     }
 
+    /// Set `use_time_based_trade_quote` on the pending request.
+    fn use_time_based_trade_quote<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_time_based_trade_quote = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -8024,6 +8056,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
@@ -8057,6 +8090,9 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8080,6 +8116,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
@@ -8113,6 +8150,9 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8135,6 +8175,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -8176,6 +8217,9 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8221,6 +8265,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let use_time_based_trade_quote = self.use_time_based_trade_quote;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -8259,6 +8304,9 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22867,7 +22915,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `use_time_based_trade_quote`: `true`
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, use_time_based_trade_quote=true, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -22879,6 +22928,7 @@ impl MarketDataView {
         venue: Option<PyStringArg>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        use_time_based_trade_quote: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
         let mut request = self.client.market_data().stock_history_trade_quote(symbol.as_str());
@@ -22903,6 +22953,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = use_time_based_trade_quote {
+            request = request.use_time_based_trade_quote(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22920,12 +22973,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
+    /// - `use_time_based_trade_quote`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, use_time_based_trade_quote=None, timeout_ms=None))]
     fn stock_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
@@ -22937,6 +22991,7 @@ impl MarketDataView {
         venue: Option<PyStringArg>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        use_time_based_trade_quote: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -22962,6 +23017,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22991,6 +23049,7 @@ impl MarketDataView {
             venue: None,
             start_date: None,
             end_date: None,
+            use_time_based_trade_quote: None,
             timeout_ms: None,
         }
     }
@@ -26705,7 +26764,8 @@ impl MarketDataView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `use_time_based_trade_quote`: `true`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, use_time_based_trade_quote=true, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -26721,6 +26781,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        use_time_based_trade_quote: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
         let mut request = self.client.market_data().option_history_trade_quote(symbol.as_str(), expiration.as_str());
@@ -26754,6 +26815,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = use_time_based_trade_quote {
+            request = request.use_time_based_trade_quote(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -26774,12 +26838,13 @@ impl MarketDataView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `true`
+    /// - `use_time_based_trade_quote`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, use_time_based_trade_quote=None, timeout_ms=None))]
     fn option_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
@@ -26795,6 +26860,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        use_time_based_trade_quote: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -26830,6 +26896,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = use_time_based_trade_quote {
+                request = request.use_time_based_trade_quote(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -26863,6 +26932,7 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            use_time_based_trade_quote: None,
             timeout_ms: None,
         }
     }

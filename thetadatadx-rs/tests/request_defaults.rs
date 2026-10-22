@@ -2,10 +2,11 @@
 //!
 //! Several parameters are optional on the vendor's query messages, yet the
 //! terminal fills a value in on every request: 101 `binomial_steps`,
-//! `perf_boost_intraday = false`, `current_day_only = false` and
-//! `option_use_nbbo = true`. An omitted field is therefore not the same
-//! request the terminal makes, and the difference is invisible to the caller:
-//! the server applies whatever default it holds and answers normally. The values come from a declared default in
+//! `perf_boost_intraday = false`, `current_day_only = false`,
+//! `option_use_nbbo = true` and `use_time_based_trade_quote = true`. An
+//! omitted field is therefore not the same request the terminal makes, and
+//! the difference is invisible to the caller: the server applies whatever
+//! default it holds and answers normally. The values come from a declared default in
 //! `endpoint_surface.toml`, so losing one leaves the surface compiling, the
 //! parity gate green and the request quietly different.
 //!
@@ -72,6 +73,13 @@ struct OptionSnapshotGreeksAllQuery {
 struct OptionHistoryGreeksEodQuery {
     #[prost(bool, optional, tag = "12")]
     option_use_nbbo: Option<bool>,
+}
+
+/// `StockHistoryTradeQuoteRequestQuery`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct StockHistoryTradeQuoteQuery {
+    #[prost(bool, optional, tag = "9")]
+    use_time_based_trade_quote: Option<bool>,
 }
 
 #[path = "common/grpc_mock.rs"]
@@ -181,4 +189,13 @@ async fn optional_parameters_carry_the_terminal_defaults_or_the_callers_values()
         .await;
     let query: OptionHistoryGreeksEodQuery = sent_query(&captured);
     assert_eq!(query.option_use_nbbo, Some(true));
+
+    // use_time_based_trade_quote on the trade_quote route.
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .stock_history_trade_quote("AAPL")
+        .date("20250303")
+        .await;
+    let query: StockHistoryTradeQuoteQuery = sent_query(&captured);
+    assert_eq!(query.use_time_based_trade_quote, Some(true));
 }
