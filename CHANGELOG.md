@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **TLS no longer trusts the compromised emSign intermediates.** Eight emSign intermediate certificates were found to have private keys generated from fewer than 256 possible values, so anyone can recover those keys and sign a certificate for any host. The bundled trust roots in 0.6.0 and earlier still chained to them, and the certificate verifier had no way to reject them, so a machine positioned on the network path could have presented a forged certificate for the vendor's login or market-data host and read or altered that session. The Python wheels, the TypeScript addons, the C ABI library, the local server and the MCP server are now built with webpki-roots 1.0.10, webpki-root-certs 1.0.10, rustls-webpki 0.103.16 and rustls 0.23.46, which distrust them (RUSTSEC-2026-0381, RUSTSEC-2026-0382, RUSTSEC-2026-0383) and also close four rustls advisories (RUSTSEC-2026-0346 to RUSTSEC-2026-0349). The Rust crate now requires those versions of rustls and webpki-roots; a Rust project that depends on it should also run `cargo update -p rustls-webpki` so its own lockfile picks up the fixed verifier.
+
 ## [0.6.0] - 2026-10-08
 
 ### Added
