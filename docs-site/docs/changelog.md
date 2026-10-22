@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-22
+
 ### Added
 
 - **The snapshot endpoints take `current_day_only`.** The vendor can restrict a snapshot to data from the current trading day, by New York date, applied before `min_time`. This SDK had no way to ask for that: no binding exposed the parameter and the local server did not recognise the name, so a request carrying `current_day_only=true` was answered as if it were absent and could return values from an earlier session. It is now an optional boolean on the 21 snapshot routes: stock `quote`, `trade`, `ohlc` and `market_value`; option `quote`, `trade`, `ohlc`, `open_interest` and `market_value`; index `price`, `ohlc` and `market_value`; and option `greeks/` `all`, `first_order`, `second_order`, `third_order` and `implied_volatility` with the binomial Greeks snapshot routes, from every binding and through the local server. The SDK sends `false` when the caller leaves it unset, which is what the terminal sends, so existing calls are unchanged.
@@ -444,7 +446,8 @@ The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `t
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.7.0
 [0.6.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.1
 [0.6.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.0
 [0.5.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.5.0
