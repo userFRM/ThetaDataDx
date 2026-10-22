@@ -279,9 +279,10 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
     );
     const assignments = factorySrc.match(/\w*timestamp_ms:\s*thetadatadx::time::date_ms_to_epoch_ms\([^)]*\)\.map\(BigInt::from\)/g);
     assert.ok(assignments, 'expected generated timestamp_ms factory assignments');
-    // 1 created + 1 last_trade + 19 timestamp_ms + 11 underlying + 1 quote
-    // = 33 epoch-millisecond fields, one per (date, *_ms_of_day) pair.
-    assert.equal(assignments.length, 33, `expected 33 epoch-ms factory assignments, found ${assignments.length}`);
+    // 1 created + 1 last_trade + 19 timestamp_ms + 11 underlying + 2 quote
+    // + 1 interval = 35 epoch-millisecond fields, one per (date, *_ms_of_day)
+    // pair.
+    assert.equal(assignments.length, 35, `expected 35 epoch-ms factory assignments, found ${assignments.length}`);
   });
 });
 
