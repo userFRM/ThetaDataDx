@@ -97,7 +97,7 @@ const DEPRECATED_V2_PARAMS: &[(&str, &str)] = &[
 ///
 /// Splitting the decision (pure, over a `&HashMap`) from the middleware glue
 /// keeps it unit-testable without driving a live request through the router.
-fn deprecated_v2_param_response(params: &HashMap<String, String>) -> Option<Response> {
+pub(crate) fn deprecated_v2_param_response(params: &HashMap<String, String>) -> Option<Response> {
     let mut hits: Vec<(&str, &str)> = DEPRECATED_V2_PARAMS
         .iter()
         .filter(|(name, _)| params.contains_key(*name))
@@ -280,7 +280,10 @@ where
 /// client serialises an array parameter by default. Any other parameter keeps
 /// its first occurrence. The list-typed set is the registry's own
 /// `ParamType::Symbols` declaration for this endpoint.
-fn fold_query_pairs(ep: &EndpointMeta, pairs: Vec<(String, String)>) -> HashMap<String, String> {
+pub(crate) fn fold_query_pairs(
+    ep: &EndpointMeta,
+    pairs: Vec<(String, String)>,
+) -> HashMap<String, String> {
     let mut params: HashMap<String, String> = HashMap::with_capacity(pairs.len());
     for (key, value) in pairs {
         match params.entry(key) {
@@ -302,7 +305,7 @@ fn fold_query_pairs(ep: &EndpointMeta, pairs: Vec<(String, String)>) -> HashMap<
     params
 }
 
-fn build_endpoint_args(
+pub(crate) fn build_endpoint_args(
     ep: &EndpointMeta,
     params: &HashMap<String, String>,
 ) -> Result<EndpointArgs, EndpointError> {
@@ -415,7 +418,7 @@ fn terminal_param_default(param_name: &str) -> Option<&'static str> {
 /// hammer loop.
 const UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS: u64 = 1;
 
-fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response {
+pub(crate) fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response {
     // v3 error bodies are the HTTP status plus a plain-text description (no
     // JSON envelope), so every arm here returns `plain_error_response`.
     match error {
@@ -565,7 +568,10 @@ fn parse_response_format(
 /// filename. Date values are filtered to `[A-Za-z0-9._-]` before being
 /// embedded — they are validated upstream, but a header value must never
 /// depend on a validator elsewhere staying tight.
-fn csv_attachment_filename(ep: &EndpointMeta, params: &HashMap<String, String>) -> String {
+pub(crate) fn csv_attachment_filename(
+    ep: &EndpointMeta,
+    params: &HashMap<String, String>,
+) -> String {
     fn sanitize(value: &str) -> String {
         value
             .chars()

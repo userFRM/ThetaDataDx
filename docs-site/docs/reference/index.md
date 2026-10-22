@@ -14,9 +14,9 @@ One page per endpoint. Each page carries the typed signature and a runnable samp
 | [Index](/reference/index/list/symbols) | List, snapshots, price history, at-time lookups. |
 | [Calendar](/reference/calendar/open-today) | Trading-calendar status by day and year. |
 | [Interest Rate](/reference/rate/history/eod) | Rate series history. |
-| [Flat Files](/articles/flat-files) | Whole-universe daily archives — every option contract or stock for a date in one call (option trade-quote / open-interest / EOD, stock trade-quote / EOD). |
+| [Flat Files](/articles/flat-files) | Whole-universe files for one date: option EOD / trade-quote / open interest / quote, stock EOD / trade-quote / quote, index EOD. |
 
-Per-contract endpoints have one page each; flat files are whole-file archives, so they share a single [Flat Files](/articles/flat-files) page rather than a page per dataset.
+Every endpoint has its own page, the flat files included; [Flat Files](/articles/flat-files) covers pulling and streaming them.
 
 Conventions shared by every endpoint — identifiers, units, timestamps — live in [Symbology & Contract Identity](/articles/symbology). Tier badges on each page map to [Subscriptions](/articles/subscriptions).
 

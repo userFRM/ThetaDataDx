@@ -48,6 +48,7 @@ impl_contract_id!(OhlcTick);
 impl_contract_id!(EodTick);
 impl_contract_id!(OpenInterestTick);
 impl_contract_id!(TradeQuoteTick);
+impl_contract_id!(IntervalQuoteTick);
 impl_contract_id!(MarketValueTick);
 impl_contract_id!(GreeksAllTick);
 impl_contract_id!(GreeksEodTick);

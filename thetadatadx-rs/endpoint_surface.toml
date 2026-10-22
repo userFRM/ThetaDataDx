@@ -632,6 +632,13 @@ use = "time_of_day"
 [[templates.stock_at_time.params]]
 use = "stock_venue_filter"
 
+[templates.stock_flat_file]
+extends = "stock_parsed"
+subcategory = "flat_file"
+
+[[templates.stock_flat_file.params]]
+use = "required_date"
+
 [templates.option_base]
 category = "option"
 
@@ -1067,6 +1074,13 @@ use = "max_dte_filter"
 [[templates.option_at_time.params]]
 use = "strike_range_filter"
 
+[templates.option_flat_file]
+extends = "option_parsed"
+subcategory = "flat_file"
+
+[[templates.option_flat_file.params]]
+use = "required_date"
+
 [templates.index_base]
 category = "index"
 
@@ -1149,6 +1163,13 @@ use = "date_range_required"
 
 [[templates.index_at_time.params]]
 use = "time_of_day"
+
+[templates.index_flat_file]
+extends = "index_parsed"
+subcategory = "flat_file"
+
+[[templates.index_flat_file.params]]
+use = "required_date"
 
 [templates.calendar_base]
 category = "calendar"
@@ -1439,6 +1460,27 @@ vendor_docstring = """
 """
 rest_path = "/v3/stock/at_time/quote"
 returns = "QuoteTicks"
+
+[[endpoints]]
+name = "stock_flat_file_eod"
+template = "stock_flat_file"
+description = "Fetch the end-of-day report of every stock for one date."
+rest_path = "/v3/stock/flat_file/eod"
+returns = "EodTicks"
+
+[[endpoints]]
+name = "stock_flat_file_trade_quote"
+template = "stock_flat_file"
+description = "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade."
+rest_path = "/v3/stock/flat_file/trade_quote"
+returns = "TradeQuoteTicks"
+
+[[endpoints]]
+name = "stock_flat_file_quote"
+template = "stock_flat_file"
+description = "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+rest_path = "/v3/stock/flat_file/quote"
+returns = "IntervalQuoteTicks"
 
 [[endpoints]]
 name = "option_list_symbols"
@@ -2057,6 +2099,34 @@ rest_path = "/v3/option/at_time/quote"
 returns = "QuoteTicks"
 
 [[endpoints]]
+name = "option_flat_file_eod"
+template = "option_flat_file"
+description = "Fetch the end-of-day report of every option contract for one date."
+rest_path = "/v3/option/flat_file/eod"
+returns = "EodTicks"
+
+[[endpoints]]
+name = "option_flat_file_trade_quote"
+template = "option_flat_file"
+description = "Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade."
+rest_path = "/v3/option/flat_file/trade_quote"
+returns = "TradeQuoteTicks"
+
+[[endpoints]]
+name = "option_flat_file_open_interest"
+template = "option_flat_file"
+description = "Fetch the open interest of every option contract for one date."
+rest_path = "/v3/option/flat_file/open_interest"
+returns = "OpenInterestTicks"
+
+[[endpoints]]
+name = "option_flat_file_quote"
+template = "option_flat_file"
+description = "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported."
+rest_path = "/v3/option/flat_file/quote"
+returns = "IntervalQuoteTicks"
+
+[[endpoints]]
 name = "index_list_symbols"
 template = "index_list"
 description = "List all available index symbols."
@@ -2157,6 +2227,13 @@ vendor_docstring = """
 """
 rest_path = "/v3/index/at_time/price"
 returns = "IndexPriceAtTimeTicks"
+
+[[endpoints]]
+name = "index_flat_file_eod"
+template = "index_flat_file"
+description = "Fetch the end-of-day report of every index for one date."
+rest_path = "/v3/index/flat_file/eod"
+returns = "EodTicks"
 
 [[endpoints]]
 name = "calendar_open_today"

@@ -36,6 +36,10 @@ For pricing, see [thetadata.net](https://www.thetadata.net/subscribe.html).
 | **At-Time** |  |  |  |  |
 | [Trade](/reference/stock/at-time/trade) |  |  | ✓ | ✓ |
 | [Quote](/reference/stock/at-time/quote) |  | ✓ | ✓ | ✓ |
+| **Flat File** |  |  |  |  |
+| [EOD](/reference/stock/flat-file/eod) |  |  |  | ✓ |
+| [Trade Quote](/reference/stock/flat-file/trade-quote) |  |  |  | ✓ |
+| [Quote](/reference/stock/flat-file/quote) |  |  |  | ✓ |
 
 ## Option Endpoints
 
@@ -92,6 +96,11 @@ For pricing, see [thetadata.net](https://www.thetadata.net/subscribe.html).
 | **At-Time** |  |  |  |  |
 | [Trade](/reference/option/at-time/trade) |  |  | ✓ | ✓ |
 | [Quote](/reference/option/at-time/quote) |  | ✓ | ✓ | ✓ |
+| **Flat File** |  |  |  |  |
+| [EOD](/reference/option/flat-file/eod) |  |  |  | ✓ |
+| [Trade Quote](/reference/option/flat-file/trade-quote) |  |  |  | ✓ |
+| [Open Interest](/reference/option/flat-file/open-interest) |  |  |  | ✓ |
+| [Quote](/reference/option/flat-file/quote) |  |  |  | ✓ |
 
 ## Index Endpoints
 
@@ -110,6 +119,8 @@ For pricing, see [thetadata.net](https://www.thetadata.net/subscribe.html).
 | [Price](/reference/index/history/price) |  | ✓ | ✓ | ✓ |
 | **At-Time** |  |  |  |  |
 | [Price](/reference/index/at-time/price) |  | ✓ | ✓ | ✓ |
+| **Flat File** |  |  |  |  |
+| [EOD](/reference/index/flat-file/eod) |  |  |  | ✓ |
 
 ## Calendar Endpoints
 

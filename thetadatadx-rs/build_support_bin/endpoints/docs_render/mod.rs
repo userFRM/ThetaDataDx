@@ -43,14 +43,17 @@ pub(super) struct DocFile {
 }
 
 /// Subscription tier for an endpoint, resolved from the pinned upstream
-/// OpenAPI snapshot by `operationId`. One endpoint has no upstream
-/// counterpart and resolves through the explicit table below.
+/// OpenAPI snapshot by `operationId`. Endpoints with no counterpart in that
+/// snapshot resolve through the explicit table below.
 fn endpoint_tier(endpoint: &GeneratedEndpoint, upstream: &UpstreamOpenApi) -> String {
     // Endpoints absent from the upstream spec:
     //   * `interest_rate_history_eod` is not documented upstream; rate
     //     data is available on every tier.
+    //   * the flat files postdate the pinned snapshot; the vendor serves
+    //     them to Professional subscriptions only.
     let lookup_name = match endpoint.name.as_str() {
         "interest_rate_history_eod" => return "free".to_string(),
+        _ if endpoint.subcategory == "flat_file" => return "professional".to_string(),
         other => other,
     };
     upstream

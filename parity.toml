@@ -2894,6 +2894,14 @@ cpp = true
 ffi = true
 
 [[market_data_streaming]]
+name = "index_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
 name = "index_history_eod"
 rust = true
 python = true
@@ -2935,6 +2943,38 @@ ffi = true
 
 [[market_data_streaming]]
 name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_flat_file_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_flat_file_trade_quote"
 rust = true
 python = true
 typescript = true
@@ -3182,6 +3222,30 @@ cpp = true
 ffi = true
 
 [[market_data_streaming]]
+name = "stock_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "stock_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "stock_flat_file_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
 name = "stock_history_eod"
 rust = true
 python = true
@@ -3275,6 +3339,13 @@ typescript = true
 cpp = true
 
 [[market_data_async]]
+name = "index_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
 name = "index_history_eod"
 rust = true
 python = true
@@ -3346,6 +3417,34 @@ cpp = true
 
 [[market_data_async]]
 name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_flat_file_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_flat_file_trade_quote"
 rust = true
 python = true
 typescript = true
@@ -3675,6 +3774,27 @@ cpp = true
 
 [[market_data_async]]
 name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "stock_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "stock_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "stock_flat_file_trade_quote"
 rust = true
 python = true
 typescript = true
@@ -3817,6 +3937,14 @@ cpp = true
 ffi = true
 
 [[market_data_base]]
+name = "index_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
 name = "index_history_eod"
 rust = true
 python = true
@@ -3898,6 +4026,38 @@ ffi = true
 
 [[market_data_base]]
 name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_flat_file_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_flat_file_trade_quote"
 rust = true
 python = true
 typescript = true
@@ -4274,6 +4434,30 @@ ffi = true
 
 [[market_data_base]]
 name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "stock_flat_file_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "stock_flat_file_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "stock_flat_file_trade_quote"
 rust = true
 python = true
 typescript = true
@@ -4630,6 +4814,9 @@ name = "interest_rate_ticks_to_arrow_ipc"
 [[ffi_symbol]]
 name = "trade_quote_ticks_to_arrow_ipc"
 
+[[ffi_symbol]]
+name = "interval_quote_ticks_to_arrow_ipc"
+
 # Column presence + projected Arrow IPC terminals (decode-fed history export).
 # The `thetadatadx_<collection>_present_columns` producer runs the response's
 # `WireColumns::present_columns` (the buffered `.await` decode's own projection)
@@ -4710,6 +4897,9 @@ name = "interest_rate_ticks_present_columns"
 name = "trade_quote_ticks_present_columns"
 
 [[ffi_symbol]]
+name = "interval_quote_ticks_present_columns"
+
+[[ffi_symbol]]
 name = "eod_ticks_to_arrow_ipc_projected"
 
 [[ffi_symbol]]
@@ -4774,3 +4964,6 @@ name = "interest_rate_ticks_to_arrow_ipc_projected"
 
 [[ffi_symbol]]
 name = "trade_quote_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "interval_quote_ticks_to_arrow_ipc_projected"

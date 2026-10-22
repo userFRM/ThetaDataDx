@@ -26,6 +26,7 @@ pub(super) fn endpoint_title(endpoint: &GeneratedEndpoint) -> String {
         || parts.first() == Some(&"snapshot")
         || parts.first() == Some(&"list")
         || parts.first() == Some(&"at_time")
+        || parts.first() == Some(&"flat_file")
     {
         parts.remove(0);
     }
@@ -352,6 +353,7 @@ pub(super) fn subcategory_label(subcategory: &str) -> &'static str {
         "snapshot" | "snapshot_greeks" => "Snapshot",
         "history" | "history_greeks" | "history_trade_greeks" => "History",
         "at_time" => "At-Time",
+        "flat_file" => "Flat File",
         other => panic!("no sidebar label for subcategory {other}"),
     }
 }

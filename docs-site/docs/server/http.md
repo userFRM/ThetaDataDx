@@ -64,13 +64,13 @@ A failed request is answered with an HTTP status and a plain-text description; s
 
 ## Flat files
 
-Whole-universe daily archives stream through dedicated routes with chunked bodies (bounded server memory at any download size):
+The `/v3/{option,stock,index}/flat_file/{dataset}` routes answer the way the terminal does: the file's columns under the terminal's names, text and prices quoted in CSV, each chunk written as it arrives so the first bytes leave at once and server memory stays flat at any file size:
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
+curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&format=csv' -o trade_quotes.csv
 ```
 
-See [Flat Files](/articles/flat-files) for sizing guidance.
+See [Flat Files](/articles/flat-files) for the datasets and the format.
 
 ## Terminal system routes
 

@@ -1182,3 +1182,45 @@ python_slice_arrow = "slice_arrow::option_contract_slice_to_arrow_table"
 ts_class = "OptionContract"
 ts_class_vec = "option_contracts_to_class_vec"
 pyclass = "OptionContract"
+
+[types.IntervalQuoteTick]
+doc = """Interval quote tick -- 11 fields. The NBBO in effect at one interval.
+
+Returned by the quote flat files (`*_flat_file_quote`), which carry one row
+per interval in which a new quote was reported. Each row holds two times:
+`interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`,
+when the quote in effect at that interval was reported."""
+copy = true
+align = 64
+contract_id = true
+parser = "parse_interval_quote_ticks"
+required = ["interval_ms_of_day", "bid", "ask"]
+columns = [
+    { name = "interval_ms_of_day", field = "interval_ms_of_day", type = "i32", doc = "Time of the interval the row samples, milliseconds since midnight ET." },
+    { name = "quote_ms_of_day",    field = "quote_ms_of_day",    type = "i32", doc = "Time the quote in effect at the interval was reported, milliseconds since midnight ET." },
+    { name = "bid_size",           field = "bid_size",           type = "i32", doc = "NBBO bid size." },
+    { name = "bid_exchange",       field = "bid_exchange",       type = "i32", nullable = true, doc = "Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column." },
+    { name = "bid",                field = "bid",                type = "price", doc = "NBBO bid price." },
+    { name = "bid_condition",      field = "bid_condition",      type = "i32", nullable = true, doc = "Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column." },
+    { name = "ask_size",           field = "ask_size",           type = "i32", doc = "NBBO ask size." },
+    { name = "ask_exchange",       field = "ask_exchange",       type = "i32", nullable = true, doc = "Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column." },
+    { name = "ask",                field = "ask",                type = "price", doc = "NBBO ask price." },
+    { name = "ask_condition",      field = "ask_condition",      type = "i32", nullable = true, doc = "Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column." },
+    { name = "date",               field = "date",               type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+]
+
+[types.IntervalQuoteTick.render]
+collection = "IntervalQuoteTicks"
+direct = "IntervalQuoteTick"
+parser = "parse_interval_quote_ticks"
+ffi_array = "ThetaDataDxIntervalQuoteTickArray"
+ffi_output_variant = "IntervalQuoteTicks"
+ffi_from_vec_array = "ThetaDataDxIntervalQuoteTickArray"
+ffi_free_fn = "thetadatadx_interval_quote_tick_array_free"
+cpp_value = "IntervalQuoteTick"
+python_pyclass_list = "interval_quote_ticks_to_pyclass_list"
+python_vec_to_pylist = "interval_quote_ticks_vec_to_pylist"
+python_slice_arrow = "slice_arrow::interval_quote_tick_slice_to_arrow_table"
+ts_class = "IntervalQuoteTick"
+ts_class_vec = "interval_quote_ticks_to_class_vec"
+pyclass = "IntervalQuoteTick"

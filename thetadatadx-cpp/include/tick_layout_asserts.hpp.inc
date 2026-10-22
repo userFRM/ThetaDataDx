@@ -374,6 +374,44 @@ static_assert(offsetof(InterestRateTick, date) == 0,
               "ThetaDataDxInterestRateTick.date offset drifted from Rust");
 static_assert(offsetof(InterestRateTick, rate) == 8,
               "ThetaDataDxInterestRateTick.rate offset drifted from Rust");
+static_assert(sizeof(IntervalQuoteTick) == 128 && alignof(IntervalQuoteTick) == 64,
+              "ThetaDataDxIntervalQuoteTick layout drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, interval_ms_of_day) == 0,
+              "ThetaDataDxIntervalQuoteTick.interval_ms_of_day offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, quote_ms_of_day) == 4,
+              "ThetaDataDxIntervalQuoteTick.quote_ms_of_day offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, bid_size) == 8,
+              "ThetaDataDxIntervalQuoteTick.bid_size offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, bid_exchange) == 12,
+              "ThetaDataDxIntervalQuoteTick.bid_exchange offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, has_bid_exchange) == 16,
+              "ThetaDataDxIntervalQuoteTick.has_bid_exchange offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, bid) == 24,
+              "ThetaDataDxIntervalQuoteTick.bid offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, bid_condition) == 32,
+              "ThetaDataDxIntervalQuoteTick.bid_condition offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, has_bid_condition) == 36,
+              "ThetaDataDxIntervalQuoteTick.has_bid_condition offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, ask_size) == 40,
+              "ThetaDataDxIntervalQuoteTick.ask_size offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, ask_exchange) == 44,
+              "ThetaDataDxIntervalQuoteTick.ask_exchange offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, has_ask_exchange) == 48,
+              "ThetaDataDxIntervalQuoteTick.has_ask_exchange offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, ask) == 56,
+              "ThetaDataDxIntervalQuoteTick.ask offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, ask_condition) == 64,
+              "ThetaDataDxIntervalQuoteTick.ask_condition offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, has_ask_condition) == 68,
+              "ThetaDataDxIntervalQuoteTick.has_ask_condition offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, date) == 72,
+              "ThetaDataDxIntervalQuoteTick.date offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, expiration) == 76,
+              "ThetaDataDxIntervalQuoteTick.expiration offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, strike) == 80,
+              "ThetaDataDxIntervalQuoteTick.strike offset drifted from Rust");
+static_assert(offsetof(IntervalQuoteTick, right) == 88,
+              "ThetaDataDxIntervalQuoteTick.right offset drifted from Rust");
 static_assert(sizeof(IvTick) == 128 && alignof(IvTick) == 64,
               "ThetaDataDxIvTick layout drifted from Rust");
 static_assert(offsetof(IvTick, ms_of_day) == 0,

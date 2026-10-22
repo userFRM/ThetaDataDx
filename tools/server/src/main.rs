@@ -43,18 +43,6 @@ use thetadatadx::{Client, Credentials, DirectConfig};
 
 use crate::state::{AppState, StrikeFormat};
 
-/// A random 128-bit token as 32 lowercase hex chars. Backs the shutdown
-/// token and the flat-file scratch-path suffix — both want an unguessable,
-/// filesystem-safe unique string.
-pub(crate) fn random_hex_token() -> String {
-    use std::fmt::Write as _;
-    let bytes: [u8; 16] = rand::random();
-    bytes.iter().fold(String::with_capacity(32), |mut s, b| {
-        let _ = write!(s, "{b:02x}");
-        s
-    })
-}
-
 // ---------------------------------------------------------------------------
 //  CLI arguments
 // ---------------------------------------------------------------------------
@@ -399,7 +387,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Permissive by design, matching the legacy terminal: browser-based
     // dashboards on any local origin must be able to call the data routes
-    // and the flat-file download (`GET /v3/{sec_type}/flat_file/{req_type}`).
+    // and the flat-file downloads (`GET /v3/{option,stock,index}/flat_file/...`).
     // Every served route is a GET — there is no mutating route — so the CORS
     // policy allows GET. The previous configuration pinned `allow_origin` to
     // the server's own listener address — a client running on the server's

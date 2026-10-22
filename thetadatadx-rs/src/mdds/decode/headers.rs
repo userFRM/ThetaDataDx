@@ -29,6 +29,16 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     // terminal builds.
     ("created", "timestamp"),
     ("last_trade", "timestamp2"),
+    // The flat files name their columns the way the terminal writes them:
+    // the EOD report time is `ms_of_day`, and the second time column
+    // (`ms_of_day2`) is the last trade on an EOD row and the paired quote
+    // on a trade_quote row.
+    ("created", "ms_of_day"),
+    ("last_trade", "ms_of_day2"),
+    ("quote_ms_of_day", "ms_of_day2"),
+    // The quote flat file's interval time, under the v3 spelling every
+    // other interval time column uses.
+    ("interval_ms_of_day", "timestamp"),
     ("date", "timestamp"),
     ("date", "created"),
     ("date", "trade_timestamp"),

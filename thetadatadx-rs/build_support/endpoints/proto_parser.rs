@@ -317,6 +317,13 @@ fn derive_return_type(method: &str) -> String {
         return "InterestRateTicks".into();
     }
 
+    // The quote flat file samples the NBBO once per interval and carries
+    // both the interval time and the time of the quote in effect, a shape
+    // no history quote has. Match BEFORE the generic `_quote` arm.
+    if method.ends_with("_flat_file_quote") {
+        return "IntervalQuoteTicks".into();
+    }
+
     if method.contains("_trade_quote") {
         return "TradeQuoteTicks".into();
     }
@@ -398,7 +405,7 @@ fn derive_return_type(method: &str) -> String {
         return "PriceTicks".into();
     }
 
-    if method.ends_with("_history_eod") {
+    if method.ends_with("_history_eod") || method.ends_with("_flat_file_eod") {
         return "EodTicks".into();
     }
 

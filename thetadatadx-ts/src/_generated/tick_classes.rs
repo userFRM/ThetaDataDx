@@ -283,6 +283,35 @@ pub struct InterestRateTick {
     pub rate: f64,
 }
 
+/// Interval quote tick. The NBBO in effect at one interval.
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct IntervalQuoteTick {
+    pub interval_ms_of_day: f64,
+    pub quote_ms_of_day: f64,
+    pub bid_size: f64,
+    pub bid_exchange: Option<f64>,
+    pub bid: f64,
+    pub bid_condition: Option<f64>,
+    pub ask_size: f64,
+    pub ask_exchange: Option<f64>,
+    pub ask: f64,
+    pub ask_condition: Option<f64>,
+    pub date: f64,
+    pub expiration: Option<f64>,
+    pub strike: Option<f64>,
+    pub right: Option<String>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `interval_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`).
+    pub interval_timestamp_ms: Option<BigInt>,
+    /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+    /// `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+    /// `date` is absent (`0`).
+    pub quote_timestamp_ms: Option<BigInt>,
+}
+
 /// Implied volatility tick.
 #[must_use]
 #[napi(object)]
@@ -961,6 +990,32 @@ fn interest_rate_ticks_to_class_vec(ticks: &[tick::InterestRateTick]) -> Vec<Int
             InterestRateTick {
                 date: f64::from(t.date),
                 rate: t.rate,
+            }
+        })
+        .collect()
+}
+
+fn interval_quote_ticks_to_class_vec(ticks: &[tick::IntervalQuoteTick]) -> Vec<IntervalQuoteTick> {
+    ticks
+        .iter()
+        .map(|t| {
+            IntervalQuoteTick {
+                interval_ms_of_day: f64::from(t.interval_ms_of_day),
+                quote_ms_of_day: f64::from(t.quote_ms_of_day),
+                bid_size: f64::from(t.bid_size),
+                bid_exchange: if t.has_bid_exchange { Some(f64::from(t.bid_exchange)) } else { None },
+                bid: t.bid,
+                bid_condition: if t.has_bid_condition { Some(f64::from(t.bid_condition)) } else { None },
+                ask_size: f64::from(t.ask_size),
+                ask_exchange: if t.has_ask_exchange { Some(f64::from(t.ask_exchange)) } else { None },
+                ask: t.ask,
+                ask_condition: if t.has_ask_condition { Some(f64::from(t.ask_condition)) } else { None },
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
+                strike: t.has_contract_id().then_some(t.strike),
+                right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
+                interval_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.interval_ms_of_day).map(BigInt::from),
+                quote_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.quote_ms_of_day).map(BigInt::from),
             }
         })
         .collect()
@@ -2224,6 +2279,96 @@ pub fn interest_rate_tick_to_arrow_ipc_projected(
     symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = interest_rate_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::IntervalQuoteTick>` from the JS `IntervalQuoteTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn interval_quote_tick_reconstruct_rows(rows: Vec<IntervalQuoteTick>) -> napi::Result<Vec<tick::IntervalQuoteTick>> {
+    let owned: Vec<tick::IntervalQuoteTick> = rows
+        .into_iter()
+        .map(|r| -> napi::Result<tick::IntervalQuoteTick> {
+            Ok(tick::IntervalQuoteTick {
+                interval_ms_of_day: number_to_i32("interval_ms_of_day", r.interval_ms_of_day)?,
+                quote_ms_of_day: number_to_i32("quote_ms_of_day", r.quote_ms_of_day)?,
+                bid_size: number_to_i32("bid_size", r.bid_size)?,
+                bid_exchange: match r.bid_exchange { Some(v) => number_to_i32("bid_exchange", v)?, None => 0 },
+                has_bid_exchange: r.bid_exchange.is_some(),
+                bid: r.bid,
+                bid_condition: match r.bid_condition { Some(v) => number_to_i32("bid_condition", v)?, None => 0 },
+                has_bid_condition: r.bid_condition.is_some(),
+                ask_size: number_to_i32("ask_size", r.ask_size)?,
+                ask_exchange: match r.ask_exchange { Some(v) => number_to_i32("ask_exchange", v)?, None => 0 },
+                has_ask_exchange: r.ask_exchange.is_some(),
+                ask: r.ask,
+                ask_condition: match r.ask_condition { Some(v) => number_to_i32("ask_condition", v)?, None => 0 },
+                has_ask_condition: r.ask_condition.is_some(),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
+                strike: r.strike.unwrap_or(0.0),
+                right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
+        })
+        .collect::<napi::Result<Vec<tick::IntervalQuoteTick>>>()?;
+    Ok(owned)
+}
+
+/// Serialise a hand-built `IntervalQuoteTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `intervalQuoteTickPresentColumns` + `intervalQuoteTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "intervalQuoteTickToArrowIpc")]
+pub fn interval_quote_tick_to_arrow_ipc(rows: Vec<IntervalQuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = interval_quote_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `IntervalQuoteTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "intervalQuoteTickPresentColumns")]
+pub fn interval_quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::IntervalQuoteTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `IntervalQuoteTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `intervalQuoteTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
+/// `intervalQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "intervalQuoteTickToArrowIpcProjected")]
+pub fn interval_quote_tick_to_arrow_ipc_projected(
+    rows: Vec<IntervalQuoteTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+    symbols: Option<Vec<String>>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = interval_quote_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
         if let Some(syms) = symbols {

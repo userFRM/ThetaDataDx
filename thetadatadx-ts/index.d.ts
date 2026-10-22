@@ -1105,6 +1105,24 @@ export declare class MarketDataClient {
   stockAtTimeQuoteStream(symbol: string, startDate: string, endDate: string, timeOfDay: string, options: StockAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
   /** Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   stockAtTimeQuoteWithColumns(symbol: string, startDate: string, endDate: string, timeOfDay: string, options?: StockAtTimeQuoteOptions | undefined | null): Promise<QuoteTickWithColumns>
+  /** Fetch the end-of-day report of every stock for one date. */
+  stockFlatFileEOD(date: string, options?: StockFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileEODStream(date: string, options: StockFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileEODWithColumns(date: string, options?: StockFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
+  /** Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. */
+  stockFlatFileTradeQuote(date: string, options?: StockFlatFileTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileTradeQuoteStream(date: string, options: StockFlatFileTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileTradeQuoteWithColumns(date: string, options?: StockFlatFileTradeQuoteOptions | undefined | null): Promise<TradeQuoteTickWithColumns>
+  /** Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. */
+  stockFlatFileQuote(date: string, options?: StockFlatFileQuoteOptions | undefined | null): Promise<Array<IntervalQuoteTick>>
+  /** Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileQuoteStream(date: string, options: StockFlatFileQuoteOptions | undefined | null, callback: ((arg: Array<IntervalQuoteTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileQuoteWithColumns(date: string, options?: StockFlatFileQuoteOptions | undefined | null): Promise<IntervalQuoteTickWithColumns>
   /**
    * List all available option underlying symbols.
    *
@@ -1976,6 +1994,30 @@ export declare class MarketDataClient {
   optionAtTimeQuoteStream(symbol: string, expiration: string, startDate: string, endDate: string, timeOfDay: string, options: OptionAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
   /** Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionAtTimeQuoteWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, timeOfDay: string, options?: OptionAtTimeQuoteOptions | undefined | null): Promise<QuoteTickWithColumns>
+  /** Fetch the end-of-day report of every option contract for one date. */
+  optionFlatFileEOD(date: string, options?: OptionFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileEODStream(date: string, options: OptionFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileEODWithColumns(date: string, options?: OptionFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
+  /** Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. */
+  optionFlatFileTradeQuote(date: string, options?: OptionFlatFileTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileTradeQuoteStream(date: string, options: OptionFlatFileTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileTradeQuoteWithColumns(date: string, options?: OptionFlatFileTradeQuoteOptions | undefined | null): Promise<TradeQuoteTickWithColumns>
+  /** Fetch the open interest of every option contract for one date. */
+  optionFlatFileOpenInterest(date: string, options?: OptionFlatFileOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
+  /** Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileOpenInterestStream(date: string, options: OptionFlatFileOpenInterestOptions | undefined | null, callback: ((arg: Array<OpenInterestTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileOpenInterestWithColumns(date: string, options?: OptionFlatFileOpenInterestOptions | undefined | null): Promise<OpenInterestTickWithColumns>
+  /** Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. */
+  optionFlatFileQuote(date: string, options?: OptionFlatFileQuoteOptions | undefined | null): Promise<Array<IntervalQuoteTick>>
+  /** Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileQuoteStream(date: string, options: OptionFlatFileQuoteOptions | undefined | null, callback: ((arg: Array<IntervalQuoteTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileQuoteWithColumns(date: string, options?: OptionFlatFileQuoteOptions | undefined | null): Promise<IntervalQuoteTickWithColumns>
   /**
    * List all available index symbols.
    *
@@ -2080,6 +2122,12 @@ export declare class MarketDataClient {
   indexAtTimePriceStream(symbol: string, startDate: string, endDate: string, timeOfDay: string, options: IndexAtTimePriceOptions | undefined | null, callback: ((arg: Array<IndexPriceAtTimeTick>) => void)): Promise<void>
   /** Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   indexAtTimePriceWithColumns(symbol: string, startDate: string, endDate: string, timeOfDay: string, options?: IndexAtTimePriceOptions | undefined | null): Promise<IndexPriceAtTimeTickWithColumns>
+  /** Fetch the end-of-day report of every index for one date. */
+  indexFlatFileEOD(date: string, options?: IndexFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexFlatFileEODStream(date: string, options: IndexFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  indexFlatFileEODWithColumns(date: string, options?: IndexFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
   /**
    * Check whether the market is open today.
    *
@@ -2339,6 +2387,24 @@ export declare class MarketDataView {
   stockAtTimeQuoteStream(symbol: string, startDate: string, endDate: string, timeOfDay: string, options: StockAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
   /** Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   stockAtTimeQuoteWithColumns(symbol: string, startDate: string, endDate: string, timeOfDay: string, options?: StockAtTimeQuoteOptions | undefined | null): Promise<QuoteTickWithColumns>
+  /** Fetch the end-of-day report of every stock for one date. */
+  stockFlatFileEOD(date: string, options?: StockFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileEODStream(date: string, options: StockFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileEODWithColumns(date: string, options?: StockFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
+  /** Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. */
+  stockFlatFileTradeQuote(date: string, options?: StockFlatFileTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileTradeQuoteStream(date: string, options: StockFlatFileTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileTradeQuoteWithColumns(date: string, options?: StockFlatFileTradeQuoteOptions | undefined | null): Promise<TradeQuoteTickWithColumns>
+  /** Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. */
+  stockFlatFileQuote(date: string, options?: StockFlatFileQuoteOptions | undefined | null): Promise<Array<IntervalQuoteTick>>
+  /** Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  stockFlatFileQuoteStream(date: string, options: StockFlatFileQuoteOptions | undefined | null, callback: ((arg: Array<IntervalQuoteTick>) => void)): Promise<void>
+  /** Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  stockFlatFileQuoteWithColumns(date: string, options?: StockFlatFileQuoteOptions | undefined | null): Promise<IntervalQuoteTickWithColumns>
   /**
    * List all available option underlying symbols.
    *
@@ -3210,6 +3276,30 @@ export declare class MarketDataView {
   optionAtTimeQuoteStream(symbol: string, expiration: string, startDate: string, endDate: string, timeOfDay: string, options: OptionAtTimeQuoteOptions | undefined | null, callback: ((arg: Array<QuoteTick>) => void)): Promise<void>
   /** Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionAtTimeQuoteWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, timeOfDay: string, options?: OptionAtTimeQuoteOptions | undefined | null): Promise<QuoteTickWithColumns>
+  /** Fetch the end-of-day report of every option contract for one date. */
+  optionFlatFileEOD(date: string, options?: OptionFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileEODStream(date: string, options: OptionFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileEODWithColumns(date: string, options?: OptionFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
+  /** Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. */
+  optionFlatFileTradeQuote(date: string, options?: OptionFlatFileTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
+  /** Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileTradeQuoteStream(date: string, options: OptionFlatFileTradeQuoteOptions | undefined | null, callback: ((arg: Array<TradeQuoteTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileTradeQuoteWithColumns(date: string, options?: OptionFlatFileTradeQuoteOptions | undefined | null): Promise<TradeQuoteTickWithColumns>
+  /** Fetch the open interest of every option contract for one date. */
+  optionFlatFileOpenInterest(date: string, options?: OptionFlatFileOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
+  /** Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileOpenInterestStream(date: string, options: OptionFlatFileOpenInterestOptions | undefined | null, callback: ((arg: Array<OpenInterestTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileOpenInterestWithColumns(date: string, options?: OptionFlatFileOpenInterestOptions | undefined | null): Promise<OpenInterestTickWithColumns>
+  /** Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. */
+  optionFlatFileQuote(date: string, options?: OptionFlatFileQuoteOptions | undefined | null): Promise<Array<IntervalQuoteTick>>
+  /** Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionFlatFileQuoteStream(date: string, options: OptionFlatFileQuoteOptions | undefined | null, callback: ((arg: Array<IntervalQuoteTick>) => void)): Promise<void>
+  /** Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionFlatFileQuoteWithColumns(date: string, options?: OptionFlatFileQuoteOptions | undefined | null): Promise<IntervalQuoteTickWithColumns>
   /**
    * List all available index symbols.
    *
@@ -3314,6 +3404,12 @@ export declare class MarketDataView {
   indexAtTimePriceStream(symbol: string, startDate: string, endDate: string, timeOfDay: string, options: IndexAtTimePriceOptions | undefined | null, callback: ((arg: Array<IndexPriceAtTimeTick>) => void)): Promise<void>
   /** Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   indexAtTimePriceWithColumns(symbol: string, startDate: string, endDate: string, timeOfDay: string, options?: IndexAtTimePriceOptions | undefined | null): Promise<IndexPriceAtTimeTickWithColumns>
+  /** Fetch the end-of-day report of every index for one date. */
+  indexFlatFileEOD(date: string, options?: IndexFlatFileEodOptions | undefined | null): Promise<Array<EodTick>>
+  /** Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  indexFlatFileEODStream(date: string, options: IndexFlatFileEodOptions | undefined | null, callback: ((arg: Array<EodTick>) => void)): Promise<void>
+  /** Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  indexFlatFileEODWithColumns(date: string, options?: IndexFlatFileEodOptions | undefined | null): Promise<EodTickWithColumns>
   /**
    * Check whether the market is open today.
    *
@@ -4882,6 +4978,22 @@ export interface IndexAtTimePriceOptions {
 }
 
 /**
+ * Optional parameters for the `indexFlatFileEOD` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface IndexFlatFileEodOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
  * Optional parameters for the `indexHistoryEOD` method. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -5238,6 +5350,101 @@ export declare const enum Interval {
   M15 = '15m',
   M30 = '30m',
   H1 = '1h',
+}
+
+/** Interval quote tick. The NBBO in effect at one interval. */
+export interface IntervalQuoteTick {
+  intervalMsOfDay: number
+  quoteMsOfDay: number
+  bidSize: number
+  bidExchange?: number
+  bid: number
+  bidCondition?: number
+  askSize: number
+  askExchange?: number
+  ask: number
+  askCondition?: number
+  date: number
+  expiration?: number
+  strike?: number
+  right?: string
+  /**
+   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * `interval_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+   * `date` is absent (`0`).
+   */
+  intervalTimestampMs?: bigint
+  /**
+   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
+   * `date` is absent (`0`).
+   */
+  quoteTimestampMs?: bigint
+}
+
+/**
+ * Resolve a `IntervalQuoteTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function intervalQuoteTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `IntervalQuoteTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `intervalQuoteTickPresentColumns` + `intervalQuoteTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
+ */
+export declare function intervalQuoteTickToArrowIpc(rows: Array<IntervalQuoteTick>): Buffer
+
+/**
+ * Serialise a `IntervalQuoteTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `intervalQuoteTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column, or emitting a per-row `symbols` column
+ * for a multi-symbol snapshot (one value per row; takes precedence over
+ * `symbol`). The decode-fed sibling of
+ * `intervalQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function intervalQuoteTickToArrowIpcProjected(rows: Array<IntervalQuoteTick>, presentColumns: Array<string>, symbol?: string | undefined | null, symbols?: Array<string> | undefined | null): Buffer
+
+/**
+ * A decoded history result paired with the columns the response's wire
+ * actually carried. Returned by the `<method>WithColumns` variant so a
+ * live caller can serialize a projected Arrow-IPC frame (only the wire's
+ * columns, matching the terminal's columnar output) without hand-supplying
+ * the header list: pass `presentColumns` and `symbol` to `intervalQuoteTickToArrowIpcProjected`.
+ */
+export interface IntervalQuoteTickWithColumns {
+  /**
+   * The decoded rows, identical to the `Array<Tick>` the buffered
+   * method returns.
+   */
+  rows: Array<IntervalQuoteTick>
+  /**
+   * The schema-column names the response's wire carried, in schema
+   * order — the projection set for a terminal-exact Arrow frame.
+   */
+  presentColumns: Array<string>
+  /**
+   * The response's constant `symbol` (root) when the wire carried one
+   * constant across every row (option, index, and single-symbol snapshot
+   * responses), else `undefined`.
+   */
+  symbol?: string
+  /**
+   * The response's per-row `symbol` values when the wire carried a
+   * `symbol` column that varies across rows (a multi-symbol snapshot), one
+   * value per row so each row is attributable to its underlying, else
+   * `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
+   */
+  symbols?: Array<string>
 }
 
 /** Implied volatility tick. */
@@ -5755,6 +5962,70 @@ export interface OptionContractWithColumns {
    * `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
    */
   symbols?: Array<string>
+}
+
+/**
+ * Optional parameters for the `optionFlatFileEOD` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionFlatFileEodOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionFlatFileOpenInterest` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionFlatFileOpenInterestOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionFlatFileQuote` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionFlatFileQuoteOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionFlatFileTradeQuote` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionFlatFileTradeQuoteOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
 }
 
 /**
@@ -7823,6 +8094,54 @@ export interface StockAtTimeQuoteOptions {
 export interface StockAtTimeTradeOptions {
   /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `stockFlatFileEOD` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface StockFlatFileEodOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `stockFlatFileQuote` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface StockFlatFileQuoteOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `stockFlatFileTradeQuote` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface StockFlatFileTradeQuoteOptions {
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request

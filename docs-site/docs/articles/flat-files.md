@@ -1,63 +1,74 @@
 ---
 title: Flat Files
-description: "Whole-universe daily archives: every contract for a date in one call."
+description: "Whole-universe files for one date: every contract or stock of a dataset in one call."
 ---
 
 # Flat Files
 
 <TierBadge tier="professional" />
 
-Flat files deliver **the whole universe for one date in one call** — every option contract or every stock for a given (security type, request type, date). Use them for daily ETL and backtests that need everything; use the per-contract [reference endpoints](/reference/) when you need one contract fast; use [streaming](/streaming/) for live data.
+A flat file is one dataset for the whole universe on one date: every option contract, every stock or every index. Use them for daily ETL and backtests that need everything; use the per-contract [reference endpoints](/reference/) when you need one contract fast; use [streaming](/streaming/) for live data.
 
 ## Datasets
 
-The distribution serves a fixed set of five datasets. Each is one method on the `flat_files` namespace plus a generic `request(sec_type, req_type, date)` dispatcher; an unserved `(security, request)` pair is rejected with a typed invalid-parameter error before any network round-trip. Per-tick quotes, trades, and OHLC bars are served by the [reference endpoints](/reference/), not as flat files. Response times and file sizes are ThetaData's published typicals for a full day.
+Each flat file is an endpoint like any other, on every binding and on the local server, served by the same market-data service as the rest of the reference. Each takes one `date`.
 
-| Dataset | Method | What one file holds | Typical |
+| Dataset | Endpoint | One row per | Rows |
 |---|---|---|---|
-| Option trade-quote | `option_trade_quote` | Every OPRA trade paired with the NBBO quote in effect just before it, all contracts for the date. | ~3 min · ~1.2 GB |
-| Option open-interest | `option_open_interest` | The prior session's closing open interest from OPRA (published ~06:30 ET), one row per contract. | ~1 min · ~50 MB |
-| Option EOD | `option_eod` | Theta's 17:15 ET end-of-day summary (OPRA publishes no national EOD): `ms_of_day` is the report time, `ms_of_day2` the last trade, and the quote is the last NBBO at report time. | ~1 min · ~150 MB |
-| Stock trade-quote | `stock_trade_quote` | Every trade paired with the NBBO quote preceding it, all symbols for the date. | ~30 min · ~14 GB |
-| Stock EOD | `stock_eod` | The national 17:15 ET end-of-day summary (SIPs publish only partial EOD): `ms_of_day` report time, `ms_of_day2` last trade, and the last CTA/UTP NBBO. | ~1 sec · ~1.5 MB |
+| [Option EOD](/reference/option/flat-file/eod) | `option_flat_file_eod` | Contract: the end-of-day report generated at 17:15 ET, with the last NBBO at report time. | `EodTick` |
+| [Option trade-quote](/reference/option/flat-file/trade-quote) | `option_flat_file_trade_quote` | OPRA trade, paired with the NBBO quote at the time of the trade. | `TradeQuoteTick` |
+| [Option open interest](/reference/option/flat-file/open-interest) | `option_flat_file_open_interest` | Contract: the open interest OPRA reports in the morning for the prior session. | `OpenInterestTick` |
+| [Option quote](/reference/option/flat-file/quote) | `option_flat_file_quote` | Contract and minute in which a new NBBO quote was reported. | `IntervalQuoteTick` |
+| [Stock EOD](/reference/stock/flat-file/eod) | `stock_flat_file_eod` | Stock: the national end-of-day report generated at 17:15 ET, with the last CTA / UTP NBBO. | `EodTick` |
+| [Stock trade-quote](/reference/stock/flat-file/trade-quote) | `stock_flat_file_trade_quote` | Trade, paired with the NBBO quote at the time of the trade. | `TradeQuoteTick` |
+| [Stock quote](/reference/stock/flat-file/quote) | `stock_flat_file_quote` | Stock and minute in which a new quote was reported, from the merged UTP and CTA NBBO. | `IntervalQuoteTick` |
+| [Index EOD](/reference/index/flat-file/eod) | `index_flat_file_eod` | Index: the end-of-day report. | `EodTick` |
+
+Every row names its contract: the root on every file (the `symbol` column of a DataFrame), plus expiration, strike and right on the option files. On an EOD row `created_ms_of_day` is the report time and `last_trade_ms_of_day` the day's last trade; on a quote row `interval_ms_of_day` is the minute the row samples and `quote_ms_of_day` the time the quote in effect was reported.
 
 ## Availability
 
-The most recent **7 calendar days** are available; the prior day is generally ready between 00:30 and 01:00 ET. A request outside that window returns a typed no-data error, not empty rows — it is a window limit, not a failure. For deeper history, contact ThetaData.
+The most recent **7 calendar days** are available; the prior day is generally ready between 00:30 and 01:00 ET. A date outside that window fails with the error the vendor returns for it: a window limit, not a fault. For deeper history, contact ThetaData.
 
 ## Pull a file
 
-Flat files are account-authenticated market data, so `client` below can be either the unified `Client` or the standalone `MarketDataClient` — both expose the identical `flat_files` surface. A market-data-only workflow never needs the unified client just to pull archives.
+A small file (stock or index EOD) comes back whole like any other endpoint. The trade-quote, quote and option files are far larger: stream them chunk by chunk, and lift the per-request deadline, which defaults to 300 seconds and would end a long download early.
 
 <SdkTabs>
 
 <template #rust>
 
 ```rust
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+use std::time::Duration;
 
-// Decoded rows in memory, via the `flat_files` view:
-let rows = client.flat_files().option_trade_quote("20250303").await?;
+// A small file, whole:
+let eod = client.market_data().stock_flat_file_eod("20261021").await?;
+let df = eod.to_polars()?;  // leads with the `symbol` column
 
-// Generic dispatcher (same view), for config-driven call shapes:
-let rows = client.flat_files().request(SecType::Option, ReqType::TradeQuote, "20250303").await?;
-
-// Vendor-format file straight to disk (bounded memory):
-client.flat_files().to_path(SecType::Option, ReqType::TradeQuote, "20250303", "trade_quotes.csv", FlatFileFormat::Csv).await?;
+// A large one, chunk by chunk:
+client
+    .market_data()
+    .option_flat_file_trade_quote("20261021")
+    .with_deadline(Duration::ZERO)
+    .stream(|chunk| { /* &[TradeQuoteTick] */ })
+    .await?;
 ```
-
-The standalone `thetadatadx::flatfile_request*` free functions remain available as the lower-level API for callers passing credentials and config explicitly.
 
 </template>
 
 <template #python>
 
 ```python
-rows = client.flat_files.option_trade_quote("20250303")
-df = rows.to_polars()          # or .to_pandas() / .to_arrow() / .to_list()
+eod = client.market_data.stock_flat_file_eod("20261021")
+df = eod.to_polars()          # or .to_pandas() / .to_arrow() / .to_list()
 
-# Or write the vendor-format file straight to disk (bounded memory):
-client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20250303", "trade_quotes.csv", "csv")
+def on_chunk(chunk):          # list[TradeQuoteTick]
+    ...
+
+(client.market_data
+    .option_flat_file_trade_quote_builder("20261021")
+    .timeout_ms(0)
+    .stream(on_chunk))
 ```
 
 </template>
@@ -65,8 +76,11 @@ client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20250303", "trade_quotes.csv",
 <template #typescript>
 
 ```typescript
-const rows = await client.flatFiles.optionTradeQuote('20250303');
-const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
+const eod = await client.marketData.stockFlatFileEOD('20261021');
+
+await client.marketData.optionFlatFileTradeQuoteStream('20261021', { timeoutMs: 0 }, (chunk) => {
+  // TradeQuoteTick[]
+});
 ```
 
 </template>
@@ -74,8 +88,11 @@ const ipc = rows.toArrowIpc();   // feed into apache-arrow `tableFromIPC`
 <template #cpp>
 
 ```cpp
-auto rows = client.flat_files().option_trade_quote("20250303");
-auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
+auto eod = client.market_data().stock_flat_file_eod("20261021");
+
+client.market_data().option_flat_file_trade_quote_stream("20261021",
+    [](auto chunk) { /* Span<const TradeQuoteTick> */ },
+    thetadatadx::EndpointRequestOptions{}.with_timeout_ms(0));
 ```
 
 </template>
@@ -83,92 +100,26 @@ auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 <template #http>
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
+curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&format=csv' -o trade_quotes.csv
 ```
-
-The server streams the response body in chunks, so downloads of any size run in bounded memory.
 
 </template>
 
 </SdkTabs>
 
-## Parameters
+A streamed chunk is tick rows, which carry expiration, strike and right on the option files but not the root; the root of every row is on the whole result's frames and in the HTTP file.
+
+## Over HTTP
+
+The [local server](/server/) answers `/v3/{option,stock,index}/flat_file/{dataset}` the way the terminal does. It writes each chunk as it arrives, so the first bytes leave at once and memory stays flat whatever the file's size. The columns carry the terminal's names: `root`, then `expiration`, `strike` and `right` on option files, then the dataset's columns, where the EOD report time is `ms_of_day` and the second time column `ms_of_day2`. Times are integer milliseconds since midnight ET and dates `YYYYMMDD` integers.
 
 | Parameter | Required | Description |
 |---|---|---|
-| `date` | yes | The archive date, `YYYYMMDD`. One date per call — flat files have no range form. |
-| `format` | no | On-disk encoding for the to-disk / HTTP paths; one of the formats below. Defaults to `csv`. The decoded-rows path returns typed rows and ignores it. |
+| `date` | yes | The file's date, `YYYYMMDD` or `YYYY-MM-DD`. |
+| `format` | no | `csv` (default), `json`, `ndjson` (alias `jsonl`) or `html`. |
 
-## Formats
+In CSV every text and price cell is quoted and a price keeps its decimal point (`"SPY",20261030,"808.0","P",...`); `json` wraps the rows in a `response` array with prices as strings. A refusal before any data, such as a date outside the window, answers with its own status, like every other route. A download that fails after the first bytes ends in a broken transfer, never a short file that reads as complete.
 
-The to-disk (`to_path` / `flatfile_to_path`) and HTTP paths write one of:
+## The `flat_files` API
 
-| Format | Value | Output |
-|---|---|---|
-| CSV | `csv` (default) | Vendor byte-format CSV — lowercase headers, byte-matches the terminal's own download. |
-| JSON Lines | `jsonl` / `ndjson` | One JSON object per row. |
-| JSON | `json` | A single JSON array of the same per-row objects. |
-| HTML | `html` | An HTML `<table>`. |
-
-The decoded-rows path (`option_trade_quote(...)`, `request(...)`) skips the file entirely and returns typed `FlatFileRow`s ready for Arrow, Polars, pandas, or your own pipeline.
-
-## Columnar & DataFrames
-
-The decoded-rows path hands back a typed row collection that converts straight to Arrow — and, on Python, to a Polars or pandas DataFrame — with no CSV round-trip. The Arrow schema is inferred from the file's own column header, so it always matches the dataset.
-
-<SdkTabs>
-
-<template #rust>
-
-```rust
-let rows = client.flat_files().option_trade_quote("20250303").await?;
-let batch = thetadatadx::flatfiles::arrow::rows_to_arrow(&rows)?; // arrow_array::RecordBatch
-```
-
-</template>
-
-<template #python>
-
-```python
-rows = client.flat_files.option_trade_quote("20250303")
-pl_df = rows.to_polars()     # Polars DataFrame
-pd_df = rows.to_pandas()     # pandas DataFrame
-table = rows.to_arrow()      # pyarrow Table (zero-copy)
-records = rows.to_list()     # list[dict]
-```
-
-</template>
-
-<template #typescript>
-
-```typescript
-import { tableFromIPC } from "apache-arrow";
-
-const rows = await client.flatFiles.optionTradeQuote('20250303');
-const table = tableFromIPC(rows.toArrowIpc());   // apache-arrow Table
-```
-
-</template>
-
-<template #cpp>
-
-```cpp
-auto rows = client.flat_files().option_trade_quote("20250303");
-std::vector<uint8_t> ipc = rows.to_arrow_ipc();  // feed arrow::ipc::RecordBatchStreamReader
-```
-
-</template>
-
-</SdkTabs>
-
-## Column schema
-
-Each dataset's columns are described by the server in the file's header and carried on the decoded `FlatFileRow` (and the CSV header) — the SDK does not hardcode a fixed column set, so a server-side schema addition flows through without an SDK change. For the authoritative per-dataset column list, see ThetaData's [flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
-
-## Size guidance
-
-Flat files are large — a whole-universe option `trade_quote` day commonly exceeds 100 MB and tens of millions of rows.
-
-- The decoded-rows path materializes everything in memory before returning; reserve it for machines with headroom.
-- The to-disk path (`flatfile_to_path`, the HTTP route) keeps peak memory bounded and is the right default for ETL.
-- Transient download failures retry automatically with backoff; tune attempts and backoff via the `flatfiles_*` [configuration](/articles/configuration) fields.
+The `flat_files` view (`client.flat_files()` in Rust and C++, `client.flat_files` in Python, `client.flatFiles` in TypeScript) and the `flatfile_*` functions request flat files from the vendor's older flat-file service. That service serves five of the datasets above: option trade-quote, open interest and EOD, and stock trade-quote and EOD. It does not serve the quote files or index EOD, and it writes its own CSV layout. The endpoints above are the complete set.

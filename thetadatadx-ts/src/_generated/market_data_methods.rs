@@ -266,6 +266,48 @@ pub struct StockAtTimeQuoteOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// Optional parameters for the `stockFlatFileEOD` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct StockFlatFileEODOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `stockFlatFileTradeQuote` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct StockFlatFileTradeQuoteOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `stockFlatFileQuote` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct StockFlatFileQuoteOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
 /// Optional parameters for the `optionListSymbols` method. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
 /// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -1932,6 +1974,62 @@ pub struct OptionAtTimeQuoteOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// Optional parameters for the `optionFlatFileEOD` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionFlatFileEODOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionFlatFileTradeQuote` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionFlatFileTradeQuoteOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionFlatFileOpenInterest` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionFlatFileOpenInterestOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionFlatFileQuote` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionFlatFileQuoteOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
 /// Optional parameters for the `indexListSymbols` method. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
 /// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -2081,6 +2179,20 @@ pub struct IndexHistoryPriceOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexAtTimePriceOptions {
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `indexFlatFileEOD` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct IndexFlatFileEODOptions {
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -2274,6 +2386,30 @@ pub struct TradeQuoteTickWithColumns {
     /// The decoded rows, identical to the `Array<Tick>` the buffered
     /// method returns.
     pub rows: Vec<TradeQuoteTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// constant across every row (option, index, and single-symbol snapshot
+    /// responses), else `undefined`.
+    pub symbol: Option<String>,
+    /// The response's per-row `symbol` values when the wire carried a
+    /// `symbol` column that varies across rows (a multi-symbol snapshot), one
+    /// value per row so each row is attributable to its underlying, else
+    /// `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
+    pub symbols: Option<Vec<String>>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `intervalQuoteTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct IntervalQuoteTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<IntervalQuoteTick>,
     /// The schema-column names the response's wire carried, in schema
     /// order — the projection set for a terminal-exact Arrow frame.
     pub present_columns: Vec<String>,
@@ -4274,6 +4410,315 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch the end-of-day report of every stock for one date.
+    #[napi(js_name = "stockFlatFileEOD")]
+    pub async fn stock_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileEODStream")]
+    pub async fn stock_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileEODWithColumns")]
+    pub async fn stock_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[napi(js_name = "stockFlatFileTradeQuote")]
+    pub async fn stock_flat_file_trade_quote(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileTradeQuoteStream")]
+    pub async fn stock_flat_file_trade_quote_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileTradeQuoteWithColumns")]
+    pub async fn stock_flat_file_trade_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[napi(js_name = "stockFlatFileQuote")]
+    pub async fn stock_flat_file_quote(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+    ) -> napi::Result<Vec<IntervalQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(interval_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileQuoteStream")]
+    pub async fn stock_flat_file_quote_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileQuoteWithColumns")]
+    pub async fn stock_flat_file_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+    ) -> napi::Result<IntervalQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IntervalQuoteTickWithColumns {
+            rows: interval_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// List all available option underlying symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -14282,6 +14727,418 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch the end-of-day report of every option contract for one date.
+    #[napi(js_name = "optionFlatFileEOD")]
+    pub async fn option_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileEODStream")]
+    pub async fn option_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileEODWithColumns")]
+    pub async fn option_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[napi(js_name = "optionFlatFileTradeQuote")]
+    pub async fn option_flat_file_trade_quote(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileTradeQuoteStream")]
+    pub async fn option_flat_file_trade_quote_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileTradeQuoteWithColumns")]
+    pub async fn option_flat_file_trade_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch the open interest of every option contract for one date.
+    #[napi(js_name = "optionFlatFileOpenInterest")]
+    pub async fn option_flat_file_open_interest(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+    ) -> napi::Result<Vec<OpenInterestTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(open_interest_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileOpenInterestStream")]
+    pub async fn option_flat_file_open_interest_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileOpenInterestWithColumns")]
+    pub async fn option_flat_file_open_interest_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[napi(js_name = "optionFlatFileQuote")]
+    pub async fn option_flat_file_quote(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+    ) -> napi::Result<Vec<IntervalQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(interval_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileQuoteStream")]
+    pub async fn option_flat_file_quote_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileQuoteWithColumns")]
+    pub async fn option_flat_file_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+    ) -> napi::Result<IntervalQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IntervalQuoteTickWithColumns {
+            rows: interval_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// List all available index symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -15134,6 +15991,109 @@ impl MarketDataView {
         .await?;
         Ok(IndexPriceAtTimeTickWithColumns {
             rows: index_price_at_time_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch the end-of-day report of every index for one date.
+    #[napi(js_name = "indexFlatFileEOD")]
+    pub async fn index_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexFlatFileEODStream")]
+    pub async fn index_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "indexFlatFileEODWithColumns")]
+    pub async fn index_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
             present_columns: ticks.columns().present_names().map(String::from).collect(),
             symbol: ticks.columns().symbol().map(String::from),
             symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
@@ -17010,6 +17970,315 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch the end-of-day report of every stock for one date.
+    #[napi(js_name = "stockFlatFileEOD")]
+    pub async fn stock_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileEODStream")]
+    pub async fn stock_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileEODWithColumns")]
+    pub async fn stock_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[napi(js_name = "stockFlatFileTradeQuote")]
+    pub async fn stock_flat_file_trade_quote(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileTradeQuoteStream")]
+    pub async fn stock_flat_file_trade_quote_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileTradeQuoteWithColumns")]
+    pub async fn stock_flat_file_trade_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[napi(js_name = "stockFlatFileQuote")]
+    pub async fn stock_flat_file_quote(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+    ) -> napi::Result<Vec<IntervalQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(interval_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "stockFlatFileQuoteStream")]
+    pub async fn stock_flat_file_quote_stream(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `stockFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "stockFlatFileQuoteWithColumns")]
+    pub async fn stock_flat_file_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<StockFlatFileQuoteOptions>,
+    ) -> napi::Result<IntervalQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IntervalQuoteTickWithColumns {
+            rows: interval_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// List all available option underlying symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -27018,6 +28287,418 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch the end-of-day report of every option contract for one date.
+    #[napi(js_name = "optionFlatFileEOD")]
+    pub async fn option_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileEODStream")]
+    pub async fn option_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileEODWithColumns")]
+    pub async fn option_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[napi(js_name = "optionFlatFileTradeQuote")]
+    pub async fn option_flat_file_trade_quote(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<Vec<TradeQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileTradeQuoteStream")]
+    pub async fn option_flat_file_trade_quote_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileTradeQuoteWithColumns")]
+    pub async fn option_flat_file_trade_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch the open interest of every option contract for one date.
+    #[napi(js_name = "optionFlatFileOpenInterest")]
+    pub async fn option_flat_file_open_interest(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+    ) -> napi::Result<Vec<OpenInterestTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(open_interest_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileOpenInterestStream")]
+    pub async fn option_flat_file_open_interest_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileOpenInterestWithColumns")]
+    pub async fn option_flat_file_open_interest_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[napi(js_name = "optionFlatFileQuote")]
+    pub async fn option_flat_file_quote(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+    ) -> napi::Result<Vec<IntervalQuoteTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(interval_quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionFlatFileQuoteStream")]
+    pub async fn option_flat_file_quote_stream(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionFlatFileQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionFlatFileQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `intervalQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionFlatFileQuoteWithColumns")]
+    pub async fn option_flat_file_quote_with_columns(
+        &self,
+        date: String,
+        options: Option<OptionFlatFileQuoteOptions>,
+    ) -> napi::Result<IntervalQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IntervalQuoteTickWithColumns {
+            rows: interval_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// List all available index symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -27870,6 +29551,109 @@ impl MarketDataClient {
         .await?;
         Ok(IndexPriceAtTimeTickWithColumns {
             rows: index_price_at_time_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch the end-of-day report of every index for one date.
+    #[napi(js_name = "indexFlatFileEOD")]
+    pub async fn index_flat_file_eod(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+    ) -> napi::Result<Vec<EodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "indexFlatFileEODStream")]
+    pub async fn index_flat_file_eod_stream(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `indexFlatFileEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexFlatFileEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "indexFlatFileEODWithColumns")]
+    pub async fn index_flat_file_eod_with_columns(
+        &self,
+        date: String,
+        options: Option<IndexFlatFileEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
             present_columns: ticks.columns().present_names().map(String::from).collect(),
             symbol: ticks.columns().symbol().map(String::from),
             symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),

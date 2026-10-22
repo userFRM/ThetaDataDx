@@ -101,6 +101,7 @@ fn wire_columns(output: &EndpointOutput) -> Option<&thetadatadx::columns::Column
         EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => Some(ticks.columns()),
         EndpointOutput::TradeQuoteTicks(ticks) => Some(ticks.columns()),
         EndpointOutput::TradeTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::IntervalQuoteTicks(ticks) => Some(ticks.columns()),
     }
 }
 
@@ -139,6 +140,11 @@ fn serialize_rows(ep: &EndpointMeta, output: &EndpointOutput) -> Vec<Row> {
         EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
         EndpointOutput::InterestRateTicks(ticks) => interest_rate_ticks_to_json(ticks),
         EndpointOutput::OptionContracts(contracts) => option_contracts_to_json(contracts),
+        // Only the quote flat files return interval quotes, and the router
+        // serves every flat file through `flatfile_routes`, never here.
+        EndpointOutput::IntervalQuoteTicks(_) => {
+            unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
+        }
     }
 }
 
@@ -2112,6 +2118,11 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 right: 'C',
             }))
         }
+        // See `serialize_rows`: no endpoint the generic handler serves
+        // returns interval quotes.
+        ReturnType::IntervalQuoteTicks => {
+            unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
+        }
     }
 }
 
@@ -2331,7 +2342,7 @@ fn html_cell_text(value: &sonic_rs::Value) -> String {
 
 /// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
 /// condition string) cannot inject markup into the rendered table.
-fn escape_html(value: &str) -> String {
+pub(crate) fn escape_html(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for c in value.chars() {
         match c {

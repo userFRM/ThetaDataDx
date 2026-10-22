@@ -69,14 +69,6 @@ OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 # reads the generator's answer rather than deriving its own.
 EXPIRATION_WILDCARD_NOTE = "Pass `*` to select all expirations for the underlying"
 
-# The Rust source that is the single source of truth for the flat-file served
-# matrix: the `(SecType, ReqType)` pairs the distribution serves
-# (`SERVED_DATASETS`), plus the client-facing tokens those variants render to
-# (`SecType::as_wire` lower-cased and `ReqType::as_str`). The OpenAPI flat-file
-# enums must match this matrix exactly, so the gate derives the expected matrix
-# from this file rather than carrying a hand-maintained copy that could drift.
-FLATFILE_TYPES_RS = ROOT / "thetadatadx-rs/src/flatfiles/types.rs"
-
 # The MCP server source is the single source of truth for the tool surface a
 # connected `tools/list` returns: the registry market-data endpoints (one tool
 # per endpoint), the offline utilities (`OFFLINE_TOOL_NAMES` in `main.rs`), and
@@ -103,10 +95,7 @@ MCP_DOC_TOOL_SECTIONS = (
 # source of truth for the served route set, so the gate parses the `.route(...)`
 # literals from these files rather than carrying a hand-maintained duplicate
 # list that could silently drift from what the binary actually serves.
-SERVER_ROUTER_FILES = (
-    ROOT / "tools/server/src/router.rs",
-    ROOT / "tools/server/src/flatfile_routes.rs",
-)
+SERVER_ROUTER_FILES = (ROOT / "tools/server/src/router.rs",)
 
 # The server CLI is the source of truth for the documented flag defaults.
 # The `#[arg(...)]` attributes on the `struct Args` fields carry each
@@ -114,7 +103,7 @@ SERVER_ROUTER_FILES = (
 # Markdown table. The gate parses the `#[arg(...)]` defaults from this file
 # and asserts the doc-table rows match value-by-value, so a changed server
 # default that the docs don't reflect trips the gate (the same
-# derive-from-source pattern as `flatfile_served_matrix`). A substring
+# derive-from-source pattern as `served_v3_routes`). A substring
 # check ("25503" appears somewhere) could not catch a default that changed
 # to a value still mentioned elsewhere on the page.
 SERVER_MAIN_RS = ROOT / "tools/server/src/main.rs"
@@ -147,7 +136,7 @@ def served_v3_routes() -> set[str]:
 OPENAPI_UNDOCUMENTED_PARITY_ALIASES: set[str] = set()
 
 # Routes the server serves beyond the upstream-tracking registry endpoints:
-# the system status / lifecycle routes and the flat-file download routes. These
+# the system status / lifecycle routes and the v3 path aliases. These
 # are documented in the OpenAPI contract (they are real served routes) but are
 # not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift. The
 # vendor-parity aliases above are subtracted: they are served but intentionally
@@ -182,7 +171,6 @@ SERVER_ONLY_OPERATION_IDS = {
     "calendarToday",
     "calendarYearHolidays",
     "interestRateHistoryEodPath",
-    "flatfileGetBySecType",
 }
 # Query params the OpenAPI contract documents that the endpoint registry does
 # not model. `format` is a server-side rendering knob (`tools/server`'s
@@ -621,16 +609,16 @@ def check_openapi() -> None:
             f"HTTP server url {OPENAPI_SERVER_URL!r}; found {server_urls}"
         )
 
-    # OpenAPI path keys, including templated segments (`{sec_type}`): the brace
-    # characters must be in the class or the flat-file path is invisible to the
-    # gate, the gap that let a server-only route go undocumented.
+    # OpenAPI path keys, including templated segments (`{request_type}`): the
+    # brace characters must be in the class or a templated path is invisible to
+    # the gate, the gap that let a server-only route go undocumented.
     actual_paths = {
         match.group(1)
         for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE)
     }
     # The contract must document the FULL served route set: the upstream-tracking
     # registry endpoints plus every server-only `/v3` route the binary serves
-    # (system status / lifecycle + flat-file downloads), derived from the server
+    # (system status / lifecycle + v3 path aliases), derived from the server
     # router source. A route the binary serves but the spec omits leaves a
     # generated client unable to call it; a spec path the binary does not serve
     # is a dangling contract. Either direction trips.
@@ -688,89 +676,6 @@ def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -
     if not match:
         fail(f"{path.relative_to(ROOT)} missing expected struct pattern: {struct_pattern!r}")
     return set(re.findall(field_pattern, match.group(1), re.MULTILINE))
-
-
-def _rust_match_arm_map(body: str, lhs_variant: str) -> dict[str, str]:
-    """Parse `Self::Variant => "token",` arms into a `{Variant: token}` map.
-
-    `body` is the source slice holding the match arms (e.g. the body of a
-    `fn as_str` / `fn as_wire`). `lhs_variant` captures the variant identifier
-    after `Self::`. The result keys the Rust variant to the string literal it
-    renders to, so the gate maps `SERVED_DATASETS` entries to the client-facing
-    tokens the OpenAPI enums carry without hand-coding either side.
-    """
-    return {
-        m.group(1): m.group(2)
-        for m in re.finditer(
-            rf'Self::({lhs_variant})\s*=>\s*"([^"]+)"', body
-        )
-    }
-
-
-def flatfile_served_matrix() -> dict[str, set[str]]:
-    """Derive `{sec_type_token: {req_type_token, ...}}` from the Rust source.
-
-    Parses `SERVED_DATASETS` (the `(SecType::X, ReqType::Y)` pairs the flat-file
-    distribution serves) and the variant-to-token maps from `SecType::as_wire`
-    and `ReqType::as_str`, all in `FLATFILE_TYPES_RS`. The sec_type token is the
-    lower-cased `as_wire` value (`OPTION` -> `option`), matching the OpenAPI
-    flat-file path/enum spelling; the req_type token is the `as_str` value
-    verbatim. A single source means a served-matrix change in the Rust enum
-    moves the expected matrix here with no edit to this gate.
-    """
-    text = FLATFILE_TYPES_RS.read_text()
-
-    # Variant -> token maps from the two `as_*` methods. Restrict each search to
-    # the method body so unrelated `Self::X => ...` arms (e.g. Display) are not
-    # swept in.
-    sec_body = re.search(
-        r"fn as_wire\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
-    )
-    req_body = re.search(
-        r"fn as_str\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
-    )
-    if not sec_body or not req_body:
-        fail(
-            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing SecType::as_wire / "
-            f"ReqType::as_str bodies the flat-file matrix gate parses"
-        )
-    sec_token = {
-        variant: wire.lower()
-        for variant, wire in _rust_match_arm_map(
-            sec_body.group(1), r"Option|Stock|Index"
-        ).items()
-    }
-    req_token = _rust_match_arm_map(
-        req_body.group(1), r"Eod|Quote|OpenInterest|Ohlc|Trade|TradeQuote"
-    )
-
-    # The served pairs themselves. `SERVED_DATASETS` is a `&[(SecType::_,
-    # ReqType::_)]` literal; capture each `(SecType::A, ReqType::B)` tuple.
-    served_block = re.search(
-        r"pub const SERVED_DATASETS:[^=]*=\s*&\[(.*?)\];", text, re.DOTALL
-    )
-    if not served_block:
-        fail(
-            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing the SERVED_DATASETS "
-            f"slice the flat-file matrix gate parses"
-        )
-    pairs = re.findall(
-        r"\(\s*SecType::(\w+)\s*,\s*ReqType::(\w+)\s*\)", served_block.group(1)
-    )
-    if not pairs:
-        fail(
-            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} SERVED_DATASETS parsed to no "
-            f"(SecType, ReqType) pairs"
-        )
-
-    matrix: dict[str, set[str]] = {}
-    for sec_variant, req_variant in pairs:
-        if sec_variant not in sec_token:
-            fail(f"SERVED_DATASETS names SecType::{sec_variant} with no as_wire token")
-        if req_variant not in req_token:
-            fail(f"SERVED_DATASETS names ReqType::{req_variant} with no as_str token")
-        matrix.setdefault(sec_token[sec_variant], set()).add(req_token[req_variant])
-    return matrix
 
 
 def _struct_body(text: str, struct_name: str) -> str | None:
@@ -1033,14 +938,6 @@ def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]
     return "".join(out), pos
 
 
-def _enum_values(block: str) -> list[str]:
-    """The inline-list `enum: [a, b, c]` values in `block`, stripped of quotes."""
-    m = re.search(r"enum:\s*\[([^\]]*)\]", block)
-    if not m:
-        return []
-    return [v.strip().strip("'\"") for v in m.group(1).split(",") if v.strip()]
-
-
 def _expand_param_group(params: list[dict]) -> list[dict]:
     """Flatten `[[...params]]` rows, resolving every `use = "<group>"` row.
 
@@ -1209,8 +1106,8 @@ def check_openapi_parameters(
     client to send a value the server does not need; a missing default leaves
     a reader with no way to know what omitting the parameter does.
 
-    Routes the registry does not own are not read at all: the system, shutdown
-    and flat-file routes have no registry row, and a route added to the spec
+    Routes the registry does not own are not read at all: the system and
+    shutdown routes have no registry row, and a route added to the spec
     ahead of the registry is the path-set assertion's business, not this one.
     `checked` guards the other direction, where a spec reformat leaves the
     parser matching nothing and the gate silently blind.
@@ -1592,46 +1489,6 @@ def check_openapi_examples(write: bool = False) -> None:
                 f"registry renders. Run with --write-examples.\n"
                 f"--- documented ---\n{entry[0]}--- registry ---\n{want}"
             )
-
-
-def check_flatfile_matrix() -> None:
-    """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
-
-    The path form (`/v3/{sec_type}/flat_file/{req_type}`) takes the two segments
-    independently, so its `sec_type` enum must be the served security types and
-    its `req_type` enum the union of every served request type. A served-matrix
-    drift in the checked-in spec in either direction fails the gate.
-    """
-    matrix = flatfile_served_matrix()
-    expected_secs = set(matrix)
-    expected_req_union = set().union(*matrix.values())
-
-    text = OPENAPI_YAML.read_text()
-
-    # --- Path form: /v3/{sec_type}/flat_file/{req_type} ---------------------
-    path_block, _ = _yaml_block(
-        text, r"^  /v3/\{sec_type\}/flat_file/\{req_type\}:\s*$"
-    )
-    if not path_block:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file path "
-            f"/v3/{{sec_type}}/flat_file/{{req_type}}"
-        )
-    sec_param, _ = _yaml_block(path_block, r"^        - name: sec_type\s*$")
-    req_param, _ = _yaml_block(path_block, r"^        - name: req_type\s*$")
-    path_secs = set(_enum_values(sec_param))
-    path_reqs = set(_enum_values(req_param))
-    if path_secs != expected_secs:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path sec_type enum "
-            f"{sorted(path_secs)} != served security types {sorted(expected_secs)}"
-        )
-    if path_reqs != expected_req_union:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path req_type enum "
-            f"{sorted(path_reqs)} != union of served request types "
-            f"{sorted(expected_req_union)}"
-        )
 
 
 def _rust_str_array_items(text: str, const_name: str, path: Path) -> list[str]:
@@ -2189,7 +2046,6 @@ def main() -> None:
     check_openapi_parameters()
     check_openapi_expiration_wildcard()
     check_openapi_examples()
-    check_flatfile_matrix()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
     check_tier_badges()

@@ -5917,6 +5917,7 @@ _FFI_TICK_ARRAY_FREES: frozenset[str] = frozenset(
         "calendar_day_array_free",
         "interest_rate_tick_array_free",
         "trade_quote_tick_array_free",
+        "interval_quote_tick_array_free",
     }
 )
 FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
@@ -11381,12 +11382,12 @@ def _run_selftest() -> int:
         assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
 
     def _case_hist_base_registry_count() -> None:
-        """The registry of record yields exactly the 73 buffered endpoints
+        """The registry of record yields exactly the 81 buffered endpoints
         (the four `*_stream` FPSS subscription endpoints excluded), and the
-        shipped C-ABI header declares the same 73 base symbols."""
+        shipped C-ABI header declares the same 81 base symbols."""
         rust = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
         cabi = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
-        assert len(rust) == 73, f"registry must yield 73 buffered endpoints; got {len(rust)}"
+        assert len(rust) == 81, f"registry must yield 81 buffered endpoints; got {len(rust)}"
         assert rust == cabi, (
             f"registry buffered set must equal the C-ABI base set; "
             f"rust-only={sorted(rust - cabi)!r}, cabi-only={sorted(cabi - rust)!r}"
@@ -11398,7 +11399,7 @@ def _run_selftest() -> int:
     _case("hist-base negative — header/source divergence trips", _case_hist_base_header_source_divergence_trips)
     _case("hist-base negative — untracked endpoint trips", _case_hist_base_untracked_orphan_trips)
     _case("hist-base — live sources clean", _case_hist_base_live_sources_clean)
-    _case("hist-base — registry yields 73 endpoints matching C-ABI base", _case_hist_base_registry_count)
+    _case("hist-base — registry yields 81 endpoints matching C-ABI base", _case_hist_base_registry_count)
 
     # ── Client construction-from-file surface selftests ───────────
 

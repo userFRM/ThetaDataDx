@@ -23,10 +23,11 @@ use crate::proto;
 
 use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
-    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick, IvTick,
-    MarketValueTick, OhlcTick, OpenInterestTick, OptionContract, PriceTick, QuoteTick,
-    TradeGreeksAllTick, TradeGreeksFirstOrderTick, TradeGreeksImpliedVolatilityTick,
-    TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
+    GreeksSecondOrderTick, GreeksThirdOrderTick, IndexPriceAtTimeTick, InterestRateTick,
+    IntervalQuoteTick, IvTick, MarketValueTick, OhlcTick, OpenInterestTick, OptionContract,
+    PriceTick, QuoteTick, TradeGreeksAllTick, TradeGreeksFirstOrderTick,
+    TradeGreeksImpliedVolatilityTick, TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick,
+    TradeQuoteTick, TradeTick,
 };
 
 use super::client::MarketDataClient;

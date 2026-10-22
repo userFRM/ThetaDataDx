@@ -2600,6 +2600,522 @@ impl StockAtTimeQuoteBuilder {
     }
 }
 
+/// Fetch the end-of-day report of every stock for one date.
+#[pyclass(module = "thetadatadx", name = "StockFlatFileEodBuilder")]
+pub struct StockFlatFileEodBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl StockFlatFileEodBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+#[pyclass(module = "thetadatadx", name = "StockFlatFileTradeQuoteBuilder")]
+pub struct StockFlatFileTradeQuoteBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl StockFlatFileTradeQuoteBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_flat_file_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+#[pyclass(module = "thetadatadx", name = "StockFlatFileQuoteBuilder")]
+pub struct StockFlatFileQuoteBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl StockFlatFileQuoteBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IntervalQuoteTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        interval_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `stock_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().stock_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = interval_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_flat_file_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match interval_quote_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// List all available option underlying symbols.
 ///
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -20064,6 +20580,694 @@ impl OptionAtTimeQuoteBuilder {
     }
 }
 
+/// Fetch the end-of-day report of every option contract for one date.
+#[pyclass(module = "thetadatadx", name = "OptionFlatFileEodBuilder")]
+pub struct OptionFlatFileEodBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionFlatFileEodBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+#[pyclass(module = "thetadatadx", name = "OptionFlatFileTradeQuoteBuilder")]
+pub struct OptionFlatFileTradeQuoteBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionFlatFileTradeQuoteBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeQuoteTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_flat_file_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch the open interest of every option contract for one date.
+#[pyclass(module = "thetadatadx", name = "OptionFlatFileOpenInterestBuilder")]
+pub struct OptionFlatFileOpenInterestBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionFlatFileOpenInterestBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<OpenInterestTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_open_interest(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        open_interest_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_open_interest(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_flat_file_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_open_interest(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = open_interest_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_flat_file_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_open_interest(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+#[pyclass(module = "thetadatadx", name = "OptionFlatFileQuoteBuilder")]
+pub struct OptionFlatFileQuoteBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionFlatFileQuoteBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<IntervalQuoteTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        interval_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = interval_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_flat_file_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_quote(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match interval_quote_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// List all available index symbols.
 ///
 /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -21443,6 +22647,178 @@ impl IndexAtTimePriceBuilder {
     }
 }
 
+/// Fetch the end-of-day report of every index for one date.
+#[pyclass(module = "thetadatadx", name = "IndexFlatFileEodBuilder")]
+pub struct IndexFlatFileEodBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    date: String,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl IndexFlatFileEodBuilder {
+    /// Replace the required `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<EodTickList>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().index_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().index_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `index_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().index_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let date = self.date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().index_flat_file_eod(&date);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Check whether the market is open today.
 ///
 /// - Retrieves current day equity market schedule
@@ -21830,6 +23206,9 @@ fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<
     m.add_class::<StockHistoryTradeQuoteBuilder>()?;
     m.add_class::<StockAtTimeTradeBuilder>()?;
     m.add_class::<StockAtTimeQuoteBuilder>()?;
+    m.add_class::<StockFlatFileEodBuilder>()?;
+    m.add_class::<StockFlatFileTradeQuoteBuilder>()?;
+    m.add_class::<StockFlatFileQuoteBuilder>()?;
     m.add_class::<OptionListSymbolsBuilder>()?;
     m.add_class::<OptionListDatesBuilder>()?;
     m.add_class::<OptionListExpirationsBuilder>()?;
@@ -21877,6 +23256,10 @@ fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<
     m.add_class::<OptionHistoryTradeGreeksImpliedVolatilityBuilder>()?;
     m.add_class::<OptionAtTimeTradeBuilder>()?;
     m.add_class::<OptionAtTimeQuoteBuilder>()?;
+    m.add_class::<OptionFlatFileEodBuilder>()?;
+    m.add_class::<OptionFlatFileTradeQuoteBuilder>()?;
+    m.add_class::<OptionFlatFileOpenInterestBuilder>()?;
+    m.add_class::<OptionFlatFileQuoteBuilder>()?;
     m.add_class::<IndexListSymbolsBuilder>()?;
     m.add_class::<IndexListDatesBuilder>()?;
     m.add_class::<IndexSnapshotOhlcBuilder>()?;
@@ -21886,6 +23269,7 @@ fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<
     m.add_class::<IndexHistoryOhlcBuilder>()?;
     m.add_class::<IndexHistoryPriceBuilder>()?;
     m.add_class::<IndexAtTimePriceBuilder>()?;
+    m.add_class::<IndexFlatFileEodBuilder>()?;
     m.add_class::<CalendarOpenTodayBuilder>()?;
     m.add_class::<CalendarOnDateBuilder>()?;
     m.add_class::<CalendarYearBuilder>()?;
@@ -23250,6 +24634,174 @@ impl MarketDataView {
             end_date: end_date.into_string(),
             time_of_day: time_of_day.into_string(),
             venue: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch the end-of-day report of every stock for one date.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_eod(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<EodTickList>> {
+        let mut request = self.client.market_data().stock_flat_file_eod(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch the end-of-day report of every stock for one date.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_eod_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `stock_flat_file_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `stock_flat_file_eod()` for the sync signature; `stock_flat_file_eod_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn stock_flat_file_eod_builder(
+        &self,
+        date: PyDateArg,
+    ) -> StockFlatFileEodBuilder {
+        StockFlatFileEodBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_trade_quote(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeQuoteTickList>> {
+        let mut request = self.client.market_data().stock_flat_file_trade_quote(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_trade_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `stock_flat_file_trade_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `stock_flat_file_trade_quote()` for the sync signature; `stock_flat_file_trade_quote_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn stock_flat_file_trade_quote_builder(
+        &self,
+        date: PyDateArg,
+    ) -> StockFlatFileTradeQuoteBuilder {
+        StockFlatFileTradeQuoteBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_quote(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<IntervalQuoteTickList>> {
+        let mut request = self.client.market_data().stock_flat_file_quote(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        interval_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn stock_flat_file_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().stock_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `stock_flat_file_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `stock_flat_file_quote()` for the sync signature; `stock_flat_file_quote_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn stock_flat_file_quote_builder(
+        &self,
+        date: PyDateArg,
+    ) -> StockFlatFileQuoteBuilder {
+        StockFlatFileQuoteBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
             timeout_ms: None,
         }
     }
@@ -31775,6 +33327,230 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch the end-of-day report of every option contract for one date.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_eod(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<EodTickList>> {
+        let mut request = self.client.market_data().option_flat_file_eod(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch the end-of-day report of every option contract for one date.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_eod_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_flat_file_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_flat_file_eod()` for the sync signature; `option_flat_file_eod_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn option_flat_file_eod_builder(
+        &self,
+        date: PyDateArg,
+    ) -> OptionFlatFileEodBuilder {
+        OptionFlatFileEodBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_trade_quote(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeQuoteTickList>> {
+        let mut request = self.client.market_data().option_flat_file_trade_quote(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_trade_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_trade_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_flat_file_trade_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_flat_file_trade_quote()` for the sync signature; `option_flat_file_trade_quote_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn option_flat_file_trade_quote_builder(
+        &self,
+        date: PyDateArg,
+    ) -> OptionFlatFileTradeQuoteBuilder {
+        OptionFlatFileTradeQuoteBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch the open interest of every option contract for one date.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_open_interest(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<OpenInterestTickList>> {
+        let mut request = self.client.market_data().option_flat_file_open_interest(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        open_interest_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch the open interest of every option contract for one date.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_open_interest_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_open_interest(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_flat_file_open_interest`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_flat_file_open_interest()` for the sync signature; `option_flat_file_open_interest_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn option_flat_file_open_interest_builder(
+        &self,
+        date: PyDateArg,
+    ) -> OptionFlatFileOpenInterestBuilder {
+        OptionFlatFileOpenInterestBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_quote(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<IntervalQuoteTickList>> {
+        let mut request = self.client.market_data().option_flat_file_quote(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        interval_quote_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn option_flat_file_quote_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_flat_file_quote(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_flat_file_quote`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_flat_file_quote()` for the sync signature; `option_flat_file_quote_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn option_flat_file_quote_builder(
+        &self,
+        date: PyDateArg,
+    ) -> OptionFlatFileQuoteBuilder {
+        OptionFlatFileQuoteBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
+            timeout_ms: None,
+        }
+    }
+
     /// List all available index symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -32541,6 +34317,62 @@ impl MarketDataView {
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
             time_of_day: time_of_day.into_string(),
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch the end-of-day report of every index for one date.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn index_flat_file_eod(
+        &self,
+        py: Python<'_>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<EodTickList>> {
+        let mut request = self.client.market_data().index_flat_file_eod(date.as_str());
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch the end-of-day report of every index for one date.
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (date, *, timeout_ms=None))]
+    fn index_flat_file_eod_async<'py>(
+        &self,
+        py: Python<'py>,
+        date: PyDateArg,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().index_flat_file_eod(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `index_flat_file_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `index_flat_file_eod()` for the sync signature; `index_flat_file_eod_async()` for the awaitable companion.
+    #[pyo3(signature = (date))]
+    fn index_flat_file_eod_builder(
+        &self,
+        date: PyDateArg,
+    ) -> IndexFlatFileEodBuilder {
+        IndexFlatFileEodBuilder {
+            client: self.client.clone(),
+            date: date.into_string(),
             timeout_ms: None,
         }
     }

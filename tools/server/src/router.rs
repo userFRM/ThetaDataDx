@@ -85,14 +85,21 @@ pub fn build(state: AppState) -> Router {
 
     for ep in ENDPOINTS {
         let ep_arc: &'static EndpointMeta = ep;
-        let ep_shared = Arc::new(ep_arc);
-        let handler_fn =
-            move |s: axum::extract::State<AppState>,
-                  q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| {
-                let ep = Arc::clone(&ep_shared);
-                async move { handler::generic(s, q, &ep).await }
-            };
-        app = app.route(ep.rest_path, get(handler_fn));
+        // The flat files stream in the terminal's flat-file format; every
+        // other endpoint renders through the generic handler.
+        let route = if ep.subcategory == "flat_file" {
+            get(move |s, q| crate::flatfile_routes::serve(s, q, ep_arc))
+        } else {
+            let ep_shared = Arc::new(ep_arc);
+            get(
+                move |s: axum::extract::State<AppState>,
+                      q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| {
+                    let ep = Arc::clone(&ep_shared);
+                    async move { handler::generic(s, q, &ep).await }
+                },
+            )
+        };
+        app = app.route(ep.rest_path, route);
         registered += 1;
         tracing::debug!(endpoint = ep.name, path = ep.rest_path, "registered route");
     }
@@ -126,12 +133,6 @@ pub fn build(state: AppState) -> Router {
             "/v3/terminal/mdds/status",
             get(handler::terminal_market_data_status),
         );
-
-    // Flat-file routes — whole-universe daily blobs over
-    // HTTP. Not a WebSocket subscription stream; flat files are batch
-    // downloads and the bytes ride a streaming response body so the
-    // server doesn't pin multi-hundred-MB blobs in RAM.
-    app = crate::flatfile_routes::add_flatfile_routes(app);
 
     // `.layer(X).layer(Y)` in axum/tower makes Y wrap X (outer wraps inner),
     // so the LAST `.layer(...)` call is the outermost request wrapper.
@@ -311,8 +312,7 @@ mod tests {
         let _ = registry_route_handler("interest_rate_history_eod");
     }
 
-    /// The v3 wildcard flat-file route (`/v3/{sec_type}/flat_file/...`) and
-    /// the `{request_type}` path-segment routes must coexist with the
+    /// The `{request_type}` path-segment routes must coexist with the
     /// static `/v3/{stock,option,index}/...` registry routes WITHOUT a
     /// matchit conflict panic, AND must not shadow the static routes. This
     /// builds a bare `Router` carrying every real registry `rest_path` plus
@@ -322,9 +322,6 @@ mod tests {
     async fn v3_path_routes_coexist_with_registry_routes_without_shadowing() {
         async fn registry_marker() -> &'static str {
             "REGISTRY"
-        }
-        async fn flat_marker() -> &'static str {
-            "FLAT"
         }
         async fn rt_marker(axum::extract::Path(rt): axum::extract::Path<String>) -> String {
             format!("RT:{rt}")
@@ -339,7 +336,6 @@ mod tests {
         // The new server-level path forms (same patterns as the production
         // wiring, minus the live handlers).
         app = app
-            .route("/v3/{sec_type}/flat_file/{req_type}", get(flat_marker))
             .route("/v3/stock/list/dates/{request_type}", get(rt_marker))
             .route("/v3/option/list/dates/{request_type}", get(rt_marker))
             .route("/v3/option/list/contracts/{request_type}", get(rt_marker));
@@ -357,12 +353,8 @@ mod tests {
             (status, String::from_utf8(bytes.to_vec()).unwrap())
         }
 
-        // Flat-file v3 path resolves to the wildcard route.
-        let (st, body) = get_body(&app, "/v3/option/flat_file/trade_quote").await;
-        assert_eq!((st, body.as_str()), (StatusCode::OK, "FLAT"));
-
-        // A static registry data route is NOT shadowed by the `{sec_type}`
-        // wildcard.
+        // A static registry data route is NOT shadowed by a path-segment
+        // route.
         let (st, body) = get_body(&app, "/v3/option/snapshot/ohlc").await;
         assert_eq!((st, body.as_str()), (StatusCode::OK, "REGISTRY"));
 

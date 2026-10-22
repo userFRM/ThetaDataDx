@@ -17,7 +17,7 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 
 ## Features
 
-- **Complete coverage**: stocks, options, indices, and rates across 73 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Fully typed** — every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
 - **Greeks on demand** — five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
@@ -207,38 +207,32 @@ await client.stream.startStreaming((event: StreamEvent) => {
 
 ## Flat files
 
-Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so the binding emits Arrow IPC bytes — pair with `apache-arrow`'s `tableFromIPC` to materialise a typed `Table`:
+Whole-universe files for one date. Each file the vendor serves is an endpoint like any other: option `eod`, `trade_quote`, `open_interest` and `quote`; stock `eod`, `trade_quote` and `quote`; index `eod`:
 
 ```typescript
 import { Client } from 'thetadatadx-ts';
-import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
 const client = await Client.connectFromFile('creds.txt');
 
-const rows = await client.flatFiles.optionTradeQuote('20260428');
-console.log(rows.len());
+const eod = await client.marketData.stockFlatFileEOD('20260428');
 
-const table = tableFromIPC(rows.toArrowIpc());
-// Or skip Arrow entirely: const json = JSON.parse(rows.toJson());
-
-// Generic dispatcher when security type / request type come from config
-const oi = await client.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428');
-
-// Or write the raw vendor file straight to disk
-await client.flatFileToPath('OPTION', 'TRADE_QUOTE', '20260428', '/tmp/option-trade-quote', 'csv');
+// The large files stream chunk by chunk, with the default deadline lifted
+await client.marketData.optionFlatFileTradeQuoteStream('20260428', { timeoutMs: 0 }, (chunk) => {
+  console.log(chunk.length);
+});
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`. Available `flatFiles.*` methods: `optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`. The generic `request(...)` and `flatFileToPath(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
+The `flatFiles` view (`optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, `request(...)`) and `flatFileToPath(...)` read the vendor's older flat-file service, which serves five of those datasets and rejects an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 
-73 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+81 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 13 | EOD, OHLC, trades, quotes, snapshots, at-time |
-| Option | 47 | Every stock surface plus every Greeks tier in both the Black-Scholes and binomial families, open interest, contract lists |
-| Index | 9 | EOD, OHLC, price, snapshots |
+| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time, flat files |
+| Option | 51 | Every stock surface plus every Greeks tier in both the Black-Scholes and binomial families, open interest, contract lists |
+| Index | 10 | EOD, OHLC, price, snapshots, flat files |
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 

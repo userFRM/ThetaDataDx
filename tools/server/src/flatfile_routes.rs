@@ -1,851 +1,821 @@
-//! Hand-written flat-file route surface for the REST server.
+//! The flat-file routes: `/v3/{option,stock,index}/flat_file/{request}`.
 //!
-//! Flat files are server-pre-built whole-universe daily blobs. They are a
-//! one-shot batch download — NOT a WebSocket subscription stream — so the
-//! route surface is HTTP-only by design. Streaming the bytes back to the
-//! client uses `axum::body::Body` over a tokio file reader so the server
-//! doesn't pin a multi-hundred-MB response in RAM.
+//! A flat file is the whole universe for one date. These routes answer the way
+//! the terminal answers them: the registry endpoint streams the file from the
+//! market-data service chunk by chunk, and each chunk is written out as soon
+//! as it is decoded, under the terminal's column names (`root`, `ms_of_day`,
+//! `ms_of_day2`, `interval_ms_of_day`, ...) with text and prices quoted and
+//! integers bare. Only the chunks in flight are held, whatever the size of the
+//! file.
 //!
-//! Route:
-//!
-//! - `GET /v3/{sec_type}/flat_file/{req_type}` — the terminal's flat-file
-//!   path form. Path segments parse case-insensitively to the matching
-//!   `SecType` / `ReqType`. Query params:
-//!   `date=YYYY-MM-DD|YYYYMMDD&format=csv|json|ndjson|jsonl|html`. The pair
-//!   must be a served flat-file dataset — option `trade_quote` /
-//!   `open_interest` / `eod`, stock `trade_quote` / `eod`; any
-//!   other `(sec_type, req_type)` pair returns `400 bad_request`.
-//!
-//! Every format is written row-by-row by its `RowSink`, so even a JSON
-//! array or an HTML table streams without buffering the whole blob: `csv`,
-//! `json` (a single JSON array), `ndjson` / `jsonl` (newline-delimited
-//! JSON), and `html` (an HTML table).
-//!
-//! Response:
-//! - `Content-Type: text/csv` (csv), `application/json` (json),
-//!   `application/x-ndjson` (ndjson / jsonl), or `text/html` (html).
-//! - Body is the file bytes streamed via `tokio_util::io::ReaderStream`.
-//! - On failure: standard error envelope (`error_type`, `error_msg`).
-//!
-//! Security note: the server requires authenticated access to ThetaData
-//! servers. The MDDS-flat-file path inherits the same `AppState`
-//! credentials as the per-endpoint surface; per-IP rate-limiting from
-//! `router::build` applies here too.
+//! The status line waits for the first chunk, so a refusal that arrives before
+//! any data (no file for the date, a date outside the account's entitlement)
+//! answers with the upstream's own status, as on every other route. A failure
+//! after data has been sent aborts the body rather than ending it, so a client
+//! cannot mistake a truncated file for a complete one.
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::fmt::Write as _;
+use std::ops::ControlFlow;
+use std::time::Duration;
 
-use axum::body::Body;
-use axum::extract::rejection::{PathRejection, QueryRejection};
-use axum::extract::{FromRequestParts, Path, Query, State};
-use axum::http::request::Parts;
+use axum::body::{Body, Bytes};
+use axum::extract::State;
 use axum::http::{header, StatusCode};
 use axum::response::Response;
-use axum::routing::get;
-use axum::Router;
-use serde::Deserialize;
-use thetadatadx::flatfiles::{
-    flat_file_serves, FlatFileFormat, FlatFilesUnavailableReason, ReqType, SecType,
+use thetadatadx::endpoint::EndpointError;
+use thetadatadx::flatfiles::FlatFileFormat;
+use thetadatadx::{
+    ColumnPresence, EndpointMeta, EodTick, IntervalQuoteTick, OpenInterestTick, Ticks,
+    TradeQuoteTick,
 };
-use tokio_util::io::ReaderStream;
+use tokio::sync::{mpsc, oneshot};
+use tokio_stream::wrappers::ReceiverStream;
 
-use crate::handler::error_response;
+use crate::handler::{self, BoundedQuery, MAX_QUERY_PARAMS};
 use crate::state::AppState;
 
-/// Query parameters for the flat-file route
-/// (`GET /v3/{sec_type}/flat_file/{req_type}`).
-#[derive(Debug, Deserialize)]
-pub(crate) struct FlatfileQuery {
-    /// Trading date in `YYYY-MM-DD` or `YYYYMMDD` form.
-    pub date: String,
-    /// On-disk format: `csv` (default), `json`, `ndjson` (or its `jsonl`
-    /// alias), or `html`.
-    #[serde(default)]
-    pub format: Option<String>,
-}
+/// Rendered chunks held between the upstream and a slower client. One entry is
+/// one decoded gRPC chunk, so this bounds what a download holds in memory.
+const CHUNKS_IN_FLIGHT: usize = 4;
 
-/// Define a `fn $name(&$rej) -> Response` that maps an axum extractor
-/// rejection onto the server's canonical error envelope.
-///
-/// Every rejection carries its own status (a malformed body is `400`, a
-/// missing `Content-Type` is `415`, a bad path segment is `400`) and a
-/// diagnostic `body_text()`; `bad_request` is the canonical `error_type`
-/// for any client-supplied input the server could not accept. Each mapper
-/// is pure over the rejection so the wire shape is testable without driving
-/// a live request through the router. `status()` / `body_text()` are inherent
-/// methods on each axum rejection (no shared trait), so this generates one
-/// named mapper per rejection type rather than a single generic function.
-macro_rules! rejection_response_fn {
-    ($name:ident, $rej:ty) => {
-        fn $name(rejection: &$rej) -> Response {
-            error_response(rejection.status(), "bad_request", &rejection.body_text())
-        }
-    };
-}
+type Chunk = Result<Bytes, std::io::Error>;
 
-// ── Query extractor with a canonical-envelope rejection ──────────────────
-
-/// `axum::Query` wrapper whose extraction failure renders the server's
-/// canonical error envelope instead of axum's default plain-text 400.
-///
-/// The convenience GET route carries its `date` (required) and `format`
-/// in the query string. A request with a missing `date` or an otherwise
-/// malformed query string fails deserialization in the extractor, before
-/// the handler body runs. With the stock `Query` extractor that surfaces
-/// as a bare text `400`, diverging from the canonical
-/// `{"header":{"error_type":...,"error_msg":...},"response":[]}` envelope
-/// that the POST sibling and every other route family return. Clients
-/// drive retry / backoff off `header.error_type`, so the GET path must
-/// fail the same shape as the POST path. This extractor maps the
-/// `QueryRejection` onto `error_response` and otherwise behaves exactly
-/// like `axum::Query<T>`.
-pub(crate) struct FlatfileQueryExtractor<T>(pub(crate) T);
-
-impl<S, T> FromRequestParts<S> for FlatfileQueryExtractor<T>
-where
-    axum::extract::Query<T>: FromRequestParts<S, Rejection = QueryRejection>,
-    S: Send + Sync,
-{
-    type Rejection = Response;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Query::<T>::from_request_parts(parts, state).await {
-            Ok(Query(value)) => Ok(Self(value)),
-            Err(rejection) => Err(query_rejection_response(&rejection)),
-        }
-    }
-}
-
-// A query string the server could not deserialize (missing required `date`,
-// malformed key/value) is a client-supplied input fault: `400`,
-// `error_type="bad_request"`.
-rejection_response_fn!(query_rejection_response, QueryRejection);
-
-// The brace route matches a non-UTF-8 percent-encoded segment (`%ff`);
-// `Path::<(String, String)>` then fails `decode_utf8()` and rejects. Without
-// this the GET path answers axum's default plain-text 400 (`Invalid UTF-8 in
-// \`sec_type\``), diverging from the canonical envelope the query and POST
-// siblings return — the contract clients drive retry / backoff off.
-rejection_response_fn!(path_rejection_response, PathRejection);
-
-/// Reject an `(sec_type, req_type)` pair the flat-file distribution does not
-/// serve, at the route boundary, before any temp-path or upstream work.
-///
-/// The route surface parses the security and request types case-insensitively
-/// to their variants; this guard then constrains the pair to the served matrix
-/// (option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` /
-/// `eod`) so an impossible combination — e.g. `INDEX`, or stock
-/// `open_interest` — fails as a `400 bad_request` here rather than reaching the
-/// SDK gate. The served matrix is the single source of truth.
-fn reject_unserved_dataset(sec_type: SecType, req_type: ReqType) -> Result<(), String> {
-    if flat_file_serves(sec_type, req_type) {
-        Ok(())
-    } else {
-        Err(format!(
-            "flat-file service does not serve {sec_type} {}",
-            req_type.as_str()
-        ))
-    }
-}
-
-fn content_type_for(format: FlatFileFormat) -> &'static str {
-    match format {
-        FlatFileFormat::Csv => "text/csv; charset=utf-8",
-        // application/x-ndjson is the standard MIME for JSON Lines blobs.
-        FlatFileFormat::Jsonl => "application/x-ndjson; charset=utf-8",
-        FlatFileFormat::Json => "application/json; charset=utf-8",
-        FlatFileFormat::Html => "text/html; charset=utf-8",
-    }
-}
-
-// ── Handlers ─────────────────────────────────────────────────────────────
-
-async fn handle_get(
-    state: State<AppState>,
-    // A non-UTF-8 percent-encoded segment (`%ff`) matches the brace route but
-    // fails `Path`'s `decode_utf8()`, so the rejection is reachable. Take the
-    // `Result` and route the failure through `error_response` so it answers
-    // the canonical JSON envelope, matching the query sibling — instead of
-    // axum's default plain-text 400.
-    path: Result<Path<(String, String)>, PathRejection>,
-    FlatfileQueryExtractor(params): FlatfileQueryExtractor<FlatfileQuery>,
+/// Serve the flat-file endpoint `ep` for one request.
+pub(crate) async fn serve(
+    State(state): State<AppState>,
+    BoundedQuery(pairs): BoundedQuery<MAX_QUERY_PARAMS>,
+    ep: &'static EndpointMeta,
 ) -> Response {
-    let Path((sec_type_s, req_type_s)) = match path {
-        Ok(p) => p,
-        Err(rej) => return path_rejection_response(&rej),
-    };
-    let sec_type = match sec_type_s.parse::<SecType>() {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
-    };
-    let req_type = match req_type_s.parse::<ReqType>() {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
+    let params = handler::fold_query_pairs(ep, pairs);
+    if let Some(response) = handler::deprecated_v2_param_response(&params) {
+        return response;
+    }
+    let args = match handler::build_endpoint_args(ep, &params) {
+        Ok(args) => args,
+        Err(error) => return handler::endpoint_error_response(ep, error),
     };
     let format = match params
-        .format
-        .as_deref()
-        .map_or(Ok(FlatFileFormat::Csv), str::parse)
+        .get("format")
+        .map_or(Ok(FlatFileFormat::Csv), |f| f.parse())
     {
-        Ok(f) => f,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
+        Ok(format) => format,
+        Err(message) => return handler::plain_error_response(StatusCode::BAD_REQUEST, &message),
     };
-    // Validate `date` at the boundary, before it is interpolated into a
-    // temp PathBuf in `flatfile_paths`. Path safety must not depend solely
-    // on the downstream format validator rejecting non-YYYYMMDD first.
-    if let Err(e) = crate::validation::validate_date(&params.date, "date") {
-        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
-    }
-    if let Err(e) = reject_unserved_dataset(sec_type, req_type) {
-        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e);
-    }
-    // The v3 `date` param is documented `format: date` (dashed `YYYY-MM-DD`),
-    // but the driver requires exactly 8 digits — normalise a well-formed
-    // dashed date to `YYYYMMDD` here so both spellings reach it. Any other
-    // shape passes through for the driver to reject.
-    let date = normalize_flatfile_date(&params.date);
-    serve_flatfile(state, sec_type, req_type, &date, format).await
-}
+    let date = match args.required_date("date") {
+        Ok(date) => date.to_owned(),
+        Err(error) => return handler::endpoint_error_response(ep, error),
+    };
 
-/// Normalise a well-formed `YYYY-MM-DD` date to the `YYYYMMDD` the flat-file
-/// driver requires; any other input passes through unchanged for the driver
-/// to accept or reject.
-fn normalize_flatfile_date(date: &str) -> String {
-    let b = date.as_bytes();
-    let dashed = b.len() == 10
-        && b.iter().enumerate().all(|(i, &c)| {
-            if i == 4 || i == 7 {
-                c == b'-'
-            } else {
-                c.is_ascii_digit()
-            }
-        });
-    if dashed {
-        format!("{}{}{}", &date[0..4], &date[5..7], &date[8..10])
-    } else {
-        date.to_owned()
+    let (chunks, body) = mpsc::channel(CHUNKS_IN_FLIGHT);
+    let (started, start) = oneshot::channel();
+    tokio::spawn(stream_file(state, ep, date, format, chunks, started));
+    match start.await {
+        Ok(Ok(())) => file_response(ep, &params, format, body),
+        Ok(Err(error)) => handler::endpoint_error_response(ep, error),
+        Err(_) => handler::plain_error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the flat-file stream ended before it answered",
+        ),
     }
 }
 
-/// Map an SDK flat-file error onto the HTTP `(status, error_type)` the
-/// route answers with.
-///
-/// Three classes, each with a distinct status so a client can tell them
-/// apart from the response code alone rather than parsing the message:
-///
-/// * **400 `bad_request`** — the request never reached the upstream. The
-///   SDK's local dataset gate rejected an unserved `(sec_type, req_type)`
-///   pair (a typed invalid-parameter [`thetadatadx::Error::Config`]).
-/// * **404 `flatfiles_no_data`** — the upstream answered, but no flat file
-///   is available to this account for the requested `date`: the daily
-///   snapshot has not been generated yet, or the account's history
-///   entitlement does not cover that date (the upstream returns a
-///   `PERMISSION` rejection naming the first accessible date). This is a
-///   normal "nothing here for you" outcome, not a gateway failure — a 502
-///   would wrongly signal the upstream is broken and invite a retry that
-///   cannot succeed.
-/// * **502 `flatfiles_unavailable`** — a genuine upstream/transport fault
-///   (mid-stream truncation, auth rejection, connection drop). The upstream
-///   is the failing dependency, so `Bad Gateway` is the honest status.
-fn classify_flatfile_error(e: &thetadatadx::Error) -> (StatusCode, &'static str) {
-    match e {
-        thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter() => {
-            (StatusCode::BAD_REQUEST, "bad_request")
-        }
-        // No-data arrives two ways: an `ERROR` frame whose diagnostic names
-        // the reason (`RequestRejected`, message-classified), or a
-        // connection-scoped `DISCONNECTED` whose `RemoveReason` is a no-data
-        // code such as `NoStartDate` (`AuthRejected`, reason-classified by
-        // the SDK). Both are "nothing here for this account/date", not a
-        // gateway fault, so both map to 404 — otherwise the same no-data
-        // condition answers 404 via one frame type and 502 via the other.
-        thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
-            server_message,
-        }) if rejection_is_no_data(server_message) => (StatusCode::NOT_FOUND, "flatfiles_no_data"),
-        thetadatadx::Error::FlatFilesUnavailable(reason) if reason.is_no_data() => {
-            (StatusCode::NOT_FOUND, "flatfiles_no_data")
-        }
-        _ => (StatusCode::BAD_GATEWAY, "flatfiles_unavailable"),
-    }
-}
-
-/// Whether an upstream `RequestRejected` message describes a "no flat file
-/// available for this account/date" condition rather than a transport
-/// fault.
-///
-/// The upstream tags these with a leading reason token. `PERMISSION:`
-/// covers the history-entitlement boundary (`"Invalid permissions for
-/// date. Your first access date is: YYYYMMDD ..."`); `NO_START_DATE`
-/// covers a date with no generated snapshot. Matching the tagged prefix
-/// keeps the classifier from sweeping a genuinely malformed-request
-/// rejection (`INVALID_PARAMS`) into the no-data bucket — that stays a 502
-/// so it is not silently masked as an empty result.
-///
-/// The leading reason is a tagged prefix, so the match is anchored on the
-/// prefix rather than a whitespace/`:`-split first token: a leading space
-/// would split to an empty token (wrongly 502), and prose like
-/// `"PERMISSION denied"` would match a bare `PERMISSION` token (wrongly
-/// 404). `trim()` then `starts_with` the exact `PERMISSION:` /
-/// `NO_START_DATE` tags avoids both.
-fn rejection_is_no_data(server_message: &str) -> bool {
-    let trimmed = server_message.trim();
-    trimmed.starts_with("PERMISSION:") || trimmed.starts_with("NO_START_DATE")
-}
-
-async fn serve_flatfile(
-    state: State<AppState>,
-    sec_type: SecType,
-    req_type: ReqType,
-    date: &str,
+fn file_response(
+    ep: &EndpointMeta,
+    params: &HashMap<String, String>,
     format: FlatFileFormat,
+    body: mpsc::Receiver<Chunk>,
 ) -> Response {
-    // Pull and decode into a per-request scratch file, open it, and
-    // unlink it before streaming it back through tokio_util's
-    // ReaderStream, so even multi-GB files never pin server memory. The
-    // open handle keeps the data readable until the body finishes or the
-    // client disconnects, and the OS reclaims the space then; nothing is
-    // left in the temp directory. The scratch name carries a per-request
-    // random suffix, so concurrent requests for the same slice never
-    // share or remove each other's file.
-    let (scratch_path, filename) = flatfile_paths(sec_type, req_type, date, format);
-
-    let written_scratch = match state
-        .client()
-        .flatfile_request(sec_type, req_type, date, &scratch_path, format)
-        .await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            let _ = tokio::fs::remove_file(&scratch_path).await;
-            let (status, error_type) = classify_flatfile_error(&e);
-            return error_response(status, error_type, &e.to_string());
-        }
+    let builder = Response::builder().status(StatusCode::OK);
+    let builder = match format {
+        FlatFileFormat::Csv => builder
+            .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
+            .header(
+                header::CONTENT_DISPOSITION,
+                format!(
+                    "attachment; filename=\"{}\"",
+                    handler::csv_attachment_filename(ep, params)
+                ),
+            ),
+        FlatFileFormat::Json => builder.header(header::CONTENT_TYPE, handler::JSON_CONTENT_TYPE),
+        FlatFileFormat::Jsonl => builder.header(header::CONTENT_TYPE, handler::NDJSON_CONTENT_TYPE),
+        FlatFileFormat::Html => builder.header(header::CONTENT_TYPE, "text/html; charset=utf-8"),
     };
-
-    // Honour whatever path the SDK returned.
-    let opened = tokio::fs::File::open(&written_scratch).await;
-    let _ = tokio::fs::remove_file(&written_scratch).await;
-    let file = match opened {
-        Ok(f) => f,
-        Err(e) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "io_error",
-                &format!("failed to open written flatfile: {e}"),
-            );
-        }
-    };
-    let stream = ReaderStream::new(file);
-    let body = Body::from_stream(stream);
-
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, content_type_for(format))
-        .header(
-            header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{filename}\""),
-        )
-        .body(body)
-        .unwrap_or_else(|e| {
-            tracing::error!(error = %e, "flatfile response build failed");
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "internal",
-                "response build failed",
-            )
+    builder
+        .body(Body::from_stream(ReceiverStream::new(body)))
+        .unwrap_or_else(|error| {
+            handler::plain_error_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
         })
 }
 
-/// Add the flat-file route onto an existing axum router.
-///
-/// `/v3/{sec_type}/flat_file/{req_type}` — the v3 form the JVM terminal serves
-/// (e.g. `/v3/option/flat_file/trade_quote`). The terminal carries `date` +
-/// `format` in the query string and `sec_type` / `req_type` in the path. An
-/// unserved `(sec_type, req_type)` pair (stock `open_interest`, any non-EOD
-/// `index`) fails the served-matrix gate as a `400 bad_request`.
-pub(crate) fn add_flatfile_routes(router: Router<AppState>) -> Router<AppState> {
-    router.route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
+/// Stream the file from the endpoint into `chunks`, reporting on `started`
+/// whether the response can begin.
+async fn stream_file(
+    state: AppState,
+    ep: &'static EndpointMeta,
+    date: String,
+    format: FlatFileFormat,
+    chunks: mpsc::Sender<Chunk>,
+    started: oneshot::Sender<Result<(), EndpointError>>,
+) {
+    let client = state.client().market_data();
+    let option = ep.category == "option";
+    // A whole-universe file takes as long as it takes, so the download runs
+    // with no deadline. The client bounds it instead: the download ends, and
+    // the upstream call is cancelled, as soon as the client stops reading, so
+    // a live but silent upstream holds a request only while its client waits.
+    macro_rules! stream {
+        ($tick:ty, $endpoint:ident) => {{
+            let mut file = FileWriter::<$tick>::new(format, option, chunks.clone(), started);
+            let download = client
+                .$endpoint(&date)
+                .with_deadline(Duration::ZERO)
+                .stream_ticks_async(|ticks| file.chunk(&ticks));
+            let outcome = tokio::select! {
+                outcome = download => outcome,
+                () = chunks.closed() => Ok(()),
+            };
+            file.finish(outcome).await;
+        }};
+    }
+    match ep.name {
+        "option_flat_file_eod" => stream!(EodTick, option_flat_file_eod),
+        "option_flat_file_trade_quote" => stream!(TradeQuoteTick, option_flat_file_trade_quote),
+        "option_flat_file_open_interest" => {
+            stream!(OpenInterestTick, option_flat_file_open_interest)
+        }
+        "option_flat_file_quote" => stream!(IntervalQuoteTick, option_flat_file_quote),
+        "stock_flat_file_eod" => stream!(EodTick, stock_flat_file_eod),
+        "stock_flat_file_trade_quote" => stream!(TradeQuoteTick, stock_flat_file_trade_quote),
+        "stock_flat_file_quote" => stream!(IntervalQuoteTick, stock_flat_file_quote),
+        "index_flat_file_eod" => stream!(EodTick, index_flat_file_eod),
+        other => {
+            let _ = started.send(Err(EndpointError::Server(
+                thetadatadx::Error::config_internal(format!(
+                    "the server has no flat-file stream for {other}"
+                )),
+            )));
+        }
+    }
 }
 
-/// Compute the `(scratch_path, filename)` pair for a flatfile request.
-///
-/// `filename` is the attachment name, deterministic per `(sec_type,
-/// req_type, date, format)`. `scratch_path` is unique per request via a
-/// random suffix, so a request only ever writes and unlinks its own file.
-fn flatfile_paths(
-    sec_type: SecType,
-    req_type: ReqType,
-    date: &str,
+/// One cell of a flat-file row, rendered the way the terminal writes it.
+#[derive(Clone, Copy)]
+enum Value<'a> {
+    /// Text, quoted: the root.
+    Text(&'a str),
+    /// A one-character code, quoted: the option right.
+    Char(char),
+    /// A bare integer.
+    Int(i64),
+    /// A price, quoted, with at least one decimal digit (`"808.0"`).
+    Price(f64),
+    /// A cell the vendor left empty.
+    Null,
+}
+
+/// A column the terminal writes after the contract identity: its header, the
+/// schema field the presence set names it by, and its value on a row.
+struct Column<T> {
+    header: &'static str,
+    field: &'static str,
+    value: fn(&T) -> Value<'static>,
+}
+
+const fn col<T>(
+    header: &'static str,
+    field: &'static str,
+    value: fn(&T) -> Value<'static>,
+) -> Column<T> {
+    Column {
+        header,
+        field,
+        value,
+    }
+}
+
+fn code(value: i32, present: bool) -> Value<'static> {
+    if present {
+        Value::Int(value.into())
+    } else {
+        Value::Null
+    }
+}
+
+/// A tick type a flat file decodes into, with the columns the terminal writes
+/// for it, in the terminal's order.
+trait FlatFileTick: Sized + Send + Sync + 'static {
+    const COLUMNS: &'static [Column<Self>];
+
+    /// Expiration, strike and right: the contract identity option files carry.
+    fn contract(&self) -> (i32, f64, char);
+}
+
+impl FlatFileTick for EodTick {
+    const COLUMNS: &'static [Column<Self>] = &[
+        col("ms_of_day", "created_ms_of_day", |t| {
+            Value::Int(t.created_ms_of_day.into())
+        }),
+        col("ms_of_day2", "last_trade_ms_of_day", |t| {
+            Value::Int(t.last_trade_ms_of_day.into())
+        }),
+        col("open", "open", |t| Value::Price(t.open)),
+        col("high", "high", |t| Value::Price(t.high)),
+        col("low", "low", |t| Value::Price(t.low)),
+        col("close", "close", |t| Value::Price(t.close)),
+        col("volume", "volume", |t| Value::Int(t.volume)),
+        col("count", "count", |t| Value::Int(t.count)),
+        col("bid_size", "bid_size", |t| Value::Int(t.bid_size.into())),
+        col("bid_exchange", "bid_exchange", |t| {
+            code(t.bid_exchange, t.has_bid_exchange)
+        }),
+        col("bid", "bid", |t| Value::Price(t.bid)),
+        col("bid_condition", "bid_condition", |t| {
+            code(t.bid_condition, t.has_bid_condition)
+        }),
+        col("ask_size", "ask_size", |t| Value::Int(t.ask_size.into())),
+        col("ask_exchange", "ask_exchange", |t| {
+            code(t.ask_exchange, t.has_ask_exchange)
+        }),
+        col("ask", "ask", |t| Value::Price(t.ask)),
+        col("ask_condition", "ask_condition", |t| {
+            code(t.ask_condition, t.has_ask_condition)
+        }),
+        col("date", "date", |t| Value::Int(t.date.into())),
+    ];
+
+    fn contract(&self) -> (i32, f64, char) {
+        (self.expiration, self.strike, self.right)
+    }
+}
+
+impl FlatFileTick for TradeQuoteTick {
+    const COLUMNS: &'static [Column<Self>] = &[
+        col("ms_of_day", "ms_of_day", |t| Value::Int(t.ms_of_day.into())),
+        col("sequence", "sequence", |t| Value::Int(t.sequence.into())),
+        col("ext_condition1", "ext_condition1", |t| {
+            code(t.ext_condition1, t.has_ext_condition1)
+        }),
+        col("ext_condition2", "ext_condition2", |t| {
+            code(t.ext_condition2, t.has_ext_condition2)
+        }),
+        col("ext_condition3", "ext_condition3", |t| {
+            code(t.ext_condition3, t.has_ext_condition3)
+        }),
+        col("ext_condition4", "ext_condition4", |t| {
+            code(t.ext_condition4, t.has_ext_condition4)
+        }),
+        col("condition", "condition", |t| {
+            code(t.condition, t.has_condition)
+        }),
+        col("size", "size", |t| Value::Int(t.size.into())),
+        col("exchange", "exchange", |t| code(t.exchange, t.has_exchange)),
+        col("price", "price", |t| Value::Price(t.price)),
+        col("condition_flags", "condition_flags", |t| {
+            Value::Int(t.condition_flags.into())
+        }),
+        col("price_flags", "price_flags", |t| {
+            Value::Int(t.price_flags.into())
+        }),
+        col("volume_type", "volume_type", |t| {
+            Value::Int(t.volume_type.into())
+        }),
+        col("records_back", "records_back", |t| {
+            Value::Int(t.records_back.into())
+        }),
+        col("ms_of_day2", "quote_ms_of_day", |t| {
+            Value::Int(t.quote_ms_of_day.into())
+        }),
+        col("bid_size", "bid_size", |t| Value::Int(t.bid_size.into())),
+        col("bid_exchange", "bid_exchange", |t| {
+            code(t.bid_exchange, t.has_bid_exchange)
+        }),
+        col("bid", "bid", |t| Value::Price(t.bid)),
+        col("bid_condition", "bid_condition", |t| {
+            code(t.bid_condition, t.has_bid_condition)
+        }),
+        col("ask_size", "ask_size", |t| Value::Int(t.ask_size.into())),
+        col("ask_exchange", "ask_exchange", |t| {
+            code(t.ask_exchange, t.has_ask_exchange)
+        }),
+        col("ask", "ask", |t| Value::Price(t.ask)),
+        col("ask_condition", "ask_condition", |t| {
+            code(t.ask_condition, t.has_ask_condition)
+        }),
+        col("date", "date", |t| Value::Int(t.date.into())),
+    ];
+
+    fn contract(&self) -> (i32, f64, char) {
+        (self.expiration, self.strike, self.right)
+    }
+}
+
+impl FlatFileTick for OpenInterestTick {
+    const COLUMNS: &'static [Column<Self>] = &[
+        col("ms_of_day", "ms_of_day", |t| Value::Int(t.ms_of_day.into())),
+        col("open_interest", "open_interest", |t| {
+            Value::Int(t.open_interest.into())
+        }),
+        col("date", "date", |t| Value::Int(t.date.into())),
+    ];
+
+    fn contract(&self) -> (i32, f64, char) {
+        (self.expiration, self.strike, self.right)
+    }
+}
+
+impl FlatFileTick for IntervalQuoteTick {
+    const COLUMNS: &'static [Column<Self>] = &[
+        col("interval_ms_of_day", "interval_ms_of_day", |t| {
+            Value::Int(t.interval_ms_of_day.into())
+        }),
+        col("quote_ms_of_day", "quote_ms_of_day", |t| {
+            Value::Int(t.quote_ms_of_day.into())
+        }),
+        col("bid_size", "bid_size", |t| Value::Int(t.bid_size.into())),
+        col("bid_exchange", "bid_exchange", |t| {
+            code(t.bid_exchange, t.has_bid_exchange)
+        }),
+        col("bid", "bid", |t| Value::Price(t.bid)),
+        col("bid_condition", "bid_condition", |t| {
+            code(t.bid_condition, t.has_bid_condition)
+        }),
+        col("ask_size", "ask_size", |t| Value::Int(t.ask_size.into())),
+        col("ask_exchange", "ask_exchange", |t| {
+            code(t.ask_exchange, t.has_ask_exchange)
+        }),
+        col("ask", "ask", |t| Value::Price(t.ask)),
+        col("ask_condition", "ask_condition", |t| {
+            code(t.ask_condition, t.has_ask_condition)
+        }),
+        col("date", "date", |t| Value::Int(t.date.into())),
+    ];
+
+    fn contract(&self) -> (i32, f64, char) {
+        (self.expiration, self.strike, self.right)
+    }
+}
+
+/// The columns one file is written with, fixed by its first chunk: the ones
+/// the response carried, in the terminal's order.
+struct Layout<T: 'static> {
+    root: bool,
+    contract: bool,
+    columns: Vec<&'static Column<T>>,
+}
+
+impl<T: FlatFileTick> Layout<T> {
+    /// The layout of a response whose columns are `presence`; every column
+    /// when no chunk arrived to say which.
+    fn new(option: bool, presence: Option<&ColumnPresence>) -> Self {
+        let carried = |field: &str| presence.is_none_or(|p| p.contains(field));
+        Self {
+            root: presence.is_none_or(|p| p.symbol().is_some() || p.symbols().is_some()),
+            contract: presence.map_or(option, |p| p.contains("expiration")),
+            columns: T::COLUMNS.iter().filter(|c| carried(c.field)).collect(),
+        }
+    }
+
+    fn headers(&self) -> impl Iterator<Item = &'static str> + '_ {
+        let root = self.root.then_some("root");
+        let contract = self
+            .contract
+            .then_some(["expiration", "strike", "right"])
+            .into_iter()
+            .flatten();
+        root.into_iter()
+            .chain(contract)
+            .chain(self.columns.iter().map(|c| c.header))
+    }
+
+    fn values<'a>(
+        &'a self,
+        root: Option<&'a str>,
+        tick: &'a T,
+    ) -> impl Iterator<Item = (&'static str, Value<'a>)> + 'a {
+        let root = self
+            .root
+            .then(|| ("root", root.map_or(Value::Null, Value::Text)));
+        let contract = self
+            .contract
+            .then(|| {
+                let (expiration, strike, right) = tick.contract();
+                [
+                    ("expiration", Value::Int(expiration.into())),
+                    ("strike", Value::Price(strike)),
+                    ("right", Value::Char(right)),
+                ]
+            })
+            .into_iter()
+            .flatten();
+        root.into_iter().chain(contract).chain(
+            self.columns
+                .iter()
+                .map(move |c| (c.header, (c.value)(tick))),
+        )
+    }
+}
+
+/// Writes one file's chunks in the requested format.
+struct FileWriter<T: FlatFileTick> {
     format: FlatFileFormat,
-) -> (PathBuf, String) {
-    let filename = format!(
-        "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}",
-        req_type as u32,
-        format.extension(),
-    );
-    let scratch_path =
-        std::env::temp_dir().join(format!("{filename}.{}.partial", crate::random_hex_token()));
-    (scratch_path, filename)
+    option: bool,
+    layout: Option<Layout<T>>,
+    wrote_rows: bool,
+    chunks: mpsc::Sender<Chunk>,
+    started: Option<oneshot::Sender<Result<(), EndpointError>>>,
+}
+
+impl<T: FlatFileTick> FileWriter<T> {
+    fn new(
+        format: FlatFileFormat,
+        option: bool,
+        chunks: mpsc::Sender<Chunk>,
+        started: oneshot::Sender<Result<(), EndpointError>>,
+    ) -> Self {
+        Self {
+            format,
+            option,
+            layout: None,
+            wrote_rows: false,
+            chunks,
+            started: Some(started),
+        }
+    }
+
+    /// Render one decoded chunk and hand it to the response body. Breaks the
+    /// download once the client has gone.
+    fn chunk(
+        &mut self,
+        ticks: &Ticks<T>,
+    ) -> impl std::future::Future<Output = ControlFlow<()>> + Send + 'static {
+        let rendered = self.render(ticks);
+        if let Some(started) = self.started.take() {
+            let _ = started.send(Ok(()));
+        }
+        let chunks = self.chunks.clone();
+        async move {
+            match chunks.send(Ok(Bytes::from(rendered))).await {
+                Ok(()) => ControlFlow::Continue(()),
+                Err(_) => ControlFlow::Break(()),
+            }
+        }
+    }
+
+    fn render(&mut self, ticks: &Ticks<T>) -> String {
+        let mut out = String::with_capacity(ticks.len() * 160);
+        let presence = ticks.columns();
+        if self.layout.is_none() {
+            let layout = Layout::new(self.option, Some(presence));
+            prefix(&mut out, self.format, &layout);
+            self.layout = Some(layout);
+        }
+        if let Some(layout) = &self.layout {
+            for (i, tick) in ticks.iter().enumerate() {
+                let root = presence
+                    .symbols()
+                    .and_then(|roots| roots.get(i))
+                    .map(|root| &**root)
+                    .or_else(|| presence.symbol());
+                row(
+                    &mut out,
+                    self.format,
+                    !self.wrote_rows,
+                    layout.values(root, tick),
+                );
+                self.wrote_rows = true;
+            }
+        }
+        out
+    }
+
+    /// Close the file once the download ends: write what remains of it, or
+    /// report the failure the way the response can still carry it.
+    async fn finish(mut self, outcome: Result<(), thetadatadx::Error>) {
+        match outcome {
+            Ok(()) => {
+                let mut out = String::new();
+                if self.started.is_some() {
+                    // No chunk arrived: the file is its header alone.
+                    prefix(&mut out, self.format, &Layout::<T>::new(self.option, None));
+                }
+                suffix(&mut out, self.format);
+                if !out.is_empty() {
+                    let _ = self.chunks.send(Ok(Bytes::from(out))).await;
+                }
+                if let Some(started) = self.started.take() {
+                    let _ = started.send(Ok(()));
+                }
+            }
+            Err(error) => match self.started.take() {
+                Some(started) => {
+                    let _ = started.send(Err(EndpointError::Server(error)));
+                }
+                None => {
+                    tracing::warn!(%error, "flat-file download failed after the response began");
+                    let _ = self
+                        .chunks
+                        .send(Err(std::io::Error::other(error.to_string())))
+                        .await;
+                }
+            },
+        }
+    }
+}
+
+fn prefix<T: FlatFileTick>(out: &mut String, format: FlatFileFormat, layout: &Layout<T>) {
+    match format {
+        FlatFileFormat::Csv => {
+            for (i, header) in layout.headers().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str(header);
+            }
+            out.push('\n');
+        }
+        FlatFileFormat::Json => out.push_str("{\"response\":["),
+        FlatFileFormat::Jsonl => {}
+        FlatFileFormat::Html => {
+            out.push_str("<table><thead><tr>");
+            for header in layout.headers() {
+                let _ = write!(out, "<th>{header}</th>");
+            }
+            out.push_str("</tr></thead><tbody>");
+        }
+    }
+}
+
+fn suffix(out: &mut String, format: FlatFileFormat) {
+    match format {
+        FlatFileFormat::Csv | FlatFileFormat::Jsonl => {}
+        FlatFileFormat::Json => out.push_str("]}"),
+        FlatFileFormat::Html => out.push_str("</tbody></table>"),
+    }
+}
+
+fn row<'a>(
+    out: &mut String,
+    format: FlatFileFormat,
+    first: bool,
+    values: impl Iterator<Item = (&'static str, Value<'a>)>,
+) {
+    match format {
+        FlatFileFormat::Csv => {
+            for (i, (_, value)) in values.enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                push_csv(out, value);
+            }
+            out.push('\n');
+        }
+        FlatFileFormat::Json | FlatFileFormat::Jsonl => {
+            if format == FlatFileFormat::Json && !first {
+                out.push(',');
+            }
+            out.push('{');
+            for (i, (header, value)) in values.enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                let _ = write!(out, "\"{header}\":");
+                push_json(out, value);
+            }
+            out.push('}');
+            if format == FlatFileFormat::Jsonl {
+                out.push('\n');
+            }
+        }
+        FlatFileFormat::Html => {
+            out.push_str("<tr>");
+            for (_, value) in values {
+                out.push_str("<td>");
+                match value {
+                    Value::Text(text) => out.push_str(&crate::format::escape_html(text)),
+                    Value::Char(c) => out.push_str(&crate::format::escape_html(&c.to_string())),
+                    Value::Int(n) => {
+                        let _ = write!(out, "{n}");
+                    }
+                    Value::Price(p) => push_price(out, p),
+                    Value::Null => {}
+                }
+                out.push_str("</td>");
+            }
+            out.push_str("</tr>");
+        }
+    }
+}
+
+fn push_csv(out: &mut String, value: Value<'_>) {
+    match value {
+        Value::Text(text) => {
+            out.push('"');
+            for c in text.chars() {
+                if c == '"' {
+                    out.push('"');
+                }
+                out.push(c);
+            }
+            out.push('"');
+        }
+        Value::Char(c) => {
+            out.push('"');
+            out.push(c);
+            out.push('"');
+        }
+        Value::Int(n) => {
+            let _ = write!(out, "{n}");
+        }
+        Value::Price(p) => {
+            out.push('"');
+            push_price(out, p);
+            out.push('"');
+        }
+        Value::Null => {}
+    }
+}
+
+fn push_json(out: &mut String, value: Value<'_>) {
+    match value {
+        Value::Text(text) => push_json_string(out, text),
+        Value::Char(c) => push_json_string(out, c.encode_utf8(&mut [0; 4])),
+        Value::Int(n) => {
+            let _ = write!(out, "{n}");
+        }
+        Value::Price(p) => {
+            out.push('"');
+            push_price(out, p);
+            out.push('"');
+        }
+        Value::Null => out.push_str("null"),
+    }
+}
+
+fn push_json_string(out: &mut String, text: &str) {
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c.is_control() => {
+                let _ = write!(out, "\\u{:04x}", u32::from(c));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+}
+
+/// A price the way the terminal writes it: the shortest decimal that reads
+/// back as the same number, with `.0` on a whole one.
+fn push_price(out: &mut String, price: f64) {
+    let start = out.len();
+    let _ = write!(out, "{price}");
+    if !out[start..].contains('.') {
+        out.push_str(".0");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use thetadatadx::decode::{self, DecodeError, ResponseSymbol};
+    use thetadatadx::wire::{data_value::DataType, DataTable, DataValue, DataValueList, Price};
+    use thetadatadx::WireColumns;
 
-    /// Every documented flat-file `format` token maps to its variant and
-    /// content type; an unknown token is a `400` whose message lists the
-    /// supported set. `json` and `html` are first-class formats, not
-    /// aliases — the JSON array and HTML table stream row-by-row.
-    #[test]
-    fn parse_format_accepts_every_documented_token() {
-        for (token, want, ctype) in [
-            ("csv", FlatFileFormat::Csv, "text/csv; charset=utf-8"),
-            (
-                "json",
-                FlatFileFormat::Json,
-                "application/json; charset=utf-8",
-            ),
-            (
-                "ndjson",
-                FlatFileFormat::Jsonl,
-                "application/x-ndjson; charset=utf-8",
-            ),
-            (
-                "jsonl",
-                FlatFileFormat::Jsonl,
-                "application/x-ndjson; charset=utf-8",
-            ),
-            ("html", FlatFileFormat::Html, "text/html; charset=utf-8"),
-            ("HTML", FlatFileFormat::Html, "text/html; charset=utf-8"),
-        ] {
-            let got: FlatFileFormat = token.parse().expect("documented token must parse");
-            assert_eq!(got, want, "token {token:?} must map to {want:?}");
-            assert_eq!(content_type_for(got), ctype, "content type for {token:?}");
-        }
-        // Unknown token is a 400 that names the supported set.
-        let err = "parquet"
-            .parse::<FlatFileFormat>()
-            .expect_err("unknown token must reject");
-        assert!(
-            err.contains("csv, json, jsonl, ndjson or html"),
-            "rejection must list the supported formats; got {err:?}"
-        );
-    }
-
-    /// An upstream history-entitlement / no-snapshot rejection is a normal
-    /// "nothing here for this account/date" outcome, not a gateway failure.
-    /// It must map to `404 flatfiles_no_data` so a client distinguishes it
-    /// from a real upstream outage by status code alone — the boundary the
-    /// confusing `502 unexpected response id=-1` previously erased.
-    #[test]
-    fn no_data_rejection_maps_to_404() {
-        for msg in [
-            "PERMISSION:Invalid permissions for date. Your first access date is: 20260618 \
-             for flat files. Reach out to sales to inquire about deeper history.",
-            "NO_START_DATE:no flat file generated for the requested date",
-        ] {
-            let e = thetadatadx::Error::FlatFilesUnavailable(
-                FlatFilesUnavailableReason::RequestRejected {
-                    server_message: msg.to_string(),
+    /// Decode a chunk shaped like the terminal's file: its header line, then
+    /// rows whose quoted decimals are price cells, other quoted text is text,
+    /// and anything bare an integer. The presence set is built the way the
+    /// endpoint's stream builds it.
+    fn chunk<T: WireColumns>(
+        terminal: &str,
+        parse: fn(&DataTable) -> Result<Vec<T>, DecodeError>,
+    ) -> Ticks<T> {
+        let cell = |cell: &str| DataValue {
+            data_type: Some(
+                match cell.strip_prefix('"').and_then(|c| c.strip_suffix('"')) {
+                    None => DataType::Number(cell.parse().expect("integer cell")),
+                    Some(text) => match text.split_once('.') {
+                        Some((whole, fraction)) => DataType::Price(Price {
+                            value: format!("{whole}{fraction}").parse().expect("price cell"),
+                            r#type: 10 - i32::try_from(fraction.len()).expect("short fraction"),
+                        }),
+                        None => DataType::Text(text.to_owned()),
+                    },
                 },
-            );
-            assert_eq!(
-                classify_flatfile_error(&e),
-                (StatusCode::NOT_FOUND, "flatfiles_no_data"),
-                "no-data rejection must be a 404, not a 502: {msg}"
-            );
-        }
+            ),
+        };
+        let mut lines = terminal.lines();
+        let headers = lines.next().expect("header line").split(',');
+        let table = DataTable {
+            headers: headers.map(str::to_owned).collect(),
+            data_table: lines
+                .map(|line| DataValueList {
+                    values: line.split(',').map(cell).collect(),
+                })
+                .collect(),
+        };
+        let names: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+        let columns = T::present_columns(&names);
+        let columns = match decode::response_symbol(&table) {
+            ResponseSymbol::Constant(root) => columns.with_symbol(root),
+            ResponseSymbol::PerRow(roots) => columns.with_symbols(roots),
+            ResponseSymbol::Absent => columns,
+        };
+        Ticks::new(parse(&table).expect("the chunk decodes"), columns)
     }
 
-    /// A genuine upstream/transport or auth fault stays `502
-    /// flatfiles_unavailable`, and a malformed-request rejection is NOT
-    /// swept into the no-data bucket — masking a bad request as an empty
-    /// result would hide the fault. All must surface as 502. `AuthRejected
-    /// { 15 }` is `ServerRestarting` — a transient outage, not a no-data
-    /// condition. `AuthRejected { 3 }` is `GeneralValidationError` — a
-    /// login-phase credential/auth failure the upstream handles like
-    /// `InvalidCredentials`; classing it no-data would mask an auth failure
-    /// behind a `404`, so it must stay 502.
-    #[test]
-    fn transport_and_malformed_faults_stay_502() {
-        let cases = [
-            FlatFilesUnavailableReason::StreamTruncated {
-                bytes_received: 4096,
-            },
-            FlatFilesUnavailableReason::AuthRejected { reason_code: 15 },
-            FlatFilesUnavailableReason::AuthRejected { reason_code: 3 },
-            FlatFilesUnavailableReason::RequestRejected {
-                server_message: "INVALID_PARAMS:Invalid request type".to_string(),
-            },
-        ];
-        for reason in cases {
-            let e = thetadatadx::Error::FlatFilesUnavailable(reason.clone());
-            assert_eq!(
-                classify_flatfile_error(&e),
-                (StatusCode::BAD_GATEWAY, "flatfiles_unavailable"),
-                "transport / malformed fault must stay 502: {reason:?}"
-            );
-        }
+    fn written<T: FlatFileTick>(format: FlatFileFormat, option: bool, ticks: &Ticks<T>) -> String {
+        let (chunks, _body) = mpsc::channel(1);
+        let (started, _start) = oneshot::channel();
+        let mut out = FileWriter::<T>::new(format, option, chunks, started).render(ticks);
+        suffix(&mut out, format);
+        out
     }
 
-    /// A no-data `DISCONNECTED` arrives as `AuthRejected` carrying a
-    /// no-data `RemoveReason` (13 = NoStartDate, the out-of-window /
-    /// snapshot-not-generated condition). It is the same "nothing here for
-    /// this account/date" outcome as the `ERROR`-frame no-data, so it must
-    /// also map to `404 flatfiles_no_data` — not the `502` the default arm
-    /// would give. This is the server half of the regression fix: before,
-    /// a no-data `DISCONNECTED` ran the full retry ladder and then answered
-    /// `502`, while the same no-data via an `ERROR` frame answered `404`.
+    /// Each flat file is written the way the terminal writes it: the
+    /// terminal's own files for 2026-10-21, decoded from the cells the wire
+    /// carries and written out again, come back byte for byte. The quote files
+    /// carry a second root, since a chunk of a whole-universe file spans many.
     #[test]
-    fn no_data_disconnect_maps_to_404() {
-        let e =
-            thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
-                reason_code: 13,
-            });
+    fn flat_files_are_written_as_the_terminal_writes_them() {
+        use FlatFileFormat::{Csv, Json};
+
+        let option_eod = "root,expiration,strike,right,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"SPY\",20261030,\"808.0\",\"P\",62261420,0,\"0.0\",\"0.0\",\"0.0\",\"0.0\",0,0,1,1,\"33.41\",50,1,1,\"35.92\",50,20261021\n";
+        let stock_eod = "root,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"HCMA\",62128177,57600350,\"10.3\",\"10.3\",\"10.3\",\"10.3\",112241,101,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021\n";
+        let index_eod = "root,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"BCH20RP\",62104186,62103000,\"285.16\",\"290.31\",\"284.32\",\"288.58\",0,0,0,0,\"0.0\",0,0,0,\"0.0\",0,20261021\n";
+        for (option, terminal) in [(true, option_eod), (false, stock_eod), (false, index_eod)] {
+            let ticks = chunk(terminal, decode::parse_eod_ticks);
+            assert_eq!(written(Csv, option, &ticks), terminal);
+        }
+
+        let option_trade_quote = "root,expiration,strike,right,ms_of_day,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,condition_flags,price_flags,volume_type,records_back,ms_of_day2,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"SPY\",20261030,\"808.0\",\"C\",38866492,996731438,255,255,255,255,134,1,6,\"0.05\",0,7,0,0,38866492,631,6,\"0.05\",50,1217,42,\"0.06\",50,20261021\n";
+        let stock_trade_quote = "root,ms_of_day,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,condition_flags,price_flags,volume_type,records_back,ms_of_day2,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"HCMA\",34450481,4618650,32,95,255,115,115,3,63,\"10.28\",7,0,0,0,34450481,3000,65,\"10.28\",0,1800,1,\"10.33\",0,20261021\n";
+        for (option, terminal) in [(true, option_trade_quote), (false, stock_trade_quote)] {
+            let ticks = chunk(terminal, decode::parse_trade_quote_ticks);
+            assert_eq!(written(Csv, option, &ticks), terminal);
+        }
+
+        let option_open_interest = "root,expiration,strike,right,ms_of_day,open_interest,date\n\
+            \"SPY\",20261030,\"808.0\",\"P\",23400563,0,20261021\n";
+        let ticks = chunk(option_open_interest, decode::parse_open_interest_ticks);
+        assert_eq!(written(Csv, true, &ticks), option_open_interest);
+
+        let option_quote = "root,expiration,strike,right,interval_ms_of_day,quote_ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"ABG\",20270115,\"115.0\",\"C\",34260000,34259636,1,11,\"61.0\",50,1,11,\"65.0\",50,20261021\n\
+            \"ABM\",20270115,\"40.0\",\"P\",34320000,34319793,2,4,\"1.95\",50,2,4,\"2.2\",50,20261021\n";
+        let stock_quote = "root,interval_ms_of_day,quote_ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"HCMA\",14460000,14401256,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021\n\
+            \"HCMB\",25140000,25080173,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021\n";
+        for (option, terminal) in [(true, option_quote), (false, stock_quote)] {
+            let ticks = chunk(terminal, decode::parse_interval_quote_ticks);
+            assert_eq!(written(Csv, option, &ticks), terminal);
+        }
+
+        // The JSON form carries the same values: prices as strings, integers
+        // as numbers, wrapped in the `response` envelope.
+        let ticks = chunk(stock_quote, decode::parse_interval_quote_ticks);
         assert_eq!(
-            classify_flatfile_error(&e),
-            (StatusCode::NOT_FOUND, "flatfiles_no_data"),
-            "NoStartDate DISCONNECTED must be a 404, not a 502",
+            written(Json, false, &ticks),
+            "{\"response\":[\
+             {\"root\":\"HCMA\",\"interval_ms_of_day\":14460000,\"quote_ms_of_day\":14401256,\"bid_size\":100,\"bid_exchange\":7,\"bid\":\"10.26\",\"bid_condition\":0,\"ask_size\":100,\"ask_exchange\":7,\"ask\":\"10.35\",\"ask_condition\":0,\"date\":20261021},\
+             {\"root\":\"HCMB\",\"interval_ms_of_day\":25140000,\"quote_ms_of_day\":25080173,\"bid_size\":100,\"bid_exchange\":7,\"bid\":\"10.26\",\"bid_condition\":0,\"ask_size\":100,\"ask_exchange\":7,\"ask\":\"10.35\",\"ask_condition\":0,\"date\":20261021}\
+             ]}"
         );
     }
 
-    /// `rejection_is_no_data` matches the upstream's tagged reason prefix
-    /// robustly against whitespace and prose. A leading space must not
-    /// blank the match (regression: a whitespace/`:`-split first token went
-    /// empty → wrong 502), and `"PERMISSION denied"` prose must NOT match
-    /// (regression: a bare `PERMISSION` token → wrong 404). Only the exact
-    /// `PERMISSION:` / `NO_START_DATE` tags count.
-    #[test]
-    fn rejection_is_no_data_is_whitespace_and_prose_robust() {
-        // Tagged no-data reasons, including a leading-space variant.
-        assert!(rejection_is_no_data(
-            "PERMISSION:Invalid permissions for date. Your first access date is: 20260618"
-        ));
-        assert!(rejection_is_no_data("NO_START_DATE:no snapshot for date"));
-        assert!(
-            rejection_is_no_data("  PERMISSION:leading whitespace"),
-            "a leading space must not blank the no-data match"
-        );
-        assert!(rejection_is_no_data("\tNO_START_DATE:tab-led"));
-
-        // Prose / unrelated reasons must NOT be swept into no-data.
-        assert!(
-            !rejection_is_no_data("PERMISSION denied: contact support"),
-            "`PERMISSION denied` prose must not match the `PERMISSION:` tag"
-        );
-        assert!(!rejection_is_no_data("INVALID_PARAMS:Invalid request type"));
-        assert!(!rejection_is_no_data(""));
-        assert!(!rejection_is_no_data("   "));
-    }
-
-    /// The SDK's local dataset gate rejects an unserved pair before any
-    /// upstream call — a client request fault that stays `400 bad_request`.
-    #[test]
-    fn local_invalid_parameter_maps_to_400() {
-        let e = thetadatadx::Error::config_invalid(
-            "flatfiles.dataset",
-            "flat-file service does not serve index trade_quote",
-        );
-        assert_eq!(
-            classify_flatfile_error(&e),
-            (StatusCode::BAD_REQUEST, "bad_request"),
-        );
-    }
-
-    /// The served-matrix gate accepts every pair the distribution serves and
-    /// rejects everything else — including a pair whose security and request
-    /// types are each individually served but not as a pair (stock
-    /// open_interest). No index pair is served, so every index dataset is
-    /// rejected. The rejection names the dataset.
-    #[test]
-    fn unserved_dataset_is_rejected_at_the_boundary() {
-        for (sec, req) in [
-            (SecType::Option, ReqType::TradeQuote),
-            (SecType::Option, ReqType::OpenInterest),
-            (SecType::Option, ReqType::Eod),
-            (SecType::Stock, ReqType::TradeQuote),
-            (SecType::Stock, ReqType::Eod),
-        ] {
-            assert!(
-                reject_unserved_dataset(sec, req).is_ok(),
-                "served pair {sec} {} must be accepted",
-                req.as_str()
-            );
-        }
-
-        for (sec, req) in [
-            (SecType::Stock, ReqType::OpenInterest),
-            (SecType::Option, ReqType::Quote),
-            (SecType::Option, ReqType::Trade),
-            (SecType::Option, ReqType::Ohlc),
-            (SecType::Index, ReqType::Eod),
-            (SecType::Index, ReqType::TradeQuote),
-            (SecType::Index, ReqType::OpenInterest),
-        ] {
-            let err = reject_unserved_dataset(sec, req).expect_err(&format!(
-                "unserved pair {sec} {} must be rejected",
-                req.as_str()
-            ));
-            assert!(
-                err.contains("does not serve") && err.contains(req.as_str()),
-                "rejection must name the unserved dataset; got {err:?}"
-            );
-        }
-    }
-
-    /// A well-formed `YYYY-MM-DD` date normalises to the `YYYYMMDD` the
-    /// driver requires; a bare `YYYYMMDD` and any other shape pass through
-    /// unchanged.
-    #[test]
-    fn dashed_date_is_normalised_to_yyyymmdd() {
-        assert_eq!(normalize_flatfile_date("2026-04-28"), "20260428");
-        assert_eq!(normalize_flatfile_date("20260428"), "20260428");
-        // Not a well-formed dashed date: passed through for the driver to reject.
-        assert_eq!(normalize_flatfile_date("2026/04/28"), "2026/04/28");
-        assert_eq!(normalize_flatfile_date("2026-4-28"), "2026-4-28");
-        assert_eq!(normalize_flatfile_date("garbage"), "garbage");
-    }
-
-    /// A GET whose query string omits the required `date` param must
-    /// surface the server's canonical error envelope, not axum's default
-    /// plain-text 400. The `Query<FlatfileQuery>` deserialize fails in the
-    /// extractor before the handler body runs; the custom extractor routes
-    /// that failure through the same `error_response` helper every other
-    /// route family uses, so the GET path keys the same `header.error_type`
-    /// contract clients drive retry / backoff off.
+    /// A download that fails before any data answers with the failure's own
+    /// status; one that fails after data has gone out ends the body in an
+    /// error, so the client sees a broken transfer rather than a short file.
     #[tokio::test]
-    async fn get_missing_date_returns_canonical_envelope() {
-        use axum::body::to_bytes;
-        use axum::extract::FromRequestParts;
-        use axum::http::Request as HttpRequest;
-        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+    async fn a_failed_download_is_never_answered_as_a_complete_file() {
+        let failure = || thetadatadx::Error::config_internal("upstream reset");
+        let stock_eod = "root,ms_of_day,date\n\"HCMA\",62128177,20261021\n";
 
-        // No `date` key at all: `FlatfileQuery.date` is required, so the
-        // deserialize fails before the handler runs.
-        let request = HttpRequest::builder()
-            .method("GET")
-            .uri("/v3/option/flat_file/trade_quote?format=csv")
-            .body(Body::empty())
-            .unwrap();
-        let (mut parts, _) = request.into_parts();
+        let (chunks, mut body) = mpsc::channel(4);
+        let (started, start) = oneshot::channel();
+        let file = FileWriter::<EodTick>::new(FlatFileFormat::Csv, false, chunks, started);
+        file.finish(Err(failure())).await;
+        assert!(matches!(start.await, Ok(Err(EndpointError::Server(_)))));
+        assert!(body.recv().await.is_none(), "nothing reaches the body");
 
-        let rejection =
-            FlatfileQueryExtractor::<FlatfileQuery>::from_request_parts(&mut parts, &())
-                .await
-                .err()
-                .expect("a query string missing the required `date` must be rejected");
-
-        assert_eq!(
-            rejection.status(),
-            StatusCode::BAD_REQUEST,
-            "a missing required query param is a client fault (400)"
-        );
-        assert_eq!(
-            rejection
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some(crate::handler::JSON_CONTENT_TYPE),
-            "the rejection must be served as JSON, not plain text"
-        );
-
-        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
-        let value: sonic_rs::Value =
-            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
-
-        let header = value.get("header").expect("envelope must carry a header");
-        assert_eq!(
-            header.get("error_type").as_str(),
-            Some("bad_request"),
-            "clients drive retry off header.error_type"
-        );
+        let (chunks, mut body) = mpsc::channel(4);
+        let (started, start) = oneshot::channel();
+        let mut file = FileWriter::<EodTick>::new(FlatFileFormat::Csv, false, chunks, started);
+        let sent = file.chunk(&chunk(stock_eod, decode::parse_eod_ticks)).await;
+        assert!(sent.is_continue());
+        file.finish(Err(failure())).await;
+        assert!(matches!(start.await, Ok(Ok(()))));
+        assert!(matches!(body.recv().await, Some(Ok(_))));
         assert!(
-            header
-                .get("error_msg")
-                .as_str()
-                .is_some_and(|m| !m.is_empty()),
-            "the envelope must carry a non-empty diagnostic error_msg"
-        );
-        assert_eq!(
-            value
-                .get("response")
-                .and_then(|r| r.as_array())
-                .map(sonic_rs::Array::len),
-            Some(0),
-            "the error envelope's response array must be empty"
-        );
-    }
-
-    /// A GET with a malformed query string is rejected through the same
-    /// canonical envelope. Here `date` is present but supplied twice, which
-    /// the single-valued `String` field cannot deserialize.
-    #[tokio::test]
-    async fn get_malformed_query_string_returns_canonical_envelope() {
-        use axum::body::to_bytes;
-        use axum::extract::FromRequestParts;
-        use axum::http::Request as HttpRequest;
-        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
-
-        // `date` repeated: a single-valued `String` field cannot accept a
-        // multi-value sequence, so the query deserialize fails.
-        let request = HttpRequest::builder()
-            .method("GET")
-            .uri("/v3/option/flat_file/trade_quote?date=20260428&date=20260429")
-            .body(Body::empty())
-            .unwrap();
-        let (mut parts, _) = request.into_parts();
-
-        let rejection =
-            FlatfileQueryExtractor::<FlatfileQuery>::from_request_parts(&mut parts, &())
-                .await
-                .err()
-                .expect("a malformed query string must be rejected");
-
-        assert_eq!(
-            rejection.status(),
-            StatusCode::BAD_REQUEST,
-            "a malformed query string is a client fault (400)"
-        );
-        assert_eq!(
-            rejection
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some(crate::handler::JSON_CONTENT_TYPE),
-            "the rejection must be served as JSON, not plain text"
-        );
-
-        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
-        let value: sonic_rs::Value =
-            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
-
-        let header = value.get("header").expect("envelope must carry a header");
-        assert_eq!(
-            header.get("error_type").as_str(),
-            Some("bad_request"),
-            "clients drive retry off header.error_type"
-        );
-        assert!(
-            header
-                .get("error_msg")
-                .as_str()
-                .is_some_and(|m| !m.is_empty()),
-            "the envelope must carry a non-empty diagnostic error_msg"
-        );
-        assert_eq!(
-            value
-                .get("response")
-                .and_then(|r| r.as_array())
-                .map(sonic_rs::Array::len),
-            Some(0),
-            "the error envelope's response array must be empty"
-        );
-    }
-
-    /// A non-UTF-8 percent-encoded path segment (`%ff`) matches the brace
-    /// route and reaches `Path::<(String, String)>`, whose `decode_utf8()`
-    /// fails. The GET flat-file route must answer the canonical JSON
-    /// envelope (`{"header":{"error_type":"bad_request",...},"response":[]}`,
-    /// `Content-Type: application/json`, 400) rather than axum's default
-    /// plain-text 400, matching the query sibling.
-    ///
-    /// Driven through a stateless probe router that mounts the same
-    /// brace-route pattern over the same `path_rejection_response` mapping
-    /// the live `handle_get` uses, so the reachability chain (route match →
-    /// `Path` reject → envelope) is exercised end-to-end without a live
-    /// client.
-    #[tokio::test]
-    async fn malformed_path_segment_returns_canonical_envelope() {
-        use axum::body::to_bytes;
-        use axum::routing::get;
-        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
-        use tower::ServiceExt;
-
-        async fn probe(path: Result<Path<(String, String)>, PathRejection>) -> Response {
-            match path {
-                Ok(_) => error_response(StatusCode::OK, "ok", ""),
-                Err(rej) => path_rejection_response(&rej),
-            }
-        }
-
-        let app: Router = Router::new().route("/v3/{sec_type}/flat_file/{req_type}", get(probe));
-
-        // `%ff` decodes to the byte 0xFF, which is not valid UTF-8, so the
-        // `Path` deserialize rejects after the route matches.
-        let uri = "/v3/option/flat_file/%ff";
-        let request = axum::http::Request::builder()
-            .method("GET")
-            .uri(uri)
-            .body(Body::empty())
-            .unwrap();
-        let response = app.clone().oneshot(request).await.expect("router responds");
-
-        assert_eq!(
-            response.status(),
-            StatusCode::BAD_REQUEST,
-            "a non-UTF-8 path segment is a client fault (400): {uri}"
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some(crate::handler::JSON_CONTENT_TYPE),
-            "the rejection must be served as JSON, not plain text: {uri}"
-        );
-
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let value: sonic_rs::Value = sonic_rs::from_slice(&body)
-            .unwrap_or_else(|e| panic!("rejection body must be the JSON envelope ({uri}): {e}"));
-
-        let envelope_header = value.get("header").expect("envelope must carry a header");
-        assert_eq!(
-            envelope_header.get("error_type").as_str(),
-            Some("bad_request"),
-            "clients drive retry off header.error_type: {uri}"
-        );
-        assert!(
-            envelope_header
-                .get("error_msg")
-                .as_str()
-                .is_some_and(|m| !m.is_empty()),
-            "the envelope must carry a non-empty diagnostic error_msg: {uri}"
-        );
-        assert_eq!(
-            value
-                .get("response")
-                .and_then(|r| r.as_array())
-                .map(sonic_rs::Array::len),
-            Some(0),
-            "the error envelope's response array must be empty: {uri}"
-        );
-    }
-
-    // Every request writes, and then unlinks, its own scratch file: two
-    // concurrent identical requests must never share one, or the first to
-    // finish would unlink the file the other is still writing.
-    #[test]
-    fn scratch_paths_are_unique_per_request() {
-        let (a_scratch, a_name) = flatfile_paths(
-            SecType::Option,
-            ReqType::Quote,
-            "20260428",
-            FlatFileFormat::Csv,
-        );
-        let (b_scratch, b_name) = flatfile_paths(
-            SecType::Option,
-            ReqType::Quote,
-            "20260428",
-            FlatFileFormat::Csv,
-        );
-        assert_eq!(
-            a_name, b_name,
-            "the attachment name is deterministic per (sec, req, date, format)"
-        );
-        assert_ne!(
-            a_scratch,
-            b_scratch,
-            "two concurrent identical requests share scratch path `{}`",
-            a_scratch.display()
+            matches!(body.recv().await, Some(Err(_))),
+            "the body ends in an error"
         );
     }
 }

@@ -390,6 +390,42 @@ pub struct StockAtTimeQuoteRequest {
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<StockAtTimeQuoteRequestQuery>,
 }
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct StockFlatFileEodRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StockFlatFileEodRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<StockFlatFileEodRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct StockFlatFileTradeQuoteRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StockFlatFileTradeQuoteRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<StockFlatFileTradeQuoteRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct StockFlatFileQuoteRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct StockFlatFileQuoteRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<StockFlatFileQuoteRequestQuery>,
+}
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OptionListSymbolsRequestQuery {}
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -1931,6 +1967,54 @@ pub struct OptionAtTimeQuoteRequest {
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionAtTimeQuoteRequestQuery>,
 }
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OptionFlatFileEodRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionFlatFileEodRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionFlatFileEodRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OptionFlatFileTradeQuoteRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionFlatFileTradeQuoteRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionFlatFileTradeQuoteRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OptionFlatFileOpenInterestRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionFlatFileOpenInterestRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionFlatFileOpenInterestRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct OptionFlatFileQuoteRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionFlatFileQuoteRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionFlatFileQuoteRequestQuery>,
+}
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct IndexListSymbolsRequestQuery {}
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -2079,6 +2163,18 @@ pub struct IndexAtTimePriceRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<IndexAtTimePriceRequestQuery>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct IndexFlatFileEodRequestQuery {
+    #[prost(string, tag = "1")]
+    pub date: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct IndexFlatFileEodRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<IndexFlatFileEodRequestQuery>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CalendarOpenTodayRequestQuery {}
@@ -2463,6 +2559,69 @@ pub mod beta_theta_terminal {
                 super::StockAtTimeQuoteRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetStockAtTimeQuote", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileEod`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_stock_flat_file_eod(
+        channel: &crate::grpc::Channel,
+        req: super::StockFlatFileEodRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::StockFlatFileEodRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileEod", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileTradeQuote`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_stock_flat_file_trade_quote(
+        channel: &crate::grpc::Channel,
+        req: super::StockFlatFileTradeQuoteRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::StockFlatFileTradeQuoteRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileTradeQuote", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileQuote`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_stock_flat_file_quote(
+        channel: &crate::grpc::Channel,
+        req: super::StockFlatFileQuoteRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::StockFlatFileQuoteRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetStockFlatFileQuote", req)
             .await
     }
     ///
@@ -3501,6 +3660,90 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileEod`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_flat_file_eod(
+        channel: &crate::grpc::Channel,
+        req: super::OptionFlatFileEodRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionFlatFileEodRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileEod", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileTradeQuote`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_flat_file_trade_quote(
+        channel: &crate::grpc::Channel,
+        req: super::OptionFlatFileTradeQuoteRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionFlatFileTradeQuoteRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileTradeQuote", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileOpenInterest`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_flat_file_open_interest(
+        channel: &crate::grpc::Channel,
+        req: super::OptionFlatFileOpenInterestRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionFlatFileOpenInterestRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileOpenInterest", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileQuote`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_flat_file_quote(
+        channel: &crate::grpc::Channel,
+        req: super::OptionFlatFileQuoteRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionFlatFileQuoteRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionFlatFileQuote", req)
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetIndexListSymbols`.
     ///
     /// # Errors
@@ -3687,6 +3930,27 @@ pub mod beta_theta_terminal {
                 super::IndexAtTimePriceRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetIndexAtTimePrice", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetIndexFlatFileEod`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_index_flat_file_eod(
+        channel: &crate::grpc::Channel,
+        req: super::IndexFlatFileEodRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::IndexFlatFileEodRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetIndexFlatFileEod", req)
             .await
     }
     ///

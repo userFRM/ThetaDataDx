@@ -332,7 +332,10 @@ pub(super) fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
 /// (which materializes the cells) and `parser.rs` (which validates the
 /// fixture TOML against the live mode graph).
 pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static str> {
-    if is_streaming_endpoint(endpoint) {
+    // A flat file is the whole universe for one day, and the vendor serves
+    // only the most recent seven calendar days: a cell pinned to the fixture
+    // date can only be refused, and a recent day outlasts any cell budget.
+    if is_streaming_endpoint(endpoint) || endpoint.subcategory == "flat_file" {
         return Vec::new();
     }
     if is_simple_list_endpoint(endpoint)

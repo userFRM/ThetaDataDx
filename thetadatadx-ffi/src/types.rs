@@ -237,6 +237,10 @@ tick_array_type!(
     thetadatadx::InterestRateTick
 );
 tick_array_type!(ThetaDataDxTradeQuoteTickArray, thetadatadx::TradeQuoteTick);
+tick_array_type!(
+    ThetaDataDxIntervalQuoteTickArray,
+    thetadatadx::IntervalQuoteTick
+);
 
 /// Generate a `#[no_mangle] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
@@ -321,6 +325,10 @@ tick_array_free!(
 tick_array_free!(
     thetadatadx_trade_quote_tick_array_free,
     ThetaDataDxTradeQuoteTickArray
+);
+tick_array_free!(
+    thetadatadx_interval_quote_tick_array_free,
+    ThetaDataDxIntervalQuoteTickArray
 );
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -515,6 +523,10 @@ tick_array_to_arrow_ipc!(
 tick_array_to_arrow_ipc!(
     thetadatadx_trade_quote_ticks_to_arrow_ipc,
     thetadatadx::TradeQuoteTick
+);
+tick_array_to_arrow_ipc!(
+    thetadatadx_interval_quote_ticks_to_arrow_ipc,
+    thetadatadx::IntervalQuoteTick
 );
 
 /// Free a byte buffer returned by any `thetadatadx_*_to_arrow_ipc` terminal.
@@ -1027,6 +1039,10 @@ tick_present_columns!(
     thetadatadx_trade_quote_ticks_present_columns,
     thetadatadx::TradeQuoteTick
 );
+tick_present_columns!(
+    thetadatadx_interval_quote_ticks_present_columns,
+    thetadatadx::IntervalQuoteTick
+);
 
 tick_array_to_arrow_ipc_projected!(
     thetadatadx_eod_ticks_to_arrow_ipc_projected,
@@ -1115,6 +1131,10 @@ tick_array_to_arrow_ipc_projected!(
 tick_array_to_arrow_ipc_projected!(
     thetadatadx_trade_quote_ticks_to_arrow_ipc_projected,
     thetadatadx::TradeQuoteTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_interval_quote_ticks_to_arrow_ipc_projected,
+    thetadatadx::IntervalQuoteTick
 );
 
 // ═══════════════════════════════════════════════════════════════════════

@@ -234,6 +234,48 @@
         });
     }
 
+    /// Fetch the end-of-day report of every stock for one date.
+    std::vector<EodTick> stock_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<EodTick>> stock_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.stock_flat_file_eod(date, options);
+        });
+    }
+
+    /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade.
+    std::vector<TradeQuoteTick> stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeQuoteTick>> stock_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.stock_flat_file_trade_quote(date, options);
+        });
+    }
+
+    /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    std::vector<IntervalQuoteTick> stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<IntervalQuoteTick>> stock_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.stock_flat_file_quote(date, options);
+        });
+    }
+
     /// List all available option underlying symbols.
     std::vector<std::string> option_list_symbols(const EndpointRequestOptions& options = {}) const;
 
@@ -892,6 +934,62 @@
         });
     }
 
+    /// Fetch the end-of-day report of every option contract for one date.
+    std::vector<EodTick> option_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<EodTick>> option_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.option_flat_file_eod(date, options);
+        });
+    }
+
+    /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade.
+    std::vector<TradeQuoteTick> option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeQuoteTick>> option_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.option_flat_file_trade_quote(date, options);
+        });
+    }
+
+    /// Fetch the open interest of every option contract for one date.
+    std::vector<OpenInterestTick> option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<OpenInterestTick>> option_flat_file_open_interest_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.option_flat_file_open_interest(date, options);
+        });
+    }
+
+    /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported.
+    std::vector<IntervalQuoteTick> option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<IntervalQuoteTick>> option_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.option_flat_file_quote(date, options);
+        });
+    }
+
     /// List all available index symbols.
     std::vector<std::string> index_list_symbols(const EndpointRequestOptions& options = {}) const;
 
@@ -1054,6 +1152,20 @@
     std::future<std::vector<IndexPriceAtTimeTick>> index_at_time_price_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
             return self.index_at_time_price(symbol, start_date, end_date, time_of_day, options);
+        });
+    }
+
+    /// Fetch the end-of-day report of every index for one date.
+    std::vector<EodTick> index_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<EodTick>> index_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
+            return self.index_flat_file_eod(date, options);
         });
     }
 
