@@ -455,6 +455,16 @@ required = false
 binding = "builder"
 default = "false"
 
+[param_groups.current_day_only_flag]
+
+[[param_groups.current_day_only_flag.params]]
+name = "current_day_only"
+description = "When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."
+param_type = "Bool"
+required = false
+binding = "builder"
+default = "false"
+
 [param_groups.year_param]
 
 [[param_groups.year_param.params]]
@@ -494,6 +504,9 @@ use = "stock_venue_filter"
 
 [[templates.stock_snapshot.params]]
 use = "min_time_filter"
+
+[[templates.stock_snapshot.params]]
+use = "current_day_only_flag"
 
 [templates.stock_history_eod]
 extends = "stock_parsed"
@@ -616,6 +629,9 @@ use = "strike_range_filter"
 [[templates.option_snapshot_standard.params]]
 use = "min_time_filter"
 
+[[templates.option_snapshot_standard.params]]
+use = "current_day_only_flag"
+
 [templates.option_snapshot_trade]
 extends = "option_parsed"
 subcategory = "snapshot"
@@ -628,6 +644,9 @@ use = "strike_range_filter"
 
 [[templates.option_snapshot_trade.params]]
 use = "min_time_filter"
+
+[[templates.option_snapshot_trade.params]]
+use = "current_day_only_flag"
 
 [templates.option_snapshot_greeks]
 extends = "option_parsed"
@@ -650,6 +669,9 @@ use = "min_time_filter"
 
 [[templates.option_snapshot_greeks.params]]
 use = "use_market_value_flag"
+
+[[templates.option_snapshot_greeks.params]]
+use = "current_day_only_flag"
 
 [templates.option_snapshot_binomial_greeks]
 extends = "option_parsed"
@@ -681,6 +703,9 @@ use = "min_time_filter"
 
 [[templates.option_snapshot_binomial_greeks.params]]
 use = "use_market_value_flag"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "current_day_only_flag"
 
 [templates.option_history_eod]
 extends = "option_parsed"
@@ -1019,6 +1044,9 @@ use = "multi_symbol"
 
 [[templates.index_snapshot.params]]
 use = "min_time_filter"
+
+[[templates.index_snapshot.params]]
+use = "current_day_only_flag"
 
 [templates.index_history_eod]
 extends = "index_parsed"
@@ -2242,6 +2270,7 @@ use_market_value = "true"
 underlyer_use_nbbo = "true"
 binomial_steps = "51"
 perf_boost_intraday = "true"
+current_day_only = "true"
 
 [test_fixtures.mode_overrides.concrete_iso]
 # ISO-dashed expiration acceptance is scoped to `Expiration` params.

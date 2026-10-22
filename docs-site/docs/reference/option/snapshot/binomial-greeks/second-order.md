@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/snapshot/binomial_greeks/second_order",
   method: { rust: "option_snapshot_binomial_greeks_second_order", python: "option_snapshot_binomial_greeks_second_order", ts: "optionSnapshotBinomialGreeksSecondOrder", cpp: "option_snapshot_binomial_greeks_second_order" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "stock_price", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "use_market_value", type: "bool", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "stock_price", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "use_market_value", type: "bool", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "gamma", "vanna", "charm"],
   returns: "GreeksSecondOrderTick",
   sample: [
@@ -50,6 +50,7 @@ Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option co
 | `strike_range` | int | no | - | Strike range filter |
 | `min_time` | string | no | - | Minimum time filter |
 | `use_market_value` | bool | no | `false` | When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. |
+| `current_day_only` | bool | no | `false` | When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

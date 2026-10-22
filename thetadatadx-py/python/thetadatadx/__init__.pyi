@@ -1532,6 +1532,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> OhlcTickList:
         """Get the latest OHLC snapshot for one or more stocks.
@@ -1543,6 +1544,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -1552,6 +1554,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more stocks.
@@ -1563,6 +1566,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -1582,6 +1586,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeTickList:
         """Get the latest trade snapshot for one or more stocks.
@@ -1592,6 +1597,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -1601,6 +1607,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeTickList]:
         """Get the latest trade snapshot for one or more stocks.
@@ -1611,6 +1618,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -1630,6 +1638,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> QuoteTickList:
         """Get the latest NBBO quote snapshot for one or more stocks.
@@ -1640,6 +1649,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -1649,6 +1659,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[QuoteTickList]:
         """Get the latest NBBO quote snapshot for one or more stocks.
@@ -1659,6 +1670,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -1678,6 +1690,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> MarketValueTickList:
         """Get the latest market value snapshot for one or more stocks.
@@ -1688,6 +1701,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -1697,6 +1711,7 @@ class MarketDataView:
         *,
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more stocks.
@@ -1707,6 +1722,7 @@ class MarketDataView:
 
         Defaults (upstream):
         - `venue`: `"nqb"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2353,6 +2369,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[OhlcTick]:
         """Get the latest OHLC snapshot for an option contract.
@@ -2362,6 +2379,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2375,6 +2393,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[OhlcTick]]:
         """Get the latest OHLC snapshot for an option contract.
@@ -2384,6 +2403,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2407,6 +2427,7 @@ class MarketDataView:
         right: Optional[str] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[TradeTick]:
         """Get the latest trade snapshot for an option contract.
@@ -2417,6 +2438,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2429,6 +2451,7 @@ class MarketDataView:
         right: Optional[str] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[TradeTick]]:
         """Get the latest trade snapshot for an option contract.
@@ -2439,6 +2462,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2463,6 +2487,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[QuoteTick]:
         """Get the latest NBBO quote snapshot for an option contract.
@@ -2473,6 +2498,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2486,6 +2512,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[QuoteTick]]:
         """Get the latest NBBO quote snapshot for an option contract.
@@ -2496,6 +2523,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2520,6 +2548,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[OpenInterestTick]:
         """Get the latest open interest snapshot for an option contract.
@@ -2531,6 +2560,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2544,6 +2574,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[OpenInterestTick]]:
         """Get the latest open interest snapshot for an option contract.
@@ -2555,6 +2586,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2579,6 +2611,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[MarketValueTick]:
         """Get the latest market value snapshot for an option contract.
@@ -2588,6 +2621,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2601,6 +2635,7 @@ class MarketDataView:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[MarketValueTick]]:
         """Get the latest market value snapshot for an option contract.
@@ -2610,6 +2645,7 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2640,6 +2676,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[IvTick]:
         """Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -2654,6 +2691,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2673,6 +2711,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[IvTick]]:
         """Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -2687,6 +2726,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2717,6 +2757,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksAllTick]:
         """Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -2730,6 +2771,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2749,6 +2791,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksAllTick]]:
         """Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -2762,6 +2805,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2793,6 +2837,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksAllTick]:
         """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
@@ -2808,6 +2853,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2828,6 +2874,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksAllTick]]:
         """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
@@ -2843,6 +2890,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2873,6 +2921,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksFirstOrderTick]:
         """Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -2886,6 +2935,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2905,6 +2955,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksFirstOrderTick]]:
         """Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -2918,6 +2969,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -2949,6 +3001,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksFirstOrderTick]:
         """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
@@ -2964,6 +3017,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -2984,6 +3038,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksFirstOrderTick]]:
         """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
@@ -2999,6 +3054,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3029,6 +3085,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksSecondOrderTick]:
         """Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -3042,6 +3099,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -3061,6 +3119,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksSecondOrderTick]]:
         """Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -3074,6 +3133,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3105,6 +3165,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksSecondOrderTick]:
         """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -3120,6 +3181,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -3140,6 +3202,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksSecondOrderTick]]:
         """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -3155,6 +3218,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3185,6 +3249,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksThirdOrderTick]:
         """Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -3198,6 +3263,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -3217,6 +3283,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksThirdOrderTick]]:
         """Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -3230,6 +3297,7 @@ class MarketDataView:
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3261,6 +3329,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksThirdOrderTick]:
         """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
@@ -3276,6 +3345,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
         """
         ...
 
@@ -3296,6 +3366,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksThirdOrderTick]]:
         """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
@@ -3311,6 +3382,7 @@ class MarketDataView:
         - `binomial_steps`: `101`
         - `version`: `"latest"`
         - `use_market_value`: `false`
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -5743,12 +5815,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> OhlcTickList:
         """Get the latest OHLC snapshot for one or more indices.
 
         - Retrieves the real-time current day OHLC.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
         """
         ...
 
@@ -5757,12 +5833,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more indices.
 
         - Retrieves the real-time current day OHLC.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -5781,12 +5861,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> PriceTickList:
         """Get the latest price snapshot for one or more indices.
 
         - Retrieves a real-time last index price.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
         """
         ...
 
@@ -5795,12 +5879,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[PriceTickList]:
         """Get the latest price snapshot for one or more indices.
 
         - Retrieves a real-time last index price.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -5819,12 +5907,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> MarketValueTickList:
         """Get the latest market value snapshot for one or more indices.
 
         - Retrieves a real-time last index market value.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
         """
         ...
 
@@ -5833,12 +5925,16 @@ class MarketDataView:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more indices.
 
         - Retrieves a real-time last index market value.
         - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.

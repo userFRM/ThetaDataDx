@@ -939,6 +939,7 @@ export declare class MarketDataClient {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotOHLC(symbols: string | Array<string>, options?: StockSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -952,6 +953,7 @@ export declare class MarketDataClient {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotTrade(symbols: string | Array<string>, options?: StockSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
   /** Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -965,6 +967,7 @@ export declare class MarketDataClient {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotQuote(symbols: string | Array<string>, options?: StockSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
   /** Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -978,6 +981,7 @@ export declare class MarketDataClient {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotMarketValue(symbols: string | Array<string>, options?: StockSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1153,6 +1157,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotOHLC(symbol: string, expiration: string, options?: OptionSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1166,6 +1171,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotTrade(symbol: string, expiration: string, options?: OptionSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
   /** Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1179,6 +1185,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotQuote(symbol: string, expiration: string, options?: OptionSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
   /** Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1193,6 +1200,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotOpenInterest(symbol: string, expiration: string, options?: OptionSnapshotOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
   /** Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1205,6 +1213,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotMarketValue(symbol: string, expiration: string, options?: OptionSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1222,6 +1231,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string, options?: OptionSnapshotGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
   /** Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1238,6 +1248,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1256,6 +1267,7 @@ export declare class MarketDataClient {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1272,6 +1284,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1290,6 +1303,7 @@ export declare class MarketDataClient {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1306,6 +1320,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1324,6 +1339,7 @@ export declare class MarketDataClient {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1340,6 +1356,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1358,6 +1375,7 @@ export declare class MarketDataClient {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1971,6 +1989,9 @@ export declare class MarketDataClient {
    *
    * - Retrieves the real-time current day OHLC.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1980,6 +2001,9 @@ export declare class MarketDataClient {
    *
    * - Retrieves a real-time last index price.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
   /** Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1989,6 +2013,9 @@ export declare class MarketDataClient {
    *
    * - Retrieves a real-time last index market value.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2142,6 +2169,7 @@ export declare class MarketDataView {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotOHLC(symbols: string | Array<string>, options?: StockSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2155,6 +2183,7 @@ export declare class MarketDataView {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotTrade(symbols: string | Array<string>, options?: StockSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
   /** Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2168,6 +2197,7 @@ export declare class MarketDataView {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotQuote(symbols: string | Array<string>, options?: StockSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
   /** Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2181,6 +2211,7 @@ export declare class MarketDataView {
    *
    * Defaults (upstream):
    * - `venue`: `"nqb"`
+   * - `current_day_only`: `false`
    */
   stockSnapshotMarketValue(symbols: string | Array<string>, options?: StockSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2356,6 +2387,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotOHLC(symbol: string, expiration: string, options?: OptionSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2369,6 +2401,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotTrade(symbol: string, expiration: string, options?: OptionSnapshotTradeOptions | undefined | null): Promise<Array<TradeTick>>
   /** Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2382,6 +2415,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotQuote(symbol: string, expiration: string, options?: OptionSnapshotQuoteOptions | undefined | null): Promise<Array<QuoteTick>>
   /** Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2396,6 +2430,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotOpenInterest(symbol: string, expiration: string, options?: OptionSnapshotOpenInterestOptions | undefined | null): Promise<Array<OpenInterestTick>>
   /** Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2408,6 +2443,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `strike`: `"*"`
    * - `right`: `"both"`
+   * - `current_day_only`: `false`
    */
   optionSnapshotMarketValue(symbol: string, expiration: string, options?: OptionSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2425,6 +2461,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksImpliedVolatility(symbol: string, expiration: string, options?: OptionSnapshotGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<IvTick>>
   /** Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2441,6 +2478,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2459,6 +2497,7 @@ export declare class MarketDataView {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2475,6 +2514,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2493,6 +2533,7 @@ export declare class MarketDataView {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2509,6 +2550,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2527,6 +2569,7 @@ export declare class MarketDataView {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2543,6 +2586,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2561,6 +2605,7 @@ export declare class MarketDataView {
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
+   * - `current_day_only`: `false`
    */
   optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -3174,6 +3219,9 @@ export declare class MarketDataView {
    *
    * - Retrieves the real-time current day OHLC.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotOHLC(symbols: string | Array<string>, options?: IndexSnapshotOhlcOptions | undefined | null): Promise<Array<OhlcTick>>
   /** Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -3183,6 +3231,9 @@ export declare class MarketDataView {
    *
    * - Retrieves a real-time last index price.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotPrice(symbols: string | Array<string>, options?: IndexSnapshotPriceOptions | undefined | null): Promise<Array<PriceTick>>
   /** Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -3192,6 +3243,9 @@ export declare class MarketDataView {
    *
    * - Retrieves a real-time last index market value.
    * - Exchanges typically generate a price report every second for popular indices like SPX.
+   *
+   * Defaults (upstream):
+   * - `current_day_only`: `false`
    */
   indexSnapshotMarketValue(symbols: string | Array<string>, options?: IndexSnapshotMarketValueOptions | undefined | null): Promise<Array<MarketValueTick>>
   /** Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -5021,6 +5075,8 @@ export interface IndexPriceAtTimeTickWithColumns {
 export interface IndexSnapshotMarketValueOptions {
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5039,6 +5095,8 @@ export interface IndexSnapshotMarketValueOptions {
 export interface IndexSnapshotOhlcOptions {
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5057,6 +5115,8 @@ export interface IndexSnapshotOhlcOptions {
 export interface IndexSnapshotPriceOptions {
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6886,6 +6946,8 @@ export interface OptionSnapshotBinomialGreeksAllOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6926,6 +6988,8 @@ export interface OptionSnapshotBinomialGreeksFirstOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6966,6 +7030,8 @@ export interface OptionSnapshotBinomialGreeksSecondOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7006,6 +7072,8 @@ export interface OptionSnapshotBinomialGreeksThirdOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7044,6 +7112,8 @@ export interface OptionSnapshotGreeksAllOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7082,6 +7152,8 @@ export interface OptionSnapshotGreeksFirstOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7120,6 +7192,8 @@ export interface OptionSnapshotGreeksImpliedVolatilityOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7158,6 +7232,8 @@ export interface OptionSnapshotGreeksSecondOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7196,6 +7272,8 @@ export interface OptionSnapshotGreeksThirdOrderOptions {
   minTime?: string
   /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
   useMarketValue?: boolean
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7222,6 +7300,8 @@ export interface OptionSnapshotMarketValueOptions {
   strikeRange?: number
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7248,6 +7328,8 @@ export interface OptionSnapshotOhlcOptions {
   strikeRange?: number
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7274,6 +7356,8 @@ export interface OptionSnapshotOpenInterestOptions {
   strikeRange?: number
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7300,6 +7384,8 @@ export interface OptionSnapshotQuoteOptions {
   strikeRange?: number
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7324,6 +7410,8 @@ export interface OptionSnapshotTradeOptions {
   strikeRange?: number
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7849,6 +7937,8 @@ export interface StockSnapshotMarketValueOptions {
   venue?: string
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7869,6 +7959,8 @@ export interface StockSnapshotOhlcOptions {
   venue?: string
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7889,6 +7981,8 @@ export interface StockSnapshotQuoteOptions {
   venue?: string
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7909,6 +8003,8 @@ export interface StockSnapshotTradeOptions {
   venue?: string
   /** Minimum time filter */
   minTime?: string
+  /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  currentDayOnly?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request

@@ -136,6 +136,7 @@ message StockSnapshotOhlcRequestQuery {
   repeated string symbol = 1;
   optional string venue = 2;
   optional string min_time = 3;
+  optional bool current_day_only = 4;
 }
 
 message StockSnapshotOhlcRequest {
@@ -147,6 +148,7 @@ message StockSnapshotTradeRequestQuery {
   repeated string symbol = 1;
   optional string venue = 2;
   optional string min_time = 3;
+  optional bool current_day_only = 4;
 }
 
 message StockSnapshotTradeRequest {
@@ -158,6 +160,7 @@ message StockSnapshotQuoteRequestQuery {
   repeated string symbol = 1;
   optional string venue = 2;
   optional string min_time = 3;
+  optional bool current_day_only = 4;
 }
 
 message StockSnapshotQuoteRequest {
@@ -169,6 +172,7 @@ message StockSnapshotMarketValueRequestQuery {
   repeated string symbol = 1;
   optional string venue = 2;
   optional string min_time = 3;
+  optional bool current_day_only = 4;
 }
 
 message StockSnapshotMarketValueRequest {
@@ -339,6 +343,7 @@ message OptionSnapshotOhlcRequestQuery {
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
   optional string min_time = 5;
+  optional bool current_day_only = 6;
 }
 
 message OptionSnapshotOhlcRequest {
@@ -351,6 +356,7 @@ message OptionSnapshotTradeRequestQuery {
   string expiration = 2;
   optional int32 strike_range = 3;
   optional string min_time = 4;
+  optional bool current_day_only = 5;
 }
 
 message OptionSnapshotTradeRequest {
@@ -364,6 +370,7 @@ message OptionSnapshotQuoteRequestQuery {
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
   optional string min_time = 5;
+  optional bool current_day_only = 6;
 }
 
 message OptionSnapshotQuoteRequest {
@@ -377,6 +384,7 @@ message OptionSnapshotOpenInterestRequestQuery {
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
   optional string min_time = 5;
+  optional bool current_day_only = 6;
 }
 
 message OptionSnapshotOpenInterestRequest {
@@ -390,6 +398,7 @@ message OptionSnapshotMarketValueRequestQuery {
   optional int32 max_dte = 3;
   optional int32 strike_range = 4;
   optional string min_time = 5;
+  optional bool current_day_only = 6;
 }
 
 message OptionSnapshotMarketValueRequest {
@@ -409,6 +418,7 @@ message OptionSnapshotGreeksImpliedVolatilityRequestQuery {
   optional int32 strike_range = 9;
   optional string min_time = 10;
   optional bool use_market_value = 11;
+  optional bool current_day_only = 12;
 }
 
 message OptionSnapshotGreeksImpliedVolatilityRequest {
@@ -428,6 +438,7 @@ message OptionSnapshotGreeksAllRequestQuery {
   optional int32 strike_range = 9;
   optional string min_time = 10;
   optional bool use_market_value = 11;
+  optional bool current_day_only = 12;
 }
 
 message OptionSnapshotGreeksAllRequest {
@@ -448,6 +459,7 @@ message OptionSnapshotBinomialGreeksAllRequestQuery {
   optional int32 strike_range = 10;
   optional string min_time = 11;
   optional bool use_market_value = 12;
+  optional bool current_day_only = 13;
 }
 
 message OptionSnapshotBinomialGreeksAllRequest {
@@ -467,6 +479,7 @@ message OptionSnapshotGreeksFirstOrderRequestQuery {
   optional int32 strike_range = 9;
   optional string min_time = 10;
   optional bool use_market_value = 11;
+  optional bool current_day_only = 12;
 }
 
 message OptionSnapshotGreeksFirstOrderRequest {
@@ -487,6 +500,7 @@ message OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
   optional int32 strike_range = 10;
   optional string min_time = 11;
   optional bool use_market_value = 12;
+  optional bool current_day_only = 13;
 }
 
 message OptionSnapshotBinomialGreeksFirstOrderRequest {
@@ -506,6 +520,7 @@ message OptionSnapshotGreeksSecondOrderRequestQuery {
   optional int32 strike_range = 9;
   optional string min_time = 10;
   optional bool use_market_value = 11;
+  optional bool current_day_only = 12;
 }
 
 message OptionSnapshotGreeksSecondOrderRequest {
@@ -526,6 +541,7 @@ message OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
   optional int32 strike_range = 10;
   optional string min_time = 11;
   optional bool use_market_value = 12;
+  optional bool current_day_only = 13;
 }
 
 message OptionSnapshotBinomialGreeksSecondOrderRequest {
@@ -545,6 +561,7 @@ message OptionSnapshotGreeksThirdOrderRequestQuery {
   optional int32 strike_range = 9;
   optional string min_time = 10;
   optional bool use_market_value = 11;
+  optional bool current_day_only = 12;
 }
 
 message OptionSnapshotGreeksThirdOrderRequest {
@@ -565,6 +582,7 @@ message OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
   optional int32 strike_range = 10;
   optional string min_time = 11;
   optional bool use_market_value = 12;
+  optional bool current_day_only = 13;
 }
 
 message OptionSnapshotBinomialGreeksThirdOrderRequest {
@@ -1161,6 +1179,7 @@ message IndexListDatesRequest {
 message IndexSnapshotOhlcRequestQuery {
   repeated string symbol = 1;
   optional string min_time = 2;
+  optional bool current_day_only = 3;
 }
 
 message IndexSnapshotOhlcRequest {
@@ -1171,6 +1190,7 @@ message IndexSnapshotOhlcRequest {
 message IndexSnapshotPriceRequestQuery {
   repeated string symbol = 1;
   optional string min_time = 2;
+  optional bool current_day_only = 3;
 }
 
 message IndexSnapshotPriceRequest {
@@ -1181,6 +1201,7 @@ message IndexSnapshotPriceRequest {
 message IndexSnapshotMarketValueRequestQuery {
   repeated string symbol = 1;
   optional string min_time = 2;
+  optional bool current_day_only = 3;
 }
 
 message IndexSnapshotMarketValueRequest {

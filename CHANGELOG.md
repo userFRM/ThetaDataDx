@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The snapshot endpoints take `current_day_only`.** The vendor can restrict a snapshot to data from the current trading day, by New York date, applied before `min_time`. This SDK had no way to ask for that: no binding exposed the parameter and the local server did not recognise the name, so a request carrying `current_day_only=true` was answered as if it were absent and could return values from an earlier session. It is now an optional boolean on the 21 snapshot routes: stock `quote`, `trade`, `ohlc` and `market_value`; option `quote`, `trade`, `ohlc`, `open_interest` and `market_value`; index `price`, `ohlc` and `market_value`; and option `greeks/` `all`, `first_order`, `second_order`, `third_order` and `implied_volatility` with the binomial Greeks snapshot routes, from every binding and through the local server. The SDK sends `false` when the caller leaves it unset, which is what the terminal sends, so existing calls are unchanged.
+
+### Changed
+
+- **The C ABI request-options struct carries the new parameter, so a C or C++ program has to be rebuilt against the new header.** `ThetaDataDxEndpointRequestOptions` gains `current_day_only` with the presence flag every optional field on it carries. The pair sits just after `min_time`, so every member from `date` onwards moves 8 bytes later, the per-call deadline from offset 208 to 216, and the struct grows from 224 to 232 bytes on LP64. The caller fills this struct and the library reads it, so a program compiled against the previous header and linked against the new library hands over a 224-byte object the library reads at the new offsets: it takes the moved members from the wrong bytes and reads the deadline past the end of the object. Rebuild against the new header.
+
 ## [0.6.1] - 2026-10-22
 
 ### Security

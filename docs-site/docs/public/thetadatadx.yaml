@@ -425,6 +425,17 @@ x-anchors:
       When true, the underlyer price fed to the Greeks calculation is the
       midpoint of its NBBO; when false it is the last trade price.
 
+  current_day_only-param: &current_day_only-param
+    name: current_day_only
+    in: query
+    required: false
+    schema:
+      type: boolean
+      default: false
+    description: >-
+      When true, only snapshot data from the current trading day (New York
+      date) is returned. Applied before min_time.
+
   # --- Response shape ---
   # Every registry route answers in the same envelope; only the columns of a
   # row differ. Each route's reference page lists its columns in order, and a
@@ -614,6 +625,7 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -646,6 +658,7 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -678,6 +691,7 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -708,6 +722,7 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1238,6 +1253,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1271,6 +1287,7 @@ paths:
         - *right-param
         - *strike_range-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1305,6 +1322,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1339,6 +1357,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1373,6 +1392,7 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1417,6 +1437,7 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1458,6 +1479,7 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1499,6 +1521,7 @@ paths:
         - *binomial_steps-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1539,6 +1562,7 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1580,6 +1604,7 @@ paths:
         - *binomial_steps-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1620,6 +1645,7 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1661,6 +1687,7 @@ paths:
         - *binomial_steps-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1701,6 +1728,7 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1746,6 +1774,7 @@ paths:
         - *binomial_steps-param
         - *greeks_version-param
         - *use_market_value-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3229,6 +3258,7 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3258,6 +3288,7 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3287,6 +3318,7 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *current_day_only-param
         - *format-param
       responses:
         '200': *v3-response

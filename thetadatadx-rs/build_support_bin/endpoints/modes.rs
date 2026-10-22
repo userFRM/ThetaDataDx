@@ -107,7 +107,9 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
         }
         "version" => "optional Greeks-version selector wiring",
         "binomial_steps" => "optional binomial-tree step-count wiring",
-        "use_market_value" | "underlyer_use_nbbo" | "perf_boost_intraday" => "optional flag wiring",
+        "use_market_value" | "underlyer_use_nbbo" | "perf_boost_intraday" | "current_day_only" => {
+            "optional flag wiring"
+        }
         _ => panic!(
             "with_optional_rationale: unknown optional param '{param_name}'; \
              add a rationale class before adding a new optional fixture"

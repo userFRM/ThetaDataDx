@@ -119,12 +119,14 @@ impl StockListDatesBuilder {
 ///
 /// Defaults (upstream):
 /// - `venue`: `"nqb"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotOhlcBuilder")]
 pub struct StockSnapshotOhlcBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -139,6 +141,12 @@ impl StockSnapshotOhlcBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -163,6 +171,7 @@ impl StockSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -172,6 +181,9 @@ impl StockSnapshotOhlcBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -187,6 +199,7 @@ impl StockSnapshotOhlcBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -196,6 +209,9 @@ impl StockSnapshotOhlcBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -214,12 +230,14 @@ impl StockSnapshotOhlcBuilder {
 ///
 /// Defaults (upstream):
 /// - `venue`: `"nqb"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotTradeBuilder")]
 pub struct StockSnapshotTradeBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -234,6 +252,12 @@ impl StockSnapshotTradeBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -258,6 +282,7 @@ impl StockSnapshotTradeBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -267,6 +292,9 @@ impl StockSnapshotTradeBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -282,6 +310,7 @@ impl StockSnapshotTradeBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -291,6 +320,9 @@ impl StockSnapshotTradeBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -309,12 +341,14 @@ impl StockSnapshotTradeBuilder {
 ///
 /// Defaults (upstream):
 /// - `venue`: `"nqb"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotQuoteBuilder")]
 pub struct StockSnapshotQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -329,6 +363,12 @@ impl StockSnapshotQuoteBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -353,6 +393,7 @@ impl StockSnapshotQuoteBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -362,6 +403,9 @@ impl StockSnapshotQuoteBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -377,6 +421,7 @@ impl StockSnapshotQuoteBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -386,6 +431,9 @@ impl StockSnapshotQuoteBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -404,12 +452,14 @@ impl StockSnapshotQuoteBuilder {
 ///
 /// Defaults (upstream):
 /// - `venue`: `"nqb"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "StockSnapshotMarketValueBuilder")]
 pub struct StockSnapshotMarketValueBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     venue: Option<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -424,6 +474,12 @@ impl StockSnapshotMarketValueBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -448,6 +504,7 @@ impl StockSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -457,6 +514,9 @@ impl StockSnapshotMarketValueBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -472,6 +532,7 @@ impl StockSnapshotMarketValueBuilder {
         let symbols = self.symbols.clone();
         let venue = self.venue.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -481,6 +542,9 @@ impl StockSnapshotMarketValueBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -2999,6 +3063,7 @@ impl OptionListContractsBuilder {
 /// Defaults (upstream):
 /// - `strike`: `"*"`
 /// - `right`: `"both"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOhlcBuilder")]
 pub struct OptionSnapshotOhlcBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3009,6 +3074,7 @@ pub struct OptionSnapshotOhlcBuilder {
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3044,6 +3110,12 @@ impl OptionSnapshotOhlcBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -3075,6 +3147,7 @@ impl OptionSnapshotOhlcBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, &expiration);
@@ -3092,6 +3165,9 @@ impl OptionSnapshotOhlcBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3111,6 +3187,7 @@ impl OptionSnapshotOhlcBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_ohlc(&symbol, &expiration);
@@ -3129,6 +3206,9 @@ impl OptionSnapshotOhlcBuilder {
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -3146,6 +3226,7 @@ impl OptionSnapshotOhlcBuilder {
 /// Defaults (upstream):
 /// - `strike`: `"*"`
 /// - `right`: `"both"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotTradeBuilder")]
 pub struct OptionSnapshotTradeBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3155,6 +3236,7 @@ pub struct OptionSnapshotTradeBuilder {
     right: Option<String>,
     strike_range: Option<i32>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3181,6 +3263,12 @@ impl OptionSnapshotTradeBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -3214,6 +3302,7 @@ impl OptionSnapshotTradeBuilder {
         let right = self.right.clone();
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, &expiration);
@@ -3228,6 +3317,9 @@ impl OptionSnapshotTradeBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3246,6 +3338,7 @@ impl OptionSnapshotTradeBuilder {
         let right = self.right.clone();
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_trade(&symbol, &expiration);
@@ -3260,6 +3353,9 @@ impl OptionSnapshotTradeBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3278,6 +3374,7 @@ impl OptionSnapshotTradeBuilder {
 /// Defaults (upstream):
 /// - `strike`: `"*"`
 /// - `right`: `"both"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotQuoteBuilder")]
 pub struct OptionSnapshotQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3288,6 +3385,7 @@ pub struct OptionSnapshotQuoteBuilder {
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3323,6 +3421,12 @@ impl OptionSnapshotQuoteBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -3354,6 +3458,7 @@ impl OptionSnapshotQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, &expiration);
@@ -3371,6 +3476,9 @@ impl OptionSnapshotQuoteBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3390,6 +3498,7 @@ impl OptionSnapshotQuoteBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_quote(&symbol, &expiration);
@@ -3407,6 +3516,9 @@ impl OptionSnapshotQuoteBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3426,6 +3538,7 @@ impl OptionSnapshotQuoteBuilder {
 /// Defaults (upstream):
 /// - `strike`: `"*"`
 /// - `right`: `"both"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotOpenInterestBuilder")]
 pub struct OptionSnapshotOpenInterestBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3436,6 +3549,7 @@ pub struct OptionSnapshotOpenInterestBuilder {
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3471,6 +3585,12 @@ impl OptionSnapshotOpenInterestBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -3502,6 +3622,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, &expiration);
@@ -3519,6 +3640,9 @@ impl OptionSnapshotOpenInterestBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3538,6 +3662,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_open_interest(&symbol, &expiration);
@@ -3556,6 +3681,9 @@ impl OptionSnapshotOpenInterestBuilder {
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -3572,6 +3700,7 @@ impl OptionSnapshotOpenInterestBuilder {
 /// Defaults (upstream):
 /// - `strike`: `"*"`
 /// - `right`: `"both"`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotMarketValueBuilder")]
 pub struct OptionSnapshotMarketValueBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3582,6 +3711,7 @@ pub struct OptionSnapshotMarketValueBuilder {
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3617,6 +3747,12 @@ impl OptionSnapshotMarketValueBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -3648,6 +3784,7 @@ impl OptionSnapshotMarketValueBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, &expiration);
@@ -3665,6 +3802,9 @@ impl OptionSnapshotMarketValueBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3684,6 +3824,7 @@ impl OptionSnapshotMarketValueBuilder {
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_market_value(&symbol, &expiration);
@@ -3701,6 +3842,9 @@ impl OptionSnapshotMarketValueBuilder {
             }
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -3723,6 +3867,7 @@ impl OptionSnapshotMarketValueBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksImpliedVolatilityBuilder")]
 pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3739,6 +3884,7 @@ pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -3810,6 +3956,12 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -3847,6 +3999,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
@@ -3883,6 +4036,9 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -3907,6 +4063,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
@@ -3943,6 +4100,9 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -3963,6 +4123,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksAllBuilder")]
 pub struct OptionSnapshotGreeksAllBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -3979,6 +4140,7 @@ pub struct OptionSnapshotGreeksAllBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -4050,6 +4212,12 @@ impl OptionSnapshotGreeksAllBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -4087,6 +4255,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, &expiration);
@@ -4123,6 +4292,9 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4147,6 +4319,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_all(&symbol, &expiration);
@@ -4183,6 +4356,9 @@ impl OptionSnapshotGreeksAllBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4205,6 +4381,7 @@ impl OptionSnapshotGreeksAllBuilder {
 /// - `binomial_steps`: `101`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksAllBuilder")]
 pub struct OptionSnapshotBinomialGreeksAllBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -4222,6 +4399,7 @@ pub struct OptionSnapshotBinomialGreeksAllBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -4299,6 +4477,12 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -4337,6 +4521,7 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, &expiration);
@@ -4376,6 +4561,9 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4401,6 +4589,7 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, &expiration);
@@ -4440,6 +4629,9 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4460,6 +4652,7 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksFirstOrderBuilder")]
 pub struct OptionSnapshotGreeksFirstOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -4476,6 +4669,7 @@ pub struct OptionSnapshotGreeksFirstOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -4547,6 +4741,12 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -4584,6 +4784,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, &expiration);
@@ -4620,6 +4821,9 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4644,6 +4848,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, &expiration);
@@ -4680,6 +4885,9 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4702,6 +4910,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 /// - `binomial_steps`: `101`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksFirstOrderBuilder")]
 pub struct OptionSnapshotBinomialGreeksFirstOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -4719,6 +4928,7 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -4796,6 +5006,12 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -4834,6 +5050,7 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, &expiration);
@@ -4873,6 +5090,9 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4898,6 +5118,7 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, &expiration);
@@ -4937,6 +5158,9 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -4957,6 +5181,7 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksSecondOrderBuilder")]
 pub struct OptionSnapshotGreeksSecondOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -4973,6 +5198,7 @@ pub struct OptionSnapshotGreeksSecondOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -5044,6 +5270,12 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -5081,6 +5313,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, &expiration);
@@ -5117,6 +5350,9 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5141,6 +5377,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, &expiration);
@@ -5177,6 +5414,9 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5199,6 +5439,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 /// - `binomial_steps`: `101`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksSecondOrderBuilder")]
 pub struct OptionSnapshotBinomialGreeksSecondOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -5216,6 +5457,7 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -5293,6 +5535,12 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -5331,6 +5579,7 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, &expiration);
@@ -5370,6 +5619,9 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5395,6 +5647,7 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, &expiration);
@@ -5434,6 +5687,9 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5454,6 +5710,7 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotGreeksThirdOrderBuilder")]
 pub struct OptionSnapshotGreeksThirdOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -5470,6 +5727,7 @@ pub struct OptionSnapshotGreeksThirdOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -5541,6 +5799,12 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -5578,6 +5842,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, &expiration);
@@ -5614,6 +5879,9 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5638,6 +5906,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, &expiration);
@@ -5674,6 +5943,9 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5696,6 +5968,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
 /// - `binomial_steps`: `101`
 /// - `version`: `"latest"`
 /// - `use_market_value`: `false`
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksThirdOrderBuilder")]
 pub struct OptionSnapshotBinomialGreeksThirdOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -5713,6 +5986,7 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderBuilder {
     strike_range: Option<i32>,
     min_time: Option<String>,
     use_market_value: Option<bool>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -5790,6 +6064,12 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
         slf
     }
 
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -5828,6 +6108,7 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, &expiration);
@@ -5867,6 +6148,9 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
             }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -5892,6 +6176,7 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let min_time = self.min_time.clone();
         let use_market_value = self.use_market_value;
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, &expiration);
@@ -5930,6 +6215,9 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &use_market_value {
                 request = request.use_market_value(*value);
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19190,11 +19478,15 @@ impl IndexListDatesBuilder {
 ///
 /// - Retrieves the real-time current day OHLC.
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
+///
+/// Defaults (upstream):
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotOhlcBuilder")]
 pub struct IndexSnapshotOhlcBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -19203,6 +19495,12 @@ impl IndexSnapshotOhlcBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -19226,12 +19524,16 @@ impl IndexSnapshotOhlcBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19246,12 +19548,16 @@ impl IndexSnapshotOhlcBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19266,11 +19572,15 @@ impl IndexSnapshotOhlcBuilder {
 ///
 /// - Retrieves a real-time last index price.
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
+///
+/// Defaults (upstream):
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotPriceBuilder")]
 pub struct IndexSnapshotPriceBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -19279,6 +19589,12 @@ impl IndexSnapshotPriceBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -19302,12 +19618,16 @@ impl IndexSnapshotPriceBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19322,12 +19642,16 @@ impl IndexSnapshotPriceBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19342,11 +19666,15 @@ impl IndexSnapshotPriceBuilder {
 ///
 /// - Retrieves a real-time last index market value.
 /// - Exchanges typically generate a price report every second for popular indices like SPX.
+///
+/// Defaults (upstream):
+/// - `current_day_only`: `false`
 #[pyclass(module = "thetadatadx", name = "IndexSnapshotMarketValueBuilder")]
 pub struct IndexSnapshotMarketValueBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbols: Vec<String>,
     min_time: Option<String>,
+    current_day_only: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -19355,6 +19683,12 @@ impl IndexSnapshotMarketValueBuilder {
     /// Set `min_time` on the pending request.
     fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `current_day_only` on the pending request.
+    fn current_day_only<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.current_day_only = Some(value);
         slf
     }
 
@@ -19378,12 +19712,16 @@ impl IndexSnapshotMarketValueBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -19398,12 +19736,16 @@ impl IndexSnapshotMarketValueBuilder {
         let client = self.client.clone();
         let symbols = self.symbols.clone();
         let min_time = self.min_time.clone();
+        let current_day_only = self.current_day_only;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &current_day_only {
+                request = request.current_day_only(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -20993,13 +21335,15 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn stock_snapshot_ohlc(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -21009,6 +21353,9 @@ impl MarketDataView {
         }
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21026,18 +21373,20 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn stock_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -21049,6 +21398,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21073,6 +21425,7 @@ impl MarketDataView {
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -21085,13 +21438,15 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn stock_snapshot_trade(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -21101,6 +21456,9 @@ impl MarketDataView {
         }
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21117,18 +21475,20 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn stock_snapshot_trade_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -21140,6 +21500,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21164,6 +21527,7 @@ impl MarketDataView {
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -21176,13 +21540,15 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn stock_snapshot_quote(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -21192,6 +21558,9 @@ impl MarketDataView {
         }
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21208,18 +21577,20 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn stock_snapshot_quote_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -21231,6 +21602,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21255,6 +21629,7 @@ impl MarketDataView {
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -21267,13 +21642,15 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn stock_snapshot_market_value(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
@@ -21283,6 +21660,9 @@ impl MarketDataView {
         }
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21299,18 +21679,20 @@ impl MarketDataView {
     ///
     /// Defaults (upstream):
     /// - `venue`: `"nqb"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, venue=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, venue=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn stock_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -21322,6 +21704,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -21346,6 +21731,7 @@ impl MarketDataView {
             symbols: symbols.into_vec(),
             venue: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -22548,7 +22934,8 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_ohlc(
         &self,
         py: Python<'_>,
@@ -22559,6 +22946,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
@@ -22577,6 +22965,9 @@ impl MarketDataView {
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22591,12 +22982,13 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
@@ -22607,6 +22999,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -22626,6 +23019,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22655,6 +23051,7 @@ impl MarketDataView {
             max_dte: None,
             strike_range: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -22667,7 +23064,8 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_trade(
         &self,
         py: Python<'_>,
@@ -22677,6 +23075,7 @@ impl MarketDataView {
         right: Option<PyStringArg>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_trade(symbol.as_str(), expiration.as_str());
@@ -22691,6 +23090,9 @@ impl MarketDataView {
         }
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22707,12 +23109,13 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, strike_range=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_trade_async<'py>(
         &self,
         py: Python<'py>,
@@ -22722,6 +23125,7 @@ impl MarketDataView {
         right: Option<PyStringArg>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -22738,6 +23142,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22766,6 +23173,7 @@ impl MarketDataView {
             right: None,
             strike_range: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -22778,7 +23186,8 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_quote(
         &self,
         py: Python<'_>,
@@ -22789,6 +23198,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_quote(symbol.as_str(), expiration.as_str());
@@ -22807,6 +23217,9 @@ impl MarketDataView {
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22822,12 +23235,13 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_quote_async<'py>(
         &self,
         py: Python<'py>,
@@ -22838,6 +23252,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -22857,6 +23272,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -22886,6 +23304,7 @@ impl MarketDataView {
             max_dte: None,
             strike_range: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -22899,7 +23318,8 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_open_interest(
         &self,
         py: Python<'_>,
@@ -22910,6 +23330,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
@@ -22928,6 +23349,9 @@ impl MarketDataView {
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22944,12 +23368,13 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_open_interest_async<'py>(
         &self,
         py: Python<'py>,
@@ -22960,6 +23385,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -22979,6 +23405,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -23008,6 +23437,7 @@ impl MarketDataView {
             max_dte: None,
             strike_range: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23019,7 +23449,8 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_market_value(
         &self,
         py: Python<'_>,
@@ -23030,6 +23461,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
@@ -23048,6 +23480,9 @@ impl MarketDataView {
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23062,12 +23497,13 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, max_dte=None, strike_range=None, min_time=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
@@ -23078,6 +23514,7 @@ impl MarketDataView {
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -23097,6 +23534,9 @@ impl MarketDataView {
             }
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -23126,6 +23566,7 @@ impl MarketDataView {
             max_dte: None,
             strike_range: None,
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23142,7 +23583,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -23159,6 +23601,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
@@ -23195,6 +23638,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23214,12 +23660,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
@@ -23236,6 +23683,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -23274,6 +23722,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -23308,6 +23759,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23323,7 +23775,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_all(
         &self,
         py: Python<'_>,
@@ -23340,6 +23793,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
@@ -23376,6 +23830,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23394,12 +23851,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -23416,6 +23874,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -23454,6 +23913,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -23488,6 +23950,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23505,7 +23968,8 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_all(
         &self,
         py: Python<'_>,
@@ -23523,6 +23987,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_binomial_greeks_all(symbol.as_str(), expiration.as_str());
@@ -23562,6 +24027,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23582,12 +24050,13 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -23605,6 +24074,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -23646,6 +24116,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -23681,6 +24154,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23696,7 +24170,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -23713,6 +24188,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
@@ -23749,6 +24225,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23767,12 +24246,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -23789,6 +24269,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -23827,6 +24308,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -23861,6 +24345,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -23878,7 +24363,8 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -23896,6 +24382,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_binomial_greeks_first_order(symbol.as_str(), expiration.as_str());
@@ -23935,6 +24422,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -23955,12 +24445,13 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -23978,6 +24469,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -24019,6 +24511,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -24054,6 +24549,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -24069,7 +24565,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -24086,6 +24583,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
@@ -24122,6 +24620,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -24140,12 +24641,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24162,6 +24664,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -24200,6 +24703,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -24234,6 +24740,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -24251,7 +24758,8 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -24269,6 +24777,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_binomial_greeks_second_order(symbol.as_str(), expiration.as_str());
@@ -24308,6 +24817,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -24328,12 +24840,13 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24351,6 +24864,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -24392,6 +24906,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -24427,6 +24944,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -24442,7 +24960,8 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -24459,6 +24978,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
@@ -24495,6 +25015,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -24513,12 +25036,13 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24535,6 +25059,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -24573,6 +25098,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -24607,6 +25135,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -24624,7 +25153,8 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -24642,6 +25172,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
         let mut request = self.client.market_data().option_snapshot_binomial_greeks_third_order(symbol.as_str(), expiration.as_str());
@@ -24681,6 +25212,9 @@ impl MarketDataView {
         if let Some(value) = use_market_value {
             request = request.use_market_value(value);
         }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -24701,12 +25235,13 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
+    /// - `current_day_only`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24724,6 +25259,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         min_time: Option<PyTimeArg>,
         use_market_value: Option<bool>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -24765,6 +25301,9 @@ impl MarketDataView {
             if let Some(value) = use_market_value {
                 request = request.use_market_value(value);
             }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -24800,6 +25339,7 @@ impl MarketDataView {
             strike_range: None,
             min_time: None,
             use_market_value: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -30361,18 +30901,25 @@ impl MarketDataView {
     ///
     /// - Retrieves the real-time current day OHLC.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=false, timeout_ms=None))]
     fn index_snapshot_ohlc(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.market_data().index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30386,16 +30933,20 @@ impl MarketDataView {
     /// - Retrieves the real-time current day OHLC.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
     ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=None, timeout_ms=None))]
     fn index_snapshot_ohlc_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -30404,6 +30955,9 @@ impl MarketDataView {
             let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30427,6 +30981,7 @@ impl MarketDataView {
             client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -30435,18 +30990,25 @@ impl MarketDataView {
     ///
     /// - Retrieves a real-time last index price.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=false, timeout_ms=None))]
     fn index_snapshot_price(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.market_data().index_snapshot_price(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30460,16 +31022,20 @@ impl MarketDataView {
     /// - Retrieves a real-time last index price.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
     ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=None, timeout_ms=None))]
     fn index_snapshot_price_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -30478,6 +31044,9 @@ impl MarketDataView {
             let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30501,6 +31070,7 @@ impl MarketDataView {
             client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
@@ -30509,18 +31079,25 @@ impl MarketDataView {
     ///
     /// - Retrieves a real-time last index market value.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=false, timeout_ms=None))]
     fn index_snapshot_market_value(
         &self,
         py: Python<'_>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.market_data().index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
+        }
+        if let Some(value) = current_day_only {
+            request = request.current_day_only(value);
         }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30534,16 +31111,20 @@ impl MarketDataView {
     /// - Retrieves a real-time last index market value.
     /// - Exchanges typically generate a price report every second for popular indices like SPX.
     ///
+    /// Defaults (upstream):
+    /// - `current_day_only`: `false`
+    ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbols, *, min_time=None, timeout_ms=None))]
+    #[pyo3(signature = (symbols, *, min_time=None, current_day_only=None, timeout_ms=None))]
     fn index_snapshot_market_value_async<'py>(
         &self,
         py: Python<'py>,
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
+        current_day_only: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -30552,6 +31133,9 @@ impl MarketDataView {
             let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
+            }
+            if let Some(value) = current_day_only {
+                request = request.current_day_only(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -30575,6 +31159,7 @@ impl MarketDataView {
             client: self.client.clone(),
             symbols: symbols.into_vec(),
             min_time: None,
+            current_day_only: None,
             timeout_ms: None,
         }
     }
