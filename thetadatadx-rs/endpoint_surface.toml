@@ -345,6 +345,15 @@ param_type = "Float"
 required = false
 binding = "builder"
 
+[param_groups.annual_dividend_amount_input]
+
+[[param_groups.annual_dividend_amount_input.params]]
+name = "annual_dividend_amount"
+description = "Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."
+param_type = "Float"
+required = false
+binding = "builder"
+
 [param_groups.rate_type_input]
 
 [[param_groups.rate_type_input.params]]
@@ -369,6 +378,9 @@ binding = "builder"
 
 [[param_groups.option_greeks_rate_inputs.params]]
 use = "annual_dividend_input"
+
+[[param_groups.option_greeks_rate_inputs.params]]
+use = "annual_dividend_amount_input"
 
 [[param_groups.option_greeks_rate_inputs.params]]
 use = "rate_type_input"
@@ -2271,6 +2283,7 @@ underlyer_use_nbbo = "true"
 binomial_steps = "51"
 perf_boost_intraday = "true"
 current_day_only = "true"
+annual_dividend_amount = "0.96"
 
 [test_fixtures.mode_overrides.concrete_iso]
 # ISO-dashed expiration acceptance is scoped to `Expiration` params.

@@ -102,9 +102,11 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
         }
         "symbol" => "optional symbol-filter wiring",
         "venue" => "optional venue selector wiring",
-        "annual_dividend" | "rate_type" | "rate_value" | "stock_price" => {
-            "optional Greeks-input wiring"
-        }
+        "annual_dividend"
+        | "annual_dividend_amount"
+        | "rate_type"
+        | "rate_value"
+        | "stock_price" => "optional Greeks-input wiring",
         "version" => "optional Greeks-version selector wiring",
         "binomial_steps" => "optional binomial-tree step-count wiring",
         "use_market_value" | "underlyer_use_nbbo" | "perf_boost_intraday" | "current_day_only" => {
@@ -588,6 +590,11 @@ fn append_optional_modes(
     // `all_optionals` mode — set every applicable optional at once.
     let mut all_overrides: Vec<(String, String)> = Vec::new();
     for param_name in &optional_names {
+        // The vendor refuses `annual_dividend_amount` beside a non-zero
+        // `annual_dividend`, so the combined cell carries only the latter.
+        if param_name == "annual_dividend_amount" {
+            continue;
+        }
         let value = optional_fixture_value(fixtures, param_name);
         all_overrides.push((param_name.clone(), value.to_string()));
     }

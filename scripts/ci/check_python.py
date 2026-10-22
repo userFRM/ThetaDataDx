@@ -329,6 +329,9 @@ CELLS = [
     # option_snapshot_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_implied_volatility::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_greeks_implied_volatility", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -371,6 +374,9 @@ CELLS = [
     # option_snapshot_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -413,6 +419,9 @@ CELLS = [
     # option_snapshot_binomial_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_binomial_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -458,6 +467,9 @@ CELLS = [
     # option_snapshot_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_greeks_first_order", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -500,6 +512,9 @@ CELLS = [
     # option_snapshot_binomial_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_binomial_greeks_first_order", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -545,6 +560,9 @@ CELLS = [
     # option_snapshot_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -587,6 +605,9 @@ CELLS = [
     # option_snapshot_binomial_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_binomial_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -632,6 +653,9 @@ CELLS = [
     # option_snapshot_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -674,6 +698,9 @@ CELLS = [
     # option_snapshot_binomial_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_snapshot_binomial_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_snapshot_binomial_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_snapshot_binomial_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -884,6 +911,9 @@ CELLS = [
     # option_history_greeks_eod::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_eod::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_eod", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -917,6 +947,9 @@ CELLS = [
     # option_history_binomial_greeks_eod::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_greeks_eod", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_greeks_eod::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_greeks_eod", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", annual_dividend_amount=0.96, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_greeks_eod", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -959,6 +992,9 @@ CELLS = [
     # option_history_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -992,6 +1028,9 @@ CELLS = [
     # option_history_binomial_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1031,6 +1070,9 @@ CELLS = [
     # option_history_trade_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_trade_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1073,6 +1115,9 @@ CELLS = [
     # option_history_binomial_trade_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_trade_greeks_all::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_trade_greeks_all", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1115,6 +1160,9 @@ CELLS = [
     # option_history_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_first_order", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1148,6 +1196,9 @@ CELLS = [
     # option_history_binomial_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_greeks_first_order", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1187,6 +1238,9 @@ CELLS = [
     # option_history_trade_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_trade_greeks_first_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1229,6 +1283,9 @@ CELLS = [
     # option_history_binomial_trade_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_trade_greeks_first_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_trade_greeks_first_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1271,6 +1328,9 @@ CELLS = [
     # option_history_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1304,6 +1364,9 @@ CELLS = [
     # option_history_binomial_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1343,6 +1406,9 @@ CELLS = [
     # option_history_trade_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_trade_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1385,6 +1451,9 @@ CELLS = [
     # option_history_binomial_trade_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_trade_greeks_second_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_trade_greeks_second_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1427,6 +1496,9 @@ CELLS = [
     # option_history_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1460,6 +1532,9 @@ CELLS = [
     # option_history_binomial_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1499,6 +1574,9 @@ CELLS = [
     # option_history_trade_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_trade_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1541,6 +1619,9 @@ CELLS = [
     # option_history_binomial_trade_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_binomial_trade_greeks_third_order::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_binomial_trade_greeks_third_order", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_binomial_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1583,6 +1664,9 @@ CELLS = [
     # option_history_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_implied_volatility::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_greeks_implied_volatility", "with_annual_dividend_amount", "standard", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1619,6 +1703,9 @@ CELLS = [
     # option_history_trade_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
     ("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", annual_dividend=0.015, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_implied_volatility::with_annual_dividend_amount
+    #   rationale: annual_dividend_amount=0.96 optional Greeks-input wiring
+    ("option_history_trade_greeks_implied_volatility", "with_annual_dividend_amount", "professional", "annual_dividend_amount=0.96 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", annual_dividend_amount=0.96, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),

@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/snapshot/greeks/second_order",
   method: { rust: "option_snapshot_greeks_second_order", python: "option_snapshot_greeks_second_order", ts: "optionSnapshotGreeksSecondOrder", cpp: "option_snapshot_greeks_second_order" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "stock_price", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "use_market_value", type: "bool", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "stock_price", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "min_time", type: "string", default: "" }, { key: "use_market_value", type: "bool", default: "" }, { key: "current_day_only", type: "bool", default: "" }],
   print: ["date", "gamma", "vanna", "charm"],
   returns: "GreeksSecondOrderTick",
   sample: [
@@ -40,6 +40,7 @@ Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
 | `annual_dividend` | float | no | - | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
+| `annual_dividend_amount` | float | no | - | Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`. |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
 | `rate_value` | float | no | - | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
 | `stock_price` | float | no | - | Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. |

@@ -3876,6 +3876,7 @@ pub struct OptionSnapshotGreeksImpliedVolatilityBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -3905,6 +3906,12 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -3991,6 +3998,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4011,6 +4019,9 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4055,6 +4066,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4075,6 +4087,9 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4132,6 +4147,7 @@ pub struct OptionSnapshotGreeksAllBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -4161,6 +4177,12 @@ impl OptionSnapshotGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -4247,6 +4269,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4267,6 +4290,9 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4311,6 +4337,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4331,6 +4358,9 @@ impl OptionSnapshotGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4390,6 +4420,7 @@ pub struct OptionSnapshotBinomialGreeksAllBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -4420,6 +4451,12 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -4512,6 +4549,7 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4533,6 +4571,9 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4580,6 +4621,7 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4601,6 +4643,9 @@ impl OptionSnapshotBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4661,6 +4706,7 @@ pub struct OptionSnapshotGreeksFirstOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -4690,6 +4736,12 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -4776,6 +4828,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4796,6 +4849,9 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4840,6 +4896,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -4860,6 +4917,9 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -4919,6 +4979,7 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -4949,6 +5010,12 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -5041,6 +5108,7 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5062,6 +5130,9 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5109,6 +5180,7 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5130,6 +5202,9 @@ impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5190,6 +5265,7 @@ pub struct OptionSnapshotGreeksSecondOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -5219,6 +5295,12 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -5305,6 +5387,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5325,6 +5408,9 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5369,6 +5455,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5389,6 +5476,9 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5448,6 +5538,7 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -5478,6 +5569,12 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -5570,6 +5667,7 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5591,6 +5689,9 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5638,6 +5739,7 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5659,6 +5761,9 @@ impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5719,6 +5824,7 @@ pub struct OptionSnapshotGreeksThirdOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -5748,6 +5854,12 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -5834,6 +5946,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5854,6 +5967,9 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5898,6 +6014,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -5918,6 +6035,9 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -5977,6 +6097,7 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     stock_price: Option<f64>,
@@ -6007,6 +6128,12 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -6099,6 +6226,7 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -6120,6 +6248,9 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -6167,6 +6298,7 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let stock_price = self.stock_price;
@@ -6188,6 +6320,9 @@ impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -8559,6 +8694,7 @@ pub struct OptionHistoryGreeksEodBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -8585,6 +8721,12 @@ impl OptionHistoryGreeksEodBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -8667,6 +8809,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -8684,6 +8827,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -8721,6 +8867,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -8738,6 +8885,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -8774,6 +8924,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -8800,6 +8951,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -8858,6 +9012,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -8881,6 +9036,9 @@ impl OptionHistoryGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -8984,6 +9142,7 @@ pub struct OptionHistoryBinomialGreeksEodBuilder {
     strike: Option<String>,
     right: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -9011,6 +9170,12 @@ impl OptionHistoryBinomialGreeksEodBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -9099,6 +9264,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -9117,6 +9283,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9157,6 +9326,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -9175,6 +9345,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9214,6 +9387,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -9241,6 +9415,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9302,6 +9479,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         let strike = self.strike.clone();
         let right = self.right.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -9326,6 +9504,9 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9435,6 +9616,7 @@ pub struct OptionHistoryGreeksAllBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -9485,6 +9667,12 @@ impl OptionHistoryGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -9557,6 +9745,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -9586,6 +9775,9 @@ impl OptionHistoryGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9625,6 +9817,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -9654,6 +9847,9 @@ impl OptionHistoryGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9692,6 +9888,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -9730,6 +9927,9 @@ impl OptionHistoryGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9790,6 +9990,7 @@ impl OptionHistoryGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -9825,6 +10026,9 @@ impl OptionHistoryGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -9933,6 +10137,7 @@ pub struct OptionHistoryBinomialGreeksAllBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -9984,6 +10189,12 @@ impl OptionHistoryBinomialGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -10062,6 +10273,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -10092,6 +10304,9 @@ impl OptionHistoryBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10134,6 +10349,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -10164,6 +10380,9 @@ impl OptionHistoryBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10205,6 +10424,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -10244,6 +10464,9 @@ impl OptionHistoryBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10307,6 +10530,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -10343,6 +10567,9 @@ impl OptionHistoryBinomialGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10451,6 +10678,7 @@ pub struct OptionHistoryTradeGreeksAllBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -10497,6 +10725,12 @@ impl OptionHistoryTradeGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -10580,6 +10814,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -10608,6 +10843,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10652,6 +10890,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -10680,6 +10919,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10723,6 +10965,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -10760,6 +11003,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10825,6 +11071,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -10859,6 +11106,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -10972,6 +11222,7 @@ pub struct OptionHistoryBinomialTradeGreeksAllBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -11019,6 +11270,12 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -11108,6 +11365,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -11137,6 +11395,9 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11184,6 +11445,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -11213,6 +11475,9 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11259,6 +11524,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -11297,6 +11563,9 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11365,6 +11634,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -11400,6 +11670,9 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11515,6 +11788,7 @@ pub struct OptionHistoryGreeksFirstOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -11565,6 +11839,12 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -11637,6 +11917,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -11666,6 +11947,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11705,6 +11989,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -11734,6 +12019,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11772,6 +12060,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -11810,6 +12099,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -11870,6 +12162,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -11905,6 +12198,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12013,6 +12309,7 @@ pub struct OptionHistoryBinomialGreeksFirstOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -12064,6 +12361,12 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -12142,6 +12445,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -12172,6 +12476,9 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12214,6 +12521,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -12244,6 +12552,9 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12285,6 +12596,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -12324,6 +12636,9 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12387,6 +12702,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -12423,6 +12739,9 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12531,6 +12850,7 @@ pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -12577,6 +12897,12 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -12660,6 +12986,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -12688,6 +13015,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12732,6 +13062,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -12760,6 +13091,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12803,6 +13137,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -12840,6 +13175,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -12905,6 +13243,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -12939,6 +13278,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13052,6 +13394,7 @@ pub struct OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -13099,6 +13442,12 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -13188,6 +13537,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -13217,6 +13567,9 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13264,6 +13617,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -13293,6 +13647,9 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13339,6 +13696,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -13377,6 +13735,9 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13445,6 +13806,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -13480,6 +13842,9 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13595,6 +13960,7 @@ pub struct OptionHistoryGreeksSecondOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -13645,6 +14011,12 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -13717,6 +14089,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -13746,6 +14119,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13785,6 +14161,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -13814,6 +14191,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13852,6 +14232,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -13890,6 +14271,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -13950,6 +14334,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -13985,6 +14370,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14093,6 +14481,7 @@ pub struct OptionHistoryBinomialGreeksSecondOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -14144,6 +14533,12 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -14222,6 +14617,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -14252,6 +14648,9 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14294,6 +14693,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -14324,6 +14724,9 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14365,6 +14768,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -14404,6 +14808,9 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14467,6 +14874,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -14503,6 +14911,9 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14611,6 +15022,7 @@ pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -14657,6 +15069,12 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -14740,6 +15158,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -14768,6 +15187,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14812,6 +15234,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -14840,6 +15263,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14883,6 +15309,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -14920,6 +15347,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -14985,6 +15415,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -15019,6 +15450,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15132,6 +15566,7 @@ pub struct OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -15179,6 +15614,12 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -15268,6 +15709,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -15297,6 +15739,9 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15344,6 +15789,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -15373,6 +15819,9 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15419,6 +15868,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -15457,6 +15907,9 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15525,6 +15978,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -15560,6 +16014,9 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15675,6 +16132,7 @@ pub struct OptionHistoryGreeksThirdOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -15725,6 +16183,12 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -15797,6 +16261,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -15826,6 +16291,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15865,6 +16333,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -15894,6 +16363,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -15932,6 +16404,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -15970,6 +16443,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16030,6 +16506,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -16065,6 +16542,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16173,6 +16653,7 @@ pub struct OptionHistoryBinomialGreeksThirdOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -16224,6 +16705,12 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -16302,6 +16789,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -16332,6 +16820,9 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16374,6 +16865,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -16404,6 +16896,9 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16445,6 +16940,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -16484,6 +16980,9 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16547,6 +17046,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -16583,6 +17083,9 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16691,6 +17194,7 @@ pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -16737,6 +17241,12 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -16820,6 +17330,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -16848,6 +17359,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16892,6 +17406,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -16920,6 +17435,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -16963,6 +17481,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -17000,6 +17519,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17065,6 +17587,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -17099,6 +17622,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17212,6 +17738,7 @@ pub struct OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     binomial_steps: Option<i32>,
@@ -17259,6 +17786,12 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -17348,6 +17881,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -17377,6 +17911,9 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17424,6 +17961,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -17453,6 +17991,9 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17499,6 +18040,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -17537,6 +18079,9 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17605,6 +18150,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let binomial_steps = self.binomial_steps;
@@ -17640,6 +18186,9 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17754,6 +18303,7 @@ pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -17804,6 +18354,12 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -17876,6 +18432,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -17905,6 +18462,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -17944,6 +18504,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -17973,6 +18534,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18011,6 +18575,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18049,6 +18614,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18109,6 +18677,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18144,6 +18713,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18248,6 +18820,7 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
+    annual_dividend_amount: Option<f64>,
     rate_type: Option<String>,
     rate_value: Option<f64>,
     version: Option<String>,
@@ -18294,6 +18867,12 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     /// Set `annual_dividend` on the pending request.
     fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
         slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `annual_dividend_amount` on the pending request.
+    fn annual_dividend_amount<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend_amount = Some(value);
         slf
     }
 
@@ -18377,6 +18956,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18405,6 +18985,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18449,6 +19032,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18477,6 +19061,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18520,6 +19107,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18557,6 +19145,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -18622,6 +19213,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
+        let annual_dividend_amount = self.annual_dividend_amount;
         let rate_type = self.rate_type.clone();
         let rate_value = self.rate_value;
         let version = self.version.clone();
@@ -18656,6 +19248,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &annual_dividend {
                 request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &annual_dividend_amount {
+                request = request.annual_dividend_amount(*value);
             }
             if let Some(value) = &rate_type {
                 request = request.rate_type(value.as_str());
@@ -23584,7 +24179,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -23593,6 +24188,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -23613,6 +24209,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -23666,7 +24265,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
@@ -23675,6 +24274,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -23697,6 +24297,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23751,6 +24354,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -23776,7 +24380,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_all(
         &self,
         py: Python<'_>,
@@ -23785,6 +24389,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -23805,6 +24410,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -23857,7 +24465,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -23866,6 +24474,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -23888,6 +24497,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -23942,6 +24554,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -23969,7 +24582,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_all(
         &self,
         py: Python<'_>,
@@ -23978,6 +24591,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -23999,6 +24613,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -24056,7 +24673,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -24065,6 +24682,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24088,6 +24706,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24145,6 +24766,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -24171,7 +24793,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -24180,6 +24802,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24200,6 +24823,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -24252,7 +24878,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24261,6 +24887,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24283,6 +24910,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24337,6 +24967,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -24364,7 +24995,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -24373,6 +25004,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24394,6 +25026,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -24451,7 +25086,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24460,6 +25095,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24483,6 +25119,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24540,6 +25179,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -24566,7 +25206,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -24575,6 +25215,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24595,6 +25236,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -24647,7 +25291,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24656,6 +25300,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24678,6 +25323,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24732,6 +25380,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -24759,7 +25408,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -24768,6 +25417,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24789,6 +25439,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -24846,7 +25499,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -24855,6 +25508,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24878,6 +25532,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -24935,6 +25592,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -24961,7 +25619,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -24970,6 +25628,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -24990,6 +25649,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -25042,7 +25704,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -25051,6 +25713,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -25073,6 +25736,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25127,6 +25793,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -25154,7 +25821,7 @@ impl MarketDataView {
     /// - `version`: `"latest"`
     /// - `use_market_value`: `false`
     /// - `current_day_only`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, current_day_only=false, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -25163,6 +25830,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -25184,6 +25852,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -25241,7 +25912,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, current_day_only=None, timeout_ms=None))]
     fn option_snapshot_binomial_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -25250,6 +25921,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         stock_price: Option<f64>,
@@ -25273,6 +25945,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -25330,6 +26005,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             stock_price: None,
@@ -26295,7 +26971,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod(
         &self,
         py: Python<'_>,
@@ -26306,6 +26982,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -26323,6 +27000,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -26366,7 +27046,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_greeks_eod_async<'py>(
         &self,
         py: Python<'py>,
@@ -26377,6 +27057,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -26396,6 +27077,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -26445,6 +27129,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -26469,7 +27154,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `underlyer_use_nbbo`: `false`
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_binomial_greeks_eod(
         &self,
         py: Python<'_>,
@@ -26480,6 +27165,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -26498,6 +27184,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -26546,7 +27235,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
     fn option_history_binomial_greeks_eod_async<'py>(
         &self,
         py: Python<'py>,
@@ -26557,6 +27246,7 @@ impl MarketDataView {
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -26577,6 +27267,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -26629,6 +27322,7 @@ impl MarketDataView {
             strike: None,
             right: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -26655,7 +27349,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all(
         &self,
         py: Python<'_>,
@@ -26668,6 +27362,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -26697,6 +27392,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -26743,7 +27441,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -26756,6 +27454,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -26787,6 +27486,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -26836,6 +27538,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -26863,7 +27566,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_all(
         &self,
         py: Python<'_>,
@@ -26876,6 +27579,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -26906,6 +27610,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -26957,7 +27664,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -26970,6 +27677,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -27002,6 +27710,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -27054,6 +27765,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -27080,7 +27792,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
         py: Python<'_>,
@@ -27092,6 +27804,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -27120,6 +27833,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -27172,7 +27888,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -27184,6 +27900,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -27214,6 +27931,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -27268,6 +27988,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -27297,7 +28018,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_all(
         &self,
         py: Python<'_>,
@@ -27309,6 +28030,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -27338,6 +28060,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -27395,7 +28120,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -27407,6 +28132,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -27438,6 +28164,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -27495,6 +28224,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -27523,7 +28253,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -27536,6 +28266,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -27565,6 +28296,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -27611,7 +28345,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -27624,6 +28358,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -27655,6 +28390,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -27704,6 +28442,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -27731,7 +28470,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -27744,6 +28483,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -27774,6 +28514,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -27825,7 +28568,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -27838,6 +28581,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -27870,6 +28614,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -27922,6 +28669,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -27948,7 +28696,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -27960,6 +28708,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -27988,6 +28737,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -28040,7 +28792,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -28052,6 +28804,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -28082,6 +28835,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -28136,6 +28892,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -28165,7 +28922,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -28177,6 +28934,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -28206,6 +28964,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -28263,7 +29024,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -28275,6 +29036,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -28306,6 +29068,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -28363,6 +29128,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -28391,7 +29157,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -28404,6 +29170,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -28433,6 +29200,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -28479,7 +29249,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -28492,6 +29262,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -28523,6 +29294,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -28572,6 +29346,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -28599,7 +29374,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -28612,6 +29387,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -28642,6 +29418,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -28693,7 +29472,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -28706,6 +29485,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -28738,6 +29518,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -28790,6 +29573,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -28816,7 +29600,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -28828,6 +29612,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -28856,6 +29641,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -28908,7 +29696,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -28920,6 +29708,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -28950,6 +29739,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -29004,6 +29796,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -29033,7 +29826,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -29045,6 +29838,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -29074,6 +29868,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -29131,7 +29928,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -29143,6 +29940,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -29174,6 +29972,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -29231,6 +30032,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -29259,7 +30061,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -29272,6 +30074,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -29301,6 +30104,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -29347,7 +30153,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -29360,6 +30166,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -29391,6 +30198,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -29440,6 +30250,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -29467,7 +30278,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -29480,6 +30291,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -29510,6 +30322,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -29561,7 +30376,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_binomial_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -29574,6 +30389,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -29606,6 +30422,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -29658,6 +30477,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -29684,7 +30504,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -29696,6 +30516,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -29724,6 +30545,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -29776,7 +30600,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -29788,6 +30612,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -29818,6 +30643,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -29872,6 +30700,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -29901,7 +30730,7 @@ impl MarketDataView {
     /// - `binomial_steps`: `101`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -29913,6 +30742,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -29942,6 +30772,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -29999,7 +30832,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_binomial_trade_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -30011,6 +30844,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         binomial_steps: Option<i32>,
@@ -30042,6 +30876,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -30099,6 +30936,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             binomial_steps: None,
@@ -30126,7 +30964,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -30139,6 +30977,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -30168,6 +31007,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -30213,7 +31055,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
@@ -30226,6 +31068,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -30257,6 +31100,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -30306,6 +31152,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,
@@ -30330,7 +31177,7 @@ impl MarketDataView {
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
     /// - `perf_boost_intraday`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -30342,6 +31189,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -30370,6 +31218,9 @@ impl MarketDataView {
         }
         if let Some(value) = annual_dividend {
             request = request.annual_dividend(value);
+        }
+        if let Some(value) = annual_dividend_amount {
+            request = request.annual_dividend_amount(value);
         }
         if let Some(value) = rate_type {
             request = request.rate_type(value.as_str());
@@ -30421,7 +31272,7 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, annual_dividend_amount=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
@@ -30433,6 +31284,7 @@ impl MarketDataView {
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
+        annual_dividend_amount: Option<f64>,
         rate_type: Option<PyStringArg>,
         rate_value: Option<f64>,
         version: Option<PyStringArg>,
@@ -30463,6 +31315,9 @@ impl MarketDataView {
             }
             if let Some(value) = annual_dividend {
                 request = request.annual_dividend(value);
+            }
+            if let Some(value) = annual_dividend_amount {
+                request = request.annual_dividend_amount(value);
             }
             if let Some(value) = rate_type {
                 request = request.rate_type(value.as_str());
@@ -30517,6 +31372,7 @@ impl MarketDataView {
             start_time: None,
             end_time: None,
             annual_dividend: None,
+            annual_dividend_amount: None,
             rate_type: None,
             rate_value: None,
             version: None,

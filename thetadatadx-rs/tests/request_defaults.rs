@@ -60,6 +60,13 @@ struct OptionSnapshotQuoteQuery {
     current_day_only: Option<bool>,
 }
 
+/// `OptionSnapshotGreeksAllRequestQuery`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct OptionSnapshotGreeksAllQuery {
+    #[prost(double, optional, tag = "13")]
+    annual_dividend_amount: Option<f64>,
+}
+
 #[path = "common/grpc_mock.rs"]
 pub mod mock;
 
@@ -143,4 +150,20 @@ async fn optional_parameters_carry_the_terminal_defaults_or_the_callers_values()
         .await;
     let query: OptionSnapshotQuoteQuery = sent_query(&captured);
     assert_eq!(query.current_day_only, Some(true));
+
+    // annual_dividend_amount has no terminal default: the terminal sends it
+    // only when the caller set it, and the server refuses it beside a
+    // non-zero annual_dividend, so an unset value must stay off the wire.
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client.option_snapshot_greeks_all("SPY", "20250321").await;
+    let query: OptionSnapshotGreeksAllQuery = sent_query(&captured);
+    assert_eq!(query.annual_dividend_amount, None);
+
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .option_snapshot_greeks_all("SPY", "20250321")
+        .annual_dividend_amount(0.96)
+        .await;
+    let query: OptionSnapshotGreeksAllQuery = sent_query(&captured);
+    assert_eq!(query.annual_dividend_amount, Some(0.96));
 }

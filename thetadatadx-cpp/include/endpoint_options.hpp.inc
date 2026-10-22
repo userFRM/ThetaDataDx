@@ -48,6 +48,8 @@ struct EndpointRequestOptions {
     std::optional<int32_t> strike_range;
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     std::optional<double> annual_dividend;
+    /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
+    std::optional<double> annual_dividend_amount;
     /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
     std::optional<std::string> rate_type;
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
@@ -129,6 +131,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_annual_dividend(double value) {
         annual_dividend = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_annual_dividend_amount(double value) {
+        annual_dividend_amount = value;
         return *this;
     }
     EndpointRequestOptions& with_rate_type(std::string value) {
@@ -259,6 +265,10 @@ struct FfiEndpointRequestOptions {
         if (options.annual_dividend) {
             raw.annual_dividend = *options.annual_dividend;
             raw.has_annual_dividend = 1;
+        }
+        if (options.annual_dividend_amount) {
+            raw.annual_dividend_amount = *options.annual_dividend_amount;
+            raw.has_annual_dividend_amount = 1;
         }
         if (options.rate_type) {
             rate_type_storage = *options.rate_type;
