@@ -3029,7 +3029,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
@@ -3042,7 +3042,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-rs"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "arc-swap",
  "arrow-array",

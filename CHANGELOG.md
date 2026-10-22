@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-22
+
 ### Security
 
 - **TLS no longer trusts the compromised emSign intermediates.** Several emSign intermediate certificates were found to have private keys generated from fewer than 256 possible values, so anyone can recover those keys, and the ones issued for TLS can sign a certificate for any host. The market-data connection builds its trust store from the bundled roots, which in 0.6.0 and earlier still chained to them on every platform, and on Linux the login connection checks the system store with a verifier that had no way to reject them. A machine on the network path could therefore have presented a forged certificate for either host and read or altered that session. The Python wheels, the TypeScript addons, the C ABI library, the local server and the MCP server are now built with webpki-roots 1.0.10, rustls-webpki 0.103.16 and rustls 0.23.46, which distrust them (RUSTSEC-2026-0381, RUSTSEC-2026-0382) and also close four rustls advisories (RUSTSEC-2026-0346 to RUSTSEC-2026-0349). The lockfiles also move webpki-root-certs to 1.0.10 (RUSTSEC-2026-0383), although no shipped build compiles it. On macOS and Windows the login connection uses the operating system's own certificate verification, so it is protected by the operating system's update rather than by this release. The streaming and flat-file connections pin the vendor's key and were not exposed. The Rust crate now requires these versions of rustls, rustls-webpki and webpki-roots, so a project that depends on it picks them up on its next `cargo update`.
@@ -420,7 +422,8 @@ The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `t
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.1
 [0.6.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.0
 [0.5.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.5.0
 [0.4.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.4.0
