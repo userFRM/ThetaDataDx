@@ -334,7 +334,10 @@ x-anchors:
     schema:
       type: number
       format: double
-    description: Annual dividend amount for Greeks calculation
+    description: >-
+      Annualized continuous dividend yield used in the Greeks calculation, as a
+      decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a
+      dollar amount per share, use annual_dividend_amount.
 
   rate_type-param: &rate_type-param
     name: rate_type

@@ -53,7 +53,7 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub strike_range: i32,
     /// Presence flag for `strike_range`; set to `1` to apply the value.
     pub has_strike_range: i32,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: f64,
     /// Presence flag for `annual_dividend`; set to `1` to apply the value.
     pub has_annual_dividend: i32,

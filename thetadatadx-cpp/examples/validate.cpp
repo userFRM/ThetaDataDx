@@ -132,14 +132,14 @@ int main(int argc, char** argv) {
         };
 
         // stock_list_symbols::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("stock_list_symbols", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.stock_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_list_dates::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("stock_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.stock_list_dates("trade", "AAPL", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("stock_list_dates", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.stock_list_dates("trade", "AAPL", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("stock_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -147,11 +147,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("stock_snapshot_ohlc", "with_current_day_only", "value", "current_day_only=true optional flag wiring", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_snapshot_ohlc(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_trade::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("stock_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -159,11 +159,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("stock_snapshot_trade", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_trade::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_snapshot_trade(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_quote::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("stock_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -171,11 +171,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("stock_snapshot_quote", "with_current_day_only", "value", "current_day_only=true optional flag wiring", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_snapshot_quote", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_snapshot_quote(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_market_value::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_market_value::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("stock_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -183,89 +183,89 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("stock_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_snapshot_market_value::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_snapshot_market_value(std::vector<std::string>{"AAPL"}, thetadatadx::EndpointRequestOptions{}.with_venue("nqb").with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_eod::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_history_eod("AAPL", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_history_eod("AAPL", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_history_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_history_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair; intraday window optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("stock_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("stock_history_ohlc", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::with_interval
         //   rationale: interval=1m optional filter wiring
         cell("stock_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_history_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_history_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("stock_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("stock_history_trade", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_history_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_history_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair; intraday window optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("stock_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("stock_history_quote", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::with_interval
         //   rationale: interval=1m optional filter wiring
         cell("stock_history_quote", "with_interval", "value", "interval=1m optional filter wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_history_quote", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_history_trade_quote", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_history_trade_quote", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::with_use_time_based_trade_quote
         //   rationale: use_time_based_trade_quote=false optional flag wiring
         cell("stock_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_use_time_based_trade_quote(false).with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_history_trade_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_venue("nqb").with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_at_time_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // stock_at_time_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("stock_at_time_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("stock_at_time_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_symbols::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("option_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("option_list_symbols", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.option_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_dates::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("option_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_dates("trade", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("option_list_dates", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.option_list_dates("trade", "SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_expirations::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("option_list_expirations", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_expirations("SPY", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("option_list_expirations", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.option_list_expirations("SPY", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_strikes::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.option_list_strikes("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("option_list_strikes", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.option_list_strikes("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_list_contracts", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::with_symbol
         //   rationale: symbol=SPY optional symbol-filter wiring
         cell("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -273,14 +273,14 @@ int main(int argc, char** argv) {
         //   rationale: max_dte=30 optional filter wiring
         cell("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_list_contracts::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_list_contracts", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_list_contracts("trade", "20250303", thetadatadx::EndpointRequestOptions{}.with_symbol("SPY").with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_ohlc("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_ohlc", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_ohlc("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_ohlc", "with_strike", "value", "strike=570 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -300,11 +300,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_ohlc", "with_current_day_only", "value", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_ohlc", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_trade", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -321,14 +321,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_trade", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_trade", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_quote", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_quote", "with_strike", "value", "strike=570 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -348,14 +348,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_quote", "with_current_day_only", "value", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_quote", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_open_interest", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_open_interest", "with_strike", "value", "strike=570 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -375,14 +375,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_open_interest", "with_current_day_only", "value", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_open_interest", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_market_value("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_market_value", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_market_value("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_market_value", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -402,14 +402,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_greeks_implied_volatility", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_greeks_implied_volatility", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -447,14 +447,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_greeks_implied_volatility", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_greeks_all", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -492,14 +492,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_greeks_all", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_all::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_binomial_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_binomial_greeks_all", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_all::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_binomial_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -540,14 +540,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_binomial_greeks_all", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_greeks_first_order", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_greeks_first_order", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -585,14 +585,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_greeks_first_order", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_first_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_binomial_greeks_first_order", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_binomial_greeks_first_order", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_first_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_binomial_greeks_first_order", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -633,14 +633,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_binomial_greeks_first_order", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_greeks_second_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -678,14 +678,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_greeks_second_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_second_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_binomial_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_binomial_greeks_second_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_second_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_binomial_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -726,14 +726,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_binomial_greeks_second_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_greeks_third_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -771,14 +771,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_greeks_third_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_snapshot_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_snapshot_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_third_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_snapshot_binomial_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_snapshot_binomial_greeks_third_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_third_order::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_snapshot_binomial_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -819,14 +819,14 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("option_snapshot_binomial_greeks_third_order", "with_current_day_only", "professional", "current_day_only=true optional flag wiring", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_binomial_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_snapshot_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_stock_price(150.0).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_min_time("09:45:00").with_use_market_value(true).with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_eod", "all_exps_one_strike", "free", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_eod", "all_exps_one_strike", "free", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_history_eod", "with_strike", "free", "strike=570 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -840,20 +840,20 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_eod", "with_strike_range", "free", "strike_range=10 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_eod::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_eod", "all_optionals", "free", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_eod", "all_optionals", "free", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_ohlc", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_ohlc", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_ohlc", "all_strikes_one_exp", "value", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_ohlc::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_ohlc", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_ohlc", "with_right", "value", "right=call optional filter wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -864,26 +864,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade", "all_strikes_one_exp", "standard", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -894,26 +894,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_quote", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_quote", "all_strikes_one_exp", "value", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_quote::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_quote", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_quote::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_quote", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_quote", "with_right", "value", "right=call optional filter wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -927,26 +927,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_quote", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_quote", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_quote", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_quote", "all_strikes_one_exp", "standard", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_quote::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_quote::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_quote", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -960,23 +960,23 @@ int main(int argc, char** argv) {
         //   rationale: use_time_based_trade_quote=false optional flag wiring
         cell("option_history_trade_quote", "with_use_time_based_trade_quote", "standard", "use_time_based_trade_quote=false optional flag wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_use_time_based_trade_quote(false).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_use_time_based_trade_quote(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_open_interest", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_open_interest", "all_strikes_one_exp", "value", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_open_interest", "all_strikes_one_exp", "value", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_open_interest::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_open_interest", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_open_interest", "bulk_chain", "value", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_open_interest("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_open_interest::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_open_interest", "with_right", "value", "right=call optional filter wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -987,14 +987,14 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_open_interest::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_greeks_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_greeks_eod", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_greeks_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_history_greeks_eod", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1026,14 +1026,14 @@ int main(int argc, char** argv) {
         //   rationale: option_use_nbbo=false optional flag wiring
         cell("option_history_greeks_eod", "with_option_use_nbbo", "standard", "option_use_nbbo=false optional flag wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_eod::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_eod::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_binomial_greeks_eod", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_greeks_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_binomial_greeks_eod", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_greeks_eod("SPY", "*", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_eod::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_history_binomial_greeks_eod", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1068,20 +1068,20 @@ int main(int argc, char** argv) {
         //   rationale: option_use_nbbo=false optional flag wiring
         cell("option_history_binomial_greeks_eod", "with_option_use_nbbo", "standard", "option_use_nbbo=false optional flag wiring", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_eod::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_option_use_nbbo(false).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_greeks_all", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_all::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_greeks_all", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_greeks_all", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1104,20 +1104,20 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_all::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_greeks_all", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_all::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_all::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_greeks_all", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_all::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_greeks_all", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1143,26 +1143,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_binomial_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_all::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_all::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_greeks_all", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1188,26 +1188,26 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_trade_greeks_all", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_trade_greeks_all", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_binomial_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_binomial_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_binomial_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_binomial_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_trade_greeks_all", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1236,20 +1236,20 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_binomial_trade_greeks_all", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_all::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_greeks_first_order", "all_strikes_one_exp", "standard", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_first_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_greeks_first_order", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1272,20 +1272,20 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_first_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_greeks_first_order", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_greeks_first_order", "all_strikes_one_exp", "standard", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_first_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_first_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_first_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_greeks_first_order", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1311,26 +1311,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_binomial_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_first_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_greeks_first_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1356,26 +1356,26 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_trade_greeks_first_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_trade_greeks_first_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_binomial_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_binomial_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_binomial_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_binomial_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_trade_greeks_first_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1404,20 +1404,20 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_binomial_trade_greeks_first_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_first_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_greeks_second_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_second_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1440,20 +1440,20 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_second_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_greeks_second_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_second_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_second_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_second_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1479,26 +1479,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_binomial_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_second_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1524,26 +1524,26 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_trade_greeks_second_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_trade_greeks_second_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_binomial_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_binomial_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_binomial_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_binomial_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_trade_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1572,20 +1572,20 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_binomial_trade_greeks_second_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_second_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_greeks_third_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_third_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1608,20 +1608,20 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_third_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_greeks_third_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_third_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_third_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_greeks_third_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1647,26 +1647,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_binomial_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_third_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1692,26 +1692,26 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_trade_greeks_third_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_binomial_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_binomial_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_binomial_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_binomial_trade_greeks_third_order", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_binomial_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_binomial_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_binomial_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_binomial_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_binomial_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_binomial_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_binomial_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_binomial_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_binomial_trade_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1740,20 +1740,20 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_binomial_trade_greeks_third_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_binomial_trade_greeks_third_order::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_binomial_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_binomial_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_binomial_steps(51).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_greeks_implied_volatility", "all_strikes_one_exp", "standard", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_implied_volatility::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_greeks_implied_volatility", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_greeks_implied_volatility", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_greeks_implied_volatility", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_greeks_implied_volatility", "with_date_range", "standard", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_greeks_implied_volatility", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1776,26 +1776,26 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_implied_volatility::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::all_strikes_one_exp
-        //   rationale: strike=* — collapses to proto-unset ContractSpec.strike (server default)
-        cell("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=* — collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: strike=*; collapses to proto-unset ContractSpec.strike (server default)
+        cell("option_history_trade_greeks_implied_volatility", "all_strikes_one_exp", "professional", "strike=*; collapses to proto-unset ContractSpec.strike (server default)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_right("both").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::bulk_chain
-        //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
-        cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
+        //   rationale: expiration=* + strike=* + right=both; tests full-chain server mode
+        cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both; tests full-chain server mode", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair; intraday window optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", "start_date + end_date pair; date range optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_right
         //   rationale: right=call optional filter wiring
         cell("option_history_trade_greeks_implied_volatility", "with_right", "professional", "right=call optional filter wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1821,14 +1821,14 @@ int main(int argc, char** argv) {
         //   rationale: perf_boost_intraday=true optional flag wiring
         cell("option_history_trade_greeks_implied_volatility", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_perf_boost_intraday(true).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("1").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_perf_boost_intraday(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_trade("SPY", "*", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_at_time_trade", "all_exps_one_strike", "standard", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_trade("SPY", "*", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_at_time_trade", "with_strike", "standard", "strike=570 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1842,14 +1842,14 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_at_time_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_at_time_trade::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_at_time_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_at_time_trade", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("option_at_time_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("option_at_time_quote", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::all_exps_one_strike
-        //   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-        cell("option_at_time_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_quote("SPY", "*", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: expiration=*; sent as literal `*` on the wire (server fan-out)
+        cell("option_at_time_quote", "all_exps_one_strike", "value", "expiration=*; sent as literal `*` on the wire (server fan-out)", [&] { return client.option_at_time_quote("SPY", "*", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_right("both").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::with_strike
         //   rationale: strike=570 optional filter wiring
         cell("option_at_time_quote", "with_strike", "value", "strike=570 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1863,17 +1863,17 @@ int main(int argc, char** argv) {
         //   rationale: strike_range=10 optional filter wiring
         cell("option_at_time_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_at_time_quote::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("option_at_time_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("option_at_time_quote", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_list_symbols::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("index_list_symbols", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.index_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("index_list_symbols", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.index_list_symbols(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_list_dates::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("index_list_dates", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.index_list_dates("SPX", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("index_list_dates", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.index_list_dates("SPX", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_snapshot_ohlc", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_snapshot_ohlc", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_ohlc::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("index_snapshot_ohlc", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1881,11 +1881,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("index_snapshot_ohlc", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("index_snapshot_ohlc", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("index_snapshot_ohlc", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.index_snapshot_ohlc(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_price::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_snapshot_price", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_snapshot_price", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_price::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("index_snapshot_price", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1893,11 +1893,11 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("index_snapshot_price", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_price::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("index_snapshot_price", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("index_snapshot_price", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.index_snapshot_price(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_market_value::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_snapshot_market_value", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_market_value::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("index_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1905,53 +1905,53 @@ int main(int argc, char** argv) {
         //   rationale: current_day_only=true optional flag wiring
         cell("index_snapshot_market_value", "with_current_day_only", "standard", "current_day_only=true optional flag wiring", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_snapshot_market_value::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("index_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("index_snapshot_market_value", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.index_snapshot_market_value(std::vector<std::string>{"SPX"}, thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_current_day_only(true).with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_eod::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_history_eod("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_history_eod("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_ohlc::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_history_ohlc", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_history_ohlc", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_ohlc::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("index_history_ohlc", "with_intraday_window", "standard", "start_time + end_time pair; intraday window optional wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_ohlc::with_interval
         //   rationale: interval=1m optional filter wiring
         cell("index_history_ohlc", "with_interval", "standard", "interval=1m optional filter wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_ohlc::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("index_history_ohlc", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("index_history_ohlc", "all_optionals", "standard", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.index_history_ohlc("SPX", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_history_price", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_history_price", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::with_intraday_window
-        //   rationale: start_time + end_time pair — intraday window optional wiring
-        cell("index_history_price", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_time + end_time pair; intraday window optional wiring
+        cell("index_history_price", "with_intraday_window", "value", "start_time + end_time pair; intraday window optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::with_date_range
-        //   rationale: start_date + end_date pair — date range optional wiring
-        cell("index_history_price", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: start_date + end_date pair; date range optional wiring
+        cell("index_history_price", "with_date_range", "value", "start_date + end_date pair; date range optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::with_interval
         //   rationale: interval=1m optional filter wiring
         cell("index_history_price", "with_interval", "value", "interval=1m optional filter wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_history_price::all_optionals
-        //   rationale: every applicable optional set at once — proves multi-optional wiring
-        cell("index_history_price", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: every applicable optional set at once; proves multi-optional wiring
+        cell("index_history_price", "all_optionals", "value", "every applicable optional set at once; proves multi-optional wiring", [&] { return client.index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // index_at_time_price::concrete
-        //   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
-        cell("index_at_time_price", "concrete", "value", "required params set, plus the date the vendor needs where it is optional — baseline wire path", [&] { return client.index_at_time_price("SPX", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: required params set, plus the date the vendor needs where it is optional; baseline wire path
+        cell("index_at_time_price", "concrete", "value", "required params set, plus the date the vendor needs where it is optional; baseline wire path", [&] { return client.index_at_time_price("SPX", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // calendar_open_today::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("calendar_open_today", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.calendar_open_today(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("calendar_open_today", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.calendar_open_today(thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // calendar_on_date::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("calendar_on_date", "basic", "value", "list/calendar/rate baseline call — no parameter variation", [&] { return client.calendar_on_date("20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("calendar_on_date", "basic", "value", "list/calendar/rate baseline call; no parameter variation", [&] { return client.calendar_on_date("20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // calendar_year::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("calendar_year", "basic", "value", "list/calendar/rate baseline call — no parameter variation", [&] { return client.calendar_year("2025", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("calendar_year", "basic", "value", "list/calendar/rate baseline call; no parameter variation", [&] { return client.calendar_year("2025", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
         // interest_rate_history_eod::basic
-        //   rationale: list/calendar/rate baseline call — no parameter variation
-        cell("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", [&] { return client.interest_rate_history_eod("SOFR", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
+        //   rationale: list/calendar/rate baseline call; no parameter variation
+        cell("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call; no parameter variation", [&] { return client.interest_rate_history_eod("SOFR", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_timeout_ms(kPerCellTimeoutMs)); });
     } catch (const std::exception& e) {
         std::cerr << "validator bootstrap failure: " << e.what() << std::endl;
         return 1;
