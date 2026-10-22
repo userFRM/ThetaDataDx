@@ -525,7 +525,7 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -565,7 +565,7 @@ pub struct OptionSnapshotGreeksAllOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -605,7 +605,7 @@ pub struct OptionSnapshotBinomialGreeksAllOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -647,7 +647,7 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -687,7 +687,7 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -729,7 +729,7 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -769,7 +769,7 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -811,7 +811,7 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -851,7 +851,7 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1077,7 +1077,7 @@ pub struct OptionHistoryGreeksEODOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1113,7 +1113,7 @@ pub struct OptionHistoryBinomialGreeksEODOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1159,7 +1159,7 @@ pub struct OptionHistoryGreeksAllOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1201,7 +1201,7 @@ pub struct OptionHistoryBinomialGreeksAllOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1243,7 +1243,7 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1287,7 +1287,7 @@ pub struct OptionHistoryBinomialTradeGreeksAllOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1335,7 +1335,7 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1377,7 +1377,7 @@ pub struct OptionHistoryBinomialGreeksFirstOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1419,7 +1419,7 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1463,7 +1463,7 @@ pub struct OptionHistoryBinomialTradeGreeksFirstOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1511,7 +1511,7 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1553,7 +1553,7 @@ pub struct OptionHistoryBinomialGreeksSecondOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1595,7 +1595,7 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1639,7 +1639,7 @@ pub struct OptionHistoryBinomialTradeGreeksSecondOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1687,7 +1687,7 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1729,7 +1729,7 @@ pub struct OptionHistoryBinomialGreeksThirdOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1771,7 +1771,7 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1815,7 +1815,7 @@ pub struct OptionHistoryBinomialTradeGreeksThirdOrderOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1863,7 +1863,7 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,
@@ -1903,7 +1903,7 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     pub start_time: Option<String>,
     /// End time filter
     pub end_time: Option<String>,
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     pub annual_dividend: Option<f64>,
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     pub annual_dividend_amount: Option<f64>,

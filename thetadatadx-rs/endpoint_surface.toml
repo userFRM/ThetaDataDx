@@ -350,7 +350,7 @@ binding = "builder"
 
 [[param_groups.annual_dividend_input.params]]
 name = "annual_dividend"
-description = "Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year)."
+description = "Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."
 param_type = "Float"
 required = false
 binding = "builder"

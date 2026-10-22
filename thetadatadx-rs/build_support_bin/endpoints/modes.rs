@@ -72,19 +72,19 @@ pub(super) struct TestMode {
 /// [`with_optional_rationale`] which builds a string at generator runtime.
 fn rationale_for_mode(name: &str) -> &'static str {
     match name {
-        "basic" => "list/calendar/rate baseline call — no parameter variation",
-        "concrete" => "required params set, plus the date the vendor needs where it is optional — baseline wire path",
+        "basic" => "list/calendar/rate baseline call; no parameter variation",
+        "concrete" => "required params set, plus the date the vendor needs where it is optional; baseline wire path",
         "concrete_iso" => {
-            "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD"
+            "expiration in YYYY-MM-DD form; tests ISO-date canonicalization to YYYYMMDD"
         }
         "all_strikes_one_exp" => {
-            "strike=* — collapses to proto-unset ContractSpec.strike (server default)"
+            "strike=*; collapses to proto-unset ContractSpec.strike (server default)"
         }
-        "all_exps_one_strike" => "expiration=* — sent as literal `*` on the wire (server fan-out)",
-        "bulk_chain" => "expiration=* + strike=* + right=both — tests full-chain server mode",
-        "with_intraday_window" => "start_time + end_time pair — intraday window optional wiring",
-        "with_date_range" => "start_date + end_date pair — date range optional wiring",
-        "all_optionals" => "every applicable optional set at once — proves multi-optional wiring",
+        "all_exps_one_strike" => "expiration=*; sent as literal `*` on the wire (server fan-out)",
+        "bulk_chain" => "expiration=* + strike=* + right=both; tests full-chain server mode",
+        "with_intraday_window" => "start_time + end_time pair; intraday window optional wiring",
+        "with_date_range" => "start_date + end_date pair; date range optional wiring",
+        "all_optionals" => "every applicable optional set at once; proves multi-optional wiring",
         _ => panic!(
             "rationale_for_mode: unknown mode '{name}'; add a rationale to TestMode generation"
         ),

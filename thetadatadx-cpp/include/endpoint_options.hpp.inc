@@ -48,7 +48,7 @@ struct EndpointRequestOptions {
     std::optional<int32_t> max_dte;
     /// Strike range filter
     std::optional<int32_t> strike_range;
-    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    /// Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`.
     std::optional<double> annual_dividend;
     /// Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`.
     std::optional<double> annual_dividend_amount;
