@@ -227,6 +227,122 @@ impl MarketDataClient {
         Ok(())
     }
 
+    /// Stream one v3 flat file as the vendor sends it: each chunk's column
+    /// headers and its cells, unconverted, so a caller can write the file
+    /// exactly as the terminal does (the vendor sends flat-file prices as
+    /// decimal text, and the text is the value).
+    ///
+    /// `endpoint` is the registry name, such as `stock_flat_file_quote`. A
+    /// whole-universe file takes as long as it takes, so there is no
+    /// deadline; a `Break` from `handler` ends the download. Transient
+    /// failures are retried only until the first rows reach `handler`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an endpoint that is not a flat file, and on
+    /// network, authentication or decode failure.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
+    pub async fn stream_flat_file<F, Fut>(
+        &self,
+        endpoint: &str,
+        date: &str,
+        handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+        Fut: Future<Output = ControlFlow<()>>,
+    {
+        macro_rules! request {
+            ($snap:ident, $grpc:ident, $req:ident, $query:ident) => {{
+                let request = proto::$req {
+                    query_info: Some(self.build_query_info($snap.uuid.clone())),
+                    params: Some(proto::$query {
+                        date: date.to_owned(),
+                    }),
+                };
+                let lease = self.channel();
+                crate::proto::beta_theta_terminal::$grpc(&lease, request).await
+            }};
+        }
+        let _permit = self.acquire_request_permit().await?;
+        let handler = tokio::sync::Mutex::new(handler);
+        let delivered = std::sync::atomic::AtomicBool::new(false);
+        let (handler, delivered) = (&handler, &delivered);
+        super::macros::run_streaming_retry_loop(
+            self.session(),
+            &self.config().retry,
+            "stream_flat_file",
+            delivered,
+            |snap| async move {
+                let stream = match endpoint {
+                    "option_flat_file_eod" => request!(
+                        snap,
+                        get_option_flat_file_eod,
+                        OptionFlatFileEodRequest,
+                        OptionFlatFileEodRequestQuery
+                    ),
+                    "option_flat_file_trade_quote" => request!(
+                        snap,
+                        get_option_flat_file_trade_quote,
+                        OptionFlatFileTradeQuoteRequest,
+                        OptionFlatFileTradeQuoteRequestQuery
+                    ),
+                    "option_flat_file_open_interest" => request!(
+                        snap,
+                        get_option_flat_file_open_interest,
+                        OptionFlatFileOpenInterestRequest,
+                        OptionFlatFileOpenInterestRequestQuery
+                    ),
+                    "option_flat_file_quote" => request!(
+                        snap,
+                        get_option_flat_file_quote,
+                        OptionFlatFileQuoteRequest,
+                        OptionFlatFileQuoteRequestQuery
+                    ),
+                    "stock_flat_file_eod" => request!(
+                        snap,
+                        get_stock_flat_file_eod,
+                        StockFlatFileEodRequest,
+                        StockFlatFileEodRequestQuery
+                    ),
+                    "stock_flat_file_trade_quote" => request!(
+                        snap,
+                        get_stock_flat_file_trade_quote,
+                        StockFlatFileTradeQuoteRequest,
+                        StockFlatFileTradeQuoteRequestQuery
+                    ),
+                    "stock_flat_file_quote" => request!(
+                        snap,
+                        get_stock_flat_file_quote,
+                        StockFlatFileQuoteRequest,
+                        StockFlatFileQuoteRequestQuery
+                    ),
+                    "index_flat_file_eod" => request!(
+                        snap,
+                        get_index_flat_file_eod,
+                        IndexFlatFileEodRequest,
+                        IndexFlatFileEodRequestQuery
+                    ),
+                    other => {
+                        return Err(Error::config_internal(format!(
+                            "{other} is not a flat-file endpoint"
+                        )))
+                    }
+                }
+                .map_err(|e| -> Error { e.into() })?;
+                self.for_each_chunk_async_control(stream, |headers, rows| async move {
+                    if !rows.is_empty() {
+                        delivered.store(true, std::sync::atomic::Ordering::Release);
+                    }
+                    (handler.lock().await)(headers, rows).await
+                })
+                .await
+            },
+        )
+        .await
+    }
+
     /// Drain one server stream for the generated `.stream(handler)` path:
     /// parse each chunk with `parser`, hand the tick slice to the shared
     /// `handler` under its lock, and mark `delivered` once a non-empty
