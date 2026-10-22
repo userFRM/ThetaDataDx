@@ -22,7 +22,7 @@ const cfg = {
 
 List all available index symbols.
 
-A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
 
 <RequestBuilder :cfg="cfg" />
 

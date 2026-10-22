@@ -21270,7 +21270,7 @@ impl OptionFlatFileQuoteBuilder {
 
 /// List all available index symbols.
 ///
-/// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+/// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
 #[pyclass(module = "thetadatadx", name = "IndexListSymbolsBuilder")]
 pub struct IndexListSymbolsBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -33553,7 +33553,7 @@ impl MarketDataView {
 
     /// List all available index symbols.
     ///
-    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
     #[pyo3(signature = (*, timeout_ms=None))]
     fn index_list_symbols(
         &self,
@@ -33571,7 +33571,7 @@ impl MarketDataView {
 
     /// List all available index symbols.
     ///
-    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+    /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
     ///
     ///
     /// Async companion: returns an awaitable (`asyncio.Future`).
