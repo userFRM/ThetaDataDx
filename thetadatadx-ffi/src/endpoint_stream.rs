@@ -7,10 +7,11 @@
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -71,10 +72,11 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -121,10 +123,11 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -171,10 +174,11 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -221,10 +225,11 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -271,10 +276,11 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -342,10 +348,11 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -413,10 +420,11 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -463,10 +471,11 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -513,10 +522,11 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -563,10 +573,11 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -634,10 +645,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -691,10 +703,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -748,10 +761,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -805,10 +819,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -862,10 +877,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -919,10 +935,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -990,10 +1007,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1061,10 +1079,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1118,10 +1137,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1175,10 +1195,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1232,10 +1253,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1289,10 +1311,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_st
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1346,10 +1369,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1403,10 +1427,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1460,10 +1485,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1517,10 +1543,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1574,10 +1601,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1631,10 +1659,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1688,10 +1717,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1745,10 +1775,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1802,10 +1833,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1859,10 +1891,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1916,10 +1949,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_order_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -1973,10 +2007,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2030,10 +2065,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2087,10 +2123,11 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2165,10 +2202,11 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2243,10 +2281,11 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2293,10 +2332,11 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2343,10 +2383,11 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2393,10 +2434,11 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2443,10 +2485,11 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2507,10 +2550,11 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2571,10 +2615,11 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2621,10 +2666,11 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2692,10 +2738,11 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
     client: *const ThetaDataDxMarketDataClient,
@@ -2742,10 +2789,11 @@ pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
 /// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
 /// `_with_options` array returns) and the chunk's column presence,
-/// which carries the root each row belongs to; the chunk is freed before
-/// the next is fetched, so peak memory tracks a single chunk. Accepts the
-/// same optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+/// which carries the root each row belongs to when the response has one;
+/// the chunk is freed before the next is fetched, so peak memory tracks a
+/// single chunk. Accepts the same optional builder parameters as the
+/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
     client: *const ThetaDataDxMarketDataClient,

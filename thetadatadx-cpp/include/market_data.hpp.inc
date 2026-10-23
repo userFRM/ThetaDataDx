@@ -34,8 +34,8 @@
     std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -51,8 +51,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -73,8 +73,8 @@
     std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -90,8 +90,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -112,8 +112,8 @@
     std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -129,8 +129,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -151,8 +151,8 @@
     std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -168,8 +168,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -188,8 +188,8 @@
     std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -208,8 +208,8 @@
     std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -228,8 +228,8 @@
     std::vector<TradeTick> stock_history_trade(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -248,8 +248,8 @@
     std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -268,8 +268,8 @@
     std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -288,8 +288,8 @@
     std::vector<TradeTick> stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -308,8 +308,8 @@
     std::vector<QuoteTick> stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -328,8 +328,8 @@
     std::vector<EodTick> stock_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -348,8 +348,8 @@
     std::vector<TradeQuoteTick> stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -368,8 +368,8 @@
     std::vector<IntervalQuoteTick> stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -444,8 +444,8 @@
     std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -464,8 +464,8 @@
     std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -484,8 +484,8 @@
     std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -504,8 +504,8 @@
     std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -524,8 +524,8 @@
     std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -544,8 +544,8 @@
     std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -564,8 +564,8 @@
     std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -584,8 +584,8 @@
     std::vector<GreeksAllTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -604,8 +604,8 @@
     std::vector<GreeksAllTick> option_snapshot_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -624,8 +624,8 @@
     std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -644,8 +644,8 @@
     std::vector<GreeksFirstOrderTick> option_snapshot_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -664,8 +664,8 @@
     std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -684,8 +684,8 @@
     std::vector<GreeksSecondOrderTick> option_snapshot_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -704,8 +704,8 @@
     std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -724,8 +724,8 @@
     std::vector<GreeksThirdOrderTick> option_snapshot_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -744,8 +744,8 @@
     std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -764,8 +764,8 @@
     std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -784,8 +784,8 @@
     std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -804,8 +804,8 @@
     std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -824,8 +824,8 @@
     std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -844,8 +844,8 @@
     std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -864,8 +864,8 @@
     std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -884,8 +884,8 @@
     std::vector<GreeksEodTick> option_history_binomial_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -904,8 +904,8 @@
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -924,8 +924,8 @@
     std::vector<GreeksAllTick> option_history_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -944,8 +944,8 @@
     std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -964,8 +964,8 @@
     std::vector<TradeGreeksAllTick> option_history_binomial_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -984,8 +984,8 @@
     std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1004,8 +1004,8 @@
     std::vector<GreeksFirstOrderTick> option_history_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1024,8 +1024,8 @@
     std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1044,8 +1044,8 @@
     std::vector<TradeGreeksFirstOrderTick> option_history_binomial_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1064,8 +1064,8 @@
     std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1084,8 +1084,8 @@
     std::vector<GreeksSecondOrderTick> option_history_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1104,8 +1104,8 @@
     std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1124,8 +1124,8 @@
     std::vector<TradeGreeksSecondOrderTick> option_history_binomial_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1144,8 +1144,8 @@
     std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1164,8 +1164,8 @@
     std::vector<GreeksThirdOrderTick> option_history_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1184,8 +1184,8 @@
     std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1204,8 +1204,8 @@
     std::vector<TradeGreeksThirdOrderTick> option_history_binomial_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1224,8 +1224,8 @@
     std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1244,8 +1244,8 @@
     std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1264,8 +1264,8 @@
     std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1284,8 +1284,8 @@
     std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1304,8 +1304,8 @@
     std::vector<EodTick> option_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1324,8 +1324,8 @@
     std::vector<TradeQuoteTick> option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1344,8 +1344,8 @@
     std::vector<OpenInterestTick> option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1364,8 +1364,8 @@
     std::vector<IntervalQuoteTick> option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1414,8 +1414,8 @@
     std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1431,8 +1431,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1453,8 +1453,8 @@
     std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1470,8 +1470,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1492,8 +1492,8 @@
     std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1509,8 +1509,8 @@
     }
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1529,8 +1529,8 @@
     std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1549,8 +1549,8 @@
     std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1569,8 +1569,8 @@
     std::vector<PriceTick> index_history_price(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1589,8 +1589,8 @@
     std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1609,8 +1609,8 @@
     std::vector<EodTick> index_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1629,8 +1629,8 @@
     std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1649,8 +1649,8 @@
     std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1669,8 +1669,8 @@
     std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -1689,8 +1689,8 @@
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The future resolves to the rows and the `ColumnPresence` the blocking
-    /// call fills through `out_columns`: the columns the response carried and
-    /// the root each row belongs to.
+    /// call fills through `out_columns`: the columns the response carried and,
+    /// when it carries one, the root each row belongs to.
     ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
