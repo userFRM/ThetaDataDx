@@ -2856,6 +2856,46 @@ pub struct InterestRateTickWithColumns {
     pub symbols: Option<Vec<String>>,
 }
 
+/// The columns a streamed chunk's wire carried and the root each row belongs
+/// to: the second argument of every `<method>Stream` callback. Pass
+/// `presentColumns`, `symbol` and `symbols` to `<tick>ToArrowIpcProjected` for
+/// a terminal-exact columnar export of the chunk.
+#[napi(object)]
+pub struct ColumnPresence {
+    /// The schema-column names the chunk's wire carried, in schema order.
+    pub present_columns: Vec<String>,
+    /// The root every row of the chunk shares, as in option and index
+    /// history, else `undefined`.
+    pub symbol: Option<String>,
+    /// One root per row when the chunk's rows span several, as in a flat
+    /// file, else `undefined`.
+    pub symbols: Option<Vec<String>>,
+}
+
+impl From<&thetadatadx::columns::ColumnPresence> for ColumnPresence {
+    fn from(columns: &thetadatadx::columns::ColumnPresence) -> Self {
+        Self {
+            present_columns: columns.present_names().map(String::from).collect(),
+            symbol: columns.symbol().map(String::from),
+            symbols: columns
+                .symbols()
+                .map(|symbols| symbols.iter().map(|symbol| symbol.to_string()).collect()),
+        }
+    }
+}
+
+/// The `callback` every `<method>Stream` method calls once per chunk, with the
+/// chunk's rows and its `ColumnPresence`. `CalleeHandled = false` with
+/// `call_async_catch` returns a throw from the callback as `Err` instead of
+/// routing it to `uncaughtException`.
+type ChunkCallback<Tick> = napi::threadsafe_function::ThreadsafeFunction<
+    napi::bindgen_prelude::FnArgs<(Vec<Tick>, ColumnPresence)>,
+    (),
+    napi::bindgen_prelude::FnArgs<(Vec<Tick>, ColumnPresence)>,
+    napi::Status,
+    false,
+>;
+
 #[napi]
 impl MarketDataView {
     /// List all available stock ticker symbols.
@@ -3293,7 +3333,7 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryEODStream")]
     pub async fn stock_history_eod_stream(
         &self,
@@ -3301,7 +3341,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<StockHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -3324,8 +3364,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -3439,13 +3480,13 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryOHLCStream")]
     pub async fn stock_history_ohlc_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -3494,8 +3535,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -3627,13 +3669,13 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryTradeStream")]
     pub async fn stock_history_trade_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -3678,8 +3720,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -3814,13 +3857,13 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryQuoteStream")]
     pub async fn stock_history_quote_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -3869,8 +3912,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4012,13 +4056,13 @@ impl MarketDataView {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryTradeQuoteStream")]
     pub async fn stock_history_trade_quote_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4071,8 +4115,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4197,7 +4242,7 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockAtTimeTradeStream")]
     pub async fn stock_at_time_trade_stream(
         &self,
@@ -4206,7 +4251,7 @@ impl MarketDataView {
         end_date: String,
         time_of_day: String,
         options: Option<StockAtTimeTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4234,8 +4279,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4338,7 +4384,7 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockAtTimeQuoteStream")]
     pub async fn stock_at_time_quote_stream(
         &self,
@@ -4347,7 +4393,7 @@ impl MarketDataView {
         end_date: String,
         time_of_day: String,
         options: Option<StockAtTimeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4375,8 +4421,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4459,13 +4506,13 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileEODStream")]
     pub async fn stock_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<StockFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4487,8 +4534,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4562,13 +4610,13 @@ impl MarketDataView {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileTradeQuoteStream")]
     pub async fn stock_flat_file_trade_quote_stream(
         &self,
         date: String,
         options: Option<StockFlatFileTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4590,8 +4638,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4665,13 +4714,13 @@ impl MarketDataView {
         Ok(interval_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(rows: IntervalQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileQuoteStream")]
     pub async fn stock_flat_file_quote_stream(
         &self,
         date: String,
         options: Option<StockFlatFileQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IntervalQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IntervalQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4693,8 +4742,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -4899,14 +4949,14 @@ impl MarketDataView {
         Ok(option_contracts_to_class_vec(&ticks))
     }
 
-    /// Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(rows: OptionContract[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionListContractsStream")]
     pub async fn option_list_contracts_stream(
         &self,
         request_type: String,
         date: String,
         options: Option<OptionListContractsOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OptionContract>, (), Vec<OptionContract>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OptionContract>, columns: ColumnPresence) => void")] callback: ChunkCallback<OptionContract>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -4936,8 +4986,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = option_contracts_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -7195,7 +7246,7 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryEODStream")]
     pub async fn option_history_eod_stream(
         &self,
@@ -7204,7 +7255,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -7244,8 +7295,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -7388,14 +7440,14 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryOHLCStream")]
     pub async fn option_history_ohlc_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -7453,8 +7505,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -7613,14 +7666,14 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeStream")]
     pub async fn option_history_trade_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -7678,8 +7731,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -7842,14 +7896,14 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryQuoteStream")]
     pub async fn option_history_quote_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -7911,8 +7965,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -8085,14 +8140,14 @@ impl MarketDataView {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeQuoteStream")]
     pub async fn option_history_trade_quote_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -8158,8 +8213,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -8315,14 +8371,14 @@ impl MarketDataView {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(rows: OpenInterestTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryOpenInterestStream")]
     pub async fn option_history_open_interest_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryOpenInterestOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OpenInterestTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OpenInterestTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -8372,8 +8428,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -8537,7 +8594,7 @@ impl MarketDataView {
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksEODStream")]
     pub async fn option_history_greeks_eod_stream(
         &self,
@@ -8546,7 +8603,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryGreeksEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksEodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksEodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -8614,8 +8671,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -8805,7 +8863,7 @@ impl MarketDataView {
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksEODStream")]
     pub async fn option_history_binomial_greeks_eod_stream(
         &self,
@@ -8814,7 +8872,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryBinomialGreeksEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksEodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksEodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -8886,8 +8944,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -9085,14 +9144,14 @@ impl MarketDataView {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksAllStream")]
     pub async fn option_history_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -9170,8 +9229,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -9379,14 +9439,14 @@ impl MarketDataView {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksAllStream")]
     pub async fn option_history_binomial_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -9468,8 +9528,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -9679,14 +9740,14 @@ impl MarketDataView {
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksAllStream")]
     pub async fn option_history_trade_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -9768,8 +9829,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -9985,14 +10047,14 @@ impl MarketDataView {
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksAllStream")]
     pub async fn option_history_binomial_trade_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -10078,8 +10140,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -10289,14 +10352,14 @@ impl MarketDataView {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksFirstOrderStream")]
     pub async fn option_history_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -10374,8 +10437,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -10583,14 +10647,14 @@ impl MarketDataView {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderStream")]
     pub async fn option_history_binomial_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -10672,8 +10736,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -10883,14 +10948,14 @@ impl MarketDataView {
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrderStream")]
     pub async fn option_history_trade_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -10972,8 +11037,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -11189,14 +11255,14 @@ impl MarketDataView {
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderStream")]
     pub async fn option_history_binomial_trade_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -11282,8 +11348,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -11493,14 +11560,14 @@ impl MarketDataView {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksSecondOrderStream")]
     pub async fn option_history_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -11578,8 +11645,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -11787,14 +11855,14 @@ impl MarketDataView {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderStream")]
     pub async fn option_history_binomial_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -11876,8 +11944,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -12087,14 +12156,14 @@ impl MarketDataView {
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrderStream")]
     pub async fn option_history_trade_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -12176,8 +12245,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -12393,14 +12463,14 @@ impl MarketDataView {
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderStream")]
     pub async fn option_history_binomial_trade_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -12486,8 +12556,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -12697,14 +12768,14 @@ impl MarketDataView {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksThirdOrderStream")]
     pub async fn option_history_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -12782,8 +12853,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -12991,14 +13063,14 @@ impl MarketDataView {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderStream")]
     pub async fn option_history_binomial_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -13080,8 +13152,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -13291,14 +13364,14 @@ impl MarketDataView {
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrderStream")]
     pub async fn option_history_trade_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -13380,8 +13453,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -13597,14 +13671,14 @@ impl MarketDataView {
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderStream")]
     pub async fn option_history_binomial_trade_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -13690,8 +13764,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -13900,14 +13975,14 @@ impl MarketDataView {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: IvTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(rows: IvTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksImpliedVolatilityStream")]
     pub async fn option_history_greeks_implied_volatility_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IvTick>, (), Vec<IvTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IvTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IvTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -13985,8 +14060,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = iv_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14191,14 +14267,14 @@ impl MarketDataView {
         Ok(trade_greeks_implied_volatility_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksImpliedVolatilityTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityStream")]
     pub async fn option_history_trade_greeks_implied_volatility_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksImpliedVolatilityTick>, (), Vec<TradeGreeksImpliedVolatilityTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksImpliedVolatilityTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksImpliedVolatilityTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -14280,8 +14356,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14448,7 +14525,7 @@ impl MarketDataView {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionAtTimeTradeStream")]
     pub async fn option_at_time_trade_stream(
         &self,
@@ -14458,7 +14535,7 @@ impl MarketDataView {
         end_date: String,
         time_of_day: String,
         options: Option<OptionAtTimeTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -14499,8 +14576,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14627,7 +14705,7 @@ impl MarketDataView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionAtTimeQuoteStream")]
     pub async fn option_at_time_quote_stream(
         &self,
@@ -14637,7 +14715,7 @@ impl MarketDataView {
         end_date: String,
         time_of_day: String,
         options: Option<OptionAtTimeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -14678,8 +14756,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14776,13 +14855,13 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileEODStream")]
     pub async fn option_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -14804,8 +14883,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14879,13 +14959,13 @@ impl MarketDataView {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileTradeQuoteStream")]
     pub async fn option_flat_file_trade_quote_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -14907,8 +14987,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -14982,13 +15063,13 @@ impl MarketDataView {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(rows: OpenInterestTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileOpenInterestStream")]
     pub async fn option_flat_file_open_interest_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileOpenInterestOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OpenInterestTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OpenInterestTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15010,8 +15091,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -15085,13 +15167,13 @@ impl MarketDataView {
         Ok(interval_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(rows: IntervalQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileQuoteStream")]
     pub async fn option_flat_file_quote_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IntervalQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IntervalQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15113,8 +15195,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -15477,7 +15560,7 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryEODStream")]
     pub async fn index_history_eod_stream(
         &self,
@@ -15485,7 +15568,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<IndexHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15508,8 +15591,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -15610,7 +15694,7 @@ impl MarketDataView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryOHLCStream")]
     pub async fn index_history_ohlc_stream(
         &self,
@@ -15618,7 +15702,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<IndexHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15653,8 +15737,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -15776,13 +15861,13 @@ impl MarketDataView {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(chunk: PriceTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryPrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(rows: PriceTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryPrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryPriceStream")]
     pub async fn index_history_price_stream(
         &self,
         symbol: String,
         options: Option<IndexHistoryPriceOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<PriceTick>, (), Vec<PriceTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<PriceTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<PriceTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15827,8 +15912,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = price_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -15933,7 +16019,7 @@ impl MarketDataView {
         Ok(index_price_at_time_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(chunk: IndexPriceAtTimeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexAtTimePrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(rows: IndexPriceAtTimeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexAtTimePrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexAtTimePriceStream")]
     pub async fn index_at_time_price_stream(
         &self,
@@ -15942,7 +16028,7 @@ impl MarketDataView {
         end_date: String,
         time_of_day: String,
         options: Option<IndexAtTimePriceOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IndexPriceAtTimeTick>, (), Vec<IndexPriceAtTimeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IndexPriceAtTimeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IndexPriceAtTimeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -15966,8 +16052,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = index_price_at_time_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -16046,13 +16133,13 @@ impl MarketDataView {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexFlatFileEODStream")]
     pub async fn index_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<IndexFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -16074,8 +16161,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -16331,7 +16419,7 @@ impl MarketDataView {
         Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: InterestRateTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: InterestRateTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "interestRateHistoryEODStream")]
     pub async fn interest_rate_history_eod_stream(
         &self,
@@ -16339,7 +16427,7 @@ impl MarketDataView {
         start_date: String,
         end_date: String,
         options: Option<InterestRateHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<InterestRateTick>, (), Vec<InterestRateTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<InterestRateTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<InterestRateTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -16362,8 +16450,9 @@ impl MarketDataView {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interest_rate_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -16853,7 +16942,7 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryEODStream")]
     pub async fn stock_history_eod_stream(
         &self,
@@ -16861,7 +16950,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<StockHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -16884,8 +16973,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -16999,13 +17089,13 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryOHLCStream")]
     pub async fn stock_history_ohlc_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17054,8 +17144,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -17187,13 +17278,13 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryTradeStream")]
     pub async fn stock_history_trade_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17238,8 +17329,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -17374,13 +17466,13 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryQuoteStream")]
     pub async fn stock_history_quote_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17429,8 +17521,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -17572,13 +17665,13 @@ impl MarketDataClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockHistoryTradeQuoteStream")]
     pub async fn stock_history_trade_quote_stream(
         &self,
         symbol: String,
         options: Option<StockHistoryTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17631,8 +17724,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -17757,7 +17851,7 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockAtTimeTradeStream")]
     pub async fn stock_at_time_trade_stream(
         &self,
@@ -17766,7 +17860,7 @@ impl MarketDataClient {
         end_date: String,
         time_of_day: String,
         options: Option<StockAtTimeTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17794,8 +17888,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -17898,7 +17993,7 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `stockAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockAtTimeQuoteStream")]
     pub async fn stock_at_time_quote_stream(
         &self,
@@ -17907,7 +18002,7 @@ impl MarketDataClient {
         end_date: String,
         time_of_day: String,
         options: Option<StockAtTimeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -17935,8 +18030,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -18019,13 +18115,13 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileEODStream")]
     pub async fn stock_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<StockFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -18047,8 +18143,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -18122,13 +18219,13 @@ impl MarketDataClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileTradeQuoteStream")]
     pub async fn stock_flat_file_trade_quote_stream(
         &self,
         date: String,
         options: Option<StockFlatFileTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -18150,8 +18247,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -18225,13 +18323,13 @@ impl MarketDataClient {
         Ok(interval_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `stock_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(rows: IntervalQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "stockFlatFileQuoteStream")]
     pub async fn stock_flat_file_quote_stream(
         &self,
         date: String,
         options: Option<StockFlatFileQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IntervalQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IntervalQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -18253,8 +18351,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -18459,14 +18558,14 @@ impl MarketDataClient {
         Ok(option_contracts_to_class_vec(&ticks))
     }
 
-    /// Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(rows: OptionContract[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionListContractsStream")]
     pub async fn option_list_contracts_stream(
         &self,
         request_type: String,
         date: String,
         options: Option<OptionListContractsOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OptionContract>, (), Vec<OptionContract>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OptionContract>, columns: ColumnPresence) => void")] callback: ChunkCallback<OptionContract>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -18496,8 +18595,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = option_contracts_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -20755,7 +20855,7 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryEODStream")]
     pub async fn option_history_eod_stream(
         &self,
@@ -20764,7 +20864,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -20804,8 +20904,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -20948,14 +21049,14 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryOHLCStream")]
     pub async fn option_history_ohlc_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -21013,8 +21114,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -21173,14 +21275,14 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeStream")]
     pub async fn option_history_trade_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -21238,8 +21340,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -21402,14 +21505,14 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryQuoteStream")]
     pub async fn option_history_quote_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -21471,8 +21574,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -21645,14 +21749,14 @@ impl MarketDataClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeQuoteStream")]
     pub async fn option_history_trade_quote_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -21718,8 +21822,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -21875,14 +21980,14 @@ impl MarketDataClient {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_open_interest` rows into `callback` without materialising the full response in memory. `callback(rows: OpenInterestTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryOpenInterestStream")]
     pub async fn option_history_open_interest_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryOpenInterestOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OpenInterestTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OpenInterestTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -21932,8 +22037,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -22097,7 +22203,7 @@ impl MarketDataClient {
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksEODStream")]
     pub async fn option_history_greeks_eod_stream(
         &self,
@@ -22106,7 +22212,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryGreeksEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksEodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksEodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -22174,8 +22280,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -22365,7 +22472,7 @@ impl MarketDataClient {
         Ok(greeks_eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksEODStream")]
     pub async fn option_history_binomial_greeks_eod_stream(
         &self,
@@ -22374,7 +22481,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<OptionHistoryBinomialGreeksEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksEodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksEodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -22446,8 +22553,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -22645,14 +22753,14 @@ impl MarketDataClient {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksAllStream")]
     pub async fn option_history_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -22730,8 +22838,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -22939,14 +23048,14 @@ impl MarketDataClient {
         Ok(greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksAllStream")]
     pub async fn option_history_binomial_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -23028,8 +23137,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -23239,14 +23349,14 @@ impl MarketDataClient {
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksAllStream")]
     pub async fn option_history_trade_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -23328,8 +23438,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -23545,14 +23656,14 @@ impl MarketDataClient {
         Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksAllStream")]
     pub async fn option_history_binomial_trade_greeks_all_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksAllTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksAllTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -23638,8 +23749,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -23849,14 +23961,14 @@ impl MarketDataClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksFirstOrderStream")]
     pub async fn option_history_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -23934,8 +24046,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -24143,14 +24256,14 @@ impl MarketDataClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderStream")]
     pub async fn option_history_binomial_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -24232,8 +24345,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -24443,14 +24557,14 @@ impl MarketDataClient {
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrderStream")]
     pub async fn option_history_trade_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -24532,8 +24646,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -24749,14 +24864,14 @@ impl MarketDataClient {
         Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderStream")]
     pub async fn option_history_binomial_trade_greeks_first_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksFirstOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksFirstOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -24842,8 +24957,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -25053,14 +25169,14 @@ impl MarketDataClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksSecondOrderStream")]
     pub async fn option_history_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -25138,8 +25254,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -25347,14 +25464,14 @@ impl MarketDataClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderStream")]
     pub async fn option_history_binomial_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -25436,8 +25553,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -25647,14 +25765,14 @@ impl MarketDataClient {
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrderStream")]
     pub async fn option_history_trade_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -25736,8 +25854,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -25953,14 +26072,14 @@ impl MarketDataClient {
         Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderStream")]
     pub async fn option_history_binomial_trade_greeks_second_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksSecondOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksSecondOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -26046,8 +26165,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -26257,14 +26377,14 @@ impl MarketDataClient {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksThirdOrderStream")]
     pub async fn option_history_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -26342,8 +26462,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -26551,14 +26672,14 @@ impl MarketDataClient {
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderStream")]
     pub async fn option_history_binomial_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<GreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<GreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -26640,8 +26761,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -26851,14 +26973,14 @@ impl MarketDataClient {
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrderStream")]
     pub async fn option_history_trade_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -26940,8 +27062,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -27157,14 +27280,14 @@ impl MarketDataClient {
         Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderStream")]
     pub async fn option_history_binomial_trade_greeks_third_order_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksThirdOrderTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksThirdOrderTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -27250,8 +27373,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -27460,14 +27584,14 @@ impl MarketDataClient {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: IvTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(rows: IvTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryGreeksImpliedVolatilityStream")]
     pub async fn option_history_greeks_implied_volatility_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IvTick>, (), Vec<IvTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IvTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IvTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -27545,8 +27669,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = iv_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -27751,14 +27876,14 @@ impl MarketDataClient {
         Ok(trade_greeks_implied_volatility_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(rows: TradeGreeksImpliedVolatilityTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityStream")]
     pub async fn option_history_trade_greeks_implied_volatility_stream(
         &self,
         symbol: String,
         expiration: String,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksImpliedVolatilityTick>, (), Vec<TradeGreeksImpliedVolatilityTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeGreeksImpliedVolatilityTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeGreeksImpliedVolatilityTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -27840,8 +27965,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28008,7 +28134,7 @@ impl MarketDataClient {
         Ok(trade_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_at_time_trade` rows into `callback` without materialising the full response in memory. `callback(rows: TradeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeTrade` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionAtTimeTradeStream")]
     pub async fn option_at_time_trade_stream(
         &self,
@@ -28018,7 +28144,7 @@ impl MarketDataClient {
         end_date: String,
         time_of_day: String,
         options: Option<OptionAtTimeTradeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28059,8 +28185,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28187,7 +28314,7 @@ impl MarketDataClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: QuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_at_time_quote` rows into `callback` without materialising the full response in memory. `callback(rows: QuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionAtTimeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionAtTimeQuoteStream")]
     pub async fn option_at_time_quote_stream(
         &self,
@@ -28197,7 +28324,7 @@ impl MarketDataClient {
         end_date: String,
         time_of_day: String,
         options: Option<OptionAtTimeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<QuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<QuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28238,8 +28365,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28336,13 +28464,13 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileEODStream")]
     pub async fn option_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28364,8 +28492,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28439,13 +28568,13 @@ impl MarketDataClient {
         Ok(trade_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_trade_quote` rows into `callback` without materialising the full response in memory. `callback(rows: TradeQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileTradeQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileTradeQuoteStream")]
     pub async fn option_flat_file_trade_quote_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileTradeQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<TradeQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<TradeQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28467,8 +28596,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28542,13 +28672,13 @@ impl MarketDataClient {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(chunk: OpenInterestTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_open_interest` rows into `callback` without materialising the full response in memory. `callback(rows: OpenInterestTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileOpenInterest` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileOpenInterestStream")]
     pub async fn option_flat_file_open_interest_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileOpenInterestOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OpenInterestTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OpenInterestTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28570,8 +28700,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -28645,13 +28776,13 @@ impl MarketDataClient {
         Ok(interval_quote_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: IntervalQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `option_flat_file_quote` rows into `callback` without materialising the full response in memory. `callback(rows: IntervalQuoteTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionFlatFileQuote` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "optionFlatFileQuoteStream")]
     pub async fn option_flat_file_quote_stream(
         &self,
         date: String,
         options: Option<OptionFlatFileQuoteOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IntervalQuoteTick>, (), Vec<IntervalQuoteTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IntervalQuoteTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IntervalQuoteTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -28673,8 +28804,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interval_quote_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29037,7 +29169,7 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryEODStream")]
     pub async fn index_history_eod_stream(
         &self,
@@ -29045,7 +29177,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<IndexHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29068,8 +29200,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29170,7 +29303,7 @@ impl MarketDataClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_ohlc` rows into `callback` without materialising the full response in memory. `callback(rows: OhlcTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryOHLC` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryOHLCStream")]
     pub async fn index_history_ohlc_stream(
         &self,
@@ -29178,7 +29311,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<IndexHistoryOHLCOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<OhlcTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<OhlcTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29213,8 +29346,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29336,13 +29470,13 @@ impl MarketDataClient {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(chunk: PriceTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryPrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_history_price` rows into `callback` without materialising the full response in memory. `callback(rows: PriceTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexHistoryPrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexHistoryPriceStream")]
     pub async fn index_history_price_stream(
         &self,
         symbol: String,
         options: Option<IndexHistoryPriceOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<PriceTick>, (), Vec<PriceTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<PriceTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<PriceTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29387,8 +29521,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = price_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29493,7 +29628,7 @@ impl MarketDataClient {
         Ok(index_price_at_time_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(chunk: IndexPriceAtTimeTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexAtTimePrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_at_time_price` rows into `callback` without materialising the full response in memory. `callback(rows: IndexPriceAtTimeTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `indexAtTimePrice` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexAtTimePriceStream")]
     pub async fn index_at_time_price_stream(
         &self,
@@ -29502,7 +29637,7 @@ impl MarketDataClient {
         end_date: String,
         time_of_day: String,
         options: Option<IndexAtTimePriceOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IndexPriceAtTimeTick>, (), Vec<IndexPriceAtTimeTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<IndexPriceAtTimeTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<IndexPriceAtTimeTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29526,8 +29661,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = index_price_at_time_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29606,13 +29742,13 @@ impl MarketDataClient {
         Ok(eod_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: EodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `index_flat_file_eod` rows into `callback` without materialising the full response in memory. `callback(rows: EodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `indexFlatFileEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "indexFlatFileEODStream")]
     pub async fn index_flat_file_eod_stream(
         &self,
         date: String,
         options: Option<IndexFlatFileEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<EodTick>, (), Vec<EodTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<EodTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<EodTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29634,8 +29770,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = eod_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
@@ -29891,7 +30028,7 @@ impl MarketDataClient {
         Ok(interest_rate_ticks_to_class_vec(&ticks))
     }
 
-    /// Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: InterestRateTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    /// Stream `interest_rate_history_eod` rows into `callback` without materialising the full response in memory. `callback(rows: InterestRateTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, as in a flat file, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `interestRateHistoryEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
     #[napi(js_name = "interestRateHistoryEODStream")]
     pub async fn interest_rate_history_eod_stream(
         &self,
@@ -29899,7 +30036,7 @@ impl MarketDataClient {
         start_date: String,
         end_date: String,
         options: Option<InterestRateHistoryEODOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<InterestRateTick>, (), Vec<InterestRateTick>, napi::Status, false>,
+        #[napi(ts_arg_type = "(rows: Array<InterestRateTick>, columns: ColumnPresence) => void")] callback: ChunkCallback<InterestRateTick>,
     ) -> napi::Result<()> {
         let options = options.unwrap_or_default();
         let timeout_ms = match options.timeout_ms {
@@ -29922,8 +30059,9 @@ impl MarketDataClient {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = interest_rate_ticks_to_class_vec(chunk.as_slice());
+                    let columns = ColumnPresence::from(chunk.columns());
                     async move {
-                        match callback.call_async_catch(rows).await {
+                        match callback.call_async_catch((rows, columns).into()).await {
                             Ok(_) => std::ops::ControlFlow::Continue(()),
                             Err(err) => {
                                 *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);

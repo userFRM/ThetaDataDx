@@ -343,95 +343,26 @@ impl MarketDataClient {
         .await
     }
 
-    /// Drain one server stream for the generated `.stream(handler)` path:
-    /// parse each chunk with `parser`, hand the tick slice to the shared
-    /// `handler` under its lock, and mark `delivered` once a non-empty
-    /// chunk has reached it (the no-resume replay guard read by
-    /// [`super::macros::run_streaming_retry_loop`]).
+    /// Drain one server stream for the generated `.stream(handler)` and
+    /// `stream_ticks` paths: parse each chunk with `parser`, pair its rows
+    /// with the columns its wire carried, each row's root included, hand the
+    /// [`crate::columns::Ticks`] to the shared `handler` under its lock, and
+    /// mark `delivered` once a non-empty chunk has reached it (the no-resume
+    /// replay guard read by [`super::macros::run_streaming_retry_loop`]).
     ///
     /// Shared verbatim between the single-stream arm and each shard of a
-    /// bulk-fetch fan-out — the handler `Mutex` is what lets concurrent
-    /// shards forward into one user callback. The handler takes `&[T]`
-    /// (raw rows) and never reads column presence, so no `ColumnPresence`
-    /// is computed here — that per-chunk work exists only on the
-    /// [`Self::deliver_chunk_ticks`] path, whose handler reads it. The
-    /// first parse failure is terminal: it breaks the drain and surfaces
-    /// after the stream is released.
+    /// bulk-fetch fan-out: the handler `Mutex` is what lets concurrent
+    /// shards forward into one user callback. The handler can end the call:
+    /// a `Break` stops this drain, and `stopped`, shared by every band of the
+    /// call, keeps any band from calling the handler again. The flag is read
+    /// and set under the handler lock, so no call can slip in after the one
+    /// that returned `Break`. The first parse failure is terminal: it breaks
+    /// the drain and surfaces after the stream is released.
     ///
     /// # Errors
     ///
     /// Propagates stream / decode errors from the chunk drain, or the
     /// first `parser` failure.
-    pub(crate) async fn deliver_chunk_slices<T, E, P, F>(
-        &self,
-        stream: ServerStreaming<proto::ResponseData>,
-        parser: P,
-        handler: &std::sync::Mutex<F>,
-        delivered: &std::sync::atomic::AtomicBool,
-    ) -> Result<(), Error>
-    where
-        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
-        E: Into<Error>,
-        F: FnMut(&[T]) + Send,
-    {
-        let mut decode_error: Option<Error> = None;
-        let drain_result = self
-            .for_each_chunk_control(stream, |headers, rows| {
-                if decode_error.is_some() {
-                    return ControlFlow::Break(());
-                }
-                let chunk_table = proto::DataTable {
-                    headers: headers.to_vec(),
-                    data_table: rows.to_vec(),
-                };
-                match parser(&chunk_table) {
-                    Ok(ticks) => {
-                        // The mutex is uncontended in steady state (chunks
-                        // of one call chain arrive one at a time; shards
-                        // of a fan-out serialize on it per chunk); a
-                        // poisoned mutex only surfaces if a handler
-                        // panicked mid-callback, which is already a hard
-                        // error path.
-                        if let Ok(mut h) = handler.lock() {
-                            (*h)(&ticks);
-                        }
-                        // Only mark the stream as delivered once a chunk
-                        // carried rows: an empty chunk (headers-only
-                        // keepalive / terminator) hands the downstream no
-                        // rows, so a refresh replay from chunk zero would
-                        // duplicate nothing. Gating here keeps a
-                        // recoverable `Unauthenticated` after only empty
-                        // chunks from being forced terminal.
-                        if !ticks.is_empty() {
-                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
-                        }
-                        ControlFlow::Continue(())
-                    }
-                    Err(e) => {
-                        decode_error = Some(e.into());
-                        ControlFlow::Break(())
-                    }
-                }
-            })
-            .await;
-        drain_result.and_then(|()| match decode_error {
-            Some(e) => Err(e),
-            None => Ok(()),
-        })
-    }
-
-    /// [`Self::deliver_chunk_slices`] with the presence-carrying
-    /// [`crate::columns::Ticks`] wrap the `stream_ticks` terminal hands
-    /// its handler (the SDK bindings read the per-chunk column set).
-    ///
-    /// The handler can end the call: a `Break` stops this drain, and
-    /// `stopped`, shared by every band of the call, keeps any band from
-    /// calling the handler again. The flag is read and set under the handler
-    /// lock, so no call can slip in after the one that returned `Break`.
-    ///
-    /// # Errors
-    ///
-    /// Same as [`Self::deliver_chunk_slices`].
     pub(crate) async fn deliver_chunk_ticks<T, E, P, F>(
         &self,
         stream: ServerStreaming<proto::ResponseData>,
@@ -461,12 +392,24 @@ impl MarketDataClient {
                         let columns = chunk_columns::<T>(&chunk_table);
                         let ticks = crate::columns::Ticks::new(rows, columns);
                         let delivered_nonempty = !ticks.is_empty();
+                        // The mutex is uncontended in steady state (chunks
+                        // of one call chain arrive one at a time; shards of
+                        // a fan-out serialize on it per chunk); a poisoned
+                        // mutex only surfaces if a handler panicked
+                        // mid-callback, which is already a hard error path.
                         match handler.lock() {
                             Ok(_) if stopped.load(std::sync::atomic::Ordering::Relaxed) => {
                                 ControlFlow::Break(())
                             }
                             Ok(mut h) => {
                                 let flow = (*h)(ticks);
+                                // Only a chunk that carried rows marks the
+                                // stream delivered: an empty chunk
+                                // (headers-only keepalive / terminator) hands
+                                // the handler no rows, so a refresh replay
+                                // from chunk zero would duplicate nothing, and
+                                // a recoverable `Unauthenticated` after only
+                                // empty chunks must not be forced terminal.
                                 if delivered_nonempty {
                                     delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                                 }
@@ -491,106 +434,21 @@ impl MarketDataClient {
         })
     }
 
-    /// Async twin of [`Self::deliver_chunk_slices`] for the
-    /// `stream_async` terminal.
+    /// Async twin of [`Self::deliver_chunk_ticks`] for the `stream_async`
+    /// and `stream_ticks_async` terminals, with the same `Break` and
+    /// `stopped` contract.
     ///
-    /// The handler lock is a `tokio::sync::Mutex` held across the
-    /// handler future's await: under a bulk-fetch fan-out, concurrent
-    /// shard bands deliver through one shared handler, and only a guard
-    /// that survives the await keeps handler executions from
-    /// overlapping — the documented one-call-at-a-time contract (a
-    /// `std::sync` guard cannot be held across an await). The chunk is
-    /// parsed on the sync side and dropped before the handler future is
-    /// awaited, preserving the chunk-freed-before-handler-runs bound; on
-    /// a single stream the lock is uncontended and the behaviour is
-    /// unchanged.
+    /// The handler lock is a `tokio::sync::Mutex` held across the handler
+    /// future's await: under a bulk-fetch fan-out, concurrent shard bands
+    /// deliver through one shared handler, and only a guard that survives
+    /// the await keeps handler executions from overlapping, the documented
+    /// one-call-at-a-time contract (a `std::sync` guard cannot be held
+    /// across an await). The chunk is parsed on the sync side and moved
+    /// into the handler; on a single stream the lock is uncontended.
     ///
     /// # Errors
     ///
-    /// Same as [`Self::deliver_chunk_slices`].
-    pub(crate) async fn deliver_chunk_slices_async<T, E, P, F, HFut>(
-        &self,
-        stream: ServerStreaming<proto::ResponseData>,
-        parser: P,
-        handler: &tokio::sync::Mutex<F>,
-        delivered: &std::sync::atomic::AtomicBool,
-    ) -> Result<(), Error>
-    where
-        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
-        E: Into<Error>,
-        F: FnMut(&[T]) -> HFut + Send,
-        HFut: Future<Output = ()> + Send,
-    {
-        let mut decode_error: Option<Error> = None;
-        // Marks the user handler await below as this client's delivery
-        // scope, so a same-client request awaited inside the handler
-        // fails fast instead of waiting on permits this pull holds (see
-        // `acquire_request_permit`).
-        let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
-        let drain_result = self
-            .for_each_chunk_async_control(stream, |headers, rows| {
-                // Synchronous section: parse the chunk. The handler runs
-                // in the returned future, where the async lock can be
-                // held across its await.
-                let mut stop_stream = decode_error.is_some();
-                let ticks = if stop_stream {
-                    None
-                } else {
-                    let chunk_table = proto::DataTable {
-                        headers,
-                        data_table: rows,
-                    };
-                    match parser(&chunk_table) {
-                        Ok(ticks) => Some(ticks),
-                        Err(e) => {
-                            decode_error = Some(e.into());
-                            stop_stream = true;
-                            None
-                        }
-                    }
-                };
-                async move {
-                    if let Some(ticks) = ticks {
-                        let mut h = handler.lock().await;
-                        let user_fut = (*h)(&ticks);
-                        // Mark delivered once the handler has taken a
-                        // non-empty chunk, so a later transient cannot
-                        // replay an already-delivered prefix. Empty
-                        // chunks (headers-only keepalive) hand the
-                        // handler no rows, so a replay would duplicate
-                        // nothing.
-                        if !ticks.is_empty() {
-                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
-                        }
-                        // `HFut` is an independent type, so the handler
-                        // future cannot borrow the slice: free the chunk
-                        // before running the handler, keeping peak memory
-                        // at one chunk per stream.
-                        drop(ticks);
-                        super::client::in_delivery_scope(sem_addr, user_fut).await;
-                    }
-                    if stop_stream {
-                        ControlFlow::Break(())
-                    } else {
-                        ControlFlow::Continue(())
-                    }
-                }
-            })
-            .await;
-        drain_result.and_then(|()| match decode_error {
-            Some(e) => Err(e),
-            None => Ok(()),
-        })
-    }
-
-    /// Async twin of [`Self::deliver_chunk_ticks`] for the
-    /// `stream_ticks_async` terminal. Same across-the-await handler lock
-    /// as [`Self::deliver_chunk_slices_async`], and the same `Break` and
-    /// `stopped` contract as [`Self::deliver_chunk_ticks`].
-    ///
-    /// # Errors
-    ///
-    /// Same as [`Self::deliver_chunk_slices`].
+    /// Same as [`Self::deliver_chunk_ticks`].
     pub(crate) async fn deliver_chunk_ticks_async<T, E, P, F, HFut>(
         &self,
         stream: ServerStreaming<proto::ResponseData>,
@@ -607,7 +465,10 @@ impl MarketDataClient {
         HFut: Future<Output = ControlFlow<()>> + Send,
     {
         let mut decode_error: Option<Error> = None;
-        // Same delivery-scope marker as `deliver_chunk_slices_async`.
+        // Marks the user handler await below as this client's delivery
+        // scope, so a same-client request awaited inside the handler fails
+        // fast instead of waiting on permits this pull holds (see
+        // `acquire_request_permit`).
         let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
             .for_each_chunk_async_control(stream, |headers, rows| {

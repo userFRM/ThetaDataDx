@@ -20,6 +20,14 @@
 
     /// Execute the streaming request, calling `handler` for each chunk.
     ///
+    /// `handler` receives each chunk as a [`Ticks`](crate::columns::Ticks):
+    /// it derefs to the chunk's rows, and its
+    /// [`columns`](crate::columns::Ticks::columns) name the columns the
+    /// chunk's wire carried and the root each row belongs to: one root for
+    /// every row in [`symbol`](crate::columns::ColumnPresence::symbol), or
+    /// one per row in [`symbols`](crate::columns::ColumnPresence::symbols)
+    /// when the rows span several.
+    ///
     /// # Retry / refresh semantics
     ///
     /// The stream open phase and the per-chunk drain are wrapped in a
@@ -75,7 +83,7 @@
     ///
     /// Returns [`Error`] if the gRPC call fails terminally or response
     /// parsing fails.
-    pub async fn stream<F>(self, handler: F) -> Result<(), Error>
+    pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
     where
-        F: FnMut(&[__TICK_TYPE__]) + Send,
+        F: FnMut(&crate::columns::Ticks<__TICK_TYPE__>) + Send,
     {

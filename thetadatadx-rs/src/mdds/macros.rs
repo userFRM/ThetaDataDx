@@ -1107,16 +1107,30 @@ macro_rules! parsed_endpoint {
                 self
             }
 
-            /// Stream the response chunk-by-chunk via `handler`, never
-            /// materializing the full `Vec<T>`.
+            /// Stream the response chunk by chunk through `handler`, never
+            /// materializing the whole result.
             ///
-            /// The buffered `.await -> Vec<T>` path holds three live
-            /// copies (h2 frames + concatenated proto payload +
-            /// decoded `Vec<T>`) plus a `Vec::push` doubling
-            /// transient. The `.stream()` variant decodes one chunk
-            /// at a time, hands the slice to `handler`, then drops
-            /// the chunk before the next is fetched — bounded peak
-            /// memory regardless of response size.
+            /// The buffered `.await` path holds three live copies (h2
+            /// frames, the concatenated proto payload, and the decoded
+            /// rows) plus a `Vec::push` doubling transient. `.stream()`
+            /// decodes one chunk at a time, hands it to `handler`, then
+            /// drops it before the next is fetched, so peak memory stays
+            /// bounded whatever the size of the response.
+            ///
+            /// # The chunk
+            ///
+            /// `handler` receives each chunk as a
+            /// [`Ticks`](crate::columns::Ticks), the type the buffered
+            /// `.await` returns: it derefs to the chunk's rows, and its
+            /// [`columns`](crate::columns::Ticks::columns) name the columns
+            /// the chunk's wire carried and the root each row belongs to.
+            /// When the chunk's rows span several roots, as in a flat file,
+            /// [`symbols`](crate::columns::ColumnPresence::symbols) holds
+            /// one root per row; when every row shares one, as in option
+            /// and index history,
+            /// [`symbol`](crate::columns::ColumnPresence::symbol) holds it.
+            /// A response that carries no root, such as stock history, sets
+            /// neither.
             ///
             /// # Retry / refresh semantics
             ///
@@ -1131,7 +1145,7 @@ macro_rules! parsed_endpoint {
             /// never sees a duplicated chunk.
             ///
             /// Decode / decompress failures are terminal and surface
-            /// immediately without retry — the wire bytes won't fix
+            /// immediately without retry: the wire bytes won't fix
             /// themselves on a re-attempt.
             ///
             /// # Bulk-fetch sharding
@@ -1139,8 +1153,8 @@ macro_rules! parsed_endpoint {
             /// Under [`crate::config::BulkFetchPolicy::Auto`] (the
             /// default), a history pull large enough to clear the
             /// fan-out break-even is split into equal disjoint
-            /// bands — the same plan the buffered `.await` path uses
-            /// (see `mdds/shard.rs`) — and every band streams
+            /// bands (the same plan the buffered `.await` path uses,
+            /// see `mdds/shard.rs`), and every band streams
             /// concurrently as its own top-level request, forwarding
             /// each chunk to `handler` as it arrives. Every chunk is
             /// still delivered exactly once and chunks stay intact;
@@ -1155,10 +1169,10 @@ macro_rules! parsed_endpoint {
             /// then returns
             /// [`Error::PartialShardFetch`](crate::Error::PartialShardFetch)
             /// naming the failed band window(s) so you can re-pull
-            /// exactly those slices — unless no chunk reached `handler`
+            /// exactly those slices, unless no chunk reached `handler`
             /// at all, in which case the underlying error surfaces
             /// unchanged like a single-stream failure. Dropping the
-            /// future — the deadline path — still cancels every band;
+            /// future (the deadline path) still cancels every band;
             /// on a very large pull, size `with_deadline` (or the
             /// configured `request_timeout_secs`) to the whole pull,
             /// since it also bounds the sibling drain after a band
@@ -1174,9 +1188,26 @@ macro_rules! parsed_endpoint {
             /// expiry. `Error::Decompress { kind: MessageTooLarge }`
             /// when the channel's `max_message_size` ceiling rejects
             /// an oversized chunk.
-            pub async fn stream<F>(self, handler: F) -> Result<(), Error>
+            pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
             where
-                F: FnMut(&[$item]) + Send,
+                F: FnMut(&$crate::columns::Ticks<$item>) + Send,
+            {
+                self.stream_ticks(move |ticks| {
+                    handler(&ticks);
+                    std::ops::ControlFlow::Continue(())
+                })
+                .await
+            }
+
+            /// Binding terminal: [`stream`](Self::stream) with a handler
+            /// that takes each chunk by value and can end the call. A
+            /// `Break` from the handler ends the whole call, every band of
+            /// a fan-out included, and the call returns `Ok(())` without
+            /// calling the handler again.
+            #[doc(hidden)]
+            pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut($crate::columns::Ticks<$item>) -> std::ops::ControlFlow<()> + Send,
             {
                 let $builder_name {
                     client,
@@ -1199,128 +1230,23 @@ macro_rules! parsed_endpoint {
                     // same value, so the wire bytes are identical across
                     // paths.
                     let params = proto::$query { $($field : $val),* };
-                    // The user handler is `FnMut + Send`; wrap it in a
-                    // `Mutex` so the per-attempt closure — and, under a
-                    // shard plan, every concurrent band — can acquire a
-                    // unique mutable borrow per chunk without capturing
-                    // a `&mut` whose lifetime would escape the closure
-                    // body. `Mutex<F>` where `F: Send` is `Send + Sync`,
-                    // so the future stays Send (the Python SDK's
-                    // `spawn_awaitable` requires this).
-                    let handler_mutex = std::sync::Mutex::new(handler);
-                    let handler_mutex = &handler_mutex;
-                    // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
-                    // Same gate as the buffered `IntoFuture` arm: policy
-                    // `Off`, non-history endpoints, and small pulls all
-                    // resolve to `None` — the single-stream arm below,
-                    // exactly today's behaviour. Chunks are forwarded as
-                    // they arrive, so bands interleave in arrival order
-                    // (see the method docs).
-                    #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
-                    let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                    $(shard_read_field!(shard_query, params, $field);)*
-                    match $crate::mdds::shard::auto_plan(
-                        client,
-                        stringify!($name),
-                        &shard_query,
-                    ) {
-                        Some(plan) => {
-                            sharded_stream_fanout!(
-                                client, $name, plan, params,
-                                [ $($field),* ],
-                                |snap, banded, delivered| async move {
-                                    let request = proto::$req {
-                                        query_info: Some(client.build_query_info(snap.uuid.clone())),
-                                        params: Some(banded.clone()),
-                                    };
-                                    // Bind the lease to a local so it
-                                    // lives across the await — see the
-                                    // single-stream arm below.
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_slices(stream, $parser, handler_mutex, delivered).await
-                                }
-                            )?;
-                        }
-                        None => {
-                            let _permit = client.acquire_request_permit().await?;
-                            let policy = client.config().retry;
-                            // Set once a chunk reaches `handler`: it makes a later
-                            // transient terminal so the no-resume restart never
-                            // replays an already-delivered prefix.
-                            let delivered = std::sync::atomic::AtomicBool::new(false);
-                            let delivered = &delivered;
-                            $crate::mdds::macros::run_streaming_retry_loop(
-                                client.session(),
-                                &policy,
-                                stringify!($name),
-                                delivered,
-                                move |snap| {
-                                    // Clone per-attempt: the FnMut closure
-                                    // may be invoked twice (post-refresh
-                                    // restart), and the proto request
-                                    // takes the params by value.
-                                    let params = params.clone();
-                                    async move {
-                                        let qi = client.build_query_info(snap.uuid.clone());
-                                        let request = proto::$req {
-                                            query_info: Some(qi),
-                                            params: Some(params),
-                                        };
-                                        let lease = client.channel();
-                                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                            &lease,
-                                            request,
-                                        )
-                                        .await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_slices(stream, $parser, handler_mutex, delivered).await
-                                    }
-                                },
-                            ).await?;
-                        }
-                    }
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok::<(), Error>(())
-                }).await
-            }
-
-            /// Binding terminal: stream presence-carrying chunks into
-            /// `handler`. A `Break` from the handler ends the whole call,
-            /// every band of a fan-out included, and the call returns
-            /// `Ok(())` without calling the handler again.
-            #[doc(hidden)]
-            pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
-            where
-                F: FnMut($crate::columns::Ticks<$item>) -> std::ops::ControlFlow<()> + Send,
-            {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                let _ = &client;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let deadline = $crate::mdds::macros::effective_deadline(
-                    deadline,
-                    client.config().market_data.request_timeout_secs,
-                );
-                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let params = proto::$query { $($field : $val),* };
+                    // The handler is `FnMut + Send`; wrap it in a `Mutex` so
+                    // the per-attempt closure, and under a shard plan every
+                    // concurrent band, can take a unique mutable borrow per
+                    // chunk without capturing a `&mut` whose lifetime would
+                    // escape the closure body. `Mutex<F>` where `F: Send` is
+                    // `Send + Sync`, so the future stays Send (the Python
+                    // SDK's `spawn_awaitable` requires this).
                     let handler_mutex = std::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
                     let stopped = std::sync::atomic::AtomicBool::new(false);
                     let stopped = &stopped;
+                    // Bulk-fetch auto-sharding (see `mdds/shard.rs`), same
+                    // gate as the buffered `IntoFuture` arm: policy `Off`,
+                    // non-history endpoints, and small pulls all resolve to
+                    // `None`, the single-stream arm below. Chunks are
+                    // forwarded as they arrive, so bands interleave in
+                    // arrival order (see the `stream` docs).
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1395,17 +1321,16 @@ macro_rules! parsed_endpoint {
             /// `handler` returns a future that is awaited before the next
             /// chunk is fetched.
             ///
-            /// Identical retry / refresh / no-resume-replay semantics,
-            /// identical bulk-fetch sharding semantics (see
-            /// [`stream`](Self::stream): under a shard plan, chunks
-            /// arrive in arrival order across bands), and identical
-            /// bounded-peak-memory behaviour as [`stream`]; the
-            /// only difference is that the handler is `async`. Awaiting the
-            /// handler future in-line preserves once-per-chunk delivery
-            /// and the chunk-freed-before-next backpressure. The
-            /// Python SDK's `*_stream_async` terminal uses this to offload
-            /// its GIL-bound user handler onto a blocking-pool task without
-            /// parking a shared async worker.
+            /// The handler receives the same [`Ticks`](crate::columns::Ticks)
+            /// chunk, rows and roots, as [`stream`](Self::stream), with
+            /// identical retry / refresh / no-resume-replay semantics,
+            /// identical bulk-fetch sharding semantics (under a shard plan,
+            /// chunks arrive in arrival order across bands), and identical
+            /// bounded-peak-memory behaviour; the only difference is that
+            /// the handler is `async`. Awaiting the handler future in-line
+            /// preserves once-per-chunk delivery and the
+            /// chunk-freed-before-next backpressure. The future cannot
+            /// borrow the chunk, which is freed before the future runs.
             ///
             /// # Same-client calls from the handler
             ///
@@ -1423,100 +1348,19 @@ macro_rules! parsed_endpoint {
             /// # Errors
             ///
             /// Same as [`stream`](Self::stream).
-            pub async fn stream_async<F, HFut>(self, handler: F) -> Result<(), Error>
+            pub async fn stream_async<F, HFut>(self, mut handler: F) -> Result<(), Error>
             where
-                F: FnMut(&[$item]) -> HFut + Send,
+                F: FnMut(&$crate::columns::Ticks<$item>) -> HFut + Send,
                 HFut: std::future::Future<Output = ()> + Send,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                let _ = &client;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let deadline = $crate::mdds::macros::effective_deadline(
-                    deadline,
-                    client.config().market_data.request_timeout_secs,
-                );
-                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let params = proto::$query { $($field : $val),* };
-                    // Async-handler lock: unlike the sync path's
-                    // `std::sync::Mutex`, this guard must be HELD ACROSS
-                    // the handler future's await so concurrent shard
-                    // bands cannot overlap handler executions — see
-                    // `deliver_chunk_slices_async`. `tokio::sync::Mutex<F>`
-                    // where `F: Send` keeps the future Send (the Python
-                    // SDK's `spawn_awaitable` requires this).
-                    let handler_mutex = tokio::sync::Mutex::new(handler);
-                    let handler_mutex = &handler_mutex;
-                    #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
-                    let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                    $(shard_read_field!(shard_query, params, $field);)*
-                    match $crate::mdds::shard::auto_plan(
-                        client,
-                        stringify!($name),
-                        &shard_query,
-                    ) {
-                        Some(plan) => {
-                            sharded_stream_fanout!(
-                                client, $name, plan, params,
-                                [ $($field),* ],
-                                |snap, banded, delivered| async move {
-                                    let request = proto::$req {
-                                        query_info: Some(client.build_query_info(snap.uuid.clone())),
-                                        params: Some(banded.clone()),
-                                    };
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_slices_async(stream, $parser, handler_mutex, delivered).await
-                                }
-                            )?;
-                        }
-                        None => {
-                            let _permit = client.acquire_request_permit().await?;
-                            let policy = client.config().retry;
-                            let delivered = std::sync::atomic::AtomicBool::new(false);
-                            let delivered = &delivered;
-                            $crate::mdds::macros::run_streaming_retry_loop(
-                                client.session(),
-                                &policy,
-                                stringify!($name),
-                                delivered,
-                                move |snap| {
-                                    let params = params.clone();
-                                    async move {
-                                        let qi = client.build_query_info(snap.uuid.clone());
-                                        let request = proto::$req {
-                                            query_info: Some(qi),
-                                            params: Some(params),
-                                        };
-                                        let lease = client.channel();
-                                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                            &lease,
-                                            request,
-                                        )
-                                        .await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_slices_async(stream, $parser, handler_mutex, delivered).await
-                                    }
-                                },
-                            ).await?;
-                        }
+                self.stream_ticks_async(move |ticks| {
+                    let fut = handler(&ticks);
+                    async move {
+                        fut.await;
+                        std::ops::ControlFlow::Continue(())
                     }
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok::<(), Error>(())
-                }).await
+                })
+                .await
             }
 
             /// Async twin of `stream_ticks`, with the same `Break` contract.
@@ -1543,8 +1387,13 @@ macro_rules! parsed_endpoint {
                     metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
                     let _metrics_start = std::time::Instant::now();
                     let params = proto::$query { $($field : $val),* };
-                    // Async lock held across the handler await — see
-                    // `stream_async` above.
+                    // Async-handler lock: unlike the sync path's
+                    // `std::sync::Mutex`, this guard is held across the
+                    // handler future's await, so concurrent shard bands
+                    // cannot overlap handler executions (see
+                    // `deliver_chunk_ticks_async`). `tokio::sync::Mutex<F>`
+                    // where `F: Send` keeps the future Send (the Python SDK's
+                    // `spawn_awaitable` requires this).
                     let handler_mutex = tokio::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
                     let stopped = std::sync::atomic::AtomicBool::new(false);

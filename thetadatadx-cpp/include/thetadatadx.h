@@ -990,7 +990,8 @@ void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
  * attribution (the decode's ColumnPresence crossing the C boundary). Built by
  * a thetadatadx_*_present_columns terminal and consumed by the matching
  * thetadatadx_*_to_arrow_ipc_projected terminal. Caller MUST free with
- * thetadatadx_column_presence_free.
+ * thetadatadx_column_presence_free, except the carrier a stream chunk
+ * callback receives, which the library owns and frees itself.
  *
  * `symbol` carries a constant root value for responses whose wire has one
  * symbol across every row.
@@ -2339,6 +2340,14 @@ void thetadatadx_string_free(char* s);
  *  caller wants to outlive the callback. An empty result drains as zero
  *  invocations (a null `rows` with `len == 0` is never delivered).
  *
+ *  `columns` is the chunk's column presence, never NULL: the columns the
+ *  chunk's wire carried and the root each row belongs to. When the chunk's
+ *  rows span several roots, as in a flat file, `symbols` holds one root per
+ *  row (`symbols_len == len`); when every row shares one, as in option and
+ *  index history, `symbol` holds it. A response that carries no root, such
+ *  as stock history, sets neither. The library owns it: it is valid only for
+ *  the duration of the call and must not be freed by the callback.
+ *
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed
  *  back unchanged on every invocation.
  *
@@ -2354,7 +2363,7 @@ void thetadatadx_string_free(char* s);
  *  fault on its own side of the boundary, but that does not contain an
  *  exception thrown out of your callback. Catch and handle every exception
  *  before returning. */
-typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, void* ctx);
+typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, const ThetaDataDxColumnPresence* columns, void* ctx);
 
 /* Generated server-stream endpoint declarations. */
 #include "market_data_stream.h.inc"

@@ -33,25 +33,37 @@
 
     std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> stock_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> stock_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_snapshot_ohlc(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_ohlc(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> stock_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> stock_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.stock_snapshot_ohlc(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_ohlc(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -60,25 +72,37 @@
 
     std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> stock_snapshot_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> stock_snapshot_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_snapshot_trade(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_trade(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> stock_snapshot_trade_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> stock_snapshot_trade_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.stock_snapshot_trade(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_trade(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -87,25 +111,37 @@
 
     std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> stock_snapshot_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> stock_snapshot_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_snapshot_quote(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_quote(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> stock_snapshot_quote_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> stock_snapshot_quote_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.stock_snapshot_quote(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_quote(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -114,165 +150,237 @@
 
     std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<MarketValueTick>> stock_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<MarketValueTick>, ColumnPresence>> stock_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_snapshot_market_value(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_market_value(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<MarketValueTick>> stock_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<MarketValueTick>, ColumnPresence>> stock_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.stock_snapshot_market_value(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.stock_snapshot_market_value(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
     std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> stock_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> stock_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.stock_history_eod(symbol, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.stock_history_eod(symbol, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
     std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> stock_history_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> stock_history_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_history_ohlc(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_history_ohlc(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all trades for a stock on a given date.
     std::vector<TradeTick> stock_history_trade(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> stock_history_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> stock_history_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_history_trade(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_history_trade(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
     std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> stock_history_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> stock_history_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_history_quote(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_history_quote(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date.
     std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> stock_history_trade_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeQuoteTick>, ColumnPresence>> stock_history_trade_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.stock_history_trade_quote(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.stock_history_trade_quote(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the trade at a specific time of day across a date range.
     std::vector<TradeTick> stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> stock_at_time_trade_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> stock_at_time_trade_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
-            return self.stock_at_time_trade(symbol, start_date, end_date, time_of_day, options);
+            ColumnPresence columns;
+            auto rows = self.stock_at_time_trade(symbol, start_date, end_date, time_of_day, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the quote at a specific time of day across a date range.
     std::vector<QuoteTick> stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> stock_at_time_quote_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> stock_at_time_quote_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
-            return self.stock_at_time_quote(symbol, start_date, end_date, time_of_day, options);
+            ColumnPresence columns;
+            auto rows = self.stock_at_time_quote(symbol, start_date, end_date, time_of_day, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
     std::vector<EodTick> stock_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> stock_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> stock_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.stock_flat_file_eod(date, options);
+            ColumnPresence columns;
+            auto rows = self.stock_flat_file_eod(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     std::vector<TradeQuoteTick> stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> stock_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeQuoteTick>, ColumnPresence>> stock_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.stock_flat_file_trade_quote(date, options);
+            ColumnPresence columns;
+            auto rows = self.stock_flat_file_trade_quote(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     std::vector<IntervalQuoteTick> stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IntervalQuoteTick>> stock_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<IntervalQuoteTick>, ColumnPresence>> stock_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.stock_flat_file_quote(date, options);
+            ColumnPresence columns;
+            auto rows = self.stock_flat_file_quote(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -335,658 +443,940 @@
     /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
     std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OptionContract>> option_list_contracts_async(std::string request_type, std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OptionContract>, ColumnPresence>> option_list_contracts_async(std::string request_type, std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, request_type = std::move(request_type), date = std::move(date), options = std::move(options)]() {
-            return self.option_list_contracts(request_type, date, options);
+            ColumnPresence columns;
+            auto rows = self.option_list_contracts(request_type, date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get the latest OHLC snapshot for an option contract.
     std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> option_snapshot_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> option_snapshot_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_ohlc(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_ohlc(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get the latest trade snapshot for an option contract.
     std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> option_snapshot_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> option_snapshot_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_trade(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_trade(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
     std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> option_snapshot_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> option_snapshot_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_quote(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_quote(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get the latest open interest snapshot for an option contract.
     std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OpenInterestTick>> option_snapshot_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OpenInterestTick>, ColumnPresence>> option_snapshot_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_open_interest(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_open_interest(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get the latest market value snapshot for an option contract.
     std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<MarketValueTick>> option_snapshot_market_value_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<MarketValueTick>, ColumnPresence>> option_snapshot_market_value_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_market_value(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_market_value(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
     std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IvTick>> option_snapshot_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<IvTick>, ColumnPresence>> option_snapshot_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_greeks_implied_volatility(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_greeks_implied_volatility(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     std::vector<GreeksAllTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksAllTick>> option_snapshot_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksAllTick>, ColumnPresence>> option_snapshot_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
     std::vector<GreeksAllTick> option_snapshot_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksAllTick>> option_snapshot_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksAllTick>, ColumnPresence>> option_snapshot_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_binomial_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_binomial_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksFirstOrderTick>> option_snapshot_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksFirstOrderTick>, ColumnPresence>> option_snapshot_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
     std::vector<GreeksFirstOrderTick> option_snapshot_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksFirstOrderTick>> option_snapshot_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksFirstOrderTick>, ColumnPresence>> option_snapshot_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_binomial_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_binomial_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksSecondOrderTick>> option_snapshot_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksSecondOrderTick>, ColumnPresence>> option_snapshot_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
     std::vector<GreeksSecondOrderTick> option_snapshot_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksSecondOrderTick>> option_snapshot_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksSecondOrderTick>, ColumnPresence>> option_snapshot_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_binomial_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_binomial_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksThirdOrderTick>> option_snapshot_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksThirdOrderTick>, ColumnPresence>> option_snapshot_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
     std::vector<GreeksThirdOrderTick> option_snapshot_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksThirdOrderTick>> option_snapshot_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksThirdOrderTick>, ColumnPresence>> option_snapshot_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_snapshot_binomial_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_snapshot_binomial_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
     std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> option_history_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> option_history_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.option_history_eod(symbol, expiration, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_eod(symbol, expiration, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch intraday OHLC bars for an option contract.
     std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> option_history_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> option_history_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_ohlc(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_ohlc(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all trades for an option contract on a given date.
     std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> option_history_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> option_history_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
     std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> option_history_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> option_history_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_quote(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_quote(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
     std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> option_history_trade_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeQuoteTick>, ColumnPresence>> option_history_trade_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_quote(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_quote(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch open interest history for an option contract.
     std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OpenInterestTick>> option_history_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OpenInterestTick>, ColumnPresence>> option_history_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_open_interest(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_open_interest(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
     std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksEodTick>> option_history_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksEodTick>, ColumnPresence>> option_history_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.option_history_greeks_eod(symbol, expiration, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_eod(symbol, expiration, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day binomial Greeks history for an option contract.
     std::vector<GreeksEodTick> option_history_binomial_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksEodTick>> option_history_binomial_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksEodTick>, ColumnPresence>> option_history_binomial_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.option_history_binomial_greeks_eod(symbol, expiration, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_greeks_eod(symbol, expiration, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksAllTick>> option_history_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksAllTick>, ColumnPresence>> option_history_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
     std::vector<GreeksAllTick> option_history_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksAllTick>> option_history_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksAllTick>, ColumnPresence>> option_history_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all Greeks on each trade for an option contract.
     std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksAllTick>> option_history_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksAllTick>, ColumnPresence>> option_history_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch all binomial Greeks on each trade for an option contract.
     std::vector<TradeGreeksAllTick> option_history_binomial_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksAllTick>> option_history_binomial_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksAllTick>, ColumnPresence>> option_history_binomial_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_trade_greeks_all(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_trade_greeks_all(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksFirstOrderTick>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksFirstOrderTick>, ColumnPresence>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
     std::vector<GreeksFirstOrderTick> option_history_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksFirstOrderTick>> option_history_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksFirstOrderTick>, ColumnPresence>> option_history_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksFirstOrderTick>, ColumnPresence>> option_history_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch first-order binomial Greeks on each trade for an option contract.
     std::vector<TradeGreeksFirstOrderTick> option_history_binomial_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_binomial_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksFirstOrderTick>, ColumnPresence>> option_history_binomial_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_trade_greeks_first_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_trade_greeks_first_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksSecondOrderTick>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksSecondOrderTick>, ColumnPresence>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
     std::vector<GreeksSecondOrderTick> option_history_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksSecondOrderTick>> option_history_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksSecondOrderTick>, ColumnPresence>> option_history_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksSecondOrderTick>, ColumnPresence>> option_history_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch second-order binomial Greeks on each trade for an option contract.
     std::vector<TradeGreeksSecondOrderTick> option_history_binomial_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_binomial_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksSecondOrderTick>, ColumnPresence>> option_history_binomial_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_trade_greeks_second_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_trade_greeks_second_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksThirdOrderTick>> option_history_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksThirdOrderTick>, ColumnPresence>> option_history_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
     std::vector<GreeksThirdOrderTick> option_history_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksThirdOrderTick>> option_history_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<GreeksThirdOrderTick>, ColumnPresence>> option_history_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksThirdOrderTick>, ColumnPresence>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch third-order binomial Greeks on each trade for an option contract.
     std::vector<TradeGreeksThirdOrderTick> option_history_binomial_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_binomial_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksThirdOrderTick>, ColumnPresence>> option_history_binomial_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_binomial_trade_greeks_third_order(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_binomial_trade_greeks_third_order(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
     std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IvTick>> option_history_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<IvTick>, ColumnPresence>> option_history_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_greeks_implied_volatility(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_greeks_implied_volatility(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch implied volatility on each trade for an option contract.
     std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksImpliedVolatilityTick>> option_history_trade_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeGreeksImpliedVolatilityTick>, ColumnPresence>> option_history_trade_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
-            return self.option_history_trade_greeks_implied_volatility(symbol, expiration, options);
+            ColumnPresence columns;
+            auto rows = self.option_history_trade_greeks_implied_volatility(symbol, expiration, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
     std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> option_at_time_trade_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeTick>, ColumnPresence>> option_at_time_trade_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
-            return self.option_at_time_trade(symbol, expiration, start_date, end_date, time_of_day, options);
+            ColumnPresence columns;
+            auto rows = self.option_at_time_trade(symbol, expiration, start_date, end_date, time_of_day, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
     std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> option_at_time_quote_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<QuoteTick>, ColumnPresence>> option_at_time_quote_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
-            return self.option_at_time_quote(symbol, expiration, start_date, end_date, time_of_day, options);
+            ColumnPresence columns;
+            auto rows = self.option_at_time_quote(symbol, expiration, start_date, end_date, time_of_day, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
     std::vector<EodTick> option_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> option_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> option_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.option_flat_file_eod(date, options);
+            ColumnPresence columns;
+            auto rows = self.option_flat_file_eod(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     std::vector<TradeQuoteTick> option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> option_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<TradeQuoteTick>, ColumnPresence>> option_flat_file_trade_quote_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.option_flat_file_trade_quote(date, options);
+            ColumnPresence columns;
+            auto rows = self.option_flat_file_trade_quote(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
     std::vector<OpenInterestTick> option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OpenInterestTick>> option_flat_file_open_interest_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OpenInterestTick>, ColumnPresence>> option_flat_file_open_interest_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.option_flat_file_open_interest(date, options);
+            ColumnPresence columns;
+            auto rows = self.option_flat_file_open_interest(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     std::vector<IntervalQuoteTick> option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IntervalQuoteTick>> option_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<IntervalQuoteTick>, ColumnPresence>> option_flat_file_quote_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.option_flat_file_quote(date, options);
+            ColumnPresence columns;
+            auto rows = self.option_flat_file_quote(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -1023,25 +1413,37 @@
 
     std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> index_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> index_snapshot_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.index_snapshot_ohlc(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_ohlc(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> index_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> index_snapshot_ohlc_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.index_snapshot_ohlc(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_ohlc(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -1050,25 +1452,37 @@
 
     std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<PriceTick>> index_snapshot_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<PriceTick>, ColumnPresence>> index_snapshot_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.index_snapshot_price(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_price(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<PriceTick>> index_snapshot_price_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<PriceTick>, ColumnPresence>> index_snapshot_price_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.index_snapshot_price(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_price(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
@@ -1077,151 +1491,217 @@
 
     std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<MarketValueTick>> index_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<MarketValueTick>, ColumnPresence>> index_snapshot_market_value_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.index_snapshot_market_value(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_market_value(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<MarketValueTick>> index_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<MarketValueTick>, ColumnPresence>> index_snapshot_market_value_async(std::vector<std::string> symbols, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbols = std::move(symbols), options = std::move(options)]() {
-            return self.index_snapshot_market_value(symbols, options);
+            ColumnPresence columns;
+            auto rows = self.index_snapshot_market_value(symbols, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day index data for a date range.
     std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> index_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> index_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.index_history_eod(symbol, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.index_history_eod(symbol, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch intraday OHLC bars for an index.
     std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> index_history_ohlc_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<OhlcTick>, ColumnPresence>> index_history_ohlc_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.index_history_ohlc(symbol, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.index_history_ohlc(symbol, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch intraday price history for an index.
     std::vector<PriceTick> index_history_price(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<PriceTick>> index_history_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<PriceTick>, ColumnPresence>> index_history_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
-            return self.index_history_price(symbol, options);
+            ColumnPresence columns;
+            auto rows = self.index_history_price(symbol, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the index price at a specific time of day across a date range.
     std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IndexPriceAtTimeTick>> index_at_time_price_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<IndexPriceAtTimeTick>, ColumnPresence>> index_at_time_price_async(std::string symbol, std::string start_date, std::string end_date, std::string time_of_day, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), time_of_day = std::move(time_of_day), options = std::move(options)]() {
-            return self.index_at_time_price(symbol, start_date, end_date, time_of_day, options);
+            ColumnPresence columns;
+            auto rows = self.index_at_time_price(symbol, start_date, end_date, time_of_day, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
     std::vector<EodTick> index_flat_file_eod(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<EodTick>> index_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<EodTick>, ColumnPresence>> index_flat_file_eod_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.index_flat_file_eod(date, options);
+            ColumnPresence columns;
+            auto rows = self.index_flat_file_eod(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Check whether the market is open today.
     std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<CalendarDay>> calendar_open_today_async(EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<CalendarDay>, ColumnPresence>> calendar_open_today_async(EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, options = std::move(options)]() {
-            return self.calendar_open_today(options);
+            ColumnPresence columns;
+            auto rows = self.calendar_open_today(options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get calendar information for a specific date.
     std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<CalendarDay>> calendar_on_date_async(std::string date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<CalendarDay>, ColumnPresence>> calendar_on_date_async(std::string date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, date = std::move(date), options = std::move(options)]() {
-            return self.calendar_on_date(date, options);
+            ColumnPresence columns;
+            auto rows = self.calendar_on_date(date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
     std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<CalendarDay>> calendar_year_async(std::string year, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<CalendarDay>, ColumnPresence>> calendar_year_async(std::string year, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, year = std::move(year), options = std::move(options)]() {
-            return self.calendar_year(year, options);
+            ColumnPresence columns;
+            auto rows = self.calendar_year(year, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 
     /// Fetch end-of-day interest rate history.
     std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
+    /// The future resolves to the rows and the `ColumnPresence` the blocking
+    /// call fills through `out_columns`: the columns the response carried and
+    /// the root each row belongs to.
+    ///
     /// The asynchronous task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from, including a temporary `client.market_data()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<InterestRateTick>> interest_rate_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+    std::future<std::pair<std::vector<InterestRateTick>, ColumnPresence>> interest_rate_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.interest_rate_history_eod(symbol, start_date, end_date, options);
+            ColumnPresence columns;
+            auto rows = self.interest_rate_history_eod(symbol, start_date, end_date, options, &columns);
+            return std::make_pair(std::move(rows), std::move(columns));
         });
     }
 

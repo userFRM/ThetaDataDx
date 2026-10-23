@@ -94,8 +94,10 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
 /// Renders the `MarketDataClient` member-function declarations for every
 /// non-streaming endpoint, including the singular-symbol overloads. Each
 /// blocking query is paired with an `<endpoint>_async` companion returning
-/// a `std::future<std::vector<Row>>` so callers can run the request off the
-/// calling thread without managing their own threads.
+/// a `std::future` of the rows (with the `ColumnPresence` the blocking call
+/// fills through `out_columns`, for an endpoint that returns ticks) so
+/// callers can run the request off the calling thread without managing
+/// their own threads.
 pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -167,11 +169,13 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
 }
 
 /// Renders the inline `<endpoint>_async` companion(s) for one buffered
-/// endpoint. Each returns a `std::future<std::vector<Row>>` that runs the
-/// matching blocking member on a fresh thread via
-/// `std::async(std::launch::async, ...)` and fulfils the future with its
-/// result; a throw from the blocking call is captured in the shared state
-/// and re-raised on `future::get()`, so typed errors propagate unchanged.
+/// endpoint. Each returns a `std::future` that runs the matching blocking
+/// member on a fresh thread via `std::async(std::launch::async, ...)` and
+/// fulfils the future with its result: the rows, paired with the
+/// `ColumnPresence` the blocking member fills through `out_columns` when the
+/// endpoint returns ticks (`std::vector<std::string>` lists carry none). A
+/// throw from the blocking call is captured in the shared state and
+/// re-raised on `future::get()`, so typed errors propagate unchanged.
 ///
 /// Arguments are taken by value and moved into the task closure so the
 /// future stays valid no matter when the caller invokes `get()` — the
@@ -248,6 +252,20 @@ fn render_cpp_async_overload(
     captures.push("options = std::move(options)".to_string());
     forwards.push("options".to_string());
 
+    // A tick-returning endpoint resolves to its rows and the column presence
+    // the blocking call fills through `out_columns`, so the root each row
+    // belongs to survives the hop to the worker thread.
+    let has_presence = endpoint.return_type != "StringList";
+    if has_presence {
+        out.push_str(
+            "    /// The future resolves to the rows and the `ColumnPresence` the blocking\n",
+        );
+        out.push_str(
+            "    /// call fills through `out_columns`: the columns the response carried and\n",
+        );
+        out.push_str("    /// the root each row belongs to.\n");
+        out.push_str("    ///\n");
+    }
     out.push_str(
         "    /// The asynchronous task captures a copy of this object (`self = *this`), so the\n",
     );
@@ -259,9 +277,14 @@ fn render_cpp_async_overload(
     );
     out.push_str("    /// The handle is freed only once the last owner (this object or the\n");
     out.push_str("    /// in-flight future) drops, so there is no dangling-`this` window.\n");
+    let result = if has_presence {
+        format!("std::pair<std::vector<{row}>, ColumnPresence>")
+    } else {
+        format!("std::vector<{row}>")
+    };
     writeln!(
         out,
-        "    std::future<std::vector<{row}>> {async_name}({}) const {{",
+        "    std::future<{result}> {async_name}({}) const {{",
         decls.join(", ")
     )
     .unwrap();
@@ -271,13 +294,25 @@ fn render_cpp_async_overload(
         captures.join(", ")
     )
     .unwrap();
-    writeln!(
-        out,
-        "            return self.{}({});",
-        endpoint.name,
-        forwards.join(", ")
-    )
-    .unwrap();
+    if has_presence {
+        out.push_str("            ColumnPresence columns;\n");
+        writeln!(
+            out,
+            "            auto rows = self.{}({}, &columns);",
+            endpoint.name,
+            forwards.join(", ")
+        )
+        .unwrap();
+        out.push_str("            return std::make_pair(std::move(rows), std::move(columns));\n");
+    } else {
+        writeln!(
+            out,
+            "            return self.{}({});",
+            endpoint.name,
+            forwards.join(", ")
+        )
+        .unwrap();
+    }
     out.push_str("        });\n");
     out.push_str("    }\n\n");
     out
@@ -294,7 +329,9 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
         .iter()
         .map(|param| cpp_method_arg_decl(param))
         .collect::<Vec<_>>();
-    params.push(format!("std::function<void(Span<const {tick}>)> handler"));
+    params.push(format!(
+        "std::function<void(Span<const {tick}>, const ColumnPresence&)> handler"
+    ));
     let options = if default_options {
         "const EndpointRequestOptions& options = {}"
     } else {
@@ -344,14 +381,25 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
         out.push_str("    /// response. `handler` is invoked once per server chunk with a\n");
         writeln!(
             out,
-            "    /// `Span<const {tick}>` view over a contiguous run of rows; the chunk is"
+            "    /// `Span<const {tick}>` view over a contiguous run of rows and the"
         )
         .unwrap();
-        out.push_str("    /// freed before the next is fetched, so peak memory tracks a single\n");
-        out.push_str("    /// chunk rather than the whole result. Carries the same optional\n");
-        out.push_str("    /// builder parameters and `timeout_ms` as the buffered method via\n");
-        out.push_str("    /// `options`. Throws on a wire or decode error once the stream\n");
-        out.push_str("    /// drains; the `Span` is valid only for the duration of each call.\n");
+        out.push_str(
+            "    /// chunk's `ColumnPresence`, which names the root each row belongs to:\n",
+        );
+        out.push_str(
+            "    /// `symbols()` holds one per row when the rows span several roots, as\n",
+        );
+        out.push_str("    /// in a flat file, and `symbol()` the one they share when they share\n");
+        out.push_str("    /// one; a response that carries no root, such as stock history, sets\n");
+        out.push_str("    /// neither. The chunk is freed before the next is fetched, so peak\n");
+        out.push_str(
+            "    /// memory tracks a single chunk rather than the whole result. Carries\n",
+        );
+        out.push_str("    /// the same optional builder parameters and `timeout_ms` as the\n");
+        out.push_str("    /// buffered method via `options`. Throws on a wire or decode error\n");
+        out.push_str("    /// once the stream drains; both arguments are valid only for the\n");
+        out.push_str("    /// duration of each call.\n");
         writeln!(
             out,
             "    void {}_stream({}) const;\n",
@@ -370,11 +418,12 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
 /// Each borrows the market-data `ThetaDataDxMarketDataClient*` from the unified handle
 /// (`thetadatadx_client_market_data`), builds the same `EndpointRequestOptions` the
 /// buffered methods take, erases the typed `handler` to a
-/// `std::function<void(const void*, size_t)>` that reinterprets each chunk
-/// pointer as the endpoint's tick type, and drives the C-ABI
+/// `std::function<void(const void*, size_t, const ColumnPresence&)>` that
+/// reinterprets each chunk pointer as the endpoint's tick type and passes the
+/// chunk's column presence through, and drives the C-ABI
 /// `thetadatadx_<endpoint>_stream` entry point through the shared `stream_chunk_shim`
 /// trampoline. The handler and the erased wrapper live on the stack for the
-/// synchronous drain — the C ABI blocks until the stream completes and only
+/// synchronous drain: the C ABI blocks until the stream completes and only
 /// fires the callback during that call, so no heap lifetime juggling is
 /// needed (unlike the long-lived FPSS push callback).
 pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String {
@@ -417,7 +466,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         // call.
         writeln!(
             out,
-            "    StreamHandlerCtx ctx{{\n        [&handler](const void* rows, std::size_t len) {{\n            handler(Span<const {tick}>(static_cast<const {tick}*>(rows), len));\n        }},\n        {{}},\n    }};"
+            "    StreamHandlerCtx ctx{{\n        [&handler](const void* rows, std::size_t len, const ColumnPresence& columns) {{\n            handler(Span<const {tick}>(static_cast<const {tick}*>(rows), len), columns);\n        }},\n        {{}},\n    }};"
         )
         .unwrap();
         write!(

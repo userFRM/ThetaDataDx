@@ -9,7 +9,7 @@
     // returns. `fn` outlives every invocation because the C ABI blocks until
     // the stream drains.
     struct StreamHandlerCtx {
-        std::function<void(const void*, std::size_t)> fn;
+        std::function<void(const void*, std::size_t, const ColumnPresence&)> fn;
         std::exception_ptr error;
     };
 
@@ -19,12 +19,14 @@
     // typedef and every mainstream ABI accepts the assignment. `ctx` is the
     // address of the `StreamHandlerCtx` the calling `_stream` method staged on
     // its stack; the erased handler reinterprets the chunk pointer as the
-    // endpoint's tick type and forwards the span to the user handler.
-    static void stream_chunk_shim(const void* rows, std::size_t len, void* ctx) noexcept {
+    // endpoint's tick type and forwards the span to the user handler. The
+    // library owns `columns` for the duration of the call, so the handler
+    // sees it through a `ColumnPresence` that never frees it.
+    static void stream_chunk_shim(const void* rows, std::size_t len, const ThetaDataDxColumnPresence* columns, void* ctx) noexcept {
         auto* c = static_cast<StreamHandlerCtx*>(ctx);
         if (c == nullptr || c->error) return;
         try {
-            c->fn(rows, len);
+            c->fn(rows, len, ColumnPresence(ColumnPresence::Borrowed{}, *columns));
         } catch (...) {
             c->error = std::current_exception();
         }
@@ -34,575 +36,815 @@
     ///
     /// Stream `stock_history_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch intraday OHLC bars for a stock on a single date.
     ///
     /// Stream `stock_history_ohlc` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OhlcTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_ohlc_stream(const std::string& symbol, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const OhlcTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_history_ohlc_stream(const std::string& symbol, std::function<void(Span<const OhlcTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all trades for a stock on a given date.
     ///
     /// Stream `stock_history_trade` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_trade_stream(const std::string& symbol, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_history_trade_stream(const std::string& symbol, std::function<void(Span<const TradeTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
     ///
     /// Stream `stock_history_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const QuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_quote_stream(const std::string& symbol, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const QuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_history_quote_stream(const std::string& symbol, std::function<void(Span<const QuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch combined trade + quote ticks for a stock on a given date.
     ///
     /// Stream `stock_history_trade_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_trade_quote_stream(const std::string& symbol, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_history_trade_quote_stream(const std::string& symbol, std::function<void(Span<const TradeQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the trade at a specific time of day across a date range.
     ///
     /// Stream `stock_at_time_trade` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_at_time_trade_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_at_time_trade_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const TradeTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the quote at a specific time of day across a date range.
     ///
     /// Stream `stock_at_time_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const QuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_at_time_quote_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const QuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_at_time_quote_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `stock_flat_file_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `stock_flat_file_trade_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `stock_flat_file_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void stock_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day option data for a contract over a date range.
     ///
     /// Stream `option_history_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch intraday OHLC bars for an option contract.
     ///
     /// Stream `option_history_ohlc` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OhlcTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const OhlcTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OhlcTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all trades for an option contract on a given date.
     ///
     /// Stream `option_history_trade` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch NBBO quotes for an option contract on a given date.
     ///
     /// Stream `option_history_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const QuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const QuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const QuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch combined trade + quote ticks for an option contract.
     ///
     /// Stream `option_history_trade_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch open interest history for an option contract.
     ///
     /// Stream `option_history_open_interest` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OpenInterestTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const OpenInterestTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OpenInterestTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day Greeks history for an option contract.
     ///
     /// Stream `option_history_greeks_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksEodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksEodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day binomial Greeks history for an option contract.
     ///
     /// Stream `option_history_binomial_greeks_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksEodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksEodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_all` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksAllTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksAllTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// Stream `option_history_binomial_greeks_all` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksAllTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksAllTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_all` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all binomial Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_binomial_trade_greeks_all` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_first_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_binomial_greeks_first_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_first_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order binomial Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_binomial_trade_greeks_first_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_second_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_binomial_greeks_second_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_second_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order binomial Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_binomial_trade_greeks_second_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_third_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_binomial_greeks_third_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_third_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order binomial Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_binomial_trade_greeks_third_order` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_binomial_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_binomial_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_implied_volatility` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const IvTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const IvTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const IvTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const IvTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeGreeksImpliedVolatilityTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeGreeksImpliedVolatilityTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the trade at a specific time of day across a date range for an option.
     ///
     /// Stream `option_at_time_trade` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_at_time_trade_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_at_time_trade_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const TradeTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the quote at a specific time of day across a date range for an option.
     ///
     /// Stream `option_at_time_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const QuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_at_time_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const QuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_at_time_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const QuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `option_flat_file_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `option_flat_file_trade_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_flat_file_trade_quote_stream(const std::string& date, std::function<void(Span<const TradeQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `option_flat_file_open_interest` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OpenInterestTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_flat_file_open_interest_stream(const std::string& date, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const OpenInterestTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_flat_file_open_interest_stream(const std::string& date, std::function<void(Span<const OpenInterestTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `option_flat_file_quote` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void option_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void option_flat_file_quote_stream(const std::string& date, std::function<void(Span<const IntervalQuoteTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day index data for a date range.
     ///
     /// Stream `index_history_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void index_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void index_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch intraday OHLC bars for an index.
     ///
     /// Stream `index_history_ohlc` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OhlcTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void index_history_ohlc_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const OhlcTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void index_history_ohlc_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const OhlcTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch intraday price history for an index.
     ///
     /// Stream `index_history_price` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const PriceTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void index_history_price_stream(const std::string& symbol, std::function<void(Span<const PriceTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const PriceTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void index_history_price_stream(const std::string& symbol, std::function<void(Span<const PriceTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the index price at a specific time of day across a date range.
     ///
     /// Stream `index_at_time_price` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const IndexPriceAtTimeTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void index_at_time_price_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const IndexPriceAtTimeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const IndexPriceAtTimeTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void index_at_time_price_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, std::function<void(Span<const IndexPriceAtTimeTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
     ///
     /// Stream `index_flat_file_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const EodTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void index_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const EodTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void index_flat_file_eod_stream(const std::string& date, std::function<void(Span<const EodTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day interest rate history.
     ///
     /// Stream `interest_rate_history_eod` rows into `handler` without materialising the full
     /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const InterestRateTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void interest_rate_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const InterestRateTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    /// `Span<const InterestRateTick>` view over a contiguous run of rows and the
+    /// chunk's `ColumnPresence`, which names the root each row belongs to:
+    /// `symbols()` holds one per row when the rows span several roots, as
+    /// in a flat file, and `symbol()` the one they share when they share
+    /// one; a response that carries no root, such as stock history, sets
+    /// neither. The chunk is freed before the next is fetched, so peak
+    /// memory tracks a single chunk rather than the whole result. Carries
+    /// the same optional builder parameters and `timeout_ms` as the
+    /// buffered method via `options`. Throws on a wire or decode error
+    /// once the stream drains; both arguments are valid only for the
+    /// duration of each call.
+    void interest_rate_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const InterestRateTick>, const ColumnPresence&)> handler, const EndpointRequestOptions& options = {}) const;
 

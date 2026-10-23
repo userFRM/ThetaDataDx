@@ -33,7 +33,7 @@ import os
 import sys
 import time
 
-from thetadatadx import Config, Credentials, MarketDataClient
+from thetadatadx import Config, Credentials, MarketDataClient, QuoteTickList
 
 USAGE = """\
 usage: chain_quote_bench.py [symbol] [expiration] [date] [interval]
@@ -55,7 +55,7 @@ CONNECTION_WINDOW_SIZE_KB = 32_768
 MIB = 1024.0 * 1024.0
 
 # Decoded in-memory size of a single parsed quote row. The `.stream()`
-# callback only exposes a list of rows, so decoded volume is approximated as
+# callback only exposes parsed rows, so decoded volume is approximated as
 # `rows * QUOTE_TICK_SIZE` -- an in-memory figure, not wire bytes. Mirrors
 # `std::mem::size_of::<QuoteTick>()` in the Rust example (measured 128 bytes:
 # `#[repr(C, align(64))]`, 13 fields) so figures are comparable across
@@ -137,7 +137,7 @@ def main() -> None:
     # so TTFB excludes connect/auth and measures backend-to-first-chunk latency.
     dispatch = time.monotonic()
 
-    def on_chunk(chunk: list) -> None:
+    def on_chunk(chunk: QuoteTickList) -> None:
         nonlocal rows, chunks, ttfb, last_log
         if ttfb is None:
             ttfb = time.monotonic() - dispatch

@@ -50,7 +50,9 @@ client
     .market_data()
     .option_flat_file_trade_quote("20261021")
     .with_deadline(Duration::ZERO)
-    .stream(|chunk| { /* &[TradeQuoteTick] */ })
+    .stream(|chunk| {
+        // `chunk` derefs to `&[TradeQuoteTick]`; `chunk.columns()` names each row's root
+    })
     .await?;
 ```
 
@@ -62,8 +64,8 @@ client
 eod = client.market_data.stock_flat_file_eod("20261021")
 df = eod.to_polars()          # or .to_pandas() / .to_arrow() / .to_list()
 
-def on_chunk(chunk):          # list[TradeQuoteTick]
-    ...
+def on_chunk(chunk):          # TradeQuoteTickList, like a whole result
+    df = chunk.to_polars()    # leads with the `symbol` column
 
 (client.market_data
     .option_flat_file_trade_quote_builder("20261021")
@@ -78,8 +80,8 @@ def on_chunk(chunk):          # list[TradeQuoteTick]
 ```typescript
 const eod = await client.marketData.stockFlatFileEOD('20261021');
 
-await client.marketData.optionFlatFileTradeQuoteStream('20261021', { timeoutMs: 0 }, (chunk) => {
-  // TradeQuoteTick[]
+await client.marketData.optionFlatFileTradeQuoteStream('20261021', { timeoutMs: 0 }, (rows, columns) => {
+  // rows: TradeQuoteTick[]; columns names each row's root
 });
 ```
 
@@ -91,7 +93,9 @@ await client.marketData.optionFlatFileTradeQuoteStream('20261021', { timeoutMs: 
 auto eod = client.market_data().stock_flat_file_eod("20261021");
 
 client.market_data().option_flat_file_trade_quote_stream("20261021",
-    [](auto chunk) { /* Span<const TradeQuoteTick> */ },
+    [](auto rows, const thetadatadx::ColumnPresence& columns) {
+        // rows: Span<const TradeQuoteTick>; columns names each row's root
+    },
     thetadatadx::EndpointRequestOptions{}.with_timeout_ms(0));
 ```
 
@@ -107,7 +111,7 @@ curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&forma
 
 </SdkTabs>
 
-A streamed chunk is tick rows, which carry expiration, strike and right on the option files but not the root; the root of every row is on the whole result's frames and in the HTTP file.
+A streamed chunk carries the root of each of its rows, as a whole result does: in Rust on the chunk's `columns()`, in Python on the chunk's frames, in TypeScript on the callback's `columns` argument and in C++ on the handler's `ColumnPresence`. When the chunk's rows span several roots, `symbols` holds one root per row; when every row in it shares one, `symbol` holds it.
 
 ## Over HTTP
 

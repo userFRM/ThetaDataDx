@@ -42,9 +42,9 @@ pub struct ColumnPresence {
     /// underlying); single-symbol stock snapshots do too. It is not a
     /// tick-struct field (the flat POD ticks hold no per-row `String`), so it
     /// rides here once and the projected builders broadcast it as the first
-    /// Arrow/Polars column. `None` for a multi-symbol response (see
-    /// [`Self::symbols`]), for stock history responses, and for every
-    /// hand-built / streaming frame.
+    /// Arrow/Polars column. `None` for a response whose rows span several
+    /// roots (see [`Self::symbols`]), for stock history responses, and for
+    /// every hand-built frame.
     symbol: Option<Box<str>>,
     /// The response's per-row `symbol` values, when the wire carried a
     /// `symbol` column that VARIES across rows — a multi-symbol snapshot
@@ -105,9 +105,10 @@ impl ColumnPresence {
     }
 
     /// The response's constant `symbol` (root), when the wire carried one
-    /// constant across every row. `None` for multi-symbol responses (see
-    /// [`Self::symbols`]), stock history responses, and hand-built /
-    /// streaming frames.
+    /// constant across every row. `None` when the rows span several roots
+    /// (see [`Self::symbols`]), for stock history responses, and for
+    /// hand-built frames. A streamed chunk is read on its own rows, so a
+    /// flat-file chunk whose rows all share one root carries it here.
     #[must_use]
     pub fn symbol(&self) -> Option<&str> {
         self.symbol.as_deref()
@@ -115,8 +116,9 @@ impl ColumnPresence {
 
     /// The response's per-row `symbol` values, one per row, when the wire
     /// carried a `symbol` column that varies across rows (a multi-symbol
-    /// snapshot). The projected builders emit these as the leading `symbol`
-    /// column. `None` when the response has no varying `symbol` column.
+    /// snapshot, a flat file, or a streamed chunk of one). The projected
+    /// builders emit these as the leading `symbol` column. `None` when the
+    /// response has no varying `symbol` column.
     #[must_use]
     pub fn symbols(&self) -> Option<&[Box<str>]> {
         self.symbols.as_deref()
@@ -312,7 +314,8 @@ pub trait WireColumns {
 /// A decoded historical response: the tick rows plus the set of columns the
 /// response's wire actually carried.
 ///
-/// The buffered (`.await`) return of every market-data endpoint. It derefs to
+/// The buffered (`.await`) return of every market-data endpoint, and the chunk
+/// each `.stream()` handler receives. It derefs to
 /// `[T]`, so it reads like the `Vec<T>` it replaced — `.len()`, `.iter()`,
 /// indexing, `for row in &ticks`, `ticks.first()` all work — while carrying
 /// the [`ColumnPresence`] the DataFrame terminals need. Use `to_arrow` /

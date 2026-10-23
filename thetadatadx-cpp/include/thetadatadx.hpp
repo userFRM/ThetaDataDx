@@ -336,12 +336,71 @@ public:
     using ThetaDataError::ThetaDataError;
 };
 
-// Owns the wire-column presence a decode produced; defined with the Arrow
-// terminals in `tick_arrow_ipc.hpp.inc` (below, after the tick types).
-// Forward-declared here so the market-data endpoint methods can take an
-// optional `ColumnPresence*` out-param that surfaces the response's projected
-// column set.
-class ColumnPresence;
+/// The columns a response's wire carried and the root each row belongs to.
+/// A buffered method fills one through its `out_columns` parameter, an
+/// `_async` method resolves to one beside the rows, and a `_stream` handler
+/// receives one with each chunk. Pass it to the matching
+/// `<tick>_to_arrow_ipc_projected` for a terminal-exact columnar export.
+/// Move-only RAII over the C ABI carrier; frees it on destruction.
+class ColumnPresence {
+public:
+    // Default-constructs to the empty {nullptr, 0} state so a caller can write
+    // `ColumnPresence cols; client.<endpoint>(..., &cols);`: move-assigning
+    // into it frees a valid empty carrier (the free is a no-op on
+    // {nullptr, 0}), not uninitialized storage.
+    ColumnPresence() noexcept : raw_{} {}
+    explicit ColumnPresence(ThetaDataDxColumnPresence raw) noexcept : raw_(raw) {}
+    ColumnPresence(const ColumnPresence&) = delete;
+    ColumnPresence& operator=(const ColumnPresence&) = delete;
+    // Reset the moved-from carrier to the fully-empty state: it owns two arrays
+    // (`names` and the per-row `symbols`), so nulling one pointer alone would
+    // leave the other double-freed by both destructors.
+    ColumnPresence(ColumnPresence&& other) noexcept : raw_(other.raw_), owned_(other.owned_) {
+        other.raw_ = ThetaDataDxColumnPresence{};
+    }
+    ColumnPresence& operator=(ColumnPresence&& other) noexcept {
+        if (this != &other) {
+            if (owned_) { thetadatadx_column_presence_free(raw_); }
+            raw_ = other.raw_;
+            owned_ = other.owned_;
+            other.raw_ = ThetaDataDxColumnPresence{};
+        }
+        return *this;
+    }
+    ~ColumnPresence() {
+        if (owned_) { thetadatadx_column_presence_free(raw_); }
+    }
+    /// Number of present columns.
+    size_t size() const noexcept { return raw_.len; }
+    /// Present schema-column names, in schema order.
+    std::vector<std::string> names() const {
+        std::vector<std::string> out;
+        out.reserve(raw_.len);
+        for (size_t i = 0; i < raw_.len; ++i) { out.emplace_back(raw_.names[i]); }
+        return out;
+    }
+    /// The root every row shares, as in option and index history; `nullptr`
+    /// when the rows span several roots (see `symbols()`) or the response
+    /// carries none, as in stock history.
+    const char* symbol() const noexcept { return raw_.symbol; }
+    /// One root per row when the rows span several roots, as in a flat file
+    /// or a multi-symbol snapshot; empty otherwise.
+    Span<const char* const> symbols() const noexcept { return {raw_.symbols, raw_.symbols_len}; }
+    /// The borrowed C carrier, for the projected serialiser. Not owned by
+    /// the callee; this object retains ownership and frees it.
+    const ThetaDataDxColumnPresence& raw() const noexcept { return raw_; }
+
+private:
+    friend class MarketData;
+    struct Borrowed {};
+    // A view of a carrier the library owns, such as the presence a `_stream`
+    // chunk callback receives for the duration of the call: never freed here.
+    ColumnPresence(Borrowed, const ThetaDataDxColumnPresence& raw) noexcept
+        : raw_(raw), owned_(false) {}
+
+    ThetaDataDxColumnPresence raw_;
+    bool owned_ = true;
+};
 
 // Generated request-options bag. Included after the exception hierarchy
 // so its `with_deadline` setter can throw the complete

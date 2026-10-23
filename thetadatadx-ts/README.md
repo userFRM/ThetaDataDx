@@ -216,9 +216,11 @@ const client = await Client.connectFromFile('creds.txt');
 
 const eod = await client.marketData.stockFlatFileEOD('20260428');
 
-// The large files stream chunk by chunk, with the default deadline lifted
-await client.marketData.optionFlatFileTradeQuoteStream('20260428', { timeoutMs: 0 }, (chunk) => {
-  console.log(chunk.length);
+// The large files stream chunk by chunk, with the default deadline lifted.
+// `columns.symbols` holds the root of each row (`columns.symbol` when every
+// row of the chunk shares one).
+await client.marketData.optionFlatFileTradeQuoteStream('20260428', { timeoutMs: 0 }, (rows, columns) => {
+  console.log(rows.length, columns.symbols ?? columns.symbol);
 });
 ```
 

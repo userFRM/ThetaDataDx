@@ -1,17 +1,20 @@
 // Async market-data query surface tests.
 //
 // Every buffered historical / snapshot query carries an `<endpoint>_async`
-// companion returning a `std::future<std::vector<Row>>` so callers can run
-// the request off the calling thread without managing their own threads.
-// The offline half pins the static shape (return type + that the call
-// compiles and a future is produced) without a network round-trip; the
-// live half guards that `.get()` yields the same rows as the blocking call
-// and that a typed error surfaces on `.get()`.
+// companion returning a `std::future` of its rows, paired with the
+// `ColumnPresence` the blocking call fills when the endpoint returns ticks, so
+// callers can run the request off the calling thread without managing their
+// own threads and without losing the root each row belongs to. The offline
+// half pins the static shape (return type + that the call compiles and a
+// future is produced) without a network round-trip; the live half guards
+// that `.get()` yields the same rows and columns as the blocking call and
+// that a typed error surfaces on `.get()`.
 
 #include <cstdlib>
 #include <future>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -52,12 +55,13 @@ inline constexpr bool async_callable_on_rvalue = async_rvalue<T>::value;
 
 } // namespace
 
-TEST_CASE("async query methods return std::future of the sync row type",
+TEST_CASE("async query methods return std::future of the sync rows and their columns",
           "[history][async][offline]") {
     // Type-level assertion: the async companion's return type must be a
-    // `std::future` of exactly the vector the blocking method returns. No
-    // connection is needed — the check is purely on the declared signature
-    // via `decltype` on an unevaluated member-pointer expression.
+    // `std::future` of exactly the vector the blocking method returns, paired
+    // with the `ColumnPresence` the blocking method fills. No connection is
+    // needed: the check is purely on the declared signature via `decltype` on
+    // an unevaluated member-pointer expression.
     using Hist = thetadatadx::MarketDataClient;
 
     using SyncRet = decltype(std::declval<const Hist&>().stock_history_eod(
@@ -72,7 +76,10 @@ TEST_CASE("async query methods return std::future of the sync row type",
         std::declval<thetadatadx::EndpointRequestOptions>()));
 
     STATIC_REQUIRE(std::is_same_v<SyncRet, std::vector<thetadatadx::EodTick>>);
-    STATIC_REQUIRE(std::is_same_v<AsyncRet, std::future<std::vector<thetadatadx::EodTick>>>);
+    STATIC_REQUIRE(std::is_same_v<
+                   AsyncRet,
+                   std::future<std::pair<std::vector<thetadatadx::EodTick>,
+                                         thetadatadx::ColumnPresence>>>);
 
     // The companion is present on the unified client's `MarketData` view as
     // well, at the same shape — the generated surface is emitted onto both
@@ -83,12 +90,13 @@ TEST_CASE("async query methods return std::future of the sync row type",
         std::declval<std::string>(),
         std::declval<std::string>(),
         std::declval<thetadatadx::EndpointRequestOptions>()));
-    STATIC_REQUIRE(
-        std::is_same_v<ViewAsyncRet, std::future<std::vector<thetadatadx::EodTick>>>);
+    STATIC_REQUIRE(std::is_same_v<
+                   ViewAsyncRet,
+                   std::future<std::pair<std::vector<thetadatadx::EodTick>,
+                                         thetadatadx::ColumnPresence>>>);
 
-    // A StringList endpoint resolves to `std::future<std::vector<std::string>>`,
-    // and an OptionContracts endpoint to its contract row — guards that the
-    // row-type projection flows through the async wrapper unchanged.
+    // A StringList endpoint carries no column set, so it resolves to
+    // `std::future<std::vector<std::string>>` alone.
     using ListRet =
         decltype(std::declval<const Hist&>().stock_list_symbols_async(
             std::declval<thetadatadx::EndpointRequestOptions>()));
@@ -122,15 +130,17 @@ TEST_CASE("async query resolves to the same rows as the blocking call",
     // Blocking baseline, then the async companion. The two run on the same
     // handle sequentially (the future is drained before the next query), so
     // the per-handle single-threaded contract holds.
-    auto sync_rows = client.stock_history_eod("AAPL", "20240101", "20240131");
+    thetadatadx::ColumnPresence sync_columns;
+    auto sync_rows =
+        client.stock_history_eod("AAPL", "20240101", "20240131", {}, &sync_columns);
 
-    std::future<std::vector<thetadatadx::EodTick>> fut =
-        client.stock_history_eod_async("AAPL", "20240101", "20240131");
-    auto async_rows = fut.get();
+    auto fut = client.stock_history_eod_async("AAPL", "20240101", "20240131");
+    auto [async_rows, async_columns] = fut.get();
 
     REQUIRE(async_rows.size() == sync_rows.size());
     REQUIRE_FALSE(async_rows.empty());
     REQUIRE(async_rows.front().date == sync_rows.front().date);
+    REQUIRE(async_columns.names() == sync_columns.names());
 }
 
 TEST_CASE("async query surfaces a typed error on future::get",
@@ -147,8 +157,7 @@ TEST_CASE("async query surfaces a typed error on future::get",
     // captured in the future's shared state by `std::async` and re-raised on
     // `.get()`, so the typed error propagates exactly as the blocking call
     // raises it.
-    std::future<std::vector<thetadatadx::EodTick>> fut =
-        client.stock_history_eod_async("AAPL", "not-a-date", "not-a-date");
+    auto fut = client.stock_history_eod_async("AAPL", "not-a-date", "not-a-date");
     REQUIRE_THROWS_AS(fut.get(), thetadatadx::ThetaDataError);
 }
 
@@ -170,8 +179,7 @@ TEST_CASE("async query from a destroyed Market-data view resolves safely",
     // captured copy keeps the handle alive, so `.get()` returns the correct
     // rows instead of dereferencing a freed handle. (Pre-fix this was a
     // deliberately-deleted `&&` overload; the UAF it guarded is now gone.)
-    std::future<std::vector<thetadatadx::EodTick>> fut =
-        client.market_data().stock_history_eod_async("AAPL", "20240101", "20240131");
-    auto rows = fut.get();
+    auto fut = client.market_data().stock_history_eod_async("AAPL", "20240101", "20240131");
+    auto rows = fut.get().first;
     REQUIRE_FALSE(rows.empty());
 }

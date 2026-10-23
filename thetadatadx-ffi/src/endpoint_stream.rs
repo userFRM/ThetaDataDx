@@ -3,12 +3,13 @@
 /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
@@ -66,12 +67,13 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
 /// Fetch intraday OHLC bars for a stock on a single date.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
@@ -115,12 +117,13 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
 /// Fetch all trades for a stock on a given date.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
@@ -164,12 +167,13 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
 /// Fetch NBBO quotes for a stock on a given date at a given interval.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
@@ -213,12 +217,13 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
 /// Fetch combined trade + quote ticks for a stock on a given date.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
@@ -262,12 +267,13 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
 /// Fetch the trade at a specific time of day across a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
@@ -332,12 +338,13 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
 /// Fetch the quote at a specific time of day across a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
@@ -402,12 +409,13 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
 /// Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
@@ -451,12 +459,13 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
 /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
@@ -500,12 +509,13 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
 /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
@@ -549,12 +559,13 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
 /// Fetch end-of-day option data for a contract over a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
@@ -619,12 +630,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
 /// Fetch intraday OHLC bars for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
@@ -675,12 +687,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
 /// Fetch all trades for an option contract on a given date.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
@@ -731,12 +744,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
 /// Fetch NBBO quotes for an option contract on a given date.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
@@ -787,12 +801,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
 /// Fetch combined trade + quote ticks for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
@@ -843,12 +858,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
 /// Fetch open interest history for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
@@ -899,12 +915,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
 /// Fetch end-of-day Greeks history for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
@@ -969,12 +986,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
 /// Fetch end-of-day binomial Greeks history for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
@@ -1039,12 +1057,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
 /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
@@ -1095,12 +1114,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
 /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
@@ -1151,12 +1171,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
 /// Fetch all Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
@@ -1207,12 +1228,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
 /// Fetch all binomial Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_stream(
@@ -1263,12 +1285,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_st
 /// Fetch first-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
@@ -1319,12 +1342,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
 /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_stream(
@@ -1375,12 +1399,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_
 /// Fetch first-order Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_stream(
@@ -1431,12 +1456,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
 /// Fetch first-order binomial Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_order_stream(
@@ -1487,12 +1513,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_
 /// Fetch second-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
@@ -1543,12 +1570,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
 /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order_stream(
@@ -1599,12 +1627,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order
 /// Fetch second-order Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_stream(
@@ -1655,12 +1684,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
 /// Fetch second-order binomial Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second_order_stream(
@@ -1711,12 +1741,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second
 /// Fetch third-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
@@ -1767,12 +1798,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
 /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_stream(
@@ -1823,12 +1855,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_
 /// Fetch third-order Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_stream(
@@ -1879,12 +1912,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
 /// Fetch third-order binomial Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_order_stream(
@@ -1935,12 +1969,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_
 /// Fetch implied volatility history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_stream(
@@ -1991,12 +2026,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
 /// Fetch implied volatility on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_stream(
@@ -2047,12 +2083,13 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 /// Fetch the trade at a specific time of day across a date range for an option.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
@@ -2124,12 +2161,13 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
 /// Fetch the quote at a specific time of day across a date range for an option.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
@@ -2201,12 +2239,13 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
 /// Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
@@ -2250,12 +2289,13 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
 /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
@@ -2299,12 +2339,13 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
 /// Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
@@ -2348,12 +2389,13 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
 /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
@@ -2397,12 +2439,13 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
 /// Fetch end-of-day index data for a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
@@ -2460,12 +2503,13 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
 /// Fetch intraday OHLC bars for an index.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
@@ -2523,12 +2567,13 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
 /// Fetch intraday price history for an index.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
@@ -2572,12 +2617,13 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
 /// Fetch the index price at a specific time of day across a date range.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
@@ -2642,12 +2688,13 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
 /// Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
@@ -2691,12 +2738,13 @@ pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
 /// Fetch end-of-day interest rate history.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
+/// materialising the full response. `callback(rows, len, columns, ctx)`
+/// is invoked once per server chunk with a pointer to a contiguous run
 /// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
+/// `_with_options` array returns) and the chunk's column presence,
+/// which carries the root each row belongs to; the chunk is freed before
+/// the next is fetched, so peak memory tracks a single chunk. Accepts the
+/// same optional builder parameters as the buffered form. Returns 0 on a
 /// clean drain, -1 on error (inspect `thetadatadx_last_error`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(

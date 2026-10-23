@@ -50,8 +50,8 @@ const CONNECTION_WINDOW_SIZE_KB: usize = 32_768;
 const MIB: f64 = 1024.0 * 1024.0;
 
 /// Decoded in-memory size of a single parsed quote row. The `.stream()`
-/// callback only exposes `&[QuoteTick]`, so decoded volume is approximated as
-/// `rows * size_of::<QuoteTick>()` — an in-memory figure, not wire bytes.
+/// callback exposes parsed rows, not wire bytes, so decoded volume is
+/// approximated as `rows * size_of::<QuoteTick>()`: an in-memory figure.
 const QUOTE_TICK_SIZE: usize = std::mem::size_of::<QuoteTick>();
 
 /// Per-chunk state shared between the stream handler and the post-run report.
@@ -195,8 +195,8 @@ async fn main() -> ExitCode {
     };
     let secs = total.as_secs_f64().max(f64::EPSILON);
     // Approximate decoded VOLUME (in-memory, not wire): the public `.stream()`
-    // callback exposes only parsed `&[QuoteTick]`, so multiply the row count by
-    // the decoded row size. This is a lower bound on RSS (ignores per-row heap)
+    // callback exposes only parsed rows, so multiply the row count by the
+    // decoded row size. This is a lower bound on RSS (ignores per-row heap)
     // and is unrelated to the compressed bytes that crossed the h2 window.
     let approx_decoded = rows * QUOTE_TICK_SIZE as u64;
 

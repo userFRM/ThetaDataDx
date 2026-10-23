@@ -7,7 +7,7 @@
     // returns. `fn` outlives every invocation because the C ABI blocks until
     // the stream drains.
     struct StreamHandlerCtx {
-        std::function<void(const void*, std::size_t)> fn;
+        std::function<void(const void*, std::size_t, const ColumnPresence&)> fn;
         std::exception_ptr error;
     };
 
@@ -17,12 +17,14 @@
     // typedef and every mainstream ABI accepts the assignment. `ctx` is the
     // address of the `StreamHandlerCtx` the calling `_stream` method staged on
     // its stack; the erased handler reinterprets the chunk pointer as the
-    // endpoint's tick type and forwards the span to the user handler.
-    static void stream_chunk_shim(const void* rows, std::size_t len, void* ctx) noexcept {
+    // endpoint's tick type and forwards the span to the user handler. The
+    // library owns `columns` for the duration of the call, so the handler
+    // sees it through a `ColumnPresence` that never frees it.
+    static void stream_chunk_shim(const void* rows, std::size_t len, const ThetaDataDxColumnPresence* columns, void* ctx) noexcept {
         auto* c = static_cast<StreamHandlerCtx*>(ctx);
         if (c == nullptr || c->error) return;
         try {
-            c->fn(rows, len);
+            c->fn(rows, len, ColumnPresence(ColumnPresence::Borrowed{}, *columns));
         } catch (...) {
             c->error = std::current_exception();
         }

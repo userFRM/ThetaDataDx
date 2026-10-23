@@ -942,7 +942,6 @@ def _is_implicitly_tracked(name: str, lang: str) -> bool:
         if name in {
             "CallbackSlot",
             "CallbackState",
-            "ColumnPresence",
             "FfiArrayGuard",
             "FfiString",
             "FlatFileRowListDeleter",
