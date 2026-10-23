@@ -3,17 +3,21 @@
 // Streams one large historical pull (option_history_trade, all strikes of a
 // single underlying on one trading day) through the chunk callback, then runs
 // the same pull buffered and asserts the streamed rows match the buffered
-// result exactly -- count and byte-for-byte content -- and that every chunk
-// names the queried root. Also reports the chunk count and the peak
+// result exactly -- count and content -- and that every chunk names the
+// queried root. A pull large enough to fan out streams its bands
+// concurrently, so chunks arrive in arrival order rather than the buffered
+// result's merged order; both sides are sorted before they are compared. Also reports the chunk count and the peak
 // single-chunk row count to show that peak memory tracks a single chunk
 // rather than the whole result.
 //
 //   usage: market_data_stream_smoke [creds.txt] [symbol] [expiration] [date]
 //   defaults:                       creds.txt   QQQ      *            20250303
 
+#include <algorithm>
 #include <chrono>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "thetadatadx.hpp"
@@ -25,15 +29,15 @@ namespace {
 // array plus internal padding before its f64 members; those bytes are not
 // part of the row's value, so a `memcmp` of the whole struct could report a
 // spurious mismatch even when every column agrees.
+auto tick_key(const thetadatadx::TradeTick& t) {
+    return std::tie(t.date, t.expiration, t.strike, t.right, t.ms_of_day, t.sequence,
+                    t.ext_condition1, t.ext_condition2, t.ext_condition3, t.ext_condition4,
+                    t.condition, t.size, t.exchange, t.price, t.condition_flags, t.price_flags,
+                    t.volume_type, t.records_back);
+}
+
 bool ticks_equal(const thetadatadx::TradeTick& a, const thetadatadx::TradeTick& b) {
-    return a.ms_of_day == b.ms_of_day && a.sequence == b.sequence &&
-           a.ext_condition1 == b.ext_condition1 && a.ext_condition2 == b.ext_condition2 &&
-           a.ext_condition3 == b.ext_condition3 && a.ext_condition4 == b.ext_condition4 &&
-           a.condition == b.condition && a.size == b.size && a.exchange == b.exchange &&
-           a.price == b.price && a.condition_flags == b.condition_flags &&
-           a.price_flags == b.price_flags && a.volume_type == b.volume_type &&
-           a.records_back == b.records_back && a.date == b.date && a.expiration == b.expiration &&
-           a.strike == b.strike && a.right == b.right;
+    return tick_key(a) == tick_key(b);
 }
 
 } // namespace
@@ -74,7 +78,7 @@ int main(int argc, char** argv) {
                 }
                 streamed.insert(streamed.end(), chunk.begin(), chunk.end());
             },
-            thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
+            thetadatadx::EndpointRequestOptions{}.with_date(date).with_timeout_ms(120000));
 
         const auto t1 = std::chrono::steady_clock::now();
         const auto stream_ms =
@@ -89,7 +93,7 @@ int main(int argc, char** argv) {
         const auto t2 = std::chrono::steady_clock::now();
         thetadatadx::MarketDataClient hist = thetadatadx::MarketDataClient::connect(creds, config);
         std::vector<thetadatadx::TradeTick> buffered = hist.option_history_trade(
-            symbol, expiration, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
+            symbol, expiration, thetadatadx::EndpointRequestOptions{}.with_date(date).with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();
         const auto buffered_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
@@ -107,6 +111,11 @@ int main(int argc, char** argv) {
                       << buffered.size() << " rows\n";
             return 1;
         }
+        const auto by_key = [](const thetadatadx::TradeTick& a, const thetadatadx::TradeTick& b) {
+            return tick_key(a) < tick_key(b);
+        };
+        std::sort(streamed.begin(), streamed.end(), by_key);
+        std::sort(buffered.begin(), buffered.end(), by_key);
         for (std::size_t i = 0; i < streamed.size(); ++i) {
             if (!ticks_equal(streamed[i], buffered[i])) {
                 const auto& s = streamed[i];
