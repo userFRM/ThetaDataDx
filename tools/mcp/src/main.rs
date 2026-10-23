@@ -699,9 +699,10 @@ fn code_or_null(code: i32, present: bool) -> Value {
 /// A tool result is one JSON-RPC message that the server builds in memory and
 /// the client reads into a model's context. Serialized, a row is a few hundred
 /// bytes, and each row is held several times over while the message is built,
-/// so this bounds a response at tens of megabytes. The rows are fetched before
-/// they are counted, so the limit bounds what is serialized and sent, not what
-/// is downloaded.
+/// so this bounds a response at tens of megabytes. A query's rows are fetched
+/// before they are counted, so for one the limit bounds what is serialized and
+/// sent, not what is downloaded; a flat file, which cannot be narrowed, is
+/// counted as it streams and refused once past the limit.
 const MAX_TOOL_ROWS: usize = 50_000;
 
 /// Refuse a result larger than [`MAX_TOOL_ROWS`], naming its size and the ways
@@ -1313,19 +1314,54 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output =
-        match endpoint::invoke_endpoint(client.market_data(), name, &converted_args, None).await {
-            Ok(output) => output,
-            Err(EndpointError::InvalidParams(message)) => {
-                return Err(ToolError::InvalidParams(message));
+    let fetched = async {
+        // A flat file is the whole universe for one date and cannot be
+        // narrowed, and most are far past the row limit. Count its rows as
+        // they stream and stop past the limit, rather than download the whole
+        // file only to refuse it. One that fits is then fetched whole.
+        if name.contains("_flat_file_") {
+            let mut rows = 0usize;
+            endpoint::invoke_endpoint_stream(
+                client.market_data(),
+                name,
+                &converted_args,
+                |_, len, _| {
+                    rows += len;
+                    if rows > MAX_TOOL_ROWS {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                },
+            )
+            .await?;
+            if rows > MAX_TOOL_ROWS {
+                return Ok(None);
             }
-            Err(EndpointError::UnknownEndpoint(_)) => {
-                return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
-            }
-            Err(EndpointError::Server(error)) => {
-                return Err(flatfile_tools::classify_core_error(&error));
-            }
-        };
+        }
+        endpoint::invoke_endpoint(client.market_data(), name, &converted_args, None)
+            .await
+            .map(Some)
+    };
+    let output = match fetched.await {
+        Ok(Some(output)) => output,
+        Ok(None) => {
+            return Err(ToolError::InvalidParams(format!(
+                "{name} has more than {MAX_TOOL_ROWS} rows; one tool call returns at most \
+                 {MAX_TOOL_ROWS}, and a flat file cannot be narrowed. Write it to disk with a \
+                 thetadatadx_flatfile_* tool where one serves it, or pull it with the SDK."
+            )));
+        }
+        Err(EndpointError::InvalidParams(message)) => {
+            return Err(ToolError::InvalidParams(message));
+        }
+        Err(EndpointError::UnknownEndpoint(_)) => {
+            return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
+        }
+        Err(EndpointError::Server(error)) => {
+            return Err(flatfile_tools::classify_core_error(&error));
+        }
+    };
 
     serialize_endpoint_output(name, &output)
 }

@@ -187,7 +187,7 @@ Advertised only when a client is connected.
 
 Advertised only when a client is connected, and by class: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
 
-The `*_flat_file_*` endpoint tools listed by asset class above return a flat file's rows like any other endpoint tool, under the same 50,000-row limit per call, so a larger file is refused with its row count. The tools below write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
+The `*_flat_file_*` endpoint tools listed by asset class above return a flat file's rows like any other endpoint tool, under the same 50,000-row limit per call. A flat file cannot be narrowed, so one past the limit is refused as soon as its 50,001st row arrives, without downloading the rest. The tools below write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
 
 - `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
 - `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file
