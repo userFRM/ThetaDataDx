@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The local server writes each price at the precision the terminal writes it.** The regular v3 routes wrote every price in the shortest form of its value, so a strike the terminal writes as `766.000` came out as `766.0`, an option price of `14.30` as `14.3`, an underlying price of `340.680` as `340.68`, a greek of `0.5800` as `0.58` and a zero greek of `0.0000` as `0.0`, and a program that compared the server's output with the terminal's, or read a fixed number of decimals, saw different text. The vendor sends each price with the number of decimals to write it with, which can change from one row to the next within a column, and that precision was dropped when the price was decoded. The server now keeps the precision of every price cell it receives and writes the price with it in `csv`, `json`, `json_legacy`, `ndjson` and `html`, the strikes of `option/list/strikes` included. Text, integers and timestamps are written as before, and the flat-file routes, which already wrote the vendor's cells unchanged, are unaffected.
 
+- **The local server's HTML is the terminal's page.** `format=html` returned a bare `<table>` and left an absent value empty, where the terminal returns an HTML page holding a full-width, centred table with one row per line, and writes `null` for an absent value, such as the open and close of a full-close day in `calendar/year_holidays`. A page or scraper written against the terminal's HTML read the server's differently. Every route, the flat files included, now writes the terminal's page byte for byte.
+
 ## [0.6.1] - 2026-10-22
 
 ### Security

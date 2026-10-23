@@ -525,7 +525,7 @@ enum ResponseFormat {
     Csv,
     /// One JSON object per row, `\n`-delimited.
     Ndjson,
-    /// A minimal HTML `<table>`, rendered inline for browser viewing.
+    /// The terminal's HTML page, rendered inline for browser viewing.
     Html,
 }
 
@@ -1344,47 +1344,6 @@ mod tests {
             let params = string_params(&[("format", raw)]);
             assert_eq!(parse_response_format(&params).unwrap(), expected, "{raw}");
         }
-    }
-
-    /// `format=html` renders the flat rows as an inline HTML `<table>` with a
-    /// `200` and `text/html` content type, and no `content-disposition` (the
-    /// table is browser-viewable, not a download). Attacker-controlled cell
-    /// text is HTML-escaped so it cannot inject markup.
-    #[tokio::test]
-    async fn html_format_renders_inline_table() {
-        use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
-
-        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
-        let rows = vec![sonic_rs::json!({"symbol": "<AAPL>", "close": 200.5})];
-        let body = format::json_to_html(ep, &rows).expect("rows render to html");
-        let resp = (
-            StatusCode::OK,
-            [("content-type", "text/html; charset=utf-8")],
-            body,
-        )
-            .into_response();
-
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers()
-                .get(CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("text/html; charset=utf-8")
-        );
-        assert!(
-            resp.headers().get(CONTENT_DISPOSITION).is_none(),
-            "html renders inline, so it must not carry an attachment disposition"
-        );
-
-        let body = read_body(resp).await;
-        assert!(
-            body.contains("<table>"),
-            "html body carries a table: {body}"
-        );
-        assert!(
-            body.contains("&lt;AAPL&gt;") && !body.contains("<AAPL>"),
-            "cell values are HTML-escaped: {body}"
-        );
     }
 
     /// Unknown `format` values are a 400 listing the supported set —

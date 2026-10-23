@@ -271,11 +271,12 @@ fn prefix(out: &mut String, format: FlatFileFormat, headers: &[String]) {
         FlatFileFormat::Json => out.push_str("{\"response\":["),
         FlatFileFormat::Jsonl => {}
         FlatFileFormat::Html => {
-            out.push_str("<table><thead><tr>");
+            out.push_str(crate::format::HTML_START);
+            out.push_str("<thead><tr>");
             for header in headers {
                 let _ = write!(out, "<th>{}</th>", crate::format::escape_html(header));
             }
-            out.push_str("</tr></thead><tbody>");
+            out.push_str("</tr></thead>\n<tbody>");
         }
     }
 }
@@ -286,7 +287,7 @@ fn suffix(out: &mut String, format: FlatFileFormat) {
         FlatFileFormat::Csv => out.push('\n'),
         FlatFileFormat::Jsonl => {}
         FlatFileFormat::Json => out.push_str("]}"),
-        FlatFileFormat::Html => out.push_str("</tbody></table>"),
+        FlatFileFormat::Html => out.push_str(crate::format::HTML_END),
     }
 }
 
@@ -369,11 +370,11 @@ fn row(
                     Some(Cell::Int(n)) => {
                         let _ = write!(out, "{n}");
                     }
-                    None => {}
+                    None => out.push_str("null"),
                 }
                 out.push_str("</td>");
             }
-            out.push_str("</tr>");
+            out.push_str("</tr>\n");
         }
     }
     Ok(())
@@ -465,6 +466,18 @@ mod tests {
                 "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
             ),
             "{\"response\":[{\"root\":\"HCMC\",\"bid\":\"0.00010\",\"date\":20261021}]}"
+        );
+
+        // The HTML form is the terminal's page, as the regular routes write it.
+        assert_eq!(
+            written(
+                FlatFileFormat::Html,
+                "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
+            ),
+            "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n\
+             <table style=\"width:100%; text-align: center;\"><thead><tr><th>root</th><th>bid</th><th>date</th></tr></thead>\n\
+             <tbody><tr><td>HCMC</td><td>0.00010</td><td>20261021</td></tr>\n\
+             </tbody></table></body></html>\n"
         );
     }
 

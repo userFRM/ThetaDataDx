@@ -2321,19 +2321,21 @@ pub fn json_legacy(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> sonic_rs:
     out
 }
 
-/// Render a JSON response array as a minimal HTML `<table>` in the v3 column
-/// order for `ep`, for browser-viewable `format=html`.
+/// Render a JSON response array as the terminal's HTML page, in the v3
+/// column order for `ep`, for browser-viewable `format=html`.
 ///
 /// Mirrors [`json_to_csv`]: object rows become one column per key (the union
 /// across rows, so sparse rows never drop columns) in the same
 /// [`csv_header_order`] the CSV path uses; scalar rows become a single `value`
-/// column. Returns `None` for an empty response or an unsupported row shape.
-/// Every header and cell is HTML-escaped so a symbol / condition string can
-/// never break out of the `<th>` / `<td>` it renders into.
+/// column. The page, the table's style, a line break after the header and
+/// after every row, and `null` for an absent value are the terminal's. Returns
+/// `None` for an empty response or an unsupported row shape. Every header and
+/// cell is HTML-escaped so a symbol / condition string can never break out of
+/// the `<th>` / `<td>` it renders into.
 pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<String> {
     let first = response.first()?;
     let mut out = String::with_capacity(response.len() * 256);
-    out.push_str("<table>");
+    out.push_str(HTML_START);
 
     if first.as_object().is_some() {
         let keys = csv_header_order(ep, response)?;
@@ -2345,7 +2347,7 @@ pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<S
             out.push_str(&escape_html(key));
             out.push_str("</th>");
         }
-        out.push_str("</tr></thead><tbody>");
+        out.push_str("</tr></thead>\n<tbody>");
 
         for row in response {
             let row_obj = row.as_object()?;
@@ -2356,10 +2358,10 @@ pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<S
                 out.push_str(&escape_html(&html_cell_text(value)));
                 out.push_str("</td>");
             }
-            out.push_str("</tr>");
+            out.push_str("</tr>\n");
         }
 
-        out.push_str("</tbody></table>");
+        out.push_str(HTML_END);
         return Some(out);
     }
 
@@ -2367,24 +2369,27 @@ pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<S
         return None;
     }
 
-    out.push_str("<thead><tr><th>value</th></tr></thead><tbody>");
+    out.push_str("<thead><tr><th>value</th></tr></thead>\n<tbody>");
     for row in response {
         out.push_str("<tr><td>");
         out.push_str(&escape_html(&html_cell_text(row)));
-        out.push_str("</td></tr>");
+        out.push_str("</td></tr>\n");
     }
-    out.push_str("</tbody></table>");
+    out.push_str(HTML_END);
     Some(out)
 }
 
+/// The terminal's HTML page around the table, shared with the flat-file
+/// routes, which write the same page.
+pub(crate) const HTML_START: &str = "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n<table style=\"width:100%; text-align: center;\">";
+pub(crate) const HTML_END: &str = "</tbody></table></body></html>\n";
+
 /// The plain-text form of a cell value, before HTML-escaping. Strings render
-/// verbatim, null renders empty, and numbers / booleans serialise.
+/// verbatim, null renders as `null` as the terminal writes it, and numbers /
+/// booleans serialise.
 fn html_cell_text(value: &sonic_rs::Value) -> String {
     if let Some(s) = value.as_str() {
         return s.to_owned();
-    }
-    if value.is_null() {
-        return String::new();
     }
     sonic_rs::to_string(value).unwrap_or_default()
 }
@@ -3414,6 +3419,26 @@ mod tests {
         ] {
             assert!(json.contains(field), "JSON lacks {field}: {json}");
         }
+    }
+
+    /// `format=html` writes the terminal's page byte for byte: its document and
+    /// table style, a line break after the header and each row, `null` for an
+    /// absent value, and every cell escaped.
+    #[test]
+    fn html_is_the_terminals_page() {
+        let ep = thetadatadx::find("calendar_year").expect("endpoint exists");
+        let rows = vec![
+            sonic_rs::json!({"date": "2026-01-01", "type": "full_close", "open": null, "close": null}),
+            sonic_rs::json!({"date": "2026-11-27", "type": "<b>", "open": "09:30:00", "close": "13:00:00"}),
+        ];
+        assert_eq!(
+            json_to_html(ep, &rows).expect("HTML"),
+            "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n\
+             <table style=\"width:100%; text-align: center;\"><thead><tr><th>date</th><th>type</th><th>open</th><th>close</th></tr></thead>\n\
+             <tbody><tr><td>2026-01-01</td><td>full_close</td><td>null</td><td>null</td></tr>\n\
+             <tr><td>2026-11-27</td><td>&lt;b&gt;</td><td>09:30:00</td><td>13:00:00</td></tr>\n\
+             </tbody></table></body></html>\n"
+        );
     }
 
     // -----------------------------------------------------------------------
