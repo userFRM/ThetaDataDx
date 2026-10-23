@@ -66,7 +66,7 @@ A failed request is answered with an HTTP status and a plain-text description; s
 
 ## Flat files
 
-The `/v3/{option,stock,index}/flat_file/{dataset}` routes answer the way the terminal does: the file's columns under the terminal's names, text and prices quoted in CSV, each chunk written as it arrives so the first bytes leave at once and server memory stays flat at any file size:
+The `/v3/{option,stock,index}/flat_file/{dataset}` routes answer the way the terminal does: the file's columns under the terminal's names, text and prices quoted in CSV, each chunk written as it arrives so the first bytes leave at once and server memory stays flat at any file size. They take the same `format` values as every other route; `json_legacy`, one array per column, is the exception to flat memory, since no column is complete before the last row arrives:
 
 ```bash
 curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&format=csv' -o trade_quotes.csv
