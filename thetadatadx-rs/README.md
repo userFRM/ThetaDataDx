@@ -4,7 +4,7 @@
 
 # thetadatadx
 
-The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — from one async client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
+The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways (point-in-time **history**, real-time **streaming**, and whole-universe **flat files**), from one async client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
 [![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
@@ -17,11 +17,11 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 ## Features
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
-- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Greeks on demand** — first- through third-order Greeks and implied volatility, served straight from the option endpoints.
-- **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
-- **Typed errors** — one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
-- **DataFrames on demand** — opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
+- **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Greeks on demand:** first- through third-order Greeks and implied volatility, served straight from the option endpoints.
+- **Buffer or stream:** every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
+- **Typed errors:** one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
+- **DataFrames on demand:** opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
 
 ## Install
 
@@ -154,15 +154,15 @@ client.stream().subscribe(
         .trade(),
 )?;
 
-// Or a whole-market feed — every option trade across the universe.
+// Or a whole-market feed: every option trade across the universe.
 client.stream().subscribe(SecType::Option.full_trades())?;
 ```
 
-On an involuntary disconnect the client recovers on its own — exponential backoff with jitter, host failover, then a paced re-subscribe of every active contract.
+On an involuntary disconnect the client recovers on its own: exponential backoff with jitter, host failover, then a paced re-subscribe of every active contract.
 
-### Streaming-only — `StreamingClient`
+### Streaming-only: `StreamingClient`
 
-For workloads that never touch history, `StreamingClient` connects to the streaming servers alone — no Nexus session, no market-data surface. Drive it as an iterator, or with the explicit drain primitives:
+For workloads that never touch history, `StreamingClient` connects to the streaming servers alone, with no Nexus session and no market-data surface. Drive it as an iterator, or with the explicit drain primitives:
 
 ```rust
 use thetadatadx::auth::Credentials;
@@ -208,7 +208,7 @@ The `flatfile_*` functions and the `flat_files()` view read the vendor's older f
 
 ## DataFrames
 
-With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface — zero-copy, no row-by-row iteration:
+With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface (zero-copy, with no row-by-row iteration):
 
 ```rust
 let df = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
@@ -221,7 +221,7 @@ Every public method returns `Result<_, thetadatadx::Error>`. The streaming surfa
 ## Documentation
 
 - [API reference](https://docs.rs/thetadatadx-rs)
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — guides, per-endpoint pages, and a streaming deep-dive
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/): guides, per-endpoint pages, and a streaming deep-dive
 - [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
 
 Python (`pip install thetadatadx-py`), Node.js (`npm install thetadatadx-ts`), and C++ bindings sit on this same engine and share its wire format and reconnect behaviour.

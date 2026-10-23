@@ -40,7 +40,7 @@ Option contracts carry the four-tuple. By default the `strike` is the terminal's
 { "header": { "type": "REQ_RESPONSE", "response": "SUBSCRIBED", "req_id": 1 } }
 ```
 
-`SUBSCRIBED` confirms the request was accepted; it acknowledges subscribe (`add: true`), unsubscribe (`add: false`), and `STOP`, since there is no removal-specific value. Rejected commands answer with `"response": "ERROR"` and an `error` field naming the cause — a bad envelope, an offending field, or a subscribe sent before streaming has started (which installs nothing, so it is never acknowledged as a success). The values `MAX_STREAMS_REACHED` and `INVALID_PERMS` are also part of the verification vocabulary.
+`SUBSCRIBED` confirms the request was accepted; it acknowledges subscribe (`add: true`), unsubscribe (`add: false`), and `STOP`, since there is no removal-specific value. Rejected commands answer with `"response": "ERROR"` and an `error` field naming the cause: a bad envelope, an offending field, or a subscribe sent before streaming has started (which installs nothing, so it is never acknowledged as a success). The values `MAX_STREAMS_REACHED` and `INVALID_PERMS` are also part of the verification vocabulary.
 
 ## Event messages
 
@@ -56,6 +56,6 @@ websocat ws://127.0.0.1:25520/v1/events
 ## Limits
 
 - **One client at a time.** A second connection takes over the stream; the first receives a Close frame (code 1000, reason `replaced by a new client connection`). Run one server instance per consumer for multi-client setups.
-- Text frames are capped at 4 KiB — far above any legitimate envelope.
+- Text frames are capped at 4 KiB, far above any legitimate envelope.
 - Each connection has a per-client send buffer (default 4096 events). On a high-rate stream a slow consumer that fills the buffer starts dropping events; raise the buffer with the `THETADATADX_WS_CLIENT_CAPACITY` environment variable (trades memory for headroom). See [Environment variables](/server/#environment-variables).
 - Programmatic consumers should prefer the [SDK streaming surface](/streaming/), which adds typed events, automatic reconnect, and drop monitoring.

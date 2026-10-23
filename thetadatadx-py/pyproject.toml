@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "thetadatadx-py"
 dynamic = ["version"]
-description = "No-JVM ThetaData Terminal — native Rust SDK for direct market data access (Python bindings)"
+description = "No-JVM ThetaData Terminal: native Rust SDK for direct market data access (Python bindings)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }

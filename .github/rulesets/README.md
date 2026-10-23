@@ -13,10 +13,10 @@ Exactly four checks must pass before a PR can merge to `main`:
 | `TypeScript gate` | `typescript.yml` | the napi build + test + publish jobs |
 | `Perf gate` | `perf-gate.yml` | the decode-allocations regression gate |
 
-Each of the four is an `if: always()` aggregator that depends on every job in its workflow and fails unless every dependency finished `success` or `skipped`. Requiring the four aggregators — instead of a hand-maintained list of individual job names — means two things stay true automatically:
+Each of the four is an `if: always()` aggregator that depends on every job in its workflow and fails unless every dependency finished `success` or `skipped`. Requiring the four aggregators, instead of a hand-maintained list of individual job names, means two things stay true automatically:
 
 - A heavy job that legitimately skips on a path-irrelevant PR (e.g. the Python wheel matrix on a docs-only change) counts as a pass, so a conditionally-skipped check can never leave the merge gate permanently unsatisfiable.
-- A newly added job is covered the moment it lands in its workflow's aggregator `needs:` list — no ruleset edit, and no risk of a new job silently escaping the gate.
+- A newly added job is covered the moment it lands in its workflow's aggregator `needs:` list, with no ruleset edit and no risk of a new job silently escaping the gate.
 
 Do not require the individual jobs (`fmt`, `clippy`, `Build wheel (...)`, etc.) directly. They are covered transitively by the aggregators, and pinning them by name reintroduces the skip-counts-as-unsatisfiable problem the aggregators exist to solve.
 

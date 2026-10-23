@@ -7,7 +7,7 @@ description: How symbols, option contracts, dates, prices, and timestamps are wr
 
 ## Symbols
 
-A symbol identifies a stock, index, or option underlying: `AAPL`, `SPY`, `SPX`. Snapshot endpoints accept multiple symbols at once (a list in the SDKs, comma-separated over HTTP). Index option underlyings are distinct symbols per settlement style — `SPX` (AM-settled monthlies) and `SPXW` (PM-settled weeklies) are different roots; the same split applies to other index families (`VIX`/`VIXW`, `NDX`/`NDXP`). List the roots your account can see with the [option symbols](/reference/option/list/symbols) endpoint.
+A symbol identifies a stock, index, or option underlying: `AAPL`, `SPY`, `SPX`. Snapshot endpoints accept multiple symbols at once (a list in the SDKs, comma-separated over HTTP). Index option underlyings are distinct symbols per settlement style: `SPX` (AM-settled monthlies) and `SPXW` (PM-settled weeklies) are different roots; the same split applies to other index families (`VIX`/`VIXW`, `NDX`/`NDXP`). List the roots your account can see with the [option symbols](/reference/option/list/symbols) endpoint.
 
 ## Option contract identity
 
@@ -20,7 +20,7 @@ An option contract is always the four-tuple **(symbol, expiration, strike, right
 | `strike` | dollars, as a string | `"5400"` or `"17.5"` |
 | `right` | `C` / `P` (`call` / `put` accepted) | `C` |
 
-Strikes are **human dollars everywhere on the SDK surface** — never scaled integers. Endpoints that take an optional `strike` / `right` treat omission as a wildcard: all strikes, both rights. Wildcard responses identify each row's contract via the `expiration`, `strike`, and `right` response fields.
+Strikes are **human dollars everywhere on the SDK surface**, never scaled integers. Endpoints that take an optional `strike` / `right` treat omission as a wildcard: all strikes, both rights. Wildcard responses identify each row's contract via the `expiration`, `strike`, and `right` response fields.
 
 The one exception is the bundled server's [WebSocket subscribe envelope](/server/websocket), which by default takes the terminal's 1/10-cent integer strike so existing terminal clients work unchanged (the WebSocket page shows an example). Start the server with `--strike-format dollars` to send dollars (`570`) there too. The server's HTTP routes take dollars either way.
 
@@ -35,7 +35,7 @@ The one exception is the bundled server's [WebSocket subscribe envelope](/server
 
 Response rows carry two integer time fields:
 
-- `date` — the trading date as a `YYYYMMDD` integer.
-- `ms_of_day` — milliseconds since midnight Eastern Time (`34200000` = 09:30:00 ET).
+- `date`: the trading date as a `YYYYMMDD` integer.
+- `ms_of_day`: milliseconds since midnight Eastern Time (`34200000` = 09:30:00 ET).
 
 Integer timestamps compare and bucket cheaply in hot loops; convert to wall-clock datetimes only at display boundaries.

@@ -100,7 +100,7 @@ Endpoint query parameters follow the registry names (`symbol`, `expiration`, `st
 
 ### Terminal system routes (3)
 
-Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` bodies.
+Mirrored 1:1 from the JVM terminal: unauthenticated `GET`, bare `text/plain` bodies.
 
 ```
 GET /v3/terminal/shutdown       # "OK"; kills the server process
@@ -135,7 +135,7 @@ Failures on the data routes return the HTTP status with a plain-text (`text/plai
 
 Connect to `ws://127.0.0.1:25520/v1/events` to receive streaming events.
 
-One client at a time: a second connection replaces the first — the existing client receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream, matching the legacy terminal.
+One client at a time: a second connection replaces the first. The existing client receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream, matching the legacy terminal.
 
 The server sends:
 - `STATUS` messages every second with the streaming connection state
@@ -156,13 +156,13 @@ Send JSON commands to manage subscriptions:
 
 ## Hardening
 
-- **256 simultaneous HTTP requests admitted at the edge** — requests past the cap queue and are served in order rather than rejected, so a connection flood can't exhaust the runtime. Genuine upstream exhaustion surfaces as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
+- **256 simultaneous HTTP requests admitted at the edge:** requests past the cap queue and are served in order rather than rejected, so a connection flood can't exhaust the runtime. Genuine upstream exhaustion surfaces as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
-- **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
+- **CSV output defuses formula injection:** cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
 - **Streaming TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
-- **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
+- **Dropped-events observability:** per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
 
-Example — shutting the server down, exactly as with the JVM terminal:
+Example: shutting the server down, exactly as with the JVM terminal:
 
 ```bash
 curl http://127.0.0.1:25503/v3/terminal/shutdown

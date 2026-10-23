@@ -31,7 +31,7 @@ from thetadatadx import NoDataFoundError, RateLimitError, ThetaDataError
 try:
     rows = client.market_data.option_history_trade("SPY", "20250321", "20250303", strike="570", right="C")
 except NoDataFoundError:
-    rows = []                # nothing traded — a normal outcome, not a failure
+    rows = []                # nothing traded: a normal outcome, not a failure
 except RateLimitError:
     ...                      # back off and retry; see Concurrent Requests
 except ThetaDataError:

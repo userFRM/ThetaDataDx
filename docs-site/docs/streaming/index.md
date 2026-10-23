@@ -7,7 +7,7 @@ description: Connect, register a callback, subscribe, and shut down cleanly, in 
 
 Real-time quotes, trades, and open interest are delivered as **typed events through a callback you register once**. The same client that serves market-data requests runs the streaming session: connect, start streaming, subscribe.
 
-Streaming requires a Standard subscription or higher on the matching asset class — see [Subscriptions](/articles/subscriptions). Markets closed? Connect with the `dev()` [configuration](/articles/configuration) to stream a replayed session.
+Streaming requires a Standard subscription or higher on the matching asset class (see [Subscriptions](/articles/subscriptions)). Markets closed? Connect with the `dev()` [configuration](/articles/configuration) to stream a replayed session.
 
 Streaming authenticates the same way as market-data requests. An API key works here too: set `THETADATA_API_KEY` and build credentials with `from_env_or_file` (or the api-key constructor) in place of `from_file`. See [Authenticate](/articles/getting-started#_2-authenticate).
 
@@ -49,7 +49,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
 }
 ```
 
-The callback runs on a dedicated consumer thread — no async executor between the wire and your code. `subscribe` / `unsubscribe` are callable from any thread.
+The callback runs on a dedicated consumer thread, with no async executor between the wire and your code. `subscribe` / `unsubscribe` are callable from any thread.
 
 </template>
 
@@ -132,7 +132,7 @@ websocat ws://127.0.0.1:25520/v1/events
 {"msg_type": "STREAM", "sec_type": "STOCK", "req_type": "QUOTE", "id": 1, "add": true, "contract": {"symbol": "AAPL"}}
 ```
 
-The [server binary](/server/) bridges the stream onto a local WebSocket — see [WebSocket Streaming](/server/websocket) for the envelope and event formats.
+The [server binary](/server/) bridges the stream onto a local WebSocket. See [WebSocket Streaming](/server/websocket) for the envelope and event formats.
 
 </template>
 

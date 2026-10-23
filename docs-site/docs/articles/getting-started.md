@@ -5,7 +5,7 @@ description: Install the SDK, save your credentials, and make your first request
 
 # Getting Started
 
-ThetaDataDx connects directly to ThetaData's servers — nothing to install and babysit locally. Pick a language, install, save your credentials, and make a request.
+ThetaDataDx connects directly to ThetaData's servers, with nothing to install and babysit locally. Pick a language, install, save your credentials, and make a request.
 
 ## 1. Install
 
@@ -34,7 +34,7 @@ pip install "thetadatadx-py[polars]"    # polars
 pip install "thetadatadx-py[arrow]"     # pyarrow only
 ```
 
-Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
+Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows, so no Rust toolchain is needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
 
 </template>
 
@@ -70,7 +70,7 @@ Include `thetadatadx-cpp/include/thetadatadx.hpp`, compile it together with the 
 cargo install thetadatadx-server --git https://github.com/userFRM/ThetaDataDx
 ```
 
-The [server binary](/server/) exposes the full surface as local HTTP REST and WebSocket endpoints — no SDK required. Existing scripts written against the v3 route surface point at it unchanged.
+The [server binary](/server/) exposes the full surface as local HTTP REST and WebSocket endpoints, with no SDK required. Existing scripts written against the v3 route surface point at it unchanged.
 
 </template>
 
@@ -516,7 +516,7 @@ thetadatadx-server --creds /path/to/creds.txt &
 
 </SdkTabs>
 
-No subscription yet? Create an account at [thetadata.net](https://www.thetadata.net/) — several endpoints work on the free tier (look for the Free badge on [reference pages](/reference/)).
+No subscription yet? Create an account at [thetadata.net](https://www.thetadata.net/). Several endpoints work on the free tier (look for the Free badge on [reference pages](/reference/)).
 
 ### Full control
 
@@ -660,11 +660,11 @@ curl 'http://127.0.0.1:25503/v3/stock/history/eod?symbol=AAPL&start_date=2025-03
 
 </SdkTabs>
 
-Every endpoint follows this shape. Browse the [API Reference](/reference/) — each page carries the signature and a runnable sample in all five surfaces.
+Every endpoint follows this shape. Browse the [API Reference](/reference/). Each page carries the signature and a runnable sample in all five surfaces.
 
 ## Good to knows
 
-- **Dates are `YYYYMMDD` strings** in the SDKs (`"20250303"`); the HTTP server also accepts ISO `YYYY-MM-DD`. Timestamps come back as milliseconds since midnight Eastern Time — see [Symbology & Contract Identity](/articles/symbology).
+- **Dates are `YYYYMMDD` strings** in the SDKs (`"20250303"`); the HTTP server also accepts ISO `YYYY-MM-DD`. Timestamps come back as milliseconds since midnight Eastern Time (see [Symbology & Contract Identity](/articles/symbology)).
 - **Connect once, reuse the client.** One client multiplexes any number of market-data requests and an optional [streaming](/streaming/) session; per-request connections waste the authentication round trip.
 - **Markets closed?** Connect with `Config.dev()` / `DirectConfig::dev()` to stream a replayed market-data session, and prefer market-data endpoints over snapshots on weekends.
 - **Targeting staging or dev?** The market-data and streaming environments are selected independently. Pick the market-data staging cluster with `DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage)` (or the `Config.stage()` / `DirectConfig::stage()` preset), the `THETADATA_MARKET_DATA_TYPE=STAGE` environment variable, or a `.env` file. Pick the streaming dev-replay cluster with `with_streaming_environment(StreamingEnvironment::Dev)` (or the `dev()` preset) or `THETADATA_STREAMING_TYPE=DEV`, and the streaming staging cluster with `with_streaming_environment(StreamingEnvironment::Stage)` or `THETADATA_STREAMING_TYPE=STAGE`. No preset selects streaming staging: it carries the live feed on a build that reboots often, so it is asked for rather than assumed. The market-data environment also sets the authentication marker; the streaming environment does not. All paths work with either credential type, and one `.env` file can hold `THETADATA_API_KEY`, `THETADATA_MARKET_DATA_TYPE`, and `THETADATA_STREAMING_TYPE` together. See [Configuration](/articles/configuration).

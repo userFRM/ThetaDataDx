@@ -4,7 +4,7 @@
 
 # thetadatadx-mcp-server
 
-MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
+MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx), giving any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
 Speaks the `2026-07-28` revision of the protocol and still answers `2025-11-25` and `2024-11-05` clients. Call `server/discover` to read the revisions, capabilities and identity in one request.
 

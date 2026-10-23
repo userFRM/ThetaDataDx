@@ -16,7 +16,7 @@ Your requests are not rate-limited, but the number of **concurrent** market-data
 
 The SDK sizes its request pool to that allowance automatically: at connect time it reads your tier from the auth response and defaults the pool to the matching width, so a Pro account runs 8 concurrent requests and a Value account runs 2 with nothing configured.
 
-Accounts can also carry a **boosted** allowance above their base tier (for example 32 concurrent on a boosted Pro account). The SDK does not cap concurrency on its own — the server enforces the real allowance — so set `max_concurrent_requests` to the boosted number and the pool actually runs that wide:
+Accounts can also carry a **boosted** allowance above their base tier (for example 32 concurrent on a boosted Pro account). The SDK does not cap concurrency on its own. The server enforces the real allowance, so set `max_concurrent_requests` to the boosted number and the pool actually runs that wide:
 
 ```python
 from thetadatadx import Client, Credentials, Config
@@ -27,7 +27,7 @@ cfg.max_concurrent_requests = 32   # boosted allowance; leave unset to match you
 client = Client(Credentials.from_file("creds.txt"), cfg)
 ```
 
-The same knob is `config.market_data.max_concurrent_requests` in Rust, `cfg.setMaxConcurrentRequests(32)` in TypeScript, and `cfg.set_max_concurrent_requests(32)` in C++. An explicit value always wins over the tier default, in either direction — you can also set it below your allowance to reserve concurrency for another process. Requests past your account's real allowance are rejected by the server and retried with backoff before surfacing an error.
+The same knob is `config.market_data.max_concurrent_requests` in Rust, `cfg.setMaxConcurrentRequests(32)` in TypeScript, and `cfg.set_max_concurrent_requests(32)` in C++. An explicit value always wins over the tier default, in either direction. You can also set it below your allowance to reserve concurrency for another process. Requests past your account's real allowance are rejected by the server and retried with backoff before surfacing an error.
 
 ## Fire your whole batch
 
@@ -62,7 +62,7 @@ quotes = await asyncio.gather(*(
 ))
 ```
 
-Pick the client by what else you need — streaming, sync calls, a smaller surface — not by whether you want concurrency. You always have it.
+Pick the client by what else you need (streaming, sync calls, a smaller surface), not by whether you want concurrency. You always have it.
 
 ## One giant request, split for you
 
@@ -74,4 +74,4 @@ See [Bulk Downloads](/articles/bulk-downloads) for the full picture: how the spl
 
 Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. For a single large request you no longer have to split it yourself, since `bulk_fetch` does it automatically ([above](#one-giant-request-split-for-you)); splitting manually still works when you want direct control over the pieces.
 
-If the service reports exhaustion — because a burst exceeded your account's allowance, or during peak hours — the SDK retries with backoff before surfacing an error. Long-running bulk jobs should expect occasional retries at peak; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
+If the service reports exhaustion (because a burst exceeded your account's allowance, or during peak hours), the SDK retries with backoff before surfacing an error. Long-running bulk jobs should expect occasional retries at peak; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
