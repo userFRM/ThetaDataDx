@@ -101,10 +101,10 @@ pub(crate) fn find_header(headers: &[&str], name: &str) -> Option<usize> {
     }
     // Try aliases.
     for &(schema_name, server_name) in HEADER_ALIASES {
-        if name == schema_name {
-            if let Some(pos) = headers.iter().position(|&s| s == server_name) {
-                return Some(pos);
-            }
+        if name == schema_name
+            && let Some(pos) = headers.iter().position(|&s| s == server_name)
+        {
+            return Some(pos);
         }
     }
     tracing::trace!(

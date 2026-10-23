@@ -308,7 +308,7 @@ def main() -> int:
         return 1
 
     # Reverse delta: names declared in C headers but with no matching
-    # `#[no_mangle] pub extern "C"` Rust counterpart.
+    # `#[unsafe(no_mangle)] pub extern "C"` Rust counterpart.
     # These are link-time time bombs — the C++ wrapper compiles
     # against the header but the dylib symbol is missing.
     extras = (header - rust) - HEADER_ONLY_ALLOWLIST
@@ -321,7 +321,7 @@ def main() -> int:
             print(f"  {name}")
         print(
             "\nFix: either implement the symbol with "
-            "`#[no_mangle] pub extern \"C\"` in `thetadatadx-ffi/src/`, or remove "
+            "`#[unsafe(no_mangle)] pub extern \"C\"` in `thetadatadx-ffi/src/`, or remove "
             "the header decl. A header-only decl breaks consumer "
             "builds at LINK time (not compile), which is the "
             "regression mode that lands in CI nightly. If the symbol "

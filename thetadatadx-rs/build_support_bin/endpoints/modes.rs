@@ -73,7 +73,9 @@ pub(super) struct TestMode {
 fn rationale_for_mode(name: &str) -> &'static str {
     match name {
         "basic" => "list/calendar/rate baseline call; no parameter variation",
-        "concrete" => "required params set, plus the date the vendor needs where it is optional; baseline wire path",
+        "concrete" => {
+            "required params set, plus the date the vendor needs where it is optional; baseline wire path"
+        }
         "concrete_iso" => {
             "expiration in YYYY-MM-DD form; tests ISO-date canonicalization to YYYYMMDD"
         }

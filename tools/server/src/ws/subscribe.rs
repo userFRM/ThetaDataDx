@@ -3,9 +3,9 @@
 use axum::extract::ws::WebSocket;
 use sonic_rs::prelude::*;
 
+use thetadatadx::SecType;
 use thetadatadx::fpss::protocol::{Contract, Subscription};
 use thetadatadx::time::is_valid_yyyymmdd;
-use thetadatadx::SecType;
 
 use crate::state::{AppState, StrikeFormat};
 use crate::validation;

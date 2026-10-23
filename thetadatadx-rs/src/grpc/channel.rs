@@ -710,16 +710,16 @@ impl Transport {
         }
         {
             let dialled = lock(&shared.dialled);
-            if dialled.completed != queued_after {
-                if let Some(error) = &dialled.last_error {
-                    return Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::ConnectionAborted,
-                        format!(
-                            "connecting to {}:{} failed while this request waited for it: {error}",
-                            shared.connector.host, shared.connector.port
-                        ),
-                    )));
-                }
+            if dialled.completed != queued_after
+                && let Some(error) = &dialled.last_error
+            {
+                return Err(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    format!(
+                        "connecting to {}:{} failed while this request waited for it: {error}",
+                        shared.connector.host, shared.connector.port
+                    ),
+                )));
             }
         }
         let dialled = self.dial().await;

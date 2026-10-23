@@ -13,13 +13,13 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
+    DeltaState, MAX_PAYLOAD_LEN, decode_frame, read_frame_into,
 };
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
@@ -71,10 +71,10 @@ fn single_unknown_opcode_skipped_without_desync() {
                     &shutdown,
                     &mut delta,
                 );
-                if let Some(e) = p {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
+                if let Some(e) = p
+                    && let Some(public) = e.as_public()
+                {
+                    events.push(public.clone());
                 }
             }
             Ok(None) => break,
@@ -93,10 +93,10 @@ fn single_unknown_opcode_skipped_without_desync() {
         if let StreamEvent::Control(StreamControl::LoginSuccess { .. }) = e {
             saw_login = true;
         }
-        if let StreamEvent::Control(StreamControl::ContractAssigned { id, .. }) = e {
-            if *id == 7 {
-                saw_contract_7 = true;
-            }
+        if let StreamEvent::Control(StreamControl::ContractAssigned { id, .. }) = e
+            && *id == 7
+        {
+            saw_contract_7 = true;
         }
     }
     assert!(saw_login, "LoginSuccess missing; events: {events:?}");

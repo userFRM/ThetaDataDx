@@ -36,7 +36,7 @@ use crate::streaming::ThetaDataDxContract;
 /// owned by the library and MUST NOT be freed. Returns the literal
 /// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
 /// boundary catches a panic — surfaced through `thetadatadx_last_error()`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::condition_name(code))
@@ -48,7 +48,7 @@ pub extern "C" fn thetadatadx_condition_name(code: i32) -> *const c_char {
 /// Returns a NUL-terminated `'static` UTF-8 C string (empty string for
 /// unknown codes). The pointer is owned by the library and MUST NOT be
 /// freed. Returns `NULL` if the boundary catches a panic.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::condition_description(code))
@@ -56,13 +56,13 @@ pub extern "C" fn thetadatadx_condition_description(code: i32) -> *const c_char 
 }
 
 /// True if the trade condition code represents a cancellation.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_condition_is_cancel(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_cancel(code) })
 }
 
 /// True if the trade condition code updates the volume bar.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_condition_updates_volume(code: i32) -> bool {
     ffi_boundary!(false, {
         thetadatadx::utils::conditions::updates_volume(code)
@@ -70,7 +70,7 @@ pub extern "C" fn thetadatadx_condition_updates_volume(code: i32) -> bool {
 }
 
 /// Look up the human-readable quote condition name for `code`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_quote_condition_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::quote_condition_name(code))
@@ -78,7 +78,7 @@ pub extern "C" fn thetadatadx_quote_condition_name(code: i32) -> *const c_char {
 }
 
 /// Look up the human-readable quote condition description for `code`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_quote_condition_description(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::conditions::quote_condition_description(
@@ -88,19 +88,19 @@ pub extern "C" fn thetadatadx_quote_condition_description(code: i32) -> *const c
 }
 
 /// True if the quote condition is firm (binding).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_quote_condition_is_firm(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_firm(code) })
 }
 
 /// True if the quote condition indicates a trading halt.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_quote_condition_is_halted(code: i32) -> bool {
     ffi_boundary!(false, { thetadatadx::utils::conditions::is_halted(code) })
 }
 
 /// Look up the human-readable exchange name for a numeric code.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_exchange_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::exchange::exchange_name(code))
@@ -108,7 +108,7 @@ pub extern "C" fn thetadatadx_exchange_name(code: i32) -> *const c_char {
 }
 
 /// Look up the MIC-like symbol for a numeric exchange code.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_exchange_symbol(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(thetadatadx::utils::exchange::exchange_symbol(code))
@@ -131,7 +131,7 @@ pub extern "C" fn thetadatadx_exchange_symbol(code: i32) -> *const c_char {
 /// # Safety
 /// `out` must be a valid, non-null pointer to a `uint64_t` the caller
 /// keeps alive for the call duration.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
     signed: i64,
     out: *mut u64,
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_signed_to_unsigned(
 /// # Safety
 /// `out` must be a valid, non-null pointer to an `int64_t` the caller
 /// keeps alive for the call duration.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_sequence_unsigned_to_signed(
     unsigned: u64,
     out: *mut i64,
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn thetadatadx_sequence_unsigned_to_signed(
 /// owned by the library and MUST NOT be freed. Returns the literal
 /// `"UNKNOWN"` for codes outside the table; returns `NULL` if the
 /// boundary catches a panic — surfaced through `thetadatadx_last_error()`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_calendar_status_name(code: i32) -> *const c_char {
     ffi_boundary!(std::ptr::null(), {
         static_cstr(
@@ -238,7 +238,7 @@ pub extern "C" fn thetadatadx_calendar_status_name(code: i32) -> *const c_char {
 /// (including the `0` absent fill) or `ms_of_day` is outside
 /// `0..86_400_000` — `-1` is unreachable for real market data (it
 /// denotes 1969-12-31T23:59:59.999Z).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
     ffi_boundary!(-1, {
         thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).unwrap_or(-1)
@@ -261,7 +261,7 @@ pub extern "C" fn thetadatadx_timestamp_ms(date: i32, ms_of_day: i32) -> i64 {
 /// `contract` must be a valid `ThetaDataDxContract` pointer (e.g. the
 /// `event.<variant>.contract` field of a `ThetaDataDxStreamEvent`). `out_dollars`
 /// must be a valid, writable `double` pointer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_contract_strike_dollars(
     contract: *const ThetaDataDxContract,
     out_dollars: *mut f64,
@@ -347,7 +347,7 @@ fn static_cstr(s: &'static str) -> *const c_char {
 /// `thetadatadx_last_error()` string so the caller can verify the downcast path
 /// that handles `&'static str` payloads works end to end.
 #[cfg(feature = "testing-panic-boundary")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_test_panic_str() -> i32 {
     ffi_boundary!(-1, {
         panic!("intentional test panic via &'static str");
@@ -359,7 +359,7 @@ pub extern "C" fn thetadatadx_test_panic_str() -> i32 {
 /// variant so the test suite can exercise both `downcast_ref::<&'static
 /// str>` and `downcast_ref::<String>` branches of the macro.
 #[cfg(feature = "testing-panic-boundary")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_test_panic_string() -> i32 {
     ffi_boundary!(-1, {
         panic!("{}", String::from("intentional test panic via String"));

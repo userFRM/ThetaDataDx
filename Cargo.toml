@@ -1,7 +1,7 @@
 [workspace]
 members = ["thetadatadx-rs", "thetadatadx-ffi"]
 exclude = ["thetadatadx-py", "thetadatadx-ts", "tools/mcp", "tools/server"]
-resolver = "2"
+resolver = "3"
 
 # Shared package metadata. Member crates inherit individual fields via
 # `<field>.workspace = true` so bumping the repo URL, the Apache-2.0
@@ -11,7 +11,7 @@ resolver = "2"
 # independent semver tracks, so each member keeps its own
 # `version = "..."`.
 [workspace.package]
-edition = "2021"
+edition = "2024"
 rust-version = "1.94"
 authors = ["userFRM"]
 license = "Apache-2.0"

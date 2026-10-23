@@ -43,10 +43,10 @@ use thetadatadx::{
 };
 use tokio::sync::Semaphore;
 
+use thetadatadx::DirectConfig;
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::mdds::MarketDataClient;
 use thetadatadx::wire as proto;
-use thetadatadx::DirectConfig;
 
 #[path = "common/grpc_mock.rs"]
 pub mod mock;

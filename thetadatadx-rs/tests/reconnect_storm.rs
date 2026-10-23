@@ -27,13 +27,13 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
+    DeltaState, MAX_PAYLOAD_LEN, decode_frame, read_frame_into,
 };
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
@@ -115,20 +115,20 @@ fn reconnect_storm_preserves_framing_invariants() {
                         &shutdown,
                         &mut delta,
                     );
-                    if let Some(internal) = primary {
-                        if let Some(StreamEvent::Control(c)) = internal.as_public() {
-                            match c {
-                                StreamControl::LoginSuccess { .. } => cycle_logins += 1,
-                                StreamControl::Disconnected { .. } => cycle_disconnects += 1,
-                                StreamControl::ContractAssigned { id, contract } => {
-                                    cycle_contracts.push((cycle, contract.symbol.to_string()));
-                                    assert_eq!(
-                                        *id, 1,
-                                        "fixture invariant: contract id is stable across cycles"
-                                    );
-                                }
-                                _ => {}
+                    if let Some(internal) = primary
+                        && let Some(StreamEvent::Control(c)) = internal.as_public()
+                    {
+                        match c {
+                            StreamControl::LoginSuccess { .. } => cycle_logins += 1,
+                            StreamControl::Disconnected { .. } => cycle_disconnects += 1,
+                            StreamControl::ContractAssigned { id, contract } => {
+                                cycle_contracts.push((cycle, contract.symbol.to_string()));
+                                assert_eq!(
+                                    *id, 1,
+                                    "fixture invariant: contract id is stable across cycles"
+                                );
                             }
+                            _ => {}
                         }
                     }
                 }
@@ -216,10 +216,10 @@ fn post_storm_normal_operation_resumes_immediately() {
             &shutdown,
             &mut delta,
         );
-        if let Some(e) = p {
-            if let Some(public) = e.as_public() {
-                events.push(public.clone());
-            }
+        if let Some(e) = p
+            && let Some(public) = e.as_public()
+        {
+            events.push(public.clone());
         }
     }
 

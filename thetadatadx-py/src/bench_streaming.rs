@@ -47,17 +47,17 @@
 //! the parity gate does not mistake them for untracked cross-binding
 //! utilities.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+use disruptor::{BusySpin, Producer, Sequence, build_single_producer};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
+use thetadatadx::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
-use thetadatadx::Price;
 
 use crate::fpss_event_to_typed;
 use crate::slice_arrow::trade_tick_slice_to_arrow_table;

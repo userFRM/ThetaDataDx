@@ -100,7 +100,7 @@ fn read_header_with_timeout<R: Read>(
                 return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
-                })
+                });
             }
             Ok(read) => {
                 // Forward progress — re-arm the stall clock for the next gap.
@@ -115,7 +115,7 @@ fn read_header_with_timeout<R: Read>(
                 return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
-                })
+                });
             }
             Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
             Err(e) if n == 0 && is_transient_read(&e) => {
@@ -183,7 +183,7 @@ fn read_exact_payload_with_timeout<R: Read>(
                 return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("EOF mid-payload: got {n} of {} bytes", buf.len()),
-                })
+                });
             }
             Ok(k) => {
                 // Forward progress — re-arm the stall clock for the next gap.

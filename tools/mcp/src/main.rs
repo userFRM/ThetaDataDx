@@ -25,7 +25,7 @@ use std::io::Write as _;
 use std::sync::Arc;
 
 use serde::Serialize;
-use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
+use sonic_rs::{JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value, json};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
 use zeroize::Zeroizing;
@@ -33,8 +33,8 @@ use zeroize::Zeroizing;
 use thetadatadx::columns::{Ticks, WireColumns};
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, WaitMode,
-    ENDPOINTS,
+    Client, Credentials, DirectConfig, ENDPOINTS, EndpointMeta, ParamMeta, WaitMode,
+    param_type_to_json_type,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -161,25 +161,23 @@ fn parse_jsonrpc_request(line: &str) -> Result<JsonRpcRequest, JsonRpcResponse> 
 
     // Validate `id` type: JSON-RPC 2.0 spec allows number, string, or null.
     // Reject arrays, objects, and booleans.
-    if let Some(ref id_val) = id {
-        if !(id_val.is_number() || id_val.is_str() || id_val.is_null()) {
-            let type_name = if id_val.is_boolean() {
-                "boolean"
-            } else if id_val.is_array() {
-                "array"
-            } else if id_val.is_object() {
-                "object"
-            } else {
-                "unknown"
-            };
-            return Err(JsonRpcResponse::error(
-                Value::new_null(),
-                -32600,
-                format!(
-                    "Invalid request: 'id' must be a number, string, or null, got: {type_name}"
-                ),
-            ));
-        }
+    if let Some(ref id_val) = id
+        && !(id_val.is_number() || id_val.is_str() || id_val.is_null())
+    {
+        let type_name = if id_val.is_boolean() {
+            "boolean"
+        } else if id_val.is_array() {
+            "array"
+        } else if id_val.is_object() {
+            "object"
+        } else {
+            "unknown"
+        };
+        return Err(JsonRpcResponse::error(
+            Value::new_null(),
+            -32600,
+            format!("Invalid request: 'id' must be a number, string, or null, got: {type_name}"),
+        ));
     }
 
     let jsonrpc = obj
@@ -1295,17 +1293,16 @@ async fn execute_tool(
     // The tool schema advertises exactly the endpoint's parameters. A key
     // outside it, such as a misspelled filter, would be dropped and the call
     // answered as a wider request, so it is refused by name.
-    if let (Some(ep), Some(obj)) = (thetadatadx::find(name), args.as_object()) {
-        if let Some((key, _)) = obj
+    if let (Some(ep), Some(obj)) = (thetadatadx::find(name), args.as_object())
+        && let Some((key, _)) = obj
             .iter()
             .find(|(key, _)| !ep.params.iter().any(|p| p.name == *key))
-        {
-            let accepted: Vec<&str> = ep.params.iter().map(|p| p.name).collect();
-            return Err(ToolError::InvalidParams(format!(
-                "unknown argument '{key}' for {name}; accepted: {}",
-                accepted.join(", ")
-            )));
-        }
+    {
+        let accepted: Vec<&str> = ep.params.iter().map(|p| p.name).collect();
+        return Err(ToolError::InvalidParams(format!(
+            "unknown argument '{key}' for {name}; accepted: {}",
+            accepted.join(", ")
+        )));
     }
 
     // ── Online tools (require connected client) ─────────────────────
@@ -1326,7 +1323,7 @@ async fn execute_tool(
                 return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
             }
             Err(EndpointError::Server(error)) => {
-                return Err(flatfile_tools::classify_core_error(&error))
+                return Err(flatfile_tools::classify_core_error(&error));
             }
         };
 
@@ -1372,21 +1369,21 @@ async fn handle_request(
     // `2026-07-28` moved version negotiation onto every request, so the check
     // happens here rather than once at `initialize`. A request that declares
     // nothing is a handshake-era client and passes through untouched.
-    if let Some(declared) = declared_protocol_version(&req.params) {
-        if !is_supported_protocol_version(declared) {
-            // Field names are load-bearing: the client's retry path reads
-            // `supported` to pick a revision and `requested` to know which of
-            // its own attempts was refused.
-            return JsonRpcResponse::error_with_data(
-                id,
-                UNSUPPORTED_PROTOCOL_VERSION_CODE,
-                "Unsupported protocol version".into(),
-                json!({
-                    "supported": SUPPORTED_PROTOCOL_VERSIONS,
-                    "requested": declared,
-                }),
-            );
-        }
+    if let Some(declared) = declared_protocol_version(&req.params)
+        && !is_supported_protocol_version(declared)
+    {
+        // Field names are load-bearing: the client's retry path reads
+        // `supported` to pick a revision and `requested` to know which of
+        // its own attempts was refused.
+        return JsonRpcResponse::error_with_data(
+            id,
+            UNSUPPORTED_PROTOCOL_VERSION_CODE,
+            "Unsupported protocol version".into(),
+            json!({
+                "supported": SUPPORTED_PROTOCOL_VERSIONS,
+                "requested": declared,
+            }),
+        );
     }
 
     match req.method.as_str() {
@@ -2082,10 +2079,12 @@ mod tests {
             result.get("cacheScope").and_then(|v: &Value| v.as_str()),
             Some("private")
         );
-        assert!(result
-            .get("tools")
-            .and_then(|v: &Value| v.as_array())
-            .is_some());
+        assert!(
+            result
+                .get("tools")
+                .and_then(|v: &Value| v.as_array())
+                .is_some()
+        );
         assert_eq!(
             result
                 .get("_meta")
@@ -2797,10 +2796,10 @@ mod tests {
                 "vega": Value::new_null(),
             }]
         });
-        if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut()) {
-            if let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut()) {
-                row.insert("vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
-            }
+        if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut())
+            && let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut())
+        {
+            row.insert("vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
 
         let id = sonic_rs::json!(42);

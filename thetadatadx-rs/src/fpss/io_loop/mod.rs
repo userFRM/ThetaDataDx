@@ -23,9 +23,9 @@ mod ping;
 // under the feature; otherwise crate-internal, matching the convention used by
 // the crate's other `__internal`-gated surfaces.
 #[cfg(feature = "__internal")]
-pub use login::{wait_for_login, LoginResult};
+pub use login::{LoginResult, wait_for_login};
 #[cfg(not(feature = "__internal"))]
-pub(in crate::fpss) use login::{wait_for_login, LoginResult};
+pub(in crate::fpss) use login::{LoginResult, wait_for_login};
 pub(in crate::fpss) use ping::ping_loop;
 
 use std::collections::HashMap;
@@ -39,15 +39,15 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use disruptor::{
-    build_single_producer, EventPoller, RingBufferFull, Sequence, SingleProducerBarrier,
+    EventPoller, RingBufferFull, Sequence, SingleProducerBarrier, build_single_producer,
 };
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
 use crate::auth::Credentials;
-use crate::backoff::{capped_exponential, JitterMode};
+use crate::backoff::{JitterMode, capped_exponential};
 use crate::config::{
-    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
+    RATE_LIMITED_JITTER_WINDOW, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
 };
 use crate::error::Error;
 
@@ -56,9 +56,9 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{DisconnectCause, FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
-    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush, FrameRead,
+    self, FrameRead, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush,
 };
-use super::protocol::{self, build_login_payload, Contract};
+use super::protocol::{self, Contract, build_login_payload};
 use super::reconnect_delay;
 use super::ring::{
     self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
@@ -338,7 +338,7 @@ fn track_replay_correlation_if_tracked<T: PartialEq>(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .iter()
-        .any(|(k, x, _, gen)| *k == kind && x == key && *gen == snapshot_gen);
+        .any(|(k, x, _, generation)| *k == kind && x == key && *generation == snapshot_gen);
     if same_instance {
         pending.insert(
             req_id,
@@ -2239,11 +2239,11 @@ impl ReconnectCounters {
     /// continues to consume — and eventually exhausts — its retry budget
     /// rather than resetting it on every short-lived cycle.
     fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) -> bool {
-        if let Some(t) = self.last_data_at {
-            if t.elapsed() >= limits.stable_window {
-                self.reset_counters();
-                return true;
-            }
+        if let Some(t) = self.last_data_at
+            && t.elapsed() >= limits.stable_window
+        {
+            self.reset_counters();
+            return true;
         }
         false
     }

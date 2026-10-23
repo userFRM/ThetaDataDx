@@ -18,7 +18,7 @@
 //! Stock and index endpoints stay flat. Timestamps are ISO strings and
 //! the option `right` is spelled `CALL` / `PUT`.
 
-use crate::row::{row, Row};
+use crate::row::{Row, row};
 use sonic_rs::prelude::*;
 use thetadatadx::endpoint::EndpointOutput;
 use thetadatadx::*;
@@ -3335,7 +3335,7 @@ mod tests {
     /// vendor's prices do from row to row within a column.
     #[test]
     fn prices_are_written_at_the_precision_of_their_wire_cell() {
-        use thetadatadx::wire::{data_value::DataType, DataTable, DataValue, DataValueList};
+        use thetadatadx::wire::{DataTable, DataValue, DataValueList, data_value::DataType};
         let text = |text: &str| DataValue {
             data_type: Some(DataType::Text(text.into())),
         };
@@ -4651,7 +4651,8 @@ mod tests {
         // greeks/eod — history-only (spec ~:5361): the twelve EOD trade/quote
         // context columns sit between `timestamp` and the greeks block.
         assert_eq!(
-            csv_header_for("option_history_greeks_eod",
+            csv_header_for(
+                "option_history_greeks_eod",
                 EndpointOutput::GreeksEodTicks(labelled_row(greeks_eod_tick()))
             ),
             "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
@@ -4719,14 +4720,16 @@ mod tests {
         // the bid/mid/ask IV triple the history form (spec ~:7440, 14 cols)
         // keeps. The shape descriptor drives the trim through one serializer.
         assert_eq!(
-            csv_header_for("option_snapshot_greeks_implied_volatility",
+            csv_header_for(
+                "option_snapshot_greeks_implied_volatility",
                 EndpointOutput::IvTicks(labelled_row(iv_tick()))
             ),
             "symbol,expiration,strike,right,timestamp,bid,ask,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_snapshot_greeks_implied_volatility emits the trimmed 11-col v3 snapshot IV schema"
         );
         assert_eq!(
-            csv_header_for("option_history_greeks_implied_volatility",
+            csv_header_for(
+                "option_history_greeks_implied_volatility",
                 EndpointOutput::IvTicks(labelled_row(iv_tick()))
             ),
             "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price",
@@ -4736,36 +4739,49 @@ mod tests {
         // trade_greeks/* — history-only. Each carries the nine trade-side
         // execution columns between `timestamp` and the greeks block.
         assert_eq!(
-            csv_header_for("option_history_trade_greeks_all",
+            csv_header_for(
+                "option_history_trade_greeks_all",
                 EndpointOutput::TradeGreeksAllTicks(labelled_row(trade_greeks_all_tick()))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_all CSV header must match the v3 spec ~:5867"
         );
         assert_eq!(
-            csv_header_for("option_history_trade_greeks_first_order",
-                EndpointOutput::TradeGreeksFirstOrderTicks(labelled_row(trade_greeks_first_order_tick()))
+            csv_header_for(
+                "option_history_trade_greeks_first_order",
+                EndpointOutput::TradeGreeksFirstOrderTicks(labelled_row(
+                    trade_greeks_first_order_tick()
+                ))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_first_order CSV header must match the v3 spec ~:6325"
         );
         assert_eq!(
-            csv_header_for("option_history_trade_greeks_second_order",
-                EndpointOutput::TradeGreeksSecondOrderTicks(labelled_row(trade_greeks_second_order_tick()))
+            csv_header_for(
+                "option_history_trade_greeks_second_order",
+                EndpointOutput::TradeGreeksSecondOrderTicks(labelled_row(
+                    trade_greeks_second_order_tick()
+                ))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_second_order CSV header must match the v3 spec ~:6782"
         );
         assert_eq!(
-            csv_header_for("option_history_trade_greeks_third_order",
-                EndpointOutput::TradeGreeksThirdOrderTicks(labelled_row(trade_greeks_third_order_tick()))
+            csv_header_for(
+                "option_history_trade_greeks_third_order",
+                EndpointOutput::TradeGreeksThirdOrderTicks(labelled_row(
+                    trade_greeks_third_order_tick()
+                ))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_third_order CSV header must match the v3 spec ~:7233"
         );
         assert_eq!(
-            csv_header_for("option_history_trade_greeks_implied_volatility",
-                EndpointOutput::TradeGreeksImpliedVolatilityTicks(labelled_row(trade_greeks_iv_tick()))
+            csv_header_for(
+                "option_history_trade_greeks_implied_volatility",
+                EndpointOutput::TradeGreeksImpliedVolatilityTicks(labelled_row(
+                    trade_greeks_iv_tick()
+                ))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_implied_volatility CSV header must match the v3 spec ~:7637"

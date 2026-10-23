@@ -109,8 +109,9 @@ pub struct RecordBatchStream {
 fn next_batch(
     reader: &RecordBatchStream,
 ) -> impl std::future::Future<Output = Result<Option<arrow::array::RecordBatch>, thetadatadx::Error>>
-       + Send
-       + 'static {
++ Send
++ 'static
++ use<> {
     let inner = Arc::clone(&reader.inner);
     let pull = Arc::clone(&reader.pull);
     async move {

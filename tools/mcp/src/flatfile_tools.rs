@@ -25,9 +25,9 @@
 //! `output_path` writes to a deterministic temp path and surfaces it in
 //! the response.
 
-use sonic_rs::{json, JsonValueTrait, Value};
-use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType, SERVED_DATASETS};
+use sonic_rs::{JsonValueTrait, Value, json};
 use thetadatadx::Client;
+use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SERVED_DATASETS, SecType, flat_file_serves};
 
 /// Tool name of the multi-asset flat-file dispatcher. Shared so the tool
 /// registration and the `tools/list` subscription gate agree on one literal.

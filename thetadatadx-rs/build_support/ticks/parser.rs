@@ -20,7 +20,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use super::schema::{load_schema, ColumnDef, TickTypeDef};
+use super::schema::{ColumnDef, TickTypeDef, load_schema};
 
 /// Loads the tick schema and writes `decode_generated.rs` with one two-phase
 /// parser function per tick type, in deterministic name order.

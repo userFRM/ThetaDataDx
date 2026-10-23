@@ -9,7 +9,7 @@
 use std::fmt::Write as _;
 
 use super::common::{control_rust_variant, control_variant_mapping, rust_field_type};
-use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema};
+use super::schema::{EventDef, Schema, sorted_control_events, sorted_event_names};
 
 /// Emit the `BufferedEvent` enum + the `fpss_event_to_buffered` converter
 /// in a form the TypeScript (`napi-rs`) SDK can `include!`.

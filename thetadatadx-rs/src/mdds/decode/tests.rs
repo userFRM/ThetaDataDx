@@ -11,9 +11,9 @@ use super::dual_type_columns::{
 #[cfg(feature = "__internal")]
 use super::extract_number_column;
 use super::{
-    parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
+    DecodeError, parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_first_order_ticks,
     parse_greeks_second_order_ticks, parse_greeks_third_order_ticks, parse_interval_quote_ticks,
-    parse_quote_ticks, parse_trade_quote_ticks, parse_trade_ticks, DecodeError,
+    parse_quote_ticks, parse_trade_quote_ticks, parse_trade_ticks,
 };
 use crate::columns::WireColumns;
 use crate::proto;

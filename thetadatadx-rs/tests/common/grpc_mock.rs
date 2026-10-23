@@ -24,11 +24,11 @@ use h2::server::SendResponse;
 use http::{HeaderMap, HeaderName, HeaderValue, Response, StatusCode};
 use prost::Message;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{Notify, oneshot};
 use tokio::task::JoinHandle;
 
 use thetadatadx::grpc::ChannelError;
-use thetadatadx::wire::{data_value, DataValue, DataValueList, ResponseData};
+use thetadatadx::wire::{DataValue, DataValueList, ResponseData, data_value};
 
 /// Compose a length-prefix gRPC frame from a protobuf message.
 pub fn frame<M: Message>(msg: &M) -> Bytes {
@@ -310,12 +310,12 @@ pub async fn serve_one_connection(
                     return;
                 }
                 completed = completed.saturating_add(1);
-                if let Some((notify, target)) = ping_pong_signal.as_ref() {
-                    if completed == *target {
-                        // `notify_one` stores a permit if the waiter is not yet
-                        // parked, so this one-shot edge cannot be lost to a race.
-                        notify.notify_one();
-                    }
+                if let Some((notify, target)) = ping_pong_signal.as_ref()
+                    && completed == *target
+                {
+                    // `notify_one` stores a permit if the waiter is not yet
+                    // parked, so this one-shot edge cannot be lost to a race.
+                    notify.notify_one();
                 }
                 tokio::time::sleep(interval).await;
             }
@@ -437,15 +437,15 @@ async fn handle_request(
             request_buf.extend_from_slice(&chunk);
         }
     }
-    if let Some(target) = behaviour.capture_request_bytes.as_ref() {
-        if request_buf.len() >= 5 {
-            // gRPC frame layout: 1 compressed flag + 4 big-endian
-            // length + payload. Strip the header so tests get clean
-            // protobuf bytes ready for `prost::Message::decode`.
-            if let Ok(mut guard) = target.lock() {
-                guard.clear();
-                guard.extend_from_slice(&request_buf[5..]);
-            }
+    if let Some(target) = behaviour.capture_request_bytes.as_ref()
+        && request_buf.len() >= 5
+    {
+        // gRPC frame layout: 1 compressed flag + 4 big-endian
+        // length + payload. Strip the header so tests get clean
+        // protobuf bytes ready for `prost::Message::decode`.
+        if let Ok(mut guard) = target.lock() {
+            guard.clear();
+            guard.extend_from_slice(&request_buf[5..]);
         }
     }
     if behaviour.assert_request_bytes {

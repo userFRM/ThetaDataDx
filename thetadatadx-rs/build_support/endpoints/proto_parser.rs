@@ -128,7 +128,7 @@ fn is_simple_list_method(method: &str) -> bool {
 fn rpc_to_method(rpc_name: &str) -> String {
     // Strip leading "Get"
     let name = rpc_name.strip_prefix("Get").unwrap_or(rpc_name); // build script: panic is intentional
-                                                                 // PascalCase → snake_case
+    // PascalCase → snake_case
     let mut result = String::new();
     for (i, ch) in name.chars().enumerate() {
         if ch.is_uppercase() {

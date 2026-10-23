@@ -12,7 +12,7 @@ use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketD
 /// Create credentials from email and password strings.
 ///
 /// Returns null on invalid input (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_email(
     email: *const c_char,
     password: *const c_char,
@@ -31,7 +31,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_email(
 /// held as secret material on the resulting handle.
 ///
 /// Returns null on invalid input (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_api_key(
     api_key: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_api_key(
 /// handle.
 ///
 /// Returns null on invalid input (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_api_key_with_email(
     email: *const c_char,
     api_key: *const c_char,
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_api_key_with_email(
 /// Load credentials from a file (line 1 = email, line 2 = password).
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_file(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_file(
 /// when a file fallback is wanted instead.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_credentials_from_env() -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
         match thetadatadx::Credentials::from_env() {
@@ -112,7 +112,7 @@ pub extern "C" fn thetadatadx_credentials_from_env() -> *mut ThetaDataDxCredenti
 /// `path` is read.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_env_or_file(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_env_or_file(
 /// pair builds email + password credentials.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_from_dotenv(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_dotenv(
 }
 
 /// Free a credentials handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_credentials_free(creds: *mut ThetaDataDxCredentials) {
     ffi_boundary!((), {
         if !creds.is_null() {
@@ -167,7 +167,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_free(creds: *mut ThetaDataDxCre
 // ── Config ──
 
 /// Create a production config (`ThetaData` NJ datacenter).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_config_production() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
         Box::into_raw(Box::new(ThetaDataDxConfig {
@@ -177,7 +177,7 @@ pub extern "C" fn thetadatadx_config_production() -> *mut ThetaDataDxConfig {
 }
 
 /// Create a dev config (streaming dev servers, port 20200, infinite replay).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
         Box::into_raw(Box::new(ThetaDataDxConfig {
@@ -188,7 +188,7 @@ pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
 
 /// Create a market-data-staging config (market-data staging cluster + auth marker;
 /// streaming stays on production). Unstable.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
         Box::into_raw(Box::new(ThetaDataDxConfig {
@@ -204,7 +204,7 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
 /// streaming channel untouched. Returns `0` on success. Returns `-1` with
 /// `thetadatadx_last_error` set when `config` is null or when `kind` is
 /// outside the documented `{0, 1}` set.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_with_market_data_environment(
     config: *mut ThetaDataDxConfig,
     kind: i32,
@@ -249,7 +249,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_market_data_environment(
 /// leaves the market-data channel and the auth marker untouched. Returns `0`
 /// on success. Returns `-1` with `thetadatadx_last_error` set when `config`
 /// is null or when `kind` is outside the documented `{0, 1, 2}` set.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
     config: *mut ThetaDataDxConfig,
     kind: i32,
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
 /// `THETADATA_MARKET_DATA_TYPE`.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_from_dotenv(
     path: *const c_char,
 ) -> *mut ThetaDataDxConfig {
@@ -312,7 +312,7 @@ pub unsafe extern "C" fn thetadatadx_config_from_dotenv(
 }
 
 /// Free a config handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig) {
     ffi_boundary!((), {
         if !config.is_null() {
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
 /// dotenv key) set the market-data channel, and this is the readback of
 /// that selection. Returns null if `config` is null (the diagnostic is
 /// written to `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
@@ -365,7 +365,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
 /// the `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
 /// this is the readback of that selection. Returns null if `config` is null
 /// (the diagnostic is written to `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
@@ -399,7 +399,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
 /// delivery; an out-of-range or offline core is a best-effort no-op at
 /// the affinity layer rather than an error. Returns `0` on success, `-1`
 /// (code `THETADATADX_ERR_CONFIG`) on a null handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_consumer_cpu(
     config: *mut ThetaDataDxConfig,
     core: i64,
@@ -422,7 +422,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_consumer_cpu(
 /// Read the streaming consumer-thread CPU pin. Writes the pinned core
 /// into `*out_core`, or `THETADATADX_CONSUMER_CPU_UNPINNED` (`-1`) when
 /// unpinned. Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_consumer_cpu(
     config: *const ThetaDataDxConfig,
     out_core: *mut i64,
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_consumer_cpu(
 /// with the same typed class the Python / TypeScript bindings raise
 /// rather than being silently coerced to `Auto`. A null `config` is
 /// rejected with `THETADATADX_ERR_CONFIG`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
     config: *mut ThetaDataDxConfig,
     policy: i32,
@@ -510,7 +510,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
 /// Writes `0` (`Auto`), `1` (`Manual`), or `2` (`Custom`) into
 /// `*out_policy`. Returns `0` on success, `-1` if either pointer is
 /// null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
     config: *const ThetaDataDxConfig,
     out_policy: *mut i32,
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
 /// at the setter boundary: the config is left unchanged and the failure
 /// reason is written to thread-local storage retrievable via
 /// `thetadatadx_last_error()`. Default is `131_072`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
     config: *mut ThetaDataDxConfig,
     n: usize,
@@ -612,7 +612,7 @@ pub type ThetaDataDxReconnectCallback =
 /// default `Auto` reconnect policy.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
     config: *mut ThetaDataDxConfig,
     cb: Option<ThetaDataDxReconnectCallback>,
@@ -704,7 +704,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
 /// on a subsequent `config` has no effect.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_worker_threads(
     config: *mut ThetaDataDxConfig,
     has_value: bool,
@@ -731,7 +731,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_worker_threads(
 /// * `*out_has_value = true` → `Some(*out_n)`.
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
     config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
@@ -786,7 +786,7 @@ include!("config_accessors.rs");
 /// (authenticates via Nexus API).
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_market_data_connect(
     creds: *const ThetaDataDxCredentials,
     config: *const ThetaDataDxConfig,
@@ -828,7 +828,7 @@ pub unsafe extern "C" fn thetadatadx_market_data_connect(
 ///
 /// Returns null on argument validation or connection/auth failure
 /// (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_market_data_connect_from_file(
     path: *const c_char,
     config: *const ThetaDataDxConfig,
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn thetadatadx_market_data_connect_from_file(
 }
 
 /// Free a market-data client handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_market_data_free(client: *mut ThetaDataDxMarketDataClient) {
     ffi_boundary!((), {
         if !client.is_null() {

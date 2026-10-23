@@ -48,7 +48,7 @@ mod session;
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
 pub use self::events::{DisconnectCause, StreamControl, StreamData, StreamEvent};
-use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
+use self::io_loop::{LoginResult, io_loop, ping_loop, wait_for_login};
 pub use self::session::{reconnect_delay, reconnect_delay_for};
 
 // Lock-free event ring buffer plumbing. The third-party ring-buffer
@@ -78,7 +78,7 @@ pub mod __test_internals {
     pub use super::decode::decode_frame;
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
-    pub use super::framing::{read_frame_into, MAX_PAYLOAD_LEN};
+    pub use super::framing::{MAX_PAYLOAD_LEN, read_frame_into};
 
     // Production ring-constructor surface, re-exported so the streaming
     // channel bench can time the exact pipeline the live client builds:
@@ -104,15 +104,15 @@ pub mod __test_internals {
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
 pub mod internals {
-    pub use super::connection::{connect_to_servers, FpssStream, TcpKeepaliveSpec};
+    pub use super::connection::{FpssStream, TcpKeepaliveSpec, connect_to_servers};
     pub use super::decode::decode_frame;
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
     pub use super::framing::{
-        is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
-        write_raw_frame_no_flush, FrameRead, MAX_PAYLOAD_LEN,
+        FrameRead, MAX_PAYLOAD_LEN, is_transient_read, read_frame_into_with_stall_timeout,
+        write_raw_frame, write_raw_frame_no_flush,
     };
-    pub use super::io_loop::{wait_for_login, LoginResult};
+    pub use super::io_loop::{LoginResult, wait_for_login};
     pub use super::protocol::wire::{
         build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
         build_stop_payload, build_subscribe_payload,
@@ -132,7 +132,7 @@ use crate::config::{ReconnectConfig, ReconnectPolicy, StreamingConfig, WaitMode}
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
-use self::protocol::{build_login_payload, build_subscribe_payload, Contract, SubscriptionKind};
+use self::protocol::{Contract, SubscriptionKind, build_login_payload, build_subscribe_payload};
 
 /// Capacity of the bounded command channel from the public surface and the
 /// ping thread to the I/O thread.
@@ -1778,10 +1778,10 @@ impl StreamingClient {
         // than set-once so a (legitimate) change of drain owner corrects
         // the recorded identity instead of pinning a stale one.
         let cur = thread::current().id();
-        if let Ok(mut id) = self.consumer_thread_id.lock() {
-            if *id != Some(cur) {
-                *id = Some(cur);
-            }
+        if let Ok(mut id) = self.consumer_thread_id.lock()
+            && *id != Some(cur)
+        {
+            *id = Some(cur);
         }
         if self.consumer_cpu.is_none() {
             return;
@@ -1792,11 +1792,11 @@ impl StreamingClient {
         // thread's affinity. Holding the lock across the syscall keeps
         // the check-and-pin atomic against a concurrent handoff; on the
         // single-consumer path the branch is taken exactly once.
-        if let Ok(mut pinned) = self.consumer_pinned_to.lock() {
-            if *pinned != Some(cur) {
-                affinity::pin_consumer_thread(self.consumer_cpu);
-                *pinned = Some(cur);
-            }
+        if let Ok(mut pinned) = self.consumer_pinned_to.lock()
+            && *pinned != Some(cur)
+        {
+            affinity::pin_consumer_thread(self.consumer_cpu);
+            *pinned = Some(cur);
         }
     }
 
@@ -2781,7 +2781,7 @@ impl StreamingClient {
     where
         F: FnMut(&StreamEvent) + Send + 'static,
     {
-        use disruptor::{build_single_producer, BusySpin, Sequence}; // VOCAB-OK: internal crate name
+        use disruptor::{BusySpin, Sequence, build_single_producer}; // VOCAB-OK: internal crate name
 
         use self::events::FpssEventInternal;
         use self::ring::RingEvent;
@@ -3426,7 +3426,7 @@ mod builder_tests {
 
 #[cfg(test)]
 mod full_stream_guard_tests {
-    use super::{full_stream_supported, HarnessPublishMode, StreamingClient, SubscriptionKind};
+    use super::{HarnessPublishMode, StreamingClient, SubscriptionKind, full_stream_supported};
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::{Contract, SecTypeExt};
     use crate::tdbe::types::enums::SecType;
@@ -4010,8 +4010,8 @@ mod full_stream_guard_tests {
 
 #[cfg(test)]
 mod panic_isolation_tests {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
     use super::{HarnessPublishMode, StreamingClient};
@@ -4170,8 +4170,8 @@ mod panic_isolation_tests {
 
 #[cfg(test)]
 mod ring_occupancy_tests {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::Duration;
 
     use super::events::FpssEventInternal;
@@ -4263,14 +4263,18 @@ mod ring_occupancy_tests {
         );
 
         // The two staged events still arrive.
-        assert!(client
-            .try_next_event()
-            .expect("staging mutex must not be poisoned")
-            .is_some());
-        assert!(client
-            .try_next_event()
-            .expect("staging mutex must not be poisoned")
-            .is_some());
+        assert!(
+            client
+                .try_next_event()
+                .expect("staging mutex must not be poisoned")
+                .is_some()
+        );
+        assert!(
+            client
+                .try_next_event()
+                .expect("staging mutex must not be poisoned")
+                .is_some()
+        );
     }
 
     /// The dispatcher-thread harness keeps the same contract end to

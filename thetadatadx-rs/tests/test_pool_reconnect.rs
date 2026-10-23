@@ -30,9 +30,9 @@ use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
 use thetadatadx::grpc::{Channel, ChannelError, ChannelPool};
-use thetadatadx::wire::{data_value, DataValue, DataValueList, ResponseData};
+use thetadatadx::wire::{DataValue, DataValueList, ResponseData, data_value};
 
-use grpc_mock_server::{serve_one_connection, MockBehaviour};
+use grpc_mock_server::{MockBehaviour, serve_one_connection};
 
 /// Multi-accept mock: accepts up to `behaviours.len()` TCP connections
 /// in sequence, serving connection `i` with `behaviours[i]`. The

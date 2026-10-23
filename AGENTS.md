@@ -16,7 +16,7 @@ binaries.
 | Path | What it is |
 | --- | --- |
 | `thetadatadx-rs/` | The core. gRPC market-data client (MDDS), the streaming client (FPSS), decode, flat files, config, auth. Everything else is a projection of this. |
-| `thetadatadx-ffi/` | The C ABI. `#[no_mangle] extern "C"` symbols the C++ SDK links against. |
+| `thetadatadx-ffi/` | The C ABI. `#[unsafe(no_mangle)] extern "C"` symbols the C++ SDK links against. |
 | `thetadatadx-py/` | Python bindings (PyO3). Ships as `thetadatadx-py` on PyPI, imports as `thetadatadx`. |
 | `thetadatadx-ts/` | TypeScript/Node bindings (napi-rs). |
 | `thetadatadx-cpp/` | Header-and-source C++ SDK over the C ABI. CMake. |

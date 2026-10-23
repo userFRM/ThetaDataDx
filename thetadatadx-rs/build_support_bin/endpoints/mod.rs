@@ -67,8 +67,8 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 /// wrapper, which carries the column presence and so each row's root. Keying
 /// emission on the same predicate the endpoint emitter uses keeps a tick type
 /// no plain-list snapshot returns from landing as a dead-code function.
-pub fn snapshot_return_types(
-) -> Result<std::collections::HashSet<String>, Box<dyn std::error::Error>> {
+pub fn snapshot_return_types()
+-> Result<std::collections::HashSet<String>, Box<dyn std::error::Error>> {
     let endpoints = parser::load_endpoint_specs()?;
     Ok(endpoints
         .endpoints

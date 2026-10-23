@@ -27,7 +27,7 @@ mod spec;
 mod typescript;
 
 use spec::{
-    load_sdk_surface_spec, validate_spec, MethodSpec, MethodTarget, UtilitySpec, UtilityTarget,
+    MethodSpec, MethodTarget, UtilitySpec, UtilityTarget, load_sdk_surface_spec, validate_spec,
 };
 
 struct GeneratedSourceFile {

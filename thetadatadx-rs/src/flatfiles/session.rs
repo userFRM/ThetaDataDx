@@ -14,18 +14,18 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use rustls::pki_types::ServerName;
 use rustls::ClientConfig;
+use rustls::pki_types::ServerName;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
-use tokio_rustls::client::TlsStream;
 use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
 
 use crate::auth::Credentials;
 use crate::error::{AuthErrorKind, Error};
-use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
+use crate::flatfiles::framing::{Frame, msg, read_frame, write_frame};
 use crate::flatfiles::mdds_spki::ALLOWED_MDDS_HOSTS;
-use crate::flatfiles::types::{disconnect_reason_code, FlatFilesUnavailableReason};
+use crate::flatfiles::types::{FlatFilesUnavailableReason, disconnect_reason_code};
 use crate::fpss::pinning::PinnedVerifier;
 use crate::fpss::protocol::build_login_payload;
 use crate::tdbe::types::enums::RemoveReason;

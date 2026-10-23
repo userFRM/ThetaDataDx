@@ -18,7 +18,7 @@ use heck::{ToLowerCamelCase, ToSnakeCase};
 
 use super::idents::rust_field_ident;
 use super::python_classes::strip_field_count_from_doc;
-use super::schema::{render_for_type, Schema, TickTypeDef};
+use super::schema::{Schema, TickTypeDef, render_for_type};
 use super::sorted_type_names;
 use super::tdbe_structs::timestamp_accessor_fields;
 

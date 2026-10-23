@@ -112,14 +112,14 @@ impl From<&[String]> for SymbolInput {
 /// server can return the canonical validation error.
 fn normalize_time_of_day(time_of_day: &str) -> String {
     if time_of_day.bytes().all(|b| b.is_ascii_digit()) {
-        if let Ok(total_ms) = time_of_day.parse::<u64>() {
-            if total_ms < 86_400_000 {
-                let hours = total_ms / 3_600_000;
-                let minutes = (total_ms % 3_600_000) / 60_000;
-                let seconds = (total_ms % 60_000) / 1_000;
-                let millis = total_ms % 1_000;
-                return format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}");
-            }
+        if let Ok(total_ms) = time_of_day.parse::<u64>()
+            && total_ms < 86_400_000
+        {
+            let hours = total_ms / 3_600_000;
+            let minutes = (total_ms % 3_600_000) / 60_000;
+            let seconds = (total_ms % 60_000) / 1_000;
+            let millis = total_ms % 1_000;
+            return format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}");
         }
         return time_of_day.to_string();
     }

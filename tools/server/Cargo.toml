@@ -1,7 +1,7 @@
 [package]
 name = "thetadatadx-server"
 version = "0.7.0"
-edition = "2021"
+edition = "2024"
 rust-version = "1.94"
 authors = ["userFRM"]
 description = "Drop-in Rust replacement for the ThetaData JVM terminal"

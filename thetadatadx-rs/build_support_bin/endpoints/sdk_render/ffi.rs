@@ -213,7 +213,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     // the comment block.
     super::doc::doc_lines(&mut out, "", &endpoint.description);
     out.push_str("///\n/// Accepts optional builder parameters.\n");
-    out.push_str("#[no_mangle]\n");
+    out.push_str("#[unsafe(no_mangle)]\n");
     write!(
         out,
         "pub unsafe extern \"C\" fn thetadatadx_{}_with_options(\n    client: *const ThetaDataDxMarketDataClient",
@@ -413,7 +413,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("/// single chunk. Accepts the same optional builder parameters as the\n");
     out.push_str("/// buffered form. Returns 0 on a clean drain, -1 on error (inspect\n");
     out.push_str("/// `thetadatadx_last_error`).\n");
-    out.push_str("#[no_mangle]\n");
+    out.push_str("#[unsafe(no_mangle)]\n");
     write!(
         out,
         "pub unsafe extern \"C\" fn thetadatadx_{}_stream(\n    client: *const ThetaDataDxMarketDataClient",

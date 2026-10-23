@@ -175,7 +175,7 @@ fn in_delivery_handler_thread() -> bool {
 
 #[cfg(test)]
 mod delivery_guard_tests {
-    use super::{in_delivery_handler_thread, DeliveryHandlerGuard};
+    use super::{DeliveryHandlerGuard, in_delivery_handler_thread};
 
     #[test]
     fn guard_marks_thread_and_nests() {
@@ -387,7 +387,7 @@ impl Config {
             other => {
                 return Err(errors::invalid_parameter_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
-                )))
+                )));
             }
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

@@ -206,11 +206,11 @@ pub(crate) fn present_columns_from(
         if is_derived_date(field) {
             continue;
         }
-        if let Some(i) = headers.iter().position(|&h| h == wire) {
-            if !claimed[i] {
-                claimed[i] = true;
-                owner[ci] = Some(i);
-            }
+        if let Some(i) = headers.iter().position(|&h| h == wire)
+            && !claimed[i]
+        {
+            claimed[i] = true;
+            owner[ci] = Some(i);
         }
     }
     // Pass 2: alias matches claim any header still unclaimed.
@@ -218,25 +218,25 @@ pub(crate) fn present_columns_from(
         if is_derived_date(field) || owner[ci].is_some() || headers.contains(&wire) {
             continue;
         }
-        if let Some(i) = find_header(headers, wire) {
-            if !claimed[i] {
-                claimed[i] = true;
-                owner[ci] = Some(i);
-            }
+        if let Some(i) = find_header(headers, wire)
+            && !claimed[i]
+        {
+            claimed[i] = true;
+            owner[ci] = Some(i);
         }
     }
     // Date fields: primary claimant when the header is free, derived sibling
     // when a time field already claimed the shared `Timestamp` — present
     // either way.
     for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
-        if is_derived_date(field) {
-            if let Some(i) = find_header(headers, wire) {
-                owner[ci] = Some(i);
-                // Keep `claimed` consistent: the date feeds a present column, so
-                // its header is claimed (idempotent when a `*_ms_of_day` sibling
-                // already claimed the shared `Timestamp`).
-                claimed[i] = true;
-            }
+        if is_derived_date(field)
+            && let Some(i) = find_header(headers, wire)
+        {
+            owner[ci] = Some(i);
+            // Keep `claimed` consistent: the date feeds a present column, so
+            // its header is claimed (idempotent when a `*_ms_of_day` sibling
+            // already claimed the shared `Timestamp`).
+            claimed[i] = true;
         }
     }
 

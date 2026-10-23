@@ -32,16 +32,16 @@
 
 use std::ffi::c_void;
 use std::hint::black_box;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use disruptor::{BusySpin, Producer, Sequence, build_single_producer};
+use thetadatadx::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
-use thetadatadx::Price;
 
 /// Events shipped per Criterion sample. Sized so per-iteration wall
 /// clock dwarfs Criterion measurement overhead and so the consumer

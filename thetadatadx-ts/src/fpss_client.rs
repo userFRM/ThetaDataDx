@@ -46,15 +46,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use thetadatadx::DispatcherSession;
 use thetadatadx::auth::{self, Credentials as RustCredentials};
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::{self, StreamingClient as RustStreamingClient};
-use thetadatadx::DispatcherSession;
 
 use crate::fluent::Subscription;
 use crate::{
-    buffered_event_to_typed, config_or_production, fpss_event_to_buffered, runtime, to_napi_err,
-    Config, Credentials, StreamEvent, TsfnCallback,
+    Config, Credentials, StreamEvent, TsfnCallback, buffered_event_to_typed, config_or_production,
+    fpss_event_to_buffered, runtime, to_napi_err,
 };
 
 /// Grace window a teardown gives the dispatcher to exit on its own — by
@@ -483,16 +483,15 @@ impl Drop for StreamingClient {
             on_teardown,
             ..
         } = prev_session
+            && handle.thread().id() != std::thread::current().id()
         {
-            if handle.thread().id() != std::thread::current().id() {
-                // Signal-grace-wake-join: the ring shutdown above releases a
-                // dispatcher parked on the ring; the wake hook fires only as a
-                // fallback if the dispatcher is still blocked off the ring (a
-                // full bounded callback queue) after the grace window, aborting
-                // the threadsafe function so the blocked `call` returns and the
-                // join completes. See `join_dispatcher_with_wake`.
-                let _ = join_dispatcher_with_wake(handle, on_teardown);
-            }
+            // Signal-grace-wake-join: the ring shutdown above releases a
+            // dispatcher parked on the ring; the wake hook fires only as a
+            // fallback if the dispatcher is still blocked off the ring (a
+            // full bounded callback queue) after the grace window, aborting
+            // the threadsafe function so the blocked `call` returns and the
+            // join completes. See `join_dispatcher_with_wake`.
+            let _ = join_dispatcher_with_wake(handle, on_teardown);
         }
     }
 }
@@ -640,27 +639,26 @@ impl StreamingClient {
                 on_teardown,
                 ..
             } = prev_session
+                && handle.thread().id() != std::thread::current().id()
             {
-                if handle.thread().id() != std::thread::current().id() {
-                    // Signal-grace-wake-join. `client.shutdown()` above signals
-                    // the ring; the dispatcher drains it, exits on its own and
-                    // is joined without ever firing the hook. The hook aborts
-                    // the function only if the dispatcher is still running after
-                    // the grace window and this join runs on the Node main
-                    // thread, which then cannot drain a full bounded callback
-                    // queue the dispatcher's `Blocking` tsfn `call` is parked
-                    // in. That abort makes the dispatcher resume, see the
-                    // shutdown, and let the join return. `reconnect()` joins on
-                    // a blocking worker, so the hook never fires there and the
-                    // function stays reusable (see the constant docs above).
-                    if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
-                        let reason = panic_reason(payload.as_ref());
-                        let mut guard = dispatcher
-                            .lock()
-                            .unwrap_or_else(std::sync::PoisonError::into_inner);
-                        if matches!(*guard, DispatcherSession::Idle) {
-                            *guard = DispatcherSession::Failed { reason };
-                        }
+                // Signal-grace-wake-join. `client.shutdown()` above signals
+                // the ring; the dispatcher drains it, exits on its own and
+                // is joined without ever firing the hook. The hook aborts
+                // the function only if the dispatcher is still running after
+                // the grace window and this join runs on the Node main
+                // thread, which then cannot drain a full bounded callback
+                // queue the dispatcher's `Blocking` tsfn `call` is parked
+                // in. That abort makes the dispatcher resume, see the
+                // shutdown, and let the join return. `reconnect()` joins on
+                // a blocking worker, so the hook never fires there and the
+                // function stays reusable (see the constant docs above).
+                if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
+                    let reason = panic_reason(payload.as_ref());
+                    let mut guard = dispatcher
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if matches!(*guard, DispatcherSession::Idle) {
+                        *guard = DispatcherSession::Failed { reason };
                     }
                 }
             }

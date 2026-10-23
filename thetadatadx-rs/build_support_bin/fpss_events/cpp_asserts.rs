@@ -12,7 +12,7 @@ use super::layout::{
     c_struct_offsets, c_struct_size, contract_field_offsets, contract_size, fpss_event_offsets,
     fpss_event_size,
 };
-use super::schema::{sorted_control_events, sorted_data_events, EventDef, Schema};
+use super::schema::{EventDef, Schema, sorted_control_events, sorted_data_events};
 
 /// Emit direct size + per-field offset asserts for the shared
 /// `ThetaDataDxContract`. Every data event embeds this struct by value, so an

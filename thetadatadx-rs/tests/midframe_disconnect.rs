@@ -17,7 +17,7 @@
 
 use std::io::{Cursor, Error as IoError, ErrorKind, Read};
 
-use thetadatadx::fpss::__test_internals::{read_frame_into, MAX_PAYLOAD_LEN};
+use thetadatadx::fpss::__test_internals::{MAX_PAYLOAD_LEN, read_frame_into};
 
 // ---------------------------------------------------------------------------
 // Read adapters

@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 
 use super::common::{c_ffi_scalar, is_byte_buffer, snake_case};
 use super::schema::{
-    sorted_control_events, sorted_data_events, sorted_event_names, EventDef, Schema,
+    EventDef, Schema, sorted_control_events, sorted_data_events, sorted_event_names,
 };
 
 /// Emit the `ThetaDataDxStreamEventKind` C enum. One discriminant per variant,

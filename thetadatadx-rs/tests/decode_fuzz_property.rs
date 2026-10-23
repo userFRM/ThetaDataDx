@@ -21,16 +21,16 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use proptest::prelude::*;
 
+use thetadatadx::StreamMsgType;
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
+    DeltaState, MAX_PAYLOAD_LEN, decode_frame, read_frame_into,
 };
 use thetadatadx::fpss::protocol::Contract;
-use thetadatadx::StreamMsgType;
 
 /// Drive arbitrary bytes through the read+decode pipeline and assert
 /// the only observable outcomes are: bounded number of frames yielded,

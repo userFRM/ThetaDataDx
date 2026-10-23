@@ -66,7 +66,7 @@ use std::time::{Duration, Instant};
 use arrow_array::RecordBatch;
 use arrow_schema::Schema;
 
-use super::batch_schema::{stream_batch_schema, StreamBatchBuilder};
+use super::batch_schema::{StreamBatchBuilder, stream_batch_schema};
 use super::{StreamEvent, StreamingClient};
 use crate::client::{Client, StreamingState};
 use crate::streaming::StreamError;
@@ -1038,8 +1038,8 @@ pub(crate) mod test_harness {
 
 #[cfg(test)]
 mod tests {
-    use super::test_harness::{harness, quote, trade};
     use super::Backpressure;
+    use super::test_harness::{harness, quote, trade};
     use crate::fpss::batch_schema::stream_batch_schema;
     use crate::fpss::protocol::Contract;
     use std::sync::Arc;
@@ -1415,7 +1415,7 @@ mod tests {
     /// clamp is the single chokepoint both the builder setter and `start` use.
     #[test]
     fn batch_size_is_clamped_to_the_bound() {
-        use super::{clamp_batch_size, MAX_BATCH_SIZE};
+        use super::{MAX_BATCH_SIZE, clamp_batch_size};
         assert_eq!(clamp_batch_size(0), 1, "zero clamps up to 1");
         assert_eq!(clamp_batch_size(1), 1);
         assert_eq!(clamp_batch_size(4_096), 4_096, "an in-range value is kept");

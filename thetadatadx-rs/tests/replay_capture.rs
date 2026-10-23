@@ -26,19 +26,19 @@
 
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use thetadatadx::{RemoveReason, SecType, StreamMsgType};
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
+    DeltaState, MAX_PAYLOAD_LEN, decode_frame, read_frame_into,
 };
+use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::protocol::test_wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
     build_subscribe_payload,
 };
-use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
 
 // ---------------------------------------------------------------------------
@@ -243,10 +243,10 @@ fn replay_success_fixture_emits_expected_event_sequence() {
                     &shutdown,
                     &mut delta_state,
                 );
-                if let Some(e) = primary {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
+                if let Some(e) = primary
+                    && let Some(public) = e.as_public()
+                {
+                    events.push(public.clone());
                 }
             }
             Ok(None) => break, // clean EOF
@@ -355,10 +355,10 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
                     &shutdown,
                     &mut delta_state,
                 );
-                if let Some(e) = primary {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
+                if let Some(e) = primary
+                    && let Some(public) = e.as_public()
+                {
+                    events.push(public.clone());
                 }
             }
             Ok(None) => break, // clean EOF

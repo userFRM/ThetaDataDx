@@ -32,8 +32,8 @@ use tokio::sync::Semaphore;
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::mdds::MarketDataClient;
 use thetadatadx::wire::{
-    data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-    ResponseData,
+    CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList, ResponseData,
+    data_value,
 };
 use thetadatadx::{DirectConfig, Error, RetryPolicy, ShardBand};
 

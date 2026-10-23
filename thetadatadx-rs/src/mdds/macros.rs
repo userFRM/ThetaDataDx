@@ -1833,7 +1833,7 @@ macro_rules! opt_setter {
 // forbids items after a `#[cfg(test)] mod tests`.
 #[cfg(test)]
 mod classify_error_tests {
-    use super::{classify_error, StatusClass};
+    use super::{StatusClass, classify_error};
     use crate::error::{Error, GrpcStatusKind};
 
     fn grpc(kind: GrpcStatusKind) -> Error {
@@ -2061,9 +2061,9 @@ mod streaming_attempt_tests {
     //! generator hooks into — these tests pin its behaviour so a future
     //! refactor of the generated code cannot accidentally re-introduce
     //! the silent-fail-on-mid-stream-Unauthenticated regression.
-    use super::{classify_streaming_attempt, StreamingAttemptOutcome};
-    use crate::auth::session::{SessionSnapshot, SessionToken};
+    use super::{StreamingAttemptOutcome, classify_streaming_attempt};
     use crate::auth::Credentials;
+    use crate::auth::session::{SessionSnapshot, SessionToken};
     use crate::config::MarketDataEnvironment;
     use crate::error::{Error, GrpcStatusKind};
 
@@ -2252,8 +2252,8 @@ mod refresh_retry_disabled_tests {
     //! `session.refresh(&snap)` short-circuits on the dedup
     //! fast-path and returns Ok without HTTP.
     use super::{run_streaming_retry_loop, run_unary_retry_loop};
-    use crate::auth::session::SessionToken;
     use crate::auth::Credentials;
+    use crate::auth::session::SessionToken;
     use crate::config::{MarketDataEnvironment, RetryPolicy};
     use crate::error::{Error, GrpcStatusKind};
     use std::cell::RefCell;
@@ -2746,11 +2746,11 @@ mod warn_buffered_tests {
     use super::{should_warn_buffered_size, warn_buffered_response_size};
     use std::sync::{Arc, Mutex};
     use tracing::{
+        Event, Level, Subscriber,
         field::{Field, Visit},
         subscriber::with_default,
-        Event, Level, Subscriber,
     };
-    use tracing_subscriber::{layer::Context, prelude::*, registry::Registry, Layer};
+    use tracing_subscriber::{Layer, layer::Context, prelude::*, registry::Registry};
 
     /// Captured snapshot of a single emitted event. Only the fields
     /// we assert on are extracted — message + the three structured

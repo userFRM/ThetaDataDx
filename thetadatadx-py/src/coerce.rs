@@ -238,7 +238,7 @@ include!("_generated/enums_generated.rs");
 
 #[cfg(test)]
 mod time_arg_tests {
-    use super::{microseconds_to_milliseconds, PyDateArg, PyTimeArg};
+    use super::{PyDateArg, PyTimeArg, microseconds_to_milliseconds};
     use pyo3::prelude::*;
 
     /// Aware values name an instant and reach the server as the Eastern

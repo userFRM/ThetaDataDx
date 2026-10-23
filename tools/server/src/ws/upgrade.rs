@@ -1,7 +1,7 @@
 //! HTTP -> WebSocket upgrade handshake.
 
-use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::State;
+use axum::extract::ws::WebSocketUpgrade;
 use axum::response::IntoResponse;
 
 use crate::state::AppState;

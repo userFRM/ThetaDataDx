@@ -7,7 +7,7 @@ use heck::ToLowerCamelCase;
 
 use super::common::{generated_header, push_rust_doc_comment};
 use super::spec::{
-    assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
+    ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec, assert_forwarder_code_params,
 };
 
 /// Renders the TypeScript streaming methods source: the `#[napi]` block on `StreamView`.

@@ -14,7 +14,6 @@ use std::os::raw::c_void;
 use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{
-    insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
     ThetaDataDxCalendarDayArray, ThetaDataDxColumnPresence, ThetaDataDxEodTickArray,
     ThetaDataDxGreeksAllTickArray, ThetaDataDxGreeksEodTickArray,
     ThetaDataDxGreeksFirstOrderTickArray, ThetaDataDxGreeksSecondOrderTickArray,
@@ -25,7 +24,8 @@ use crate::types::{
     ThetaDataDxQuoteTickArray, ThetaDataDxStringArray, ThetaDataDxTradeGreeksAllTickArray,
     ThetaDataDxTradeGreeksFirstOrderTickArray, ThetaDataDxTradeGreeksImpliedVolatilityTickArray,
     ThetaDataDxTradeGreeksSecondOrderTickArray, ThetaDataDxTradeGreeksThirdOrderTickArray,
-    ThetaDataDxTradeQuoteTickArray, ThetaDataDxTradeTickArray,
+    ThetaDataDxTradeQuoteTickArray, ThetaDataDxTradeTickArray, insert_bool_arg, insert_float_arg,
+    insert_int_arg, insert_optional_str_arg,
 };
 
 // ── Market-data server-stream callback C ABI ──

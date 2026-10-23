@@ -5,9 +5,9 @@
 //! actual write happens on the I/O thread; this module only schedules
 //! the cadence.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::tdbe::types::enums::StreamMsgType;
@@ -131,10 +131,9 @@ mod tests {
         while Instant::now() < deadline && pings.len() < 4 {
             if let Ok(IoCommand::WriteFrame { code, .. }) =
                 cmd_rx.recv_timeout(Duration::from_millis(100))
+                && code == StreamMsgType::Ping
             {
-                if code == StreamMsgType::Ping {
-                    pings.push(Instant::now());
-                }
+                pings.push(Instant::now());
             }
         }
         shutdown.store(true, Ordering::Relaxed);

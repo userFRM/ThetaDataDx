@@ -349,7 +349,7 @@ impl EndpointArgs {
             _ => {
                 return Err(EndpointError::InvalidParams(format!(
                     "optional integer argument '{key}' must be an integer"
-                )))
+                )));
             }
         };
         let narrowed = i32::try_from(raw).map_err(|_| {

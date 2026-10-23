@@ -141,8 +141,8 @@ fn clear_retry_after() {
 /// mapping mirrors the Python `to_py_err` leaf set so a single Rust
 /// variant lands on the same conceptual class across every binding.
 pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
-    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
     use thetadatadx::Error;
+    use thetadatadx::error::{AuthErrorKind, GrpcStatusKind, StreamErrorKind};
     match err {
         Error::Auth { kind, .. } => match kind {
             AuthErrorKind::InvalidCredentials => THETADATADX_ERR_INVALID_CREDENTIALS,
@@ -197,7 +197,7 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
 /// Callers should pair this with [`thetadatadx_last_error`] for the
 /// human-readable message — the code routes to the right exception
 /// class, the string carries the diagnostic.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_last_error_code() -> i32 {
     ffi_boundary!(THETADATADX_ERR_OTHER, {
         LAST_ERROR_CODE.with(std::cell::Cell::get)
@@ -213,7 +213,7 @@ pub extern "C" fn thetadatadx_last_error_code() -> i32 {
 /// error without the detail) reads `-1`. The C++ `RateLimitError`
 /// exposes this as a typed `retry_after()` value so a caller can honour
 /// the back-off without parsing the message text.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_last_error_retry_after_ms() -> i64 {
     ffi_boundary!(THETADATADX_RETRY_AFTER_NONE, {
         LAST_ERROR_RETRY_AFTER_MS.with(std::cell::Cell::get)
@@ -224,7 +224,7 @@ pub extern "C" fn thetadatadx_last_error_retry_after_ms() -> i64 {
 ///
 /// The returned pointer is valid until the next FFI call on the same thread.
 /// Do NOT free this pointer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_last_error() -> *const c_char {
     ffi_boundary!(ptr::null(), {
         LAST_ERROR.with(|e| {
@@ -245,7 +245,7 @@ pub extern "C" fn thetadatadx_last_error() -> *const c_char {
 /// for endpoints that return an empty value sentinel on both success
 /// (no rows) and failure (e.g. timeout) — without clearing first, the
 /// caller can't tell the two apart from the array alone.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn thetadatadx_clear_error() {
     ffi_boundary!((), {
         LAST_ERROR.with(|e| {
@@ -654,7 +654,7 @@ mod tests {
         Some(cstr.to_str().expect("LAST_ERROR slot is UTF-8").to_owned())
     }
 
-    use std::ffi::{c_char, CString};
+    use std::ffi::{CString, c_char};
     use std::ptr;
 
     // Helper that returns the macro's `&str` result (or the supplied

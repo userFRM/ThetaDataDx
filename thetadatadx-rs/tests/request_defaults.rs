@@ -21,9 +21,9 @@ use std::sync::{Arc, Mutex};
 use prost::Message;
 use tokio::sync::Semaphore;
 
+use thetadatadx::DirectConfig;
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::mdds::MarketDataClient;
-use thetadatadx::DirectConfig;
 
 /// Every request message carries its query as field 2. Reading it as bytes
 /// lets each check below decode only the slice of the query it reads.

@@ -36,7 +36,7 @@ pub use creds::Credentials;
 // In non-`__internal` builds, `authenticate_at` and `SessionToken` are
 // `pub(crate)` only — invisible outside the crate.
 #[cfg(feature = "__internal")]
-pub use nexus::{authenticate, authenticate_at, AuthResponse, AuthUser};
+pub use nexus::{AuthResponse, AuthUser, authenticate, authenticate_at};
 #[cfg(feature = "__internal")]
 pub use session::SessionToken;
 

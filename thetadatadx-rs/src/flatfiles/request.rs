@@ -33,13 +33,13 @@ use tokio::io::{AsyncWriteExt, BufWriter};
 use crate::auth::Credentials;
 use crate::config::FlatFilesConfig;
 use crate::error::Error;
-use crate::flatfiles::framing::{msg, read_frame, Frame};
-use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
-use crate::flatfiles::session::{connect_and_login, MddsHost};
-use crate::flatfiles::types::{
-    disconnect_reason_code, flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType,
-};
 use crate::flatfiles::ScratchGuard;
+use crate::flatfiles::framing::{Frame, msg, read_frame};
+use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
+use crate::flatfiles::session::{MddsHost, connect_and_login};
+use crate::flatfiles::types::{
+    FlatFilesUnavailableReason, ReqType, SecType, disconnect_reason_code, flat_file_serves,
+};
 use crate::util::random_id::random_id_hex;
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
@@ -193,10 +193,10 @@ pub async fn flatfile_request_raw_with_config(
     validate_dataset(sec, req)?;
     validate_date(date)?;
     let output_path = output_path.as_ref().to_path_buf();
-    if let Some(parent) = output_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
+    if let Some(parent) = output_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        tokio::fs::create_dir_all(parent).await?;
     }
 
     let output_for_attempt = output_path.clone();

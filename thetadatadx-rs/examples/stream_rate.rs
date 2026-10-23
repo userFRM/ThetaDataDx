@@ -12,8 +12,8 @@
 //! replay cluster, the option market, a line every 5 seconds.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use thetadatadx::streaming::{SecTypeExt, StreamData, StreamEvent};

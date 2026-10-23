@@ -10,7 +10,7 @@
 //! Wired in via `#[path = "common/quote_fixture.rs"] mod fixture;` so
 //! the criterion harness layout under `benches/*.rs` is unchanged.
 
-use thetadatadx::wire::{data_value, DataTable, DataValue, DataValueList, Price};
+use thetadatadx::wire::{DataTable, DataValue, DataValueList, Price, data_value};
 
 /// Build a `DataValue` carrying a `Number` payload.
 #[must_use]

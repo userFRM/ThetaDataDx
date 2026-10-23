@@ -16,13 +16,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::FlatFiles;
 use crate::auth::{self, Credentials, SessionToken};
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::grpc::{Channel, ChannelPool, ChannelTuning};
 use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
-use crate::FlatFiles;
 
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -778,7 +778,7 @@ fn build_rustls_config() -> Result<Arc<rustls::ClientConfig>, Error> {
 
 #[cfg(test)]
 mod delivery_scope_tests {
-    use super::{in_delivery_scope, DELIVERY_HANDLER_SEMAPHORES};
+    use super::{DELIVERY_HANDLER_SEMAPHORES, in_delivery_scope};
 
     fn member(addr: usize) -> bool {
         DELIVERY_HANDLER_SEMAPHORES
