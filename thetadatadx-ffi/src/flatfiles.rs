@@ -22,7 +22,7 @@ use std::ptr;
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType};
 
 use crate::error::{
-    cstr_to_str, set_error, set_error_from, set_error_with_code, THETADATADX_ERR_INVALID_PARAMETER,
+    THETADATADX_ERR_INVALID_PARAMETER, cstr_to_str, set_error, set_error_from, set_error_with_code,
 };
 use crate::runtime;
 use crate::streaming::ThetaDataDxClient;
@@ -146,7 +146,7 @@ unsafe fn parse_ff_args(
 /// error; check `thetadatadx_last_error()` for details.
 ///
 /// The returned handle MUST be freed with `thetadatadx_flatfile_rowlist_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_request_decoded(
     handle: *const ThetaDataDxClient,
     sec_type: *const c_char,
@@ -175,7 +175,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_request_decoded(
 /// handle exposes the identical surface as the unified client. Returns null
 /// on error; the returned handle MUST be freed with
 /// `thetadatadx_flatfile_rowlist_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_market_data_flatfile_request_decoded(
     handle: *const ThetaDataDxMarketDataClient,
     sec_type: *const c_char,
@@ -214,7 +214,7 @@ fn flatfile_rowlist_or_null(
 }
 
 /// Number of rows in a row-list handle. Returns 0 if the handle is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_rows_count(
     rowlist: *const ThetaDataDxFlatFileRowList,
 ) -> usize {
@@ -241,7 +241,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rows_count(
 ///
 /// Returns `(data=null, len=0)` on error; check `thetadatadx_last_error()`.
 /// Caller MUST free the returned bytes with `thetadatadx_flatfile_bytes_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_rows_to_arrow_ipc(
     rowlist: *const ThetaDataDxFlatFileRowList,
 ) -> ThetaDataDxFlatFileBytes {
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rows_to_arrow_ipc(
 }
 
 /// Free a byte buffer returned by `thetadatadx_flatfile_rows_to_arrow_ipc`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_bytes_free(bytes: ThetaDataDxFlatFileBytes) {
     ffi_boundary!((), {
         if !bytes.data.is_null() && bytes.len > 0 {
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_bytes_free(bytes: ThetaDataDxFlatF
 }
 
 /// Free a row-list handle returned by `thetadatadx_flatfile_request_decoded`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_rowlist_free(
     rowlist: *mut ThetaDataDxFlatFileRowList,
 ) {
@@ -362,7 +362,7 @@ unsafe fn parse_ff_write_args(
 /// vendor format (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to
 /// `path`. Skips the typed-row decode step. Returns 0 on success, -1 on
 /// error; check `thetadatadx_last_error()`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
     handle: *const ThetaDataDxClient,
     sec_type: *const c_char,
@@ -400,7 +400,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
 /// write it to `path`. Identical surface to the unified write path — flat
 /// files are account-authenticated market data. Returns 0 on success, -1 on
 /// error; check `thetadatadx_last_error()`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_market_data_flatfile_request_to_path(
     handle: *const ThetaDataDxMarketDataClient,
     sec_type: *const c_char,
@@ -449,7 +449,7 @@ fn flatfile_write_rc(res: Result<std::path::PathBuf, thetadatadx::Error>) -> i32
 #[cfg(test)]
 mod tests {
     use super::{parse_ff_args, parse_ff_write_args};
-    use crate::error::{thetadatadx_last_error_code, THETADATADX_ERR_INVALID_PARAMETER};
+    use crate::error::{THETADATADX_ERR_INVALID_PARAMETER, thetadatadx_last_error_code};
 
     /// An unknown sec_type, req_type or format is a bad caller value, so it
     /// carries the invalid-parameter code the C++ `InvalidParameterError`

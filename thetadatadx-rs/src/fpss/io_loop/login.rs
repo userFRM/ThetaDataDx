@@ -16,7 +16,7 @@ use crate::error::Error;
 
 use super::super::connection;
 use super::super::events::StreamControl;
-use super::super::framing::{read_frame_into_with_stall_timeout, FrameRead};
+use super::super::framing::{FrameRead, read_frame_into_with_stall_timeout};
 use super::super::protocol::parse_disconnect_reason;
 
 /// Outcome of a single login handshake.
@@ -200,7 +200,7 @@ where
                     return Err(Error::Stream {
                         kind: crate::error::StreamErrorKind::Disconnected,
                         message: "connection closed during login handshake".to_string(),
-                    })
+                    });
                 }
             };
         let payload = &frame_buf[..payload_len];

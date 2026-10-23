@@ -217,21 +217,21 @@ impl UpstreamOpenApi {
                 } else if ref_points_at(rest, "expiration") {
                     uses_expiration = true;
                     saw_any_expiration_ref = true;
-                } else if let Some(name) = extract_param_name(rest) {
-                    if name.contains("expiration") {
-                        let op = current_operation_id
-                            .as_deref()
-                            .or(current_path.as_deref())
-                            .unwrap_or("<unknown>");
-                        return Err(format!(
-                            "endpoint {op}: parameter ref {rest:?} contains \
+                } else if let Some(name) = extract_param_name(rest)
+                    && name.contains("expiration")
+                {
+                    let op = current_operation_id
+                        .as_deref()
+                        .or(current_path.as_deref())
+                        .unwrap_or("<unknown>");
+                    return Err(format!(
+                        "endpoint {op}: parameter ref {rest:?} contains \
                              \"expiration\" but is not one of the two known \
                              variants (expiration, expiration_no_star). \
                              Upstream likely renamed or split the expiration \
                              parameter; teach `build_support/upstream_openapi.rs` \
                              how to classify {name:?} before proceeding."
-                        ));
-                    }
+                    ));
                 }
                 continue;
             }

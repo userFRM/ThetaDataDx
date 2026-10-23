@@ -120,28 +120,29 @@ pub(crate) fn project_full_subscriptions(
     )>,
 ) -> serde_json::Value {
     use thetadatadx::fpss::protocol::SubscriptionKind;
-    serde_json::json!(subs
-        .into_iter()
-        .filter_map(|(kind, sec_type)| {
-            let kind_str = match kind {
-                SubscriptionKind::Trade => "full_trades",
-                SubscriptionKind::OpenInterest => "full_open_interest",
-                SubscriptionKind::Quote => return None,
-                _ => return None,
-            };
-            Some(serde_json::json!({
-                "kind": kind_str,
-                "contract": sec_type.as_str(),
-            }))
-        })
-        .collect::<Vec<_>>())
+    serde_json::json!(
+        subs.into_iter()
+            .filter_map(|(kind, sec_type)| {
+                let kind_str = match kind {
+                    SubscriptionKind::Trade => "full_trades",
+                    SubscriptionKind::OpenInterest => "full_open_interest",
+                    SubscriptionKind::Quote => return None,
+                    _ => return None,
+                };
+                Some(serde_json::json!({
+                    "kind": kind_str,
+                    "contract": sec_type.as_str(),
+                }))
+            })
+            .collect::<Vec<_>>()
+    )
 }
 
 #[cfg(test)]
 mod full_subscription_projection_tests {
     use super::project_full_subscriptions;
-    use thetadatadx::fpss::protocol::SubscriptionKind;
     use thetadatadx::SecType;
+    use thetadatadx::fpss::protocol::SubscriptionKind;
 
     /// `contract` carries the upper-case wire name `SecType.name` reports, so
     /// a caller can compare the two directly.

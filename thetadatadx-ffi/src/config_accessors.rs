@@ -4,7 +4,7 @@
 /// disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
 /// through to the streaming I/O loop at connect time and consumed by the
 /// `Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms(
     config: *mut ThetaDataDxConfig,
     ms: u64,
@@ -19,7 +19,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms(
 ///
 /// Writes the configured millisecond delay into `*out_ms`. Returns
 /// `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_ms(
     config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_ms(
 /// connect time and consumed by the `Auto` reconnect arm via
 /// `reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
 /// 130 s rate-limit cooldown).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_rate_limited_ms(
     config: *mut ThetaDataDxConfig,
     ms: u64,
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_rate_limited_ms(
 
 /// Read the current reconnect `wait_rate_limited_ms` setting. Same
 /// shape as [`thetadatadx_config_get_reconnect_wait_ms`].
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_rate_limited_ms(
     config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_rate_limited_ms(
 }
 
 /// Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect_wait_ms` and doubles per consecutive attempt up to this value. Default `30_000`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_max_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -99,7 +99,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_max_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_max_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -120,7 +120,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_max_ms(
 }
 
 /// Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects. Default `5_000`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_server_restart_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_server_restart_ms
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_server_restart_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -159,7 +159,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_server_restart_ms
 /// auto-reconnect: frames are written in bursts of this many, each
 /// burst flushed and followed by a jittered `replay_pace_ms` pause.
 /// Minimum `1` (validated at connect). Default `50`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_burst_size(
     config: *mut ThetaDataDxConfig,
     n: u32,
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_burst_size(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_burst_size(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_burst_size(
 }
 
 /// Set the pause (ms) between subscription-replay bursts after an auto-reconnect. `0` removes the pause. Default `5`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_pace_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -210,7 +210,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_replay_pace_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_pace_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_pace_ms(
 }
 
 /// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000`; validated to `[100, 60_000]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -246,7 +246,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_timeout_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -267,7 +267,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_timeout_ms(
 }
 
 /// Set the per-server streaming TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_connect_timeout_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_connect_timeout_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_connect_timeout_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -303,7 +303,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_connect_timeout_ms(
 }
 
 /// Set the streaming heartbeat ping interval (ms). Default `100`; validated to `[100, 300_000]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_ping_interval_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -318,7 +318,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ping_interval_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_ping_interval_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_ping_interval_ms(
 }
 
 /// Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_io_read_slice_ms(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -354,7 +354,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_io_read_slice_ms(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_io_read_slice_ms(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -375,7 +375,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_io_read_slice_ms(
 }
 
 /// Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_idle_secs(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -390,7 +390,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_idle_secs(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_idle_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_idle_secs(
 }
 
 /// Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_interval_secs(
     config: *mut ThetaDataDxConfig,
     v: u64,
@@ -426,7 +426,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_interval_sec
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_interval_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_interval_sec
 }
 
 /// Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_retries(
     config: *mut ThetaDataDxConfig,
     v: u32,
@@ -462,7 +462,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_retries(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_retries(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_keepalive_retries(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
     config: *const ThetaDataDxConfig,
     out: *mut usize,
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
 /// rejected `mode` carries `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER`
 /// so an out-of-domain enum int surfaces the same typed class across every
 /// binding.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_wait_mode(
     config: *mut ThetaDataDxConfig,
     mode: i32,
@@ -558,7 +558,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_wait_mode(
 /// Read the configured streaming consumer wait mode. Same encoding as
 /// `thetadatadx_config_set_wait_mode` (0=Spin, 1=BusySpin, 2=Park, 3=Backoff).
 /// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_wait_mode(
     config: *const ThetaDataDxConfig,
     out_mode: *mut i32,
@@ -594,7 +594,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_wait_mode(
 /// premarket). The client pings every ~100 ms, so a value beyond the ping
 /// cadence saves no extra CPU and only adds latency. Validated to
 /// `[50, 1_000_000]` us at connect time. Default `1000` (= 1 ms).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_park_interval_us(
     config: *mut ThetaDataDxConfig,
     us: u64,
@@ -610,7 +610,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_park_interval_us(
 ///
 /// Writes the configured microsecond sleep length into `*out_us`. Returns
 /// `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_park_interval_us(
     config: *const ThetaDataDxConfig,
     out_us: *mut u64,
@@ -637,7 +637,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_park_interval_us(
 /// Set the wall-clock envelope (seconds) for one market-data-channel
 /// retry sequence, measured from the first attempt. `0` disables the
 /// envelope (attempt budget only). Default `300`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_retry_max_elapsed_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -651,7 +651,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_max_elapsed_secs(
 /// Read the current `retry.max_elapsed` value in seconds (default
 /// `300`; `0` = disabled). Returns `0` on success, `-1` if either
 /// pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_retry_max_elapsed_secs(
     config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
@@ -674,7 +674,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_elapsed_secs(
 /// Toggle AWS-style full jitter on the flatfile retry ladder. Default
 /// `true`; `false` gives the deterministic schedule, useful for tests
 /// that assert exact timings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_jitter(
     config: *mut ThetaDataDxConfig,
     jitter: bool,
@@ -687,7 +687,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_jitter(
 
 /// Read the current `flatfiles.jitter` value (default `true`).
 /// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
     config: *const ThetaDataDxConfig,
     out_jitter: *mut bool,
@@ -710,7 +710,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
 /// Set the initial backoff delay (ms) for the market-data retry policy.
 /// Default `250`. Subsequent retries double from here, capped at
 /// `thetadatadx_config_set_retry_max_delay_ms`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_retry_initial_delay_ms(
     config: *mut ThetaDataDxConfig,
     ms: u64,
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_initial_delay_ms(
 /// Set the upper-bound backoff delay (ms) for the market-data retry policy.
 /// Default `30_000` (30 s). The exponential schedule never exceeds
 /// this value regardless of attempt number.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_retry_max_delay_ms(
     config: *mut ThetaDataDxConfig,
     ms: u64,
@@ -739,7 +739,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_max_delay_ms(
 /// disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default
 /// `20`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_retry_max_attempts(
     config: *mut ThetaDataDxConfig,
     n: u32,
@@ -751,7 +751,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_max_attempts(
 }
 
 /// Read the current `retry.max_attempts` setting.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_retry_max_attempts(
     config: *const ThetaDataDxConfig,
     out_n: *mut u32,
@@ -775,7 +775,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_attempts(
 /// `true`. With `jitter=false` the backoff schedule is deterministic
 /// (`min(max_delay, initial * 2^attempt)`), which is useful for tests
 /// that need to assert exact timings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_retry_jitter(
     config: *mut ThetaDataDxConfig,
     jitter: bool,
@@ -787,7 +787,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_jitter(
 }
 
 /// Read the current `retry.jitter` setting.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_retry_jitter(
     config: *const ThetaDataDxConfig,
     out_jitter: *mut bool,
@@ -812,7 +812,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_jitter(
 /// retries up to `max_attempts - 1` after the initial call. Default
 /// `10`. Validated to the range `[1, 100]` at
 /// [`thetadatadx::DirectConfig::validate`] time.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts(
     config: *mut ThetaDataDxConfig,
     n: u32,
@@ -825,7 +825,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts(
 
 /// Read the current `flatfiles.max_attempts` setting. Returns `0` on
 /// success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_attempts(
     config: *const ThetaDataDxConfig,
     out_n: *mut u32,
@@ -850,7 +850,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_attempts(
 /// Set the initial backoff delay (seconds) for the flatfile driver
 /// retry loop. Doubles per attempt up to `max_backoff_secs`. Default
 /// `1`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_initial_backoff_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -863,7 +863,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_initial_backoff_secs(
 
 /// Read the current `flatfiles.initial_backoff` setting (seconds).
 /// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_initial_backoff_secs(
     config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
@@ -891,7 +891,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_initial_backoff_secs(
 /// regardless of attempt number. Default `30`. Must be greater than
 /// or equal to `initial_backoff_secs` (rejected at
 /// [`thetadatadx::DirectConfig::validate`] time otherwise).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_backoff_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -904,7 +904,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_backoff_secs(
 
 /// Read the current `flatfiles.max_backoff` setting (seconds). Returns
 /// `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_backoff_secs(
     config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
@@ -931,7 +931,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_max_backoff_secs(
 /// attempt. Bounds the connect/auth handshake before the attempt is
 /// abandoned and the next host (or the retry ladder) takes over.
 /// Default `10`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_connect_timeout_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -944,7 +944,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_connect_timeout_secs(
 
 /// Read the current `flatfiles.connect_timeout_secs` setting (seconds).
 /// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_connect_timeout_secs(
     config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
@@ -969,7 +969,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_connect_timeout_secs(
 /// Bounds the wait for the next chunk once streaming has begun so a
 /// mid-stream stall fails over instead of blocking forever. Default
 /// `60`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_read_timeout_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -982,7 +982,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_read_timeout_secs(
 
 /// Read the current `flatfiles.read_timeout_secs` setting (seconds).
 /// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_read_timeout_secs(
     config: *const ThetaDataDxConfig,
     out_secs: *mut u64,
@@ -1004,7 +1004,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_read_timeout_secs(
 }
 
 /// Set the market-data gRPC port on a config handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_market_data_port(
     config: *mut ThetaDataDxConfig,
     port: u16,
@@ -1018,7 +1018,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_port(
 /// Read the configured market-data gRPC port. Writes the value
 /// into `*out_port`. Returns `0` on success, `-1` if either pointer is
 /// null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_market_data_port(
     config: *const ThetaDataDxConfig,
     out_port: *mut u16,
@@ -1046,7 +1046,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_port(
 /// data is still delivered.
 ///
 /// `n = 0` disables the warning entirely.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_warn_on_buffered_threshold_bytes(
     config: *mut ThetaDataDxConfig,
     n: usize,
@@ -1061,7 +1061,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_warn_on_buffered_threshold_bytes
 ///
 /// Writes the configured byte count into `*out_n`. Returns `0` on
 /// success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes(
     config: *const ThetaDataDxConfig,
     out_n: *mut usize,
@@ -1091,7 +1091,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
 /// `300`-second default at request time, so the deadline always applies.
 /// Reach for the per-call `with_deadline(...)` opt-out to run a single
 /// request with no deadline. Default `300`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -1108,7 +1108,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -1133,7 +1133,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
 /// throughput ceiling on bulk streaming pulls before HTTP/2 backpressure
 /// kicks in. Default `8192` (8 MiB); `DirectConfig` validation (and the
 /// connect path) clamps the applied value into `[64, 2_097_151]` KB.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_market_data_stream_window_size_kb(
     config: *mut ThetaDataDxConfig,
     kb: usize,
@@ -1149,7 +1149,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_stream_window_size_k
 ///
 /// Writes the configured value into `*out_kb`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_market_data_stream_window_size_kb(
     config: *const ThetaDataDxConfig,
     out_kb: *mut usize,
@@ -1175,7 +1175,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_stream_window_size_k
 /// backpressure kicks in. Default `16384` (16 MiB); `DirectConfig`
 /// validation (and the connect path) clamps the applied value into
 /// `[64, 2_097_151]` KB.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_market_data_connection_window_size_kb(
     config: *mut ThetaDataDxConfig,
     kb: usize,
@@ -1191,7 +1191,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_connection_window_si
 ///
 /// Writes the configured value into `*out_kb`. Returns `0` on success,
 /// `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_size_kb(
     config: *const ThetaDataDxConfig,
     out_kb: *mut usize,
@@ -1235,7 +1235,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_si
 /// rejected `policy` value carries
 /// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an
 /// out-of-domain enum int surfaces the same typed class across every binding.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_bulk_fetch(
     config: *mut ThetaDataDxConfig,
     policy: i32,
@@ -1271,7 +1271,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_bulk_fetch(
 /// Read the configured bulk-fetch sharding policy. Same encoding as
 /// `thetadatadx_config_set_bulk_fetch`. Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_bulk_fetch(
     config: *const ThetaDataDxConfig,
     out_policy: *mut i32,
@@ -1308,7 +1308,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_bulk_fetch(
 ///   `0` to `1`.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_shard_concurrency(
     config: *mut ThetaDataDxConfig,
     has_value: bool,
@@ -1333,7 +1333,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_shard_concurrency(
 /// * `*out_has_value = true` → the config holds `Some(*out_n)`.
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_shard_concurrency(
     config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
@@ -1374,7 +1374,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_shard_concurrency(
 ///   an explicit `0` to `1`.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_max_concurrent_requests(
     config: *mut ThetaDataDxConfig,
     has_value: bool,
@@ -1400,7 +1400,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_max_concurrent_requests(
 /// * `*out_has_value = true` → the config holds `Some(*out_n)`.
 ///
 /// Returns `0` on success, `-1` if any pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_max_concurrent_requests(
     config: *const ThetaDataDxConfig,
     out_has_value: *mut bool,
@@ -1428,7 +1428,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_max_concurrent_requests(
 
 /// Read the current `retry.initial_delay` setting (ms). Returns `0` on
 /// success, `-1` if either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_retry_initial_delay_ms(
     config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
@@ -1451,7 +1451,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_initial_delay_ms(
 }
 
 /// Read the current `retry.max_delay` setting (ms).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_retry_max_delay_ms(
     config: *const ThetaDataDxConfig,
     out_ms: *mut u64,
@@ -1476,7 +1476,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_delay_ms(
 /// Set the per-class transient-failure attempt budget for the
 /// auto-reconnect path. Default `30`. No effect unless the reconnect
 /// policy is `Auto`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_attempts(
     config: *mut ThetaDataDxConfig,
     max_attempts: u32,
@@ -1495,7 +1495,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_attempts(
 /// is not `Auto`, writes the default-limits value (the budgets only
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_attempts(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
@@ -1522,7 +1522,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_attempts(
 /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
 /// for the auto-reconnect path. Default `100`. No effect unless the
 /// reconnect policy is `Auto`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_rate_limited_attempts(
     config: *mut ThetaDataDxConfig,
     max_rate_limited_attempts: u32,
@@ -1541,7 +1541,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_rate_limited_attem
 /// is not `Auto`, writes the default-limits value (the budgets only
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_rate_limited_attempts(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
@@ -1566,7 +1566,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_rate_limited_attem
 }
 
 /// Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_server_restart_attempts(
     config: *mut ThetaDataDxConfig,
     n: u32,
@@ -1585,7 +1585,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_server_restart_att
 /// is not `Auto`, writes the default-limits value (the budgets only
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_server_restart_attempts(
     config: *const ThetaDataDxConfig,
     out: *mut u32,
@@ -1610,7 +1610,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_server_restart_att
 }
 
 /// Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_elapsed_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -1629,7 +1629,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_elapsed_secs(
 /// is not `Auto`, writes the default-limits value (the budgets only
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_elapsed_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -1656,7 +1656,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_elapsed_secs(
 /// Set the continuous successful-data-flow window (in seconds) after
 /// which the auto-reconnect attempt counters reset. Default `60`. No
 /// effect unless the reconnect policy is `Auto`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_stable_window_secs(
     config: *mut ThetaDataDxConfig,
     secs: u64,
@@ -1675,7 +1675,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_stable_window_secs(
 /// is not `Auto`, writes the default-limits value (the budgets only
 /// apply under the `Auto` policy). Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_stable_window_secs(
     config: *const ThetaDataDxConfig,
     out: *mut u64,
@@ -1705,7 +1705,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_stable_window_secs(
 /// Returns `0` on success, `-1` if `config` is null or `url` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
 /// storage retrievable via `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_nexus_url(
     config: *mut ThetaDataDxConfig,
     url: *const c_char,
@@ -1740,7 +1740,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_nexus_url(
 /// caller MUST release with `thetadatadx_string_free`. Returns null if
 /// `config` is null or the stored value contains an interior NUL
 /// (the diagnostic is written to `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_nexus_url(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
@@ -1767,7 +1767,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_nexus_url(
 /// string. Returns `0` on success, `-1` if `config` is null or
 /// `client_type` is null / not valid UTF-8 (the diagnostic is written
 /// to thread-local storage retrievable via `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_client_type(
     config: *mut ThetaDataDxConfig,
     client_type: *const c_char,
@@ -1802,7 +1802,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_client_type(
 /// caller MUST release with `thetadatadx_string_free`. Returns null if
 /// `config` is null or the stored value contains an interior NUL
 /// (the diagnostic is written to `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_client_type(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
@@ -1829,7 +1829,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_client_type(
 /// Returns `0` on success, `-1` if `config` is null or `host` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
 /// storage retrievable via `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_market_data_host(
     config: *mut ThetaDataDxConfig,
     host: *const c_char,
@@ -1864,7 +1864,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_host(
 /// MUST release with `thetadatadx_string_free`. Returns null if `config` is
 /// null or the stored value contains an interior NUL (the diagnostic is
 /// written to `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_market_data_host(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
@@ -1895,7 +1895,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_host(
 /// null. A rejected `mode` value carries
 /// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
     config: *mut ThetaDataDxConfig,
     mode: i32,
@@ -1928,7 +1928,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
 /// Read the configured reconnect jitter mode. Same encoding as
 /// `thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
 /// either pointer is null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_jitter(
     config: *const ThetaDataDxConfig,
     out_mode: *mut i32,

@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 use tokio::sync::{Mutex, RwLock};
 
-use super::{authenticate_at, Credentials};
+use super::{Credentials, authenticate_at};
 use crate::config::MarketDataEnvironment;
 use crate::error::Error;
 

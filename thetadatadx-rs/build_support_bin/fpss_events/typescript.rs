@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use super::common::{snake_case, ts_rust_field_type};
 use super::schema::{
-    sorted_control_events, sorted_data_event_names, sorted_event_names, EventDef, Schema,
+    EventDef, Schema, sorted_control_events, sorted_data_event_names, sorted_event_names,
 };
 
 /// Emit the Contract napi struct. Same shape across every language —

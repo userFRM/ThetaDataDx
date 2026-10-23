@@ -44,8 +44,8 @@
 //! idle escalation on top.
 
 use std::hint;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -457,7 +457,7 @@ impl Default for RingCursors {
 // ring consumer can share the same contract. Re-export the items here
 // under their historical FPSS paths so existing consumers do not have
 // to change.
-pub(crate) use crate::util::ring::{check_ring_size, MIN_RING_SIZE};
+pub(crate) use crate::util::ring::{MIN_RING_SIZE, check_ring_size};
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -470,9 +470,9 @@ mod tests {
     use crate::fpss::events::DisconnectCause;
     use crate::fpss::{StreamControl, StreamData, StreamEvent};
     use crate::tdbe::types::enums::RemoveReason;
-    use disruptor::{build_single_producer, Producer};
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use disruptor::{Producer, build_single_producer};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     #[test]
     fn park_mode_sleeps_each_empty() {

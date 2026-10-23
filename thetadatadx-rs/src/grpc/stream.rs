@@ -16,7 +16,7 @@ use std::task::{Context, Poll};
 
 use futures_core::Stream;
 
-use super::channel::{classify_poll_panic, classify_status, ChannelError, InFlightToken};
+use super::channel::{ChannelError, InFlightToken, classify_poll_panic, classify_status};
 
 /// `Stream<Item = Result<Resp, ChannelError>>` over a server-streaming
 /// gRPC response.

@@ -443,7 +443,7 @@ fn validate_surface_endpoint(
                 "endpoint '{}' has unsupported kind '{}'",
                 surface.name, other
             )
-            .into())
+            .into());
         }
     }
 
@@ -526,7 +526,7 @@ fn validate_surface_endpoint(
                     "endpoint '{}.{}' has unsupported binding '{}'",
                     surface.name, param.name, other
                 )
-                .into())
+                .into());
             }
         }
         if param.required && param.default.is_some() {

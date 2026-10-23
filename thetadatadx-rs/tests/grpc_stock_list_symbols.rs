@@ -16,10 +16,10 @@ use std::time::Duration;
 
 use prost::Message;
 
-use thetadatadx::grpc::{stock_list_symbols, Channel};
+use thetadatadx::grpc::{Channel, stock_list_symbols};
 use thetadatadx::wire::{
-    data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-    ResponseData,
+    CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList, ResponseData,
+    data_value,
 };
 
 #[path = "common/grpc_mock.rs"]

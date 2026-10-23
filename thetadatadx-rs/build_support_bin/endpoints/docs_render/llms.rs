@@ -34,13 +34,12 @@ fn frontmatter(contents: &str) -> (String, String) {
             description = value.trim().trim_matches('"').to_string();
         }
     }
-    if title.is_empty() {
-        if let Some(heading) = contents
+    if title.is_empty()
+        && let Some(heading) = contents
             .lines()
             .find_map(|line| line.strip_prefix("# ").map(str::trim))
-        {
-            title = heading.to_string();
-        }
+    {
+        title = heading.to_string();
     }
     (title, description)
 }

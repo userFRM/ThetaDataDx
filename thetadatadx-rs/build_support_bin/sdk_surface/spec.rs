@@ -385,14 +385,14 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     };
     let (expected_name, allowed_targets, exact_targets, params) = shape;
 
-    if let Some(name) = expected_name {
-        if method.name != name {
-            return Err(format!(
-                "method kind {:?} must use name '{name}', got '{}'",
-                method.kind, method.name
-            )
-            .into());
-        }
+    if let Some(name) = expected_name
+        && method.name != name
+    {
+        return Err(format!(
+            "method kind {:?} must use name '{name}', got '{}'",
+            method.kind, method.name
+        )
+        .into());
     }
     check_targets(
         &method.name,
@@ -511,14 +511,14 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         ),
     };
 
-    if let Some(expected) = expected_name {
-        if utility.name != expected {
-            return Err(format!(
-                "utility kind {:?} must use name '{expected}', got '{}'",
-                utility.kind, utility.name
-            )
-            .into());
-        }
+    if let Some(expected) = expected_name
+        && utility.name != expected
+    {
+        return Err(format!(
+            "utility kind {:?} must use name '{expected}', got '{}'",
+            utility.kind, utility.name
+        )
+        .into());
     }
     check_targets(
         &utility.name,

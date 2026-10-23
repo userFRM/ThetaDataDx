@@ -1,7 +1,7 @@
 //! Shared C-layout helpers for FPSS generator outputs.
 
 use super::common::snake_case;
-use super::schema::{sorted_control_events, sorted_data_events, ColumnDef, Schema};
+use super::schema::{ColumnDef, Schema, sorted_control_events, sorted_data_events};
 
 /// Size and alignment, in bytes, of a single emitted C field.
 #[derive(Clone, Copy)]

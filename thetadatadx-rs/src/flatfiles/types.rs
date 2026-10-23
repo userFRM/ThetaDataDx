@@ -600,13 +600,17 @@ mod tests {
     /// `StreamTruncated` are never reported as no-data here.
     #[test]
     fn is_no_data_is_scoped_to_auth_rejected() {
-        assert!(!FlatFilesUnavailableReason::RequestRejected {
-            server_message: "NO_START_DATE:...".into(),
-        }
-        .is_no_data());
-        assert!(!FlatFilesUnavailableReason::StreamTruncated {
-            bytes_received: 4096,
-        }
-        .is_no_data());
+        assert!(
+            !FlatFilesUnavailableReason::RequestRejected {
+                server_message: "NO_START_DATE:...".into(),
+            }
+            .is_no_data()
+        );
+        assert!(
+            !FlatFilesUnavailableReason::StreamTruncated {
+                bytes_received: 4096,
+            }
+            .is_no_data()
+        );
     }
 }

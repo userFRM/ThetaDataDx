@@ -42,7 +42,7 @@ pub use extract::{extract_number_column, extract_price_column};
 // with.
 pub use extract::extract_text_column;
 #[cfg(feature = "__internal")]
-pub use extract::{response_symbol, PriceTypes, ResponseSymbol};
+pub use extract::{PriceTypes, ResponseSymbol, response_symbol};
 // `decode_data_table` and `decompress_response` (non-`_with_max` variants)
 // plus `decompress_response_with_max` are only used by workspace
 // bindings and tests; gate them under `__internal`.

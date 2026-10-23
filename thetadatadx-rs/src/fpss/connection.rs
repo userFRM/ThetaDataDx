@@ -31,7 +31,7 @@ use crate::auth::Credentials;
 use crate::backoff::JitterMode;
 use crate::config::ReconnectPolicy;
 
-use super::pinning::{PinnedVerifier, ALLOWED_FPSS_HOSTS};
+use super::pinning::{ALLOWED_FPSS_HOSTS, PinnedVerifier};
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;

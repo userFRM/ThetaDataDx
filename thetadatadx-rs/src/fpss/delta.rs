@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use crate::tdbe::codec::fit::{apply_deltas, FitReader};
+use crate::tdbe::codec::fit::{FitReader, apply_deltas};
 
 /// Number of FIT fields per tick type (excluding the `contract_id` which is the
 /// first FIT field). The FIT decoder returns `n_fields` total, where field [0]
@@ -490,15 +490,17 @@ mod tests {
         truncated.pop();
         truncated.pop();
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
-        assert!(state
-            .decode_tick(
-                Baseline::Quote,
-                QUOTE_CODE,
-                &truncated,
-                QUOTE_FIELDS,
-                &mut out
-            )
-            .is_none());
+        assert!(
+            state
+                .decode_tick(
+                    Baseline::Quote,
+                    QUOTE_CODE,
+                    &truncated,
+                    QUOTE_FIELDS,
+                    &mut out
+                )
+                .is_none()
+        );
         assert_eq!(state.state_sizes(), 0, "truncated row poisoned the cache");
 
         // A subsequent COMPLETE absolute row for the same contract decodes as

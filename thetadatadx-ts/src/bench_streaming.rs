@@ -39,10 +39,10 @@ use std::sync::Arc;
 use napi::threadsafe_function::ThreadsafeFunctionCallMode;
 use napi_derive::napi;
 
+use thetadatadx::Price;
 use thetadatadx::fpss;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent as CoreStreamEvent};
-use thetadatadx::Price;
 
 use crate::{buffered_event_to_typed, fpss_event_to_buffered};
 

@@ -74,13 +74,13 @@
 //! Run: `cargo bench --bench streaming_channels`
 
 use std::hint::black_box;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use criterion::{criterion_group, criterion_main, Criterion, Throughput};
-use disruptor::{build_single_producer, BusySpin, Producer, Sequence};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use disruptor::{BusySpin, Producer, Sequence, build_single_producer};
 use thetadatadx::fpss::{StreamControl, StreamEvent};
 
 // Variant 5 drives the crate's production ring constructor, which is
@@ -91,7 +91,7 @@ use thetadatadx::fpss::{StreamControl, StreamEvent};
 // from the crate under test, not user-facing prose.
 #[cfg(feature = "__test-helpers")]
 use thetadatadx::fpss::__test_internals::{
-    build_poller_producer, AdaptiveWaitStrategy, Polling, RingCursors, RingProducer,
+    AdaptiveWaitStrategy, Polling, RingCursors, RingProducer, build_poller_producer,
 };
 
 /// Number of events shipped through the pipeline per criterion sample.

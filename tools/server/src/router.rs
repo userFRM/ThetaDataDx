@@ -29,15 +29,15 @@
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::get;
-use axum::Router;
 use tower::limit::ConcurrencyLimitLayer;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tower_http::LatencyUnit;
+use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
 use tracing::Level;
 
-use thetadatadx::{EndpointMeta, ENDPOINTS};
+use thetadatadx::{ENDPOINTS, EndpointMeta};
 
 use crate::handler;
 use crate::state::AppState;
@@ -249,7 +249,7 @@ fn registry_route_handler(
     axum::extract::State<AppState>,
     handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = axum::response::Response> + Send>>
-       + Clone {
++ Clone {
     let ep: &'static EndpointMeta = thetadatadx::find(endpoint_name)
         .expect("v3 alias route is wired to an endpoint compiled into the registry");
     let ep_shared = Arc::new(ep);
@@ -268,10 +268,10 @@ fn registry_route_handler(
 mod tests {
     use super::*;
 
+    use axum::Router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;
-    use axum::Router;
     use tower::ServiceExt;
 
     // -----------------------------------------------------------------------

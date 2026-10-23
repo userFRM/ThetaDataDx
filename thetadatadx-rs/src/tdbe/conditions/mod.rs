@@ -358,9 +358,10 @@ mod tests {
         assert_eq!(t40.name, "CANC");
         assert!(t40.cancel);
         assert!(!t40.volume);
-        assert!(t40
-            .description
-            .starts_with("Cancel a previously reported trade"));
+        assert!(
+            t40.description
+                .starts_with("Cancel a previously reported trade")
+        );
 
         let t60 = TRADE_CONDITIONS[60];
         assert_eq!(t60.code, 60);

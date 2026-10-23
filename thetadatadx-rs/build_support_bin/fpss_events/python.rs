@@ -14,7 +14,7 @@ use super::common::{
     control_rust_variant, control_variant_mapping, is_contract, python_rust_field_type, snake_case,
 };
 use super::schema::{
-    sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
+    ColumnDef, EventDef, Schema, sorted_control_events, sorted_data_events, sorted_event_names,
 };
 
 /// Emit the `ContractRef` pyclass + helper constructor. Every data event

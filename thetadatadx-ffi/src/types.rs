@@ -2,7 +2,7 @@
 //! `ThetaDataDxOptionContract*`, plus the shared string / slice helpers that cross
 //! the FFI boundary.
 //!
-//! All symbols declared `#[no_mangle] extern "C" fn` here keep their original
+//! All symbols declared `#[unsafe(no_mangle)] extern "C" fn` here keep their original
 //! names. The split from `lib.rs` is purely organizational — the exported C
 //! ABI surface is identical.
 
@@ -39,7 +39,7 @@ pub struct ThetaDataDxConfig {
 /// Free a string returned by any `thetadatadx_*` function.
 ///
 /// MUST be called for every non-null `*mut c_char` returned by this library.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_string_free(s: *mut c_char) {
     ffi_boundary!((), {
         if !s.is_null() {
@@ -242,11 +242,11 @@ tick_array_type!(
     thetadatadx::IntervalQuoteTick
 );
 
-/// Generate a `#[no_mangle] extern "C"` free function for a tick array type.
+/// Generate a `#[unsafe(no_mangle)] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
     ($fn_name:ident, $array_type:ident) => {
         /// Free a tick array returned by an FFI endpoint.
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(arr: $array_type) {
             ffi_boundary!((), {
                 // SAFETY: `arr` is a `$array_type` returned by the matching FFI endpoint via `from_vec`; the enclosed `free()` matches the `Box::into_raw` that produced `arr.data`.
@@ -419,7 +419,7 @@ macro_rules! tick_array_to_arrow_ipc {
         /// the Arrow builder reads them as their Rust types, so an out-of-range
         /// bit pattern is undefined behavior. Rows a history endpoint returned
         /// already satisfy this.
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(rows: *const $tick, len: usize) -> ThetaDataDxArrowBytes {
             ffi_boundary!(ThetaDataDxArrowBytes::EMPTY, {
                 if rows.is_null() && len != 0 {
@@ -530,7 +530,7 @@ tick_array_to_arrow_ipc!(
 );
 
 /// Free a byte buffer returned by any `thetadatadx_*_to_arrow_ipc` terminal.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_arrow_bytes_free(bytes: ThetaDataDxArrowBytes) {
     ffi_boundary!((), {
         if !bytes.data.is_null() && bytes.len > 0 {
@@ -787,7 +787,7 @@ impl ThetaDataDxColumnPresence {
 /// Free a [`ThetaDataDxColumnPresence`] returned by any
 /// `thetadatadx_<tick>_present_columns` terminal, including its names and
 /// symbol attribution.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_column_presence_free(presence: ThetaDataDxColumnPresence) {
     ffi_boundary!((), {
         // Free the owned C-string fields independently: `names` (the schema
@@ -846,7 +846,7 @@ macro_rules! tick_present_columns {
         /// # Safety
         /// `headers` must point to `len` NUL-terminated C strings valid for
         /// the call — a C++ caller passes the response's header names.
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(
             headers: *const *const c_char,
             len: usize,
@@ -891,7 +891,7 @@ macro_rules! tick_array_to_arrow_ipc_projected {
         /// call; `presence` must be a valid [`ThetaDataDxColumnPresence`] (its
         /// name pointers valid for the call), typically from
         /// `thetadatadx_<tick>_present_columns`.
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(
             rows: *const $tick,
             len: usize,
@@ -1235,7 +1235,7 @@ impl ThetaDataDxOptionContractArray {
 
 /// Free an option contract array, including all heap-allocated symbol
 /// strings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_contract_array_free(
     arr: ThetaDataDxOptionContractArray,
 ) {
@@ -1319,7 +1319,7 @@ impl ThetaDataDxStringArray {
 }
 
 /// Free a string array, including all individual C strings.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_string_array_free(arr: ThetaDataDxStringArray) {
     ffi_boundary!((), {
         if !arr.data.is_null() && arr.len > 0 {
@@ -1383,8 +1383,8 @@ pub(crate) unsafe fn parse_symbol_array(
 #[cfg(test)]
 mod array_construction_tests {
     use super::{
-        thetadatadx_option_contract_array_free, thetadatadx_string_array_free,
         ThetaDataDxOptionContractArray, ThetaDataDxStringArray,
+        thetadatadx_option_contract_array_free, thetadatadx_string_array_free,
     };
     use thetadatadx::OptionContract;
 
@@ -1456,11 +1456,11 @@ mod column_presence_carrier_tests {
     use std::ffi::CString;
 
     use super::{
-        thetadatadx_arrow_bytes_free, thetadatadx_column_presence_free,
-        thetadatadx_trade_ticks_to_arrow_ipc_projected, ThetaDataDxColumnPresence,
+        ThetaDataDxColumnPresence, thetadatadx_arrow_bytes_free, thetadatadx_column_presence_free,
+        thetadatadx_trade_ticks_to_arrow_ipc_projected,
     };
     use arrow_array::Array as _;
-    use thetadatadx::{columns::ColumnPresence, TradeTick};
+    use thetadatadx::{TradeTick, columns::ColumnPresence};
 
     /// A multi-symbol snapshot's per-row `symbol` values survive the round-trip
     /// across the C carrier: `from_presence` leaks them, `to_presence`

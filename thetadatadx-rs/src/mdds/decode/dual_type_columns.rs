@@ -13,7 +13,7 @@ use crate::tdbe::types::tick::{CalendarDay, OptionContract};
 use super::cell::{
     cell_type, row_contract_expiration, row_contract_right, row_date, row_price_f64, row_text,
 };
-use super::error::{observed_name, DecodeError};
+use super::error::{DecodeError, observed_name};
 use super::headers::find_header;
 
 /// Hand-written parser for `OptionContract` that handles the v3 server's
@@ -119,16 +119,15 @@ pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
         return Err(DecodeError::InvalidDate { raw: s.to_string() });
     }
     let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() == 3 {
-        if let (Ok(y), Ok(m), Ok(d)) = (
+    if parts.len() == 3
+        && let (Ok(y), Ok(m), Ok(d)) = (
             parts[0].parse::<i32>(),
             parts[1].parse::<u32>(),
             parts[2].parse::<u32>(),
-        ) {
-            if crate::tdbe::time::is_valid_gregorian_date(y, m, d) {
-                return Ok(y * 10_000 + (m as i32) * 100 + (d as i32));
-            }
-        }
+        )
+        && crate::tdbe::time::is_valid_gregorian_date(y, m, d)
+    {
+        return Ok(y * 10_000 + (m as i32) * 100 + (d as i32));
     }
     Err(DecodeError::InvalidDate { raw: s.to_string() })
 }
@@ -145,16 +144,17 @@ pub(crate) fn parse_iso_date(s: &str) -> Result<i32, DecodeError> {
 /// component is outside its clock range.
 pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() == 3 {
-        if let (Ok(h), Ok(m), Ok(sec)) = (
+    if parts.len() == 3
+        && let (Ok(h), Ok(m), Ok(sec)) = (
             parts[0].parse::<i32>(),
             parts[1].parse::<i32>(),
             parts[2].parse::<i32>(),
-        ) {
-            if (0..=23).contains(&h) && (0..=59).contains(&m) && (0..=59).contains(&sec) {
-                return Ok((h * 3_600 + m * 60 + sec) * 1_000);
-            }
-        }
+        )
+        && (0..=23).contains(&h)
+        && (0..=59).contains(&m)
+        && (0..=59).contains(&sec)
+    {
+        return Ok((h * 3_600 + m * 60 + sec) * 1_000);
     }
     Err(DecodeError::InvalidTime { raw: s.to_string() })
 }

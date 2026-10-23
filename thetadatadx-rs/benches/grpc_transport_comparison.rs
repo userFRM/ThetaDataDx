@@ -56,8 +56,8 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::Write as _;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use bytes::{BufMut, Bytes, BytesMut};
@@ -73,8 +73,8 @@ use tokio::task::JoinHandle;
 use thetadatadx::grpc::endpoints::bench_support;
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::wire::{
-    data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-    ResponseData,
+    CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList, ResponseData,
+    data_value,
 };
 
 // ─── Counting allocator ─────────────────────────────────────────────

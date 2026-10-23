@@ -125,7 +125,7 @@ pub async fn collect_stream(
 /// Returns an [`Error`] when the RPC fails or the response cannot be
 /// decoded.
 pub mod bench_support {
-    use super::{map_channel_error, Channel, Error, HashMap, CLIENT_PARAMETER_VALUE};
+    use super::{CLIENT_PARAMETER_VALUE, Channel, Error, HashMap, map_channel_error};
     use crate::decode;
     use crate::proto;
     use crate::tdbe::types::tick::EodTick;

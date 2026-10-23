@@ -105,7 +105,7 @@ pub(crate) fn ensure_crypto_provider() {
 // `require_cstr!`). Every other module pulls its macro callers via crate-root
 // hoisting.
 //
-// All `#[no_mangle] extern "C" fn` symbols remain identical regardless of the
+// All `#[unsafe(no_mangle)] extern "C" fn` symbols remain identical regardless of the
 // Rust module they live in — the module split is purely organizational.
 
 #[macro_use]

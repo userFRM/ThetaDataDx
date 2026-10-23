@@ -65,11 +65,7 @@ pub fn is_valid_gregorian_date(year: i32, month: u32, day: u32) -> bool {
         4 | 6 | 9 | 11 => 30,
         2 => {
             let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            if leap {
-                29
-            } else {
-                28
-            }
+            if leap { 29 } else { 28 }
         }
         _ => unreachable!("month bounded by the 1..=12 check above"),
     };
@@ -515,10 +511,10 @@ mod tests {
         assert!(!is_valid_gregorian_date(0, 0, 0)); // 00000000 sentinel
         assert!(!is_valid_gregorian_date(2026, 2, 30)); // Feb 30 never exists
         assert!(!is_valid_gregorian_date(1999, 4, 31)); // April only has 30
-                                                        // Leap-year edge cases.
+        // Leap-year edge cases.
         assert!(!is_valid_gregorian_date(1900, 2, 29)); // /100 not /400 = not leap
         assert!(!is_valid_gregorian_date(2023, 2, 29)); // not a multiple of 4
-                                                        // Out-of-range fields.
+        // Out-of-range fields.
         assert!(!is_valid_gregorian_date(2026, 13, 1));
         assert!(!is_valid_gregorian_date(2026, 0, 1));
         assert!(!is_valid_gregorian_date(2026, 1, 0));
@@ -733,11 +729,7 @@ mod tests {
                 4 | 6 | 9 | 11 => 30,
                 2 => {
                     let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-                    if leap {
-                        29
-                    } else {
-                        28
-                    }
+                    if leap { 29 } else { 28 }
                 }
                 _ => unreachable!(),
             };

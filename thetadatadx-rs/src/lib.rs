@@ -222,8 +222,8 @@ pub(crate) mod proto {
 #[doc(hidden)]
 pub mod wire {
     pub use super::proto::{
-        data_value, CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList,
-        Price, ResponseData, TimeZone, ZonedDateTime,
+        CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList, Price,
+        ResponseData, TimeZone, ZonedDateTime, data_value,
     };
 
     /// Request proto types re-exported behind the `__test-helpers` feature so
@@ -263,8 +263,8 @@ pub use mdds::endpoint_args::{EndpointArgValue, EndpointArgs, EndpointError, End
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
 pub use mdds::registry::{
-    by_category, find, param_type_to_json_type, EndpointMeta, ParamMeta, ParamType, ReturnType,
-    CATEGORIES, ENDPOINTS,
+    CATEGORIES, ENDPOINTS, EndpointMeta, ParamMeta, ParamType, ReturnType, by_category, find,
+    param_type_to_json_type,
 };
 // ─── Curated public client surface ───────────────────────────────────────────
 
@@ -323,8 +323,8 @@ pub mod streaming {
     #[cfg(feature = "arrow")]
     #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
     pub use crate::fpss::batch_reader::{
-        Backpressure, BatchReaderBuilder, RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER,
-        DEFAULT_QUEUE_DEPTH,
+        Backpressure, BatchReaderBuilder, DEFAULT_BATCH_SIZE, DEFAULT_LINGER, DEFAULT_QUEUE_DEPTH,
+        RecordBatchStream,
     };
 
     /// Estimated Arrow IPC stream size, in bytes, for a single batch of
@@ -366,7 +366,7 @@ pub use mdds::shard::ShardBand;
 /// cap: [`split_date_range`] divides an inclusive `(start, end)` span into
 /// contiguous server-accepted chunks. Also exposed to Python as
 /// `thetadatadx.split_date_range`.
-pub use mdds::shard::{split_date_range, ChunkError};
+pub use mdds::shard::{ChunkError, split_date_range};
 
 /// Market-data query consumer surface.
 ///
@@ -392,9 +392,9 @@ pub mod market_data {
 pub mod flatfiles_api {
     pub use crate::client::FlatFiles;
     pub use crate::flatfiles::{
-        flatfile_request, flatfile_request_decoded, flatfile_request_raw, FlatFileFormat,
-        FlatFileRow, FlatFileValue, FlatFilesUnavailableReason, ReqType as FlatFileReqType,
-        SecType as FlatFileSecType,
+        FlatFileFormat, FlatFileRow, FlatFileValue, FlatFilesUnavailableReason,
+        ReqType as FlatFileReqType, SecType as FlatFileSecType, flatfile_request,
+        flatfile_request_decoded, flatfile_request_raw,
     };
 }
 pub use flatfiles_api::*;
@@ -435,7 +435,7 @@ pub use crate::tdbe::types::enums::{
 /// public surface — external crates MUST NOT enable that feature.
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
-pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE};
+pub use crate::tdbe::types::price::{MAX_PRICE_TYPE, Price, PriceError, PriceType};
 
 // ─── Option-right parsing ────────────────────────────────────────────────────
 
@@ -445,10 +445,10 @@ pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE
 /// user-facing input boundary. Use [`parse_right`] where the wildcard is
 /// meaningful and [`parse_right_strict`] where a single side is required.
 pub mod right {
-    pub use crate::tdbe::right::{parse_right, parse_right_strict, ParsedRight, RightError};
+    pub use crate::tdbe::right::{ParsedRight, RightError, parse_right, parse_right_strict};
 }
 // Crate-root re-export of the option-right parser.
-pub use right::{parse_right, parse_right_strict, ParsedRight, RightError};
+pub use right::{ParsedRight, RightError, parse_right, parse_right_strict};
 
 // ─── Utility modules ─────────────────────────────────────────────────────────
 

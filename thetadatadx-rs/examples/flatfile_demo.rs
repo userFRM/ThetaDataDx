@@ -19,8 +19,8 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 use thetadatadx::Credentials;
+use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> ExitCode {

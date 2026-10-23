@@ -30,7 +30,7 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering as AtomicOrdering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from, set_error_with_code};
@@ -451,7 +451,7 @@ where
 
 /// Free a `ThetaDataDxSubscriptionArray` returned by `thetadatadx_client_active_subscriptions`
 /// or `thetadatadx_streaming_active_subscriptions`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_subscription_array_free(
     arr: *mut ThetaDataDxSubscriptionArray,
 ) {
@@ -493,7 +493,7 @@ pub unsafe extern "C" fn thetadatadx_subscription_array_free(
 /// later to start FPSS. Market-data endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_connect(
     creds: *const ThetaDataDxCredentials,
     config: *const ThetaDataDxConfig,
@@ -540,7 +540,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect(
 ///
 /// Returns null on argument validation or connection/auth failure
 /// (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
     path: *const c_char,
     config: *const ThetaDataDxConfig,
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 /// already active returns -1 with `"streaming already started"`.
 ///
 /// Returns 0 on success, -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_set_callback(
     handle: *const ThetaDataDxClient,
     callback: Option<ThetaDataDxStreamCallback>,
@@ -903,7 +903,7 @@ unsafe fn coerce_subscription(
 /// every per-contract and full-stream variant.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_subscribe(
     handle: *const ThetaDataDxClient,
     request: *const ThetaDataDxSubscriptionRequest,
@@ -933,7 +933,7 @@ pub unsafe extern "C" fn thetadatadx_client_subscribe(
 /// Polymorphic unsubscribe on the unified client.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
     handle: *const ThetaDataDxClient,
     request: *const ThetaDataDxSubscriptionRequest,
@@ -998,7 +998,7 @@ pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
 /// callback is still in flight. Drive reconnect from a separate
 /// thread and call `thetadatadx_client_await_drain` between stop and any
 /// `ctx` replacement.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDxClient) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
@@ -1109,7 +1109,7 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
 }
 
 /// Check if streaming is active on the unified client.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_is_streaming(handle: *const ThetaDataDxClient) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
@@ -1128,7 +1128,7 @@ pub unsafe extern "C" fn thetadatadx_client_is_streaming(handle: *const ThetaDat
 /// yet briefly unauthenticated mid-reconnect. Returns 1 when
 /// authenticated, 0 otherwise (including a null handle, before streaming
 /// starts, and after it stops).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_is_authenticated(
     handle: *const ThetaDataDxClient,
 ) -> i32 {
@@ -1145,7 +1145,7 @@ pub unsafe extern "C" fn thetadatadx_client_is_authenticated(
 /// Get active subscriptions as a typed array. Returns null on error.
 ///
 /// Caller must free the result with `thetadatadx_subscription_array_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_active_subscriptions(
     handle: *const ThetaDataDxClient,
 ) -> *mut ThetaDataDxSubscriptionArray {
@@ -1180,7 +1180,7 @@ pub unsafe extern "C" fn thetadatadx_client_active_subscriptions(
 /// (`Quote` / `MarketValue`) have no full-stream form and are omitted.
 ///
 /// Caller must free the result with `thetadatadx_subscription_array_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_active_full_subscriptions(
     handle: *const ThetaDataDxClient,
 ) -> *mut ThetaDataDxSubscriptionArray {
@@ -1218,7 +1218,7 @@ pub unsafe extern "C" fn thetadatadx_client_active_full_subscriptions(
 ///
 /// This cast is sound because `ThetaDataDxMarketDataClient` is `#[repr(transparent)]` over
 /// `MarketDataClient`, and `Client` Derefs to `&MarketDataClient`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_market_data(
     handle: *const ThetaDataDxClient,
 ) -> *const ThetaDataDxMarketDataClient {
@@ -1257,7 +1257,7 @@ pub unsafe extern "C" fn thetadatadx_client_market_data(
 /// `ctx` based on stop returning will trigger use-after-free in the
 /// callback. Drive stop / reconnect from a separate thread instead,
 /// then call `thetadatadx_client_await_drain` for the quiescence barrier.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_stop_streaming(handle: *const ThetaDataDxClient) {
     ffi_boundary!((), {
         if handle.is_null() {
@@ -1281,7 +1281,7 @@ pub unsafe extern "C" fn thetadatadx_client_stop_streaming(handle: *const ThetaD
 /// Writes the value into `*out_ms`. Returns `0` on success, `1` when
 /// streaming has not started or no frame has been received yet
 /// (`*out_ms` is left `0`), `-1` on a null pointer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_millis_since_last_event(
     handle: *const ThetaDataDxClient,
     out_ms: *mut u64,
@@ -1318,7 +1318,7 @@ pub unsafe extern "C" fn thetadatadx_client_millis_since_last_event(
 /// has been received yet. Raw feed for
 /// `thetadatadx_client_millis_since_last_event`, exposed for callers
 /// correlating against their own pipeline timestamps.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_last_event_received_at_unix_nanos(
     handle: *const ThetaDataDxClient,
 ) -> i64 {
@@ -1337,7 +1337,7 @@ pub unsafe extern "C" fn thetadatadx_client_last_event_received_at_unix_nanos(
 /// Returns a heap-owned C string the caller must release with
 /// `thetadatadx_string_free`, or null when streaming has not started (or the
 /// handle is null).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_last_connected_addr(
     handle: *const ThetaDataDxClient,
 ) -> *mut std::os::raw::c_char {
@@ -1372,7 +1372,7 @@ pub unsafe extern "C" fn thetadatadx_client_last_connected_addr(
 ///
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_dropped_events(
     handle: *const ThetaDataDxClient,
 ) -> u64 {
@@ -1398,7 +1398,7 @@ pub unsafe extern "C" fn thetadatadx_client_dropped_events(
 ///
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_ring_occupancy(
     handle: *const ThetaDataDxClient,
 ) -> u64 {
@@ -1419,7 +1419,7 @@ pub unsafe extern "C" fn thetadatadx_client_ring_occupancy(
 ///
 /// Returns 0 if the handle is null or no callback has been installed
 /// yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_ring_capacity(handle: *const ThetaDataDxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
@@ -1440,7 +1440,7 @@ pub unsafe extern "C" fn thetadatadx_client_ring_capacity(handle: *const ThetaDa
 /// continues normally. Safe to call from any thread without blocking.
 ///
 /// Returns 0 if the handle is null or no callback has been installed yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaDataDxClient) -> u64 {
     ffi_boundary!(0, {
         if handle.is_null() {
@@ -1479,7 +1479,7 @@ pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaData
 /// generous for typical drain times (single-digit milliseconds);
 /// production callers should pick a value larger than the worst-case
 /// in-flight callback latency they tolerate.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_await_drain(
     handle: *const ThetaDataDxClient,
     timeout_ms: u64,
@@ -1523,7 +1523,7 @@ pub unsafe extern "C" fn thetadatadx_client_await_drain(
 /// `_free` logs the overrun and proceeds to destruction; control
 /// then returns into the user callback which is now operating
 /// against freed memory. Drive `_free` from a separate thread.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient) {
     ffi_boundary!((), {
         if handle.is_null() {
@@ -1596,7 +1596,7 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
 /// installation lets us avoid an internal queue.
 ///
 /// Returns null on argument validation failure (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_connect(
     creds: *const ThetaDataDxCredentials,
     config: *const ThetaDataDxConfig,
@@ -1662,7 +1662,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
 /// `thetadatadx_streaming_free`).
 ///
 /// Returns null on argument validation failure (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_connect_from_file(
     path: *const c_char,
     config: *const ThetaDataDxConfig,
@@ -1868,7 +1868,7 @@ where
 /// [`thetadatadx_client_set_callback`] for the replacement contract.
 ///
 /// Returns 0 on success, -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
     handle: *const ThetaDataDxStreamHandle,
     callback: Option<ThetaDataDxStreamCallback>,
@@ -1932,7 +1932,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
 /// dispatcher folds back to `0` so the failed state is uniformly visible
 /// across status readers. Returns 1 when streaming, 0 otherwise
 /// (including a null handle and after shutdown).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
@@ -1970,7 +1970,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
 /// Check if the FPSS client is currently authenticated.
 ///
 /// Returns 1 if authenticated, 0 if not (or if handle is null).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
@@ -2014,7 +2014,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
 ///
 /// Returns a heap-allocated `ThetaDataDxSubscriptionArray` (null on error).
 /// Caller must free the result with `thetadatadx_subscription_array_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
     handle: *const ThetaDataDxStreamHandle,
 ) -> *mut ThetaDataDxSubscriptionArray {
@@ -2029,7 +2029,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
+            set_error(
+                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
+            );
             return ptr::null_mut();
         };
         let subs = client.active_subscriptions();
@@ -2052,7 +2054,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
 ///
 /// Returns a heap-allocated `ThetaDataDxSubscriptionArray` (null on error).
 /// Caller must free the result with `thetadatadx_subscription_array_free`.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
     handle: *const ThetaDataDxStreamHandle,
 ) -> *mut ThetaDataDxSubscriptionArray {
@@ -2067,7 +2069,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
+            set_error(
+                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
+            );
             return ptr::null_mut();
         };
         let subs = client.active_full_subscriptions();
@@ -2086,7 +2090,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
 /// Rust `StreamingClient::subscribe(Subscription)` shape.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
     handle: *const ThetaDataDxStreamHandle,
     request: *const ThetaDataDxSubscriptionRequest,
@@ -2125,7 +2129,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
 /// Polymorphic unsubscribe on the standalone FPSS client.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
     handle: *const ThetaDataDxStreamHandle,
     request: *const ThetaDataDxSubscriptionRequest,
@@ -2196,7 +2200,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
 /// until its exit path joins. Pair with `thetadatadx_streaming_await_drain` from
 /// a separate thread when the application needs to free `ctx` or
 /// otherwise rely on the old callback having stopped firing.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
@@ -2299,18 +2303,18 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // needed" assumption breaks. A 5 s budget matches the FFI
         // free-path drain budget; on timeout we surface the error
         // rather than racing.
-        if let Some(flag) = prev_drain_flag {
-            if !await_flags(
+        if let Some(flag) = prev_drain_flag
+            && !await_flags(
                 std::slice::from_ref(&flag),
                 std::time::Duration::from_millis(5_000),
-            ) {
-                set_error(
-                    "reconnect drain barrier timed out after 5s — \
+            )
+        {
+            set_error(
+                "reconnect drain barrier timed out after 5s — \
                      previous callback is still in flight; refusing \
                      to bind the new session to the same ctx",
-                );
-                return -1;
-            }
+            );
+            return -1;
         }
 
         // 3. Build the new client + spawn a fresh dispatcher thread
@@ -2591,10 +2595,10 @@ fn publish_failed_if_current(
     reason: String,
 ) {
     let mut guard = dispatcher.lock_recover();
-    if let FfpssDispatcherSession::Running { handle, .. } = &*guard {
-        if handle.thread().id() == dispatcher_thread_id {
-            *guard = FfpssDispatcherSession::Failed { reason };
-        }
+    if let FfpssDispatcherSession::Running { handle, .. } = &*guard
+        && handle.thread().id() == dispatcher_thread_id
+    {
+        *guard = FfpssDispatcherSession::Failed { reason };
     }
 }
 
@@ -2660,7 +2664,7 @@ fn run_ffi_dispatcher<F>(
 /// `thetadatadx_client_millis_since_last_event`: returns `0` on success with
 /// the value in `*out_ms`, `1` when no session is live or no frame
 /// has been received yet, `-1` on a null pointer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_millis_since_last_event(
     handle: *const ThetaDataDxStreamHandle,
     out_ms: *mut u64,
@@ -2699,7 +2703,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_millis_since_last_event(
 /// streaming frame of any kind on this FPSS handle. Returns `0` when
 /// the handle is null, no session is live, or no frame has been
 /// received yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_last_event_received_at_unix_nanos(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i64 {
@@ -2720,7 +2724,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_event_received_at_unix_nanos
 /// session is connected to, following the session across
 /// auto-reconnects. Returns a heap-owned C string the caller must
 /// release with `thetadatadx_string_free`, or null when no session is live.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
     handle: *const ThetaDataDxStreamHandle,
 ) -> *mut std::os::raw::c_char {
@@ -2756,7 +2760,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
 /// total.
 ///
 /// Returns 0 if the handle is null or no session has ever started.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
@@ -2787,7 +2791,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
 /// to poll from any thread at any cadence.
 ///
 /// Returns 0 if the handle is null or has been shut down.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
@@ -2809,7 +2813,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
 /// will be dropped (counted by `thetadatadx_streaming_dropped_events`).
 ///
 /// Returns 0 if the handle is null or has been shut down.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
@@ -2835,7 +2839,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
 /// continues normally. Safe to call from any thread without blocking.
 ///
 /// Returns 0 if the handle is null or no session has ever started.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
@@ -2866,7 +2870,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
 /// Idempotency: calling shutdown twice on the same handle is rejected
 /// rather than silently no-op'd, so a misuse caller cannot accidentally
 /// observe "success" after the resource is gone.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaDataDxStreamHandle) {
     ffi_boundary!((), {
         if handle.is_null() {
@@ -2932,7 +2936,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
 /// MUST be called from a thread other than the FPSS Disruptor
 /// consumer thread. Calling it from inside the user callback would
 /// block the helper the consumer is waiting on and always time out.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
     handle: *const ThetaDataDxStreamHandle,
     timeout_ms: u64,
@@ -3009,7 +3013,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
 /// signal teardown, post to an external channel and have the
 /// non-callback thread invoke `_free` (or `_shutdown` followed by
 /// `_await_drain` then `_free`).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStreamHandle) {
     ffi_boundary!((), {
         if handle.is_null() {
@@ -3229,7 +3233,7 @@ mod discriminant_conversion_tests {
     use thetadatadx::fpss::{DisconnectCause, StreamControl, StreamEvent};
     use thetadatadx::{RemoveReason, StreamResponseType};
 
-    use super::{fpss_event_to_ffi, ThetaDataDxStreamEventKind};
+    use super::{ThetaDataDxStreamEventKind, fpss_event_to_ffi};
 
     // The wire `reason` / `result` fields are `i32` on the C ABI, while the
     // backing core enums are `#[repr(i16)]` (`RemoveReason`) and
@@ -3398,14 +3402,14 @@ mod teardown_deadlock_tests {
     //! the stand-in could never acquire the lock, the join would hang, and the
     //! watchdog would fire.
 
-    use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
     use std::sync::{Arc, Barrier, Mutex};
     use std::time::Duration;
 
     use super::{
-        extract_dispatcher_session, join_extracted_session, FfiCallback, FfpssDispatcherSession,
-        LockRecover, StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
-        ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
+        FfiCallback, FfpssDispatcherSession, LockRecover, STREAM_STATE_ACTIVE,
+        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        ThetaDataDxStreamHandle, extract_dispatcher_session, join_extracted_session,
     };
     use std::ffi::c_void;
 
@@ -3576,13 +3580,13 @@ mod health_on_outer_panic_tests {
     //! dead thread. This pins [`super::publish_failed_if_current`], the catch-arm
     //! publish both `set_callback` and `reconnect` spawns route through.
 
-    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
     use std::sync::{Arc, Mutex};
 
     use super::{
-        publish_failed_if_current, run_ffi_dispatcher, FfiCallback, FfpssDispatcherSession,
-        LockRecover, StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
-        ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
+        FfiCallback, FfpssDispatcherSession, LockRecover, STREAM_STATE_ACTIVE,
+        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        ThetaDataDxStreamHandle, publish_failed_if_current, run_ffi_dispatcher,
     };
     use std::ffi::c_void;
     use thetadatadx::fpss::{HarnessPublishMode, StreamingClient};

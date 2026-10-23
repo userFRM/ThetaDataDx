@@ -558,9 +558,6 @@ mod tests {
     /// cross-test interference.
     #[test]
     fn from_env_or_file_prefers_env_api_key() {
-        // SAFETY: single-threaded test body; the env var is set and
-        // removed within this test's scope. No other test reads
-        // `THETADATA_API_KEY`.
         temp_env_var(API_KEY_ENV, Some("  env-sourced-key  "), || {
             let creds = Credentials::from_env_or_file("/nonexistent/creds.txt")
                 .expect("env api key must source without touching the file");
@@ -718,19 +715,15 @@ mod tests {
         std::fs::remove_file(&path).ok();
     }
 
-    /// Serializes env-mutating tests so parallel test threads never
-    /// observe a torn `THETADATA_API_KEY` while another test is mid-swap.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
     /// Run `body` with `var` temporarily set to `value` (or removed when
     /// `None`), restoring the prior value afterward. Keeps env mutation
     /// scoped so the suite stays order-independent.
     fn temp_env_var(var: &str, value: Option<&str>, body: impl FnOnce()) {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = crate::config::env_test_guard();
         let prior = std::env::var(var).ok();
-        // SAFETY: tests run in-process; this helper sets/removes a single
-        // env var around a synchronous closure and restores the prior
-        // value, so no other thread observes a torn state for `var`.
+        // SAFETY: every test in this crate that changes the environment
+        // holds `env_test_guard()`, so no other test changes it while this
+        // closure runs.
         unsafe {
             match value {
                 Some(v) => std::env::set_var(var, v),
@@ -738,7 +731,7 @@ mod tests {
             }
         }
         body();
-        // SAFETY: same as above — restore the captured prior value.
+        // SAFETY: `_guard` is still held; this restores the prior value.
         unsafe {
             match prior {
                 Some(v) => std::env::set_var(var, v),

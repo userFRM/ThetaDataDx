@@ -28,7 +28,7 @@ use std::hint::black_box;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 use thetadatadx::decode::{
     decode_data_table, parse_ohlc_ticks, parse_quote_ticks, parse_trade_ticks,
@@ -37,7 +37,7 @@ use thetadatadx::wire as proto;
 
 #[path = "perf_gate_support/perf_alloc.rs"]
 mod perf_alloc;
-use perf_alloc::{snapshot, write_metric_file, Sample};
+use perf_alloc::{Sample, snapshot, write_metric_file};
 
 #[path = "common/quote_fixture.rs"]
 mod fixture;

@@ -24,8 +24,8 @@
 //! same `Arc<Channel>` handle the picker returned remains valid.
 
 use std::ops::Deref;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::channel::{Channel, InFlightToken};
 

@@ -148,24 +148,24 @@ fn build_all_row() -> proto::DataValueList {
     v.push(greek(2_392_069)); // rho=239.2069
     v.push(greek(-2_825_279)); // epsilon=-282.5279
     v.push(greek(65_217)); // lambda=6.5217
-                           // Second-order
+    // Second-order
     v.push(greek(36)); // gamma=0.0036
     v.push(greek(-6_361)); // vanna=-0.6361
     v.push(greek(4)); // charm=0.0004
     v.push(greek(1_627_885)); // vomma=162.7885
     v.push(greek(1_159_427)); // veta=115.9427
     v.push(greek(-3_717_558)); // vera=-371.7558
-                               // Third-order
+    // Third-order
     v.push(greek(0)); // speed=0
     v.push(greek(-145)); // zomma=-0.0145
     v.push(greek(-25)); // color=-0.0025
     v.push(greek(-23_948_608)); // ultima=-2394.8608
-                                // BSM intermediates
+    // BSM intermediates
     v.push(greek(5_375)); // d1=0.5375
     v.push(greek(3_688)); // d2=0.3688
     v.push(greek(-6_242)); // dual_delta=-0.6242
     v.push(greek(39)); // dual_gamma=0.0039
-                       // IV pair
+    // IV pair
     v.push(greek(2_001)); // implied_vol=0.2001
     v.push(greek(0)); // iv_error=0
     v.extend(underlying_tail());

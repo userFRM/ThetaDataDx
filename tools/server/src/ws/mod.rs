@@ -30,9 +30,9 @@ mod session;
 mod subscribe;
 mod upgrade;
 
+use axum::Router;
 use axum::extract::DefaultBodyLimit;
 use axum::routing::get;
-use axum::Router;
 use tower::limit::ConcurrencyLimitLayer;
 
 use crate::state::AppState;

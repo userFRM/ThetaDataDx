@@ -21,7 +21,7 @@
 use thetadatadx::frames::{TicksArrowExt, TicksPolarsExt};
 use thetadatadx::wire as proto;
 use thetadatadx::{
-    decode, CalendarDay, ColumnPresence, EodTick, QuoteTick, TradeQuoteTick, TradeTick, WireColumns,
+    CalendarDay, ColumnPresence, EodTick, QuoteTick, TradeQuoteTick, TradeTick, WireColumns, decode,
 };
 
 #[path = "common/capture_loader.rs"]

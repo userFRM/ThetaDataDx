@@ -10,7 +10,7 @@
 use std::fmt::Write as _;
 
 use super::idents::python_field_ident;
-use super::schema::{render_for_type, Schema, TickTypeDef};
+use super::schema::{Schema, TickTypeDef, render_for_type};
 use super::tdbe_structs::timestamp_accessor_fields;
 use super::{pyclass_name, sorted_type_names};
 

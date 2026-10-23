@@ -20,15 +20,15 @@
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::collections::HashMap;
 use std::hint::black_box;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 
-use thetadatadx::fpss::__test_internals::{decode_frame, DeltaState};
-use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::StreamMsgType;
+use thetadatadx::fpss::__test_internals::{DeltaState, decode_frame};
+use thetadatadx::fpss::protocol::Contract;
 
 // ─── Counting allocator ──────────────────────────────────────────────
 //

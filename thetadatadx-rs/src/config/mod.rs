@@ -55,14 +55,14 @@ pub use env::{
     ENV_NEXUS_URL, ENV_STREAMING_HOST, ENV_STREAMING_PORT, ENV_STREAMING_TYPE,
 };
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
-pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
-pub use fpss::{bounds as streaming_bounds, StreamingConfig, WaitMode};
+pub use flatfiles::{FlatFilesConfig, bounds as flatfiles_bounds};
+pub use fpss::{StreamingConfig, WaitMode, bounds as streaming_bounds};
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use mdds::{BulkFetchPolicy, MarketDataConfig};
 pub use metrics::MetricsConfig;
 pub use reconnect::{
-    bounds as reconnect_bounds, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig,
-    ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
+    RATE_LIMITED_JITTER_WINDOW, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig,
+    ReconnectPolicy, bounds as reconnect_bounds,
 };
 pub use retry::RetryPolicy;
 pub use runtime::RuntimeConfig;
@@ -1456,10 +1456,10 @@ mod config_file {
                     Error::config_invalid(
                         "streaming.wait_mode",
                         format!(
-                        "unknown wait_mode {:?}; expected \"spin\", \"busyspin\", \"park\", or \
+                            "unknown wait_mode {:?}; expected \"spin\", \"busyspin\", \"park\", or \
                          \"backoff\"",
-                        cf.streaming.wait_mode
-                    ),
+                            cf.streaming.wait_mode
+                        ),
                     )
                 })?;
             // Range-checked with the other streaming knobs in `validate`.
@@ -2399,30 +2399,34 @@ mod tests {
     fn validate_rejects_zero_and_oversized_market_data_max_message_size() {
         let mut zero = DirectConfig::production_defaults();
         zero.market_data.max_message_size = 0;
-        assert!(zero
-            .validate()
-            .expect_err("zero budget rejects every response")
-            .to_string()
-            .contains("market_data.max_message_size"));
+        assert!(
+            zero.validate()
+                .expect_err("zero budget rejects every response")
+                .to_string()
+                .contains("market_data.max_message_size")
+        );
 
         let mut huge = DirectConfig::production_defaults();
         huge.market_data.max_message_size = 64 * 1024 * 1024 + 1;
-        assert!(huge
-            .validate()
-            .expect_err("above the 64 MiB ceiling")
-            .to_string()
-            .contains("market_data.max_message_size"));
+        assert!(
+            huge.validate()
+                .expect_err("above the 64 MiB ceiling")
+                .to_string()
+                .contains("market_data.max_message_size")
+        );
     }
 
     #[test]
     fn validate_rejects_zero_market_data_port() {
         let mut config = DirectConfig::production_defaults();
         config.market_data.port = 0;
-        assert!(config
-            .validate()
-            .expect_err("port 0 is not a dial target")
-            .to_string()
-            .contains("market_data.port"));
+        assert!(
+            config
+                .validate()
+                .expect_err("port 0 is not a dial target")
+                .to_string()
+                .contains("market_data.port")
+        );
     }
 
     #[test]
@@ -2430,20 +2434,23 @@ mod tests {
         let mut config = DirectConfig::production_defaults();
         config.retry.initial_delay = std::time::Duration::ZERO;
         config.retry.max_attempts = 5;
-        assert!(config
-            .validate()
-            .expect_err("zero initial delay with retries enabled bursts")
-            .to_string()
-            .contains("retry.initial_delay"));
+        assert!(
+            config
+                .validate()
+                .expect_err("zero initial delay with retries enabled bursts")
+                .to_string()
+                .contains("retry.initial_delay")
+        );
 
         let mut ff = DirectConfig::production_defaults();
         ff.flatfiles.initial_backoff = std::time::Duration::ZERO;
         ff.flatfiles.max_attempts = 5;
-        assert!(ff
-            .validate()
-            .expect_err("zero initial backoff with retries enabled bursts")
-            .to_string()
-            .contains("flatfiles.initial_backoff"));
+        assert!(
+            ff.validate()
+                .expect_err("zero initial backoff with retries enabled bursts")
+                .to_string()
+                .contains("flatfiles.initial_backoff")
+        );
     }
 
     #[test]
@@ -2557,13 +2564,9 @@ mod tests {
     fn clear_env_matrix() {
         // Unset every variable the env-override path reads so no test
         // leaks into another. The guard above pins us as the sole writer.
-        // SAFETY: the env-var tests serialise through `env_test_guard()`,
-        // a process-global `Mutex<()>` held for the full body of every
-        // env test; this function is only called from inside that
-        // critical section. The Rust 1.88 `unsafe fn` contract on
-        // `std::env::remove_var` requires the caller to ensure no other
-        // thread reads or writes the environment concurrently — the
-        // mutex provides exactly that.
+        // SAFETY: every test in this crate that changes the environment
+        // holds `env_test_guard()` for its whole body, and this function is
+        // only called from inside one, so no other test changes it meanwhile.
         unsafe {
             std::env::remove_var(ENV_MARKET_DATA_TYPE);
             std::env::remove_var(ENV_STREAMING_TYPE);
@@ -2580,9 +2583,8 @@ mod tests {
     fn market_data_type_env_stage_selects_stage_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for the
-        // body of this test, so no other thread observes or mutates the
-        // environment while this write lands.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
         }
@@ -2606,9 +2608,8 @@ mod tests {
         // `.expect`, never silently route the market-data channel anywhere.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for the body
-        // of this test, so no other thread observes or mutates the environment
-        // while this write lands.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_TYPE, "DEV");
         }
@@ -3477,10 +3478,8 @@ mod tests {
     fn env_overrides_apply_on_production() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for
-        // the body of this test, so no other thread observes or mutates
-        // the environment while these writes land. `std::env::set_var`'s
-        // 1.88 `unsafe fn` contract is therefore upheld.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_HOST, "market-data.staging.example.com");
             std::env::set_var(ENV_MARKET_DATA_PORT, "8443");
@@ -3508,9 +3507,8 @@ mod tests {
     fn env_overrides_skipped_when_values_malformed() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for
-        // the body of this test, so no other thread observes or mutates
-        // the environment while these writes land.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_PORT, "not-a-port");
             std::env::set_var(ENV_STREAMING_PORT, "0"); // reject zero
@@ -3804,9 +3802,8 @@ mod tests {
         // config must be deterministic from defaults plus the file. A `.env`
         // selecting PROD must yield the prod cluster regardless of the ambient
         // process env.
-        // SAFETY: `_guard` holds the process-global env-var mutex for the body
-        // of this test, so no other thread observes or mutates the environment
-        // while these writes land.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
             std::env::set_var(ENV_MARKET_DATA_HOST, "mdds-stage.thetadata.us");
@@ -3906,9 +3903,8 @@ mod tests {
     fn production_defaults_are_not_sensitive_to_env() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for
-        // the body of this test, so no other thread observes or mutates
-        // the environment while these writes land.
+        // SAFETY: `_guard` holds the mutex every test in this crate that
+        // changes the environment takes, so no other test changes it meanwhile.
         unsafe {
             std::env::set_var(ENV_MARKET_DATA_HOST, "ignored-by-defaults");
             std::env::set_var(ENV_MARKET_DATA_PORT, "9999");

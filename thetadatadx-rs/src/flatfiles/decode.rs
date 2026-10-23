@@ -15,7 +15,7 @@
 //! `crate::tdbe::codec::fit::apply_deltas`) is shared with the FPSS surface so
 //! we get exact wire-format parity for free.
 
-use crate::tdbe::codec::fit::{apply_deltas, FitReader};
+use crate::tdbe::codec::fit::{FitReader, apply_deltas};
 
 use crate::error::Error;
 

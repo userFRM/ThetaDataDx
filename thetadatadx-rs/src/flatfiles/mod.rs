@@ -77,7 +77,7 @@ impl Drop for ScratchGuard {
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
 pub use request::{flatfile_request_raw, flatfile_request_raw_with_config};
-pub use types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType, SERVED_DATASETS};
+pub use types::{FlatFilesUnavailableReason, ReqType, SERVED_DATASETS, SecType, flat_file_serves};
 
 /// Decode an already-saved raw FLATFILES blob into a typed output file.
 ///

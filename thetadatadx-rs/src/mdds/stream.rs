@@ -327,7 +327,7 @@ impl MarketDataClient {
                     other => {
                         return Err(Error::config_internal(format!(
                             "{other} is not a flat-file endpoint"
-                        )))
+                        )));
                     }
                 }
                 .map_err(|e| -> Error { e.into() })?;
@@ -727,16 +727,16 @@ impl<T> TypedCollect<T> {
             data_table: table.data_table,
         };
         let parsed = parser(&chunk).map_err(Into::into)?;
-        if let Some(idx) = self.root_idx {
-            if !chunk.data_table.is_empty() {
-                self.root.observe_chunk(
-                    self.rows.len(),
-                    chunk
-                        .data_table
-                        .iter()
-                        .map(|row| super::decode::extract::root_cell_text(row, idx)),
-                );
-            }
+        if let Some(idx) = self.root_idx
+            && !chunk.data_table.is_empty()
+        {
+            self.root.observe_chunk(
+                self.rows.len(),
+                chunk
+                    .data_table
+                    .iter()
+                    .map(|row| super::decode::extract::root_cell_text(row, idx)),
+            );
         }
         if let Some(price_types) = &mut self.price_types {
             price_types.append(&chunk);
@@ -773,15 +773,16 @@ fn decode_chunk_checked(
     let table = decode_chunk(response, max_message_size)?;
     if saved_headers.is_none() && !table.headers.is_empty() {
         *saved_headers = Some(table.headers.clone());
-    } else if let Some(first) = saved_headers.as_deref() {
-        if !table.headers.is_empty() && table.headers.as_slice() != first {
-            return Err(decode::DecodeError::ChunkHeaderDrift {
-                chunk_index,
-                first: first.join(","),
-                chunk: table.headers.join(","),
-            }
-            .into());
+    } else if let Some(first) = saved_headers.as_deref()
+        && !table.headers.is_empty()
+        && table.headers.as_slice() != first
+    {
+        return Err(decode::DecodeError::ChunkHeaderDrift {
+            chunk_index,
+            first: first.join(","),
+            chunk: table.headers.join(","),
         }
+        .into());
     }
     Ok(table)
 }

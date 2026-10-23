@@ -19,7 +19,7 @@ use super::layout::{
     c_struct_size, contract_align, contract_size, fpss_event_align, fpss_event_size, struct_align,
 };
 use super::schema::{
-    sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
+    ColumnDef, EventDef, Schema, sorted_control_events, sorted_data_events, sorted_event_names,
 };
 
 /// Emit the kind-enum: one discriminant per data variant + one per

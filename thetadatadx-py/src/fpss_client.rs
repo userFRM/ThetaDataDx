@@ -37,11 +37,11 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use thetadatadx::DispatcherSession as PyFpssDispatcherSession;
 use thetadatadx::auth::Credentials as RustCredentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
 use thetadatadx::fpss::{self, StreamingClient as RustStreamingClient};
-use thetadatadx::DispatcherSession as PyFpssDispatcherSession;
 
 use crate::errors::to_py_err;
 use crate::fluent::{self, PySubscription};
@@ -184,10 +184,10 @@ impl Drop for StreamingClient {
                         client.shutdown();
                     }
                     drop(taken_client);
-                    if let Some(h) = taken_handle {
-                        if h.thread().id() != std::thread::current().id() {
-                            let _ = h.join();
-                        }
+                    if let Some(h) = taken_handle
+                        && h.thread().id() != std::thread::current().id()
+                    {
+                        let _ = h.join();
                     }
                 });
             });
@@ -308,10 +308,10 @@ fn publish_failed_if_current(
     reason: String,
 ) {
     let mut guard = dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-    if let PyFpssDispatcherSession::Running { handle, .. } = &*guard {
-        if handle.thread().id() == dispatcher_thread_id {
-            *guard = PyFpssDispatcherSession::Failed { reason };
-        }
+    if let PyFpssDispatcherSession::Running { handle, .. } = &*guard
+        && handle.thread().id() == dispatcher_thread_id
+    {
+        *guard = PyFpssDispatcherSession::Failed { reason };
     }
 }
 
@@ -987,27 +987,26 @@ impl StreamingClient {
                     // exits only once the I/O thread drops the ring producer.
                     if handle.thread().id() != std::thread::current().id()
                         && !client.on_io_thread()
+                        && let Err(payload) = handle.join()
                     {
-                        if let Err(payload) = handle.join() {
-                            let reason = downcast_py_panic_payload(payload);
-                            tracing::error!(
-                                target: "thetadatadx::python",
-                                reason = %reason,
-                                "thetadatadx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
-                            );
-                            // Record `Failed` ONLY if the slot is still `Idle`:
-                            // the dispatcher lock was released across the join,
-                            // so a concurrent restart may have installed a fresh
-                            // `Running` in that window. The panic belongs to the
-                            // superseded OLD session; overwriting unconditionally
-                            // would clobber the new session's handle (orphaning
-                            // its thread) and falsely fail a healthy live session.
-                            // Matches the FFI `join_extracted_session` guard.
-                            let mut guard =
-                                dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner());
-                            if matches!(*guard, PyFpssDispatcherSession::Idle) {
-                                *guard = PyFpssDispatcherSession::Failed { reason };
-                            }
+                        let reason = downcast_py_panic_payload(payload);
+                        tracing::error!(
+                            target: "thetadatadx::python",
+                            reason = %reason,
+                            "thetadatadx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
+                        );
+                        // Record `Failed` ONLY if the slot is still `Idle`:
+                        // the dispatcher lock was released across the join,
+                        // so a concurrent restart may have installed a fresh
+                        // `Running` in that window. The panic belongs to the
+                        // superseded OLD session; overwriting unconditionally
+                        // would clobber the new session's handle (orphaning
+                        // its thread) and falsely fail a healthy live session.
+                        // Matches the FFI `join_extracted_session` guard.
+                        let mut guard =
+                            dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner());
+                        if matches!(*guard, PyFpssDispatcherSession::Idle) {
+                            *guard = PyFpssDispatcherSession::Failed { reason };
                         }
                     }
                 }

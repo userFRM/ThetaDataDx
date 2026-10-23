@@ -20,12 +20,12 @@ use std::ops::ControlFlow;
 
 use axum::body::{Body, Bytes};
 use axum::extract::State;
-use axum::http::{header, StatusCode};
+use axum::http::{StatusCode, header};
 use axum::response::Response;
+use thetadatadx::EndpointMeta;
 use thetadatadx::endpoint::EndpointError;
 use thetadatadx::flatfiles::FlatFileFormat;
-use thetadatadx::wire::{data_value::DataType, DataValue, DataValueList};
-use thetadatadx::EndpointMeta;
+use thetadatadx::wire::{DataValue, DataValueList, data_value::DataType};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -162,7 +162,7 @@ impl FileWriter {
         &mut self,
         headers: &[String],
         rows: &[DataValueList],
-    ) -> impl std::future::Future<Output = ControlFlow<()>> + Send + 'static {
+    ) -> impl std::future::Future<Output = ControlFlow<()>> + Send + 'static + use<> {
         let started = self.started.take();
         let rendered = match self.render(headers, rows) {
             Ok(rendered) => {
@@ -523,10 +523,11 @@ mod tests {
         let (chunks, mut body) = mpsc::channel(4);
         let (started, start) = oneshot::channel();
         let mut file = FileWriter::new(FlatFileFormat::Csv, chunks, started);
-        assert!(file
-            .chunk(&headers, std::slice::from_ref(&bad))
-            .await
-            .is_break());
+        assert!(
+            file.chunk(&headers, std::slice::from_ref(&bad))
+                .await
+                .is_break()
+        );
         file.finish(Ok(())).await;
         assert!(matches!(start.await, Ok(Err(EndpointError::Server(_)))));
         assert!(body.recv().await.is_none(), "nothing reaches the body");

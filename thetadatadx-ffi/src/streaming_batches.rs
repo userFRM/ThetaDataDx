@@ -101,7 +101,7 @@ pub struct ThetaDataDxRecordBatchStream {
 ///
 /// `handle` must be a valid pointer returned by `thetadatadx_client_connect`
 /// and not yet freed, valid for the duration of the call.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_batches_open(
     handle: *const ThetaDataDxClient,
     batch_size: usize,
@@ -176,7 +176,7 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
 /// [`ThetaDataDxArrowBytes`]; on every return path it is fully initialised.
 /// No other thread may call [`thetadatadx_record_batch_stream_free`] for the
 /// same handle during this call.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
     stream: *const ThetaDataDxRecordBatchStream,
     out: *mut ThetaDataDxArrowBytes,
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
 /// [`thetadatadx_record_batch_stream_next_ipc`], including the requirement
 /// that [`thetadatadx_record_batch_stream_free`] is not called concurrently
 /// for the same handle.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
     stream: *const ThetaDataDxRecordBatchStream,
     out: *mut ThetaDataDxArrowBytes,
@@ -290,7 +290,7 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
 /// not yet freed. No other thread may call
 /// [`thetadatadx_record_batch_stream_free`] for the same handle during this
 /// call.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
     stream: *const ThetaDataDxRecordBatchStream,
 ) -> u64 {
@@ -332,7 +332,7 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
 /// not yet freed, or null (a null is a no-op). No other thread may call
 /// [`thetadatadx_record_batch_stream_free`] for the same handle during this
 /// call.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_close(
     stream: *const ThetaDataDxRecordBatchStream,
 ) {
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_close(
 ///
 /// `stream` must be a valid handle from [`thetadatadx_client_batches_open`]
 /// not yet freed, or null (a null is a no-op).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_free(
     stream: *mut ThetaDataDxRecordBatchStream,
 ) {

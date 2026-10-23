@@ -14,14 +14,14 @@ use std::path::{Path, PathBuf};
 use crate::auth::Credentials;
 use crate::config::FlatFilesConfig;
 use crate::error::Error;
+use crate::flatfiles::ScratchGuard;
 use crate::flatfiles::decode::decode_block;
 use crate::flatfiles::decoded_row::FlatFileRow;
 use crate::flatfiles::format::FlatFileFormat;
-use crate::flatfiles::index::{parse_header, IndexIter};
+use crate::flatfiles::index::{IndexIter, parse_header};
 use crate::flatfiles::request::flatfile_request_raw_with_config;
 use crate::flatfiles::types::{ReqType, SecType};
 use crate::flatfiles::writer::{CsvSink, HtmlSink, JsonArraySink, JsonlSink, RowSink, RowView};
-use crate::flatfiles::ScratchGuard;
 use crate::util::random_id::random_id_hex;
 
 /// Narrow a wire `u64` byte offset to the platform `usize` used for slicing.

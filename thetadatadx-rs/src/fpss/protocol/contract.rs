@@ -10,8 +10,8 @@
 
 use std::sync::Arc;
 
-use crate::tdbe::types::enums::SecType;
 use crate::tdbe::Right;
+use crate::tdbe::types::enums::SecType;
 
 use crate::error::Error;
 
@@ -1071,7 +1071,7 @@ mod tests {
         // exp_date = 20261218 big-endian
         assert_eq!(&bytes[6..10], &20261218i32.to_be_bytes());
         assert_eq!(bytes[10], 1); // is_call = true
-                                  // strike = 60000 big-endian
+        // strike = 60000 big-endian
         assert_eq!(&bytes[11..15], &60000i32.to_be_bytes());
     }
 
@@ -1090,29 +1090,33 @@ mod tests {
     #[test]
     fn option_rejects_invalid_strike() {
         // Garbage strike string -- must return Err, not panic.
-        assert!(Contract::option(
-            "SPY",
-            OptionLeg {
-                expiration: "20261218",
-                strike: "not-a-number",
-                right: "C"
-            }
-        )
-        .is_err());
+        assert!(
+            Contract::option(
+                "SPY",
+                OptionLeg {
+                    expiration: "20261218",
+                    strike: "not-a-number",
+                    right: "C"
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn option_rejects_overflowing_strike() {
         // Strike * 1000 exceeds i32::MAX. Must return Err, not wrap silently.
-        assert!(Contract::option(
-            "SPY",
-            OptionLeg {
-                expiration: "20261218",
-                strike: "3000000",
-                right: "C"
-            }
-        )
-        .is_err());
+        assert!(
+            Contract::option(
+                "SPY",
+                OptionLeg {
+                    expiration: "20261218",
+                    strike: "3000000",
+                    right: "C"
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1139,15 +1143,17 @@ mod tests {
     #[test]
     fn option_rejects_invalid_expiration() {
         // Non-numeric expiration -- must return Err, not panic.
-        assert!(Contract::option(
-            "SPY",
-            OptionLeg {
-                expiration: "not-a-date",
-                strike: "60",
-                right: "C"
-            }
-        )
-        .is_err());
+        assert!(
+            Contract::option(
+                "SPY",
+                OptionLeg {
+                    expiration: "not-a-date",
+                    strike: "60",
+                    right: "C"
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1593,11 +1599,7 @@ mod tests {
                 4 | 6 | 9 | 11 => 30,
                 2 => {
                     let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
-                    if leap {
-                        29
-                    } else {
-                        28
-                    }
+                    if leap { 29 } else { 28 }
                 }
                 _ => unreachable!(),
             };

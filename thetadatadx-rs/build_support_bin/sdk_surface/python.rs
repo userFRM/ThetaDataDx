@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 
 use super::common::{generated_header, push_rust_doc_comment};
 use super::spec::{
-    assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
+    ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec, assert_forwarder_code_params,
 };
 
 /// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `Client`.

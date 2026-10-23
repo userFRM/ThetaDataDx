@@ -4,11 +4,11 @@
 //! WebSocket channels, and shutdown plumbing. All fields are `Send + Sync`
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 use thetadatadx::Client;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{RwLock, mpsc};
 
 /// Default per-client channel capacity. Matches the old `broadcast::channel(4096)`.
 ///
@@ -373,7 +373,7 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ws_client_capacity_from, FpssStatus, WsSessionSlot, WS_CLIENT_CAPACITY};
+    use super::{FpssStatus, WS_CLIENT_CAPACITY, WsSessionSlot, ws_client_capacity_from};
 
     /// Every `FpssStatus` maps to its exact terminal token and round-trips
     /// through its stored `u8` discriminant — the four states the WS

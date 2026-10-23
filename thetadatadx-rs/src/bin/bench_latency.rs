@@ -17,11 +17,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use thetadatadx::Client;
+use thetadatadx::SecType;
 use thetadatadx::auth::Credentials;
 use thetadatadx::config::DirectConfig;
 use thetadatadx::fpss::{StreamData, StreamEvent};
-use thetadatadx::Client;
-use thetadatadx::SecType;
 
 fn now_ns() -> u64 {
     SystemTime::now()
@@ -84,10 +84,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     tr2.fetch_add(1, Ordering::Relaxed);
                 }
                 let lat = observed_ns.saturating_sub(*received_at_ns);
-                if let Ok(mut v) = ls2.lock() {
-                    if v.len() < v.capacity() {
-                        v.push(lat);
-                    }
+                if let Ok(mut v) = ls2.lock()
+                    && v.len() < v.capacity()
+                {
+                    v.push(lat);
                 }
             }
             _ => {}

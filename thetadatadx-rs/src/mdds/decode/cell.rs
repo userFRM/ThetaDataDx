@@ -16,8 +16,8 @@
 //! functions reference `crate::decode::*` for the cross-cutting helpers.
 
 use super::dual_type_columns::parse_iso_date;
-use super::error::observed_name;
 use super::error::DecodeError;
+use super::error::observed_name;
 use super::headers::find_header;
 use crate::proto;
 use crate::tdbe::types::tick::{

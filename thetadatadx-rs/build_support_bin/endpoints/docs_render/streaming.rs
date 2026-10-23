@@ -234,7 +234,9 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20261218\", .strike = \"570\", .right = \"C\"}).quote()",
         ws_req_type: "QUOTE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(
+            r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#,
+        ),
         group: "Options",
         label: "Quote",
         warning: None,
@@ -251,7 +253,9 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20261218\", .strike = \"570\", .right = \"C\"}).trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(
+            r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#,
+        ),
         group: "Options",
         label: "Trade",
         warning: None,
@@ -268,10 +272,14 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20261218\", .strike = \"570\", .right = \"C\"}).open_interest()",
         ws_req_type: "OPEN_INTEREST",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(
+            r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#,
+        ),
         group: "Options",
         label: "Open Interest",
-        warning: Some("Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest)."),
+        warning: Some(
+            "Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest).",
+        ),
     },
     StreamSpec {
         path: "streaming/options/full-trade",
@@ -305,7 +313,9 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: None,
         group: "Options",
         label: "Full Open Interest",
-        warning: Some("Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest)."),
+        warning: Some(
+            "Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest).",
+        ),
     },
     StreamSpec {
         path: "streaming/options/market-value",
@@ -319,7 +329,9 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20261218\", .strike = \"570\", .right = \"C\"}).market_value()",
         ws_req_type: "MARKET_VALUE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#),
+        ws_contract: Some(
+            r#"{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}"#,
+        ),
         group: "Options",
         label: "Market Value",
         warning: None,
@@ -399,7 +411,9 @@ fn rust_tab(spec: &StreamSpec) -> String {
             ),
             other => panic!("no Rust callback template for event {other}"),
         };
-        format!("client.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;")
+        format!(
+            "client.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;"
+        )
     };
     format!(
         "```rust\n{imports}\n\n{callback}\n\nlet sub = {};\nclient.stream().subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub)?;\n```\n",
@@ -488,7 +502,9 @@ fn typescript_tab(spec: &StreamSpec) -> String {
             ),
             other => panic!("no TypeScript callback template for event {other}"),
         };
-        format!("await client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});")
+        format!(
+            "await client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});"
+        )
     };
     format!(
         "```typescript\n{import}\n\n{body}\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
@@ -530,7 +546,9 @@ fn cpp_tab(spec: &StreamSpec) -> String {
             ),
             other => panic!("no C++ callback template for event {other}"),
         };
-        format!("client.stream().set_callback([](const thetadatadx::StreamEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});")
+        format!(
+            "client.stream().set_callback([](const thetadatadx::StreamEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});"
+        )
     };
     format!(
         "```cpp\n{body}\n\nauto sub = {};\nclient.stream().subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub);\n```\n",

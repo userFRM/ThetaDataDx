@@ -15,15 +15,14 @@
 //! contract-identity trio (`expiration` / `strike` / `right`); the projected
 //! stream must omit them too, while the all-present terminal keeps them.
 
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 
 use arrow_ipc::reader::StreamReader;
 
 use thetadatadx_ffi::{
-    thetadatadx_arrow_bytes_free, thetadatadx_column_presence_free,
-    thetadatadx_trade_ticks_present_columns, thetadatadx_trade_ticks_to_arrow_ipc,
-    thetadatadx_trade_ticks_to_arrow_ipc_projected, ThetaDataDxArrowBytes,
-    ThetaDataDxColumnPresence,
+    ThetaDataDxArrowBytes, ThetaDataDxColumnPresence, thetadatadx_arrow_bytes_free,
+    thetadatadx_column_presence_free, thetadatadx_trade_ticks_present_columns,
+    thetadatadx_trade_ticks_to_arrow_ipc, thetadatadx_trade_ticks_to_arrow_ipc_projected,
 };
 
 /// The columns a `stock_history_trade` wire response carries: the ten trade
@@ -148,7 +147,7 @@ fn ipc_columns_and_rows(bytes: &ThetaDataDxArrowBytes) -> (Vec<String>, usize) {
 
 /// Decode the first column of an Arrow IPC buffer as UTF-8 string values.
 fn ipc_first_column_strings(bytes: &ThetaDataDxArrowBytes) -> Vec<String> {
-    use arrow_array::{cast::AsArray, Array};
+    use arrow_array::{Array, cast::AsArray};
     assert!(
         !bytes.data.is_null(),
         "terminal returned the error sentinel"

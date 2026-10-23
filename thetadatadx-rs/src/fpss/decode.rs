@@ -17,12 +17,12 @@ use metrics::Counter;
 use rand::RngExt;
 
 use super::delta::{
-    Baseline, DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS,
+    Baseline, DeltaState, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS, TickFields,
 };
 use super::events::{DisconnectCause, FpssEventInternal, StreamControl, StreamData};
 use super::framing;
 use super::protocol::{
-    parse_contract_message, parse_disconnect_reason, parse_req_response, Contract,
+    Contract, parse_contract_message, parse_disconnect_reason, parse_req_response,
 };
 use super::reconnect_delay;
 
@@ -183,11 +183,7 @@ fn calculate_market_value(bid: i32, ask: i32, bid_size: i32, ask_size: i32) -> (
         // ask cell now holds, i.e. `market_ask`.
         market_ask
     } else if ask_size > bid_size {
-        if bid <= 1 {
-            bid
-        } else {
-            bid.saturating_sub(1)
-        }
+        if bid <= 1 { bid } else { bid.saturating_sub(1) }
     } else if bid == 0 {
         0
     } else if bid < market_ask {

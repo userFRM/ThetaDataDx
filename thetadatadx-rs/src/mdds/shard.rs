@@ -922,20 +922,20 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             // Same small-pull gate as the time axis, with per-day rows
             // capped by the query's own intraday window (the regular
             // session when it carries none).
-            if !chain_cross_product(q) {
-                if let Some(ivl) = q.interval.as_deref().and_then(interval_ms) {
-                    let window_ms = match (
-                        q.start_time.as_deref().and_then(parse_ms_of_day),
-                        q.end_time.as_deref().and_then(parse_ms_of_day),
-                    ) {
-                        (Some(s), Some(e)) if e > s => e - s,
-                        _ => RTH_WINDOW_MS,
-                    };
-                    let days = u64::try_from(end_ord - start_ord + 1).unwrap_or(u64::MAX);
-                    let per_day = u64::try_from(window_ms / ivl.max(1) + 1).unwrap_or(0);
-                    if days.saturating_mul(per_day) < SHARD_MIN_GRID_ROWS {
-                        return Err(ShardDecline::SmallGrid);
-                    }
+            if !chain_cross_product(q)
+                && let Some(ivl) = q.interval.as_deref().and_then(interval_ms)
+            {
+                let window_ms = match (
+                    q.start_time.as_deref().and_then(parse_ms_of_day),
+                    q.end_time.as_deref().and_then(parse_ms_of_day),
+                ) {
+                    (Some(s), Some(e)) if e > s => e - s,
+                    _ => RTH_WINDOW_MS,
+                };
+                let days = u64::try_from(end_ord - start_ord + 1).unwrap_or(u64::MAX);
+                let per_day = u64::try_from(window_ms / ivl.max(1) + 1).unwrap_or(0);
+                if days.saturating_mul(per_day) < SHARD_MIN_GRID_ROWS {
+                    return Err(ShardDecline::SmallGrid);
                 }
             }
             let days = end_ord - start_ord + 1;
@@ -1118,7 +1118,7 @@ pub(crate) async fn join_shards<T>(
             Err(join_err) => {
                 return Err(Error::config_internal(format!(
                     "shard task terminated abnormally: {join_err}"
-                )))
+                )));
             }
         }
     }
@@ -2714,7 +2714,7 @@ mod tests {
 
     // ── ordered merge ──
 
-    use crate::columns::{present_columns_from, ColumnPresence, WireColumns};
+    use crate::columns::{ColumnPresence, WireColumns, present_columns_from};
 
     /// Typed stand-in for a chain-capable tick (`contract_id = true`):
     /// the injected identity trio plus a payload column that pins row
@@ -3342,8 +3342,8 @@ mod tests {
 
     // ── streaming shard join: concurrent forward, abort, NotFound ──
 
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     /// Sets its flag on drop — stands in for the in-flight state a band
     /// future owns (`ServerStreaming`, semaphore permit): if the join
@@ -3405,7 +3405,7 @@ mod tests {
                     return (
                         false,
                         Err(Error::config_internal("request semaphore closed")),
-                    )
+                    );
                 }
             };
             let mut delivered = false;

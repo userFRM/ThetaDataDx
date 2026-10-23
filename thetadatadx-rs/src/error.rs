@@ -1173,9 +1173,11 @@ mod tests {
         ));
         let source = err.source().expect("bridged decode error carries a source");
         assert_eq!(source.to_string(), cause_display);
-        assert!(source
-            .downcast_ref::<crate::decode::DecodeError>()
-            .is_some());
+        assert!(
+            source
+                .downcast_ref::<crate::decode::DecodeError>()
+                .is_some()
+        );
     }
 
     #[test]
@@ -1218,19 +1220,23 @@ mod tests {
     #[test]
     fn config_kind_invalid_parameter_partition() {
         // User-input rejections are invalid-parameter kinds.
-        assert!(ConfigErrorKind::OutOfRange {
-            field: "streaming.timeout_ms".into(),
-            value: 0,
-            min: 100,
-            max: 60_000,
-        }
-        .is_invalid_parameter());
+        assert!(
+            ConfigErrorKind::OutOfRange {
+                field: "streaming.timeout_ms".into(),
+                value: 0,
+                min: 100,
+                max: 60_000,
+            }
+            .is_invalid_parameter()
+        );
         assert!(ConfigErrorKind::MissingField("auth.email".into()).is_invalid_parameter());
-        assert!(ConfigErrorKind::InvalidValue {
-            field: "market_data.uri".into(),
-            message: "not a URI".into(),
-        }
-        .is_invalid_parameter());
+        assert!(
+            ConfigErrorKind::InvalidValue {
+                field: "market_data.uri".into(),
+                message: "not a URI".into(),
+            }
+            .is_invalid_parameter()
+        );
 
         // Environmental / internal faults are not.
         assert!(!ConfigErrorKind::Io("file not found".into()).is_invalid_parameter());

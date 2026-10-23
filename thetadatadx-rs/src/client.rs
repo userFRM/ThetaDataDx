@@ -444,10 +444,10 @@ impl StreamingState {
         // The columnar reader-close gate: only retire while this reader's
         // session is still the live one. Checked under the lock so it is atomic
         // with the bump + swap + extraction below.
-        if let Some(expected) = expected_gen {
-            if self.stop_generation.load(Ordering::Acquire) != expected {
-                return None;
-            }
+        if let Some(expected) = expected_gen
+            && self.stop_generation.load(Ordering::Acquire) != expected
+        {
+            return None;
         }
         // The bump is under the dispatcher lock, so it is mutually exclusive
         // with `start_dispatcher`, which holds that lock from its generation
@@ -3194,8 +3194,8 @@ mod tests {
     #[cfg(feature = "arrow")]
     #[test]
     fn quiesce_does_not_deadlock_on_a_parked_block_dispatcher() {
-        use crate::fpss::batch_reader::test_harness::{harness, trade};
         use crate::fpss::batch_reader::Backpressure;
+        use crate::fpss::batch_reader::test_harness::{harness, trade};
         use crate::fpss::protocol::Contract;
         use std::sync::atomic::{AtomicBool, Ordering as O};
 

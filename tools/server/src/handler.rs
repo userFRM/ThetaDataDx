@@ -5,16 +5,16 @@
 //! `thetadatadx`, and returns the JVM terminal JSON envelope (or CSV when
 //! `format=csv`).
 
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 use axum::extract::{FromRequestParts, State};
-use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
-use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointError};
+use thetadatadx::endpoint::{EndpointArgs, EndpointError, invoke_endpoint};
 use thetadatadx::{EndpointMeta, ParamType};
 
 use crate::format;
@@ -1602,10 +1602,11 @@ mod tests {
                 }),
             );
             assert_eq!(resp.status().as_u16(), expected, "{kind:?}");
-            assert!(resp
-                .headers()
-                .get(axum::http::header::RETRY_AFTER)
-                .is_none());
+            assert!(
+                resp.headers()
+                    .get(axum::http::header::RETRY_AFTER)
+                    .is_none()
+            );
             assert_eq!(read_body(resp).await, "upstream description", "{kind:?}");
         }
     }
