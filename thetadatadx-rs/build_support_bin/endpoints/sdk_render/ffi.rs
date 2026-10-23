@@ -411,7 +411,8 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("/// which carries the root each row belongs to when the response has one;\n");
     out.push_str("/// the chunk is freed before the next is fetched, so peak memory tracks a\n");
     out.push_str("/// single chunk. Accepts the same optional builder parameters as the\n");
-    out.push_str("/// buffered form. Returns 0 on a clean drain, -1 on error (inspect\n");
+    out.push_str("/// buffered form. A non-zero return from `callback` stops the stream.\n");
+    out.push_str("/// Returns 0 once the stream ends or is stopped, -1 on error (inspect\n");
     out.push_str("/// `thetadatadx_last_error`).\n");
     out.push_str("#[unsafe(no_mangle)]\n");
     write!(

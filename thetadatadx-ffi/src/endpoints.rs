@@ -54,6 +54,10 @@ use crate::types::{
 /// `ctx` is the opaque user context registered alongside the callback; it is
 /// passed back unchanged on every invocation and never dereferenced by Rust.
 ///
+/// Return 0 to receive the next chunk, or any other value to stop the stream:
+/// the download is cancelled, no further chunk is delivered, and the
+/// `_stream` call returns 0.
+///
 /// The callback runs under the C ABI and must not unwind across the boundary.
 /// A C++ `throw` or a C `longjmp` that escapes the callback into the calling
 /// Rust frame is undefined behavior. The stream path wraps each invocation in
@@ -65,7 +69,7 @@ pub type ThetaDataDxTickChunkCallback = extern "C" fn(
     len: usize,
     columns: *const ThetaDataDxColumnPresence,
     ctx: *mut c_void,
-);
+) -> i32;
 
 /// Bundle of `(callback, ctx)` carried into the per-chunk closure the core
 /// `request.stream` primitive takes by value. The core wraps the handler in a
@@ -85,7 +89,8 @@ struct TickChunkSink {
 unsafe impl Send for TickChunkSink {}
 
 impl TickChunkSink {
-    /// Forward one chunk to the registered C callback. `rows` / `len` come
+    /// Forward one chunk to the registered C callback, and stop the stream
+    /// when it returns non-zero. `rows` / `len` come
     /// straight from the decoder-owned slice (`chunk.as_ptr()` /
     /// `chunk.len()`), so there is no copy or re-marshaling of the rows.
     /// `columns` crosses as a C carrier built for this call and released
@@ -109,22 +114,27 @@ impl TickChunkSink {
         rows: *const c_void,
         len: usize,
         columns: &thetadatadx::columns::ColumnPresence,
-    ) {
+    ) -> std::ops::ControlFlow<()> {
         if len == 0 {
-            return;
+            return std::ops::ControlFlow::Continue(());
         }
         let columns = ThetaDataDxColumnPresence::from_presence(columns);
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            (self.callback)(rows, len, &columns, self.ctx);
+            (self.callback)(rows, len, &columns, self.ctx)
         }));
         // SAFETY: `columns` was built by `from_presence` above, the callback
         // only borrowed it, and this is its one release.
         unsafe { crate::types::thetadatadx_column_presence_free(columns) };
-        if outcome.is_err() {
-            tracing::error!(
-                target: "thetadatadx::ffi",
-                "tick-chunk callback panicked; chunk dropped and the panic contained at the C boundary",
-            );
+        match outcome {
+            Ok(0) => std::ops::ControlFlow::Continue(()),
+            Ok(_) => std::ops::ControlFlow::Break(()),
+            Err(_) => {
+                tracing::error!(
+                    target: "thetadatadx::ffi",
+                    "tick-chunk callback panicked; chunk dropped and the panic contained at the C boundary",
+                );
+                std::ops::ControlFlow::Continue(())
+            }
         }
     }
 }
@@ -162,10 +172,7 @@ fn invoke_endpoint_stream_blocking(
         client,
         name,
         args,
-        move |rows, len, columns| {
-            sink.emit(rows, len, columns);
-            std::ops::ControlFlow::Continue(())
-        },
+        move |rows, len, columns| sink.emit(rows, len, columns),
     ))
 }
 
@@ -200,7 +207,7 @@ mod tests {
         len: usize,
         columns: *const ThetaDataDxColumnPresence,
         ctx: *mut c_void,
-    ) {
+    ) -> i32 {
         let text = |p: *const c_char| {
             (!p.is_null()).then(|| {
                 // SAFETY: every pointer the carrier holds is null or a
@@ -223,6 +230,7 @@ mod tests {
                 .map(|&p| text(p))
                 .collect()
         });
+        0
     }
 
     /// A C caller streaming a flat file attributes each row from the presence
@@ -237,9 +245,9 @@ mod tests {
         };
         let rows = [0_u8; 2];
         let per_row = ColumnPresence::from_names(["bid"]).with_symbols(["AAPL", "MSFT"]);
-        sink.emit(rows.as_ptr().cast(), 2, &per_row);
+        assert!(sink.emit(rows.as_ptr().cast(), 2, &per_row).is_continue());
         let shared = ColumnPresence::from_names(["bid"]).with_symbol("SPY");
-        sink.emit(rows.as_ptr().cast(), 2, &shared);
+        assert!(sink.emit(rows.as_ptr().cast(), 2, &shared).is_continue());
 
         let root = |s: &str| Some(s.to_owned());
         assert_eq!(
@@ -249,5 +257,25 @@ mod tests {
                 vec![root("SPY"), root("SPY")]
             ]
         );
+    }
+
+    /// A C caller stops the stream by returning non-zero from its callback.
+    #[test]
+    fn a_non_zero_return_stops_the_stream() {
+        extern "C" fn stop(
+            _rows: *const c_void,
+            _len: usize,
+            _columns: *const ThetaDataDxColumnPresence,
+            _ctx: *mut c_void,
+        ) -> i32 {
+            1
+        }
+        let sink = TickChunkSink {
+            callback: stop,
+            ctx: std::ptr::null_mut(),
+        };
+        let rows = [0_u8; 1];
+        let columns = ColumnPresence::from_names(["bid"]);
+        assert!(sink.emit(rows.as_ptr().cast(), 1, &columns).is_break());
     }
 }

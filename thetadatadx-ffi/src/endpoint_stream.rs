@@ -10,7 +10,8 @@
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
@@ -75,7 +76,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
@@ -126,7 +128,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
@@ -177,7 +180,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
@@ -228,7 +232,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
@@ -279,7 +284,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
@@ -351,7 +357,8 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
@@ -423,7 +430,8 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
@@ -474,7 +482,8 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
@@ -525,7 +534,8 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_trade_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
@@ -576,7 +586,8 @@ pub unsafe extern "C" fn thetadatadx_stock_flat_file_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
@@ -648,7 +659,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
@@ -706,7 +718,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
@@ -764,7 +777,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
@@ -822,7 +836,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
@@ -880,7 +895,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
@@ -938,7 +954,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
@@ -1010,7 +1027,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
@@ -1082,7 +1100,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
@@ -1140,7 +1159,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
@@ -1198,7 +1218,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
@@ -1256,7 +1277,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_stream(
@@ -1314,7 +1336,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_st
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
@@ -1372,7 +1395,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_stream(
@@ -1430,7 +1454,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_stream(
@@ -1488,7 +1513,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_order_stream(
@@ -1546,7 +1572,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
@@ -1604,7 +1631,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order_stream(
@@ -1662,7 +1690,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_stream(
@@ -1720,7 +1749,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second_order_stream(
@@ -1778,7 +1808,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
@@ -1836,7 +1867,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_stream(
@@ -1894,7 +1926,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_stream(
@@ -1952,7 +1985,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_order_stream(
@@ -2010,7 +2044,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_stream(
@@ -2068,7 +2103,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_stream(
@@ -2126,7 +2162,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
@@ -2205,7 +2242,8 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
@@ -2284,7 +2322,8 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
@@ -2335,7 +2374,8 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
@@ -2386,7 +2426,8 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_trade_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
@@ -2437,7 +2478,8 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_open_interest_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
@@ -2488,7 +2530,8 @@ pub unsafe extern "C" fn thetadatadx_option_flat_file_quote_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
@@ -2553,7 +2596,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
@@ -2618,7 +2662,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
@@ -2669,7 +2714,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
@@ -2741,7 +2787,8 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
@@ -2792,7 +2839,8 @@ pub unsafe extern "C" fn thetadatadx_index_flat_file_eod_stream(
 /// which carries the root each row belongs to when the response has one;
 /// the chunk is freed before the next is fetched, so peak memory tracks a
 /// single chunk. Accepts the same optional builder parameters as the
-/// buffered form. Returns 0 on a clean drain, -1 on error (inspect
+/// buffered form. A non-zero return from `callback` stops the stream.
+/// Returns 0 once the stream ends or is stopped, -1 on error (inspect
 /// `thetadatadx_last_error`).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
