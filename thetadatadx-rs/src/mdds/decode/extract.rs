@@ -93,6 +93,9 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
 /// `Vec<String>`. Rejecting numeric cells here would break those endpoints on every
 /// call, so the coercion is intentional rather than a swallowed drift.
 ///
+/// A `Price` cell reads as the vendor writes it, at the precision its price
+/// type carries: a strike of type 7 is `766.000`, not `766`.
+///
 /// To keep an unexpected numeric cell observable (a text column that
 /// the server starts publishing as numeric is still worth knowing about
 /// without failing the request), each coercion emits a `tracing::trace!`
@@ -138,7 +141,7 @@ pub fn extract_text_column(table: &proto::DataTable, header: &str) -> Vec<Option
                                     observed = "Price",
                                     "coercing Price cell to string in text column",
                                 );
-                                Some(format!("{}", price.to_f64()))
+                                Some(price.to_string())
                             }
                             Err(err) => {
                                 tracing::warn!(
@@ -286,6 +289,74 @@ pub(crate) fn root_cell_text(row: &proto::DataValueList, col_idx: usize) -> Opti
     match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
         Some(proto::data_value::DataType::Text(s)) => Some(s.as_str()),
         _ => None,
+    }
+}
+
+/// The price type of every cell of a buffered response, row by row: the
+/// precision the vendor wrote each `Price` cell at, which the decode to `f64`
+/// leaves behind. The terminal writes a price at that precision (`766.000`,
+/// `14.30`), and a stock's prices can carry three decimals on one row and
+/// four on the next, so it is kept per cell.
+///
+/// Only collected when a pull asks for it, and kept in the order of the rows
+/// the pull returns, so row `i` of the response reads row `i` here.
+#[derive(Debug, Default)]
+pub struct PriceTypes {
+    /// The response's column headers, one per cell of a row.
+    pub(crate) headers: Vec<String>,
+    /// Row-major, `headers.len()` cells to a row: the cell's price type, or
+    /// `None` for a cell that is not a `Price`.
+    pub(crate) cells: Vec<Option<crate::tdbe::types::price::PriceType>>,
+}
+
+impl PriceTypes {
+    /// The price types of every row of `table`.
+    #[must_use]
+    pub fn from_table(table: &proto::DataTable) -> Self {
+        let mut price_types = Self::default();
+        price_types.append(table);
+        price_types
+    }
+
+    /// Append the rows of `table`, a further chunk of the same response: the
+    /// collectors refuse a chunk whose headers drift, so the first chunk's
+    /// headers hold for every row.
+    pub(crate) fn append(&mut self, table: &proto::DataTable) {
+        if self.headers.is_empty() {
+            self.headers.clone_from(&table.headers);
+        }
+        let width = self.headers.len();
+        self.cells.reserve(width * table.data_table.len());
+        for row in &table.data_table {
+            self.cells.extend((0..width).map(|column| {
+                match row.values.get(column).and_then(|v| v.data_type.as_ref()) {
+                    Some(proto::data_value::DataType::Price(p)) => {
+                        crate::tdbe::types::price::PriceType::new(p.r#type).ok()
+                    }
+                    _ => None,
+                }
+            }));
+        }
+    }
+
+    /// The response's column headers.
+    #[cfg(feature = "__internal")]
+    #[must_use]
+    pub fn headers(&self) -> &[String] {
+        &self.headers
+    }
+
+    /// The price type of the cell at `row` under the header at `column`, or
+    /// `None` when that cell is not a `Price`.
+    #[cfg(feature = "__internal")]
+    #[must_use]
+    pub fn get(&self, row: usize, column: usize) -> Option<crate::tdbe::types::price::PriceType> {
+        let width = self.headers.len();
+        self.cells
+            .get(row * width..(row + 1) * width)?
+            .get(column)
+            .copied()
+            .flatten()
     }
 }
 
@@ -599,11 +670,18 @@ mod internal_tests {
         assert_eq!(col, vec![None]);
     }
 
+    /// A price reads as the vendor writes it, at the precision its type
+    /// carries (`766.000`, not `766`), up to the largest type.
     #[test]
     fn extract_text_column_keeps_price_at_boundary() {
-        let table = price_table("price", &[(100, 19)]);
-        let col = extract_text_column(&table, "price");
-        assert_eq!(col.len(), 1);
-        assert!(col[0].is_some());
+        let table = price_table("strike", &[(766_000, 7), (100, 19)]);
+        let col = extract_text_column(&table, "strike");
+        assert_eq!(
+            col,
+            vec![
+                Some("766.000".to_string()),
+                Some("100000000000.0".to_string())
+            ]
+        );
     }
 }

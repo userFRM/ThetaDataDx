@@ -1316,19 +1316,19 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client.market_data(), name, &converted_args).await
-    {
-        Ok(output) => output,
-        Err(EndpointError::InvalidParams(message)) => {
-            return Err(ToolError::InvalidParams(message));
-        }
-        Err(EndpointError::UnknownEndpoint(_)) => {
-            return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
-        }
-        Err(EndpointError::Server(error)) => {
-            return Err(flatfile_tools::classify_core_error(&error))
-        }
-    };
+    let output =
+        match endpoint::invoke_endpoint(client.market_data(), name, &converted_args, None).await {
+            Ok(output) => output,
+            Err(EndpointError::InvalidParams(message)) => {
+                return Err(ToolError::InvalidParams(message));
+            }
+            Err(EndpointError::UnknownEndpoint(_)) => {
+                return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
+            }
+            Err(EndpointError::Server(error)) => {
+                return Err(flatfile_tools::classify_core_error(&error))
+            }
+        };
 
     serialize_endpoint_output(name, &output)
 }

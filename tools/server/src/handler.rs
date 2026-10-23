@@ -701,7 +701,15 @@ pub async fn generic_with_overrides(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let output = match invoke_endpoint(state.client().market_data(), ep.name, &args).await {
+    let mut price_types = thetadatadx::decode::PriceTypes::default();
+    let output = match invoke_endpoint(
+        state.client().market_data(),
+        ep.name,
+        &args,
+        Some(&mut price_types),
+    )
+    .await
+    {
         Ok(output) => output,
         Err(error) => return endpoint_error_response(ep, error),
     };
@@ -709,7 +717,12 @@ pub async fn generic_with_overrides(
     // Build the flat v3 rows once. The CSV / NDJSON renderers consume them
     // directly (contract identity inline per row); the JSON renderer groups
     // option rows under their `contract`.
-    let rows = format::response_rows(ep, params.get("symbol").map(String::as_str), &output);
+    let rows = format::response_rows(
+        ep,
+        params.get("symbol").map(String::as_str),
+        &output,
+        &price_types,
+    );
     match response_format {
         ResponseFormat::Json => {
             let json_val = format::json_envelope(ep, rows);

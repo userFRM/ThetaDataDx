@@ -118,7 +118,7 @@ JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `C
 {
     "response": [
         {
-            "contract": {"symbol": "AAPL", "strike": 550.0, "expiration": "2026-06-18", "right": "CALL"},
+            "contract": {"symbol": "AAPL", "strike": 550.000, "expiration": "2026-06-18", "right": "CALL"},
             "data": [
                 {"timestamp": "2024-01-02T17:17:53.606", "open": 150.25}
             ]
@@ -127,7 +127,7 @@ JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `C
 }
 ```
 
-Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into them) and the option `right` is `CALL` / `PUT`.
+Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into them) and the option `right` is `CALL` / `PUT`. Each price is written at the precision the vendor sent it with, as the terminal writes it (`550.000`, `0.5800`).
 
 Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
 

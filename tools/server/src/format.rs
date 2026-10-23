@@ -8,7 +8,7 @@
 //! ```json
 //! {
 //!     "response": [
-//!         { "contract": { "symbol": "AAPL", "strike": 550.0,
+//!         { "contract": { "symbol": "AAPL", "strike": 550.000,
 //!                         "expiration": "2026-06-18", "right": "CALL" },
 //!           "data": [ { "timestamp": "2024-01-02T17:17:53.606", ... } ] }
 //!     ]
@@ -342,13 +342,11 @@ fn list_rows(ep: &EndpointMeta, symbol: Option<&str>, items: &[String]) -> Vec<R
             let value = if is_date {
                 sonic_rs::Value::from(iso_date_string(raw).as_str())
             } else if is_strike {
-                // v3 renders strikes as JSON numbers; fall back to the raw
-                // string only if the wire value is not finite-parseable.
-                match raw.parse::<f64>() {
-                    Ok(n) if n.is_finite() => sonic_rs::to_value(&n)
-                        .unwrap_or_else(|_| sonic_rs::Value::from(raw.as_str())),
-                    _ => sonic_rs::Value::from(raw.as_str()),
-                }
+                // A JSON number spelled as the vendor wrote it (`80.000`),
+                // falling back to the raw string only if it is not a number.
+                sonic_rs::from_str::<sonic_rs::RawNumber>(raw)
+                    .and_then(|number| sonic_rs::to_value(&number))
+                    .unwrap_or_else(|_| sonic_rs::Value::from(raw.as_str()))
             } else {
                 sonic_rs::Value::from(raw.as_str())
             };
@@ -455,15 +453,66 @@ fn build_rows(
 /// wire carried inline and leading where the endpoint renders it. These rows
 /// feed the CSV and NDJSON renderers directly; the JSON renderer groups option
 /// rows via [`json_envelope`].
+///
+/// `price_types` is the price type of every wire cell of `output`, row for
+/// row, which sets the precision each price is written at
+/// ([`write_wire_precision`]).
 pub fn response_rows(
     ep: &EndpointMeta,
     request_symbol: Option<&str>,
     output: &EndpointOutput,
+    price_types: &decode::PriceTypes,
 ) -> Vec<sonic_rs::Value> {
-    build_rows(ep, request_symbol, output)
-        .into_iter()
-        .map(Row::into_value)
-        .collect()
+    let mut rows = build_rows(ep, request_symbol, output);
+    write_wire_precision(&mut rows, price_types);
+    rows.into_iter().map(Row::into_value).collect()
+}
+
+/// Write each price at the precision of the `Price` cell it was decoded from,
+/// in every format, as the terminal writes it: a strike of type 7 is
+/// `766.000`, a greek of type 6 `0.5800`, a zero bid of type 6 `0.0000`.
+/// The decode to `f64` keeps a price's value but not its precision, and the
+/// shortest form it would otherwise be written in (`766.0`, `0.58`, `0.0`) is
+/// not the terminal's. The precision is per cell because the vendor varies it
+/// from row to row within one column.
+///
+/// Row `i` is wire row `i`, since the decode maps rows one to one, and a key
+/// names the wire column its value was decoded from.
+fn write_wire_precision(rows: &mut [Row], price_types: &decode::PriceTypes) {
+    let headers = price_types.headers();
+    // The rows of a response share a layout, so each key is looked up among
+    // the headers once per layout rather than once per row.
+    let mut keys: Vec<&'static str> = Vec::new();
+    let mut columns: Vec<Option<usize>> = Vec::new();
+    for (index, row) in rows.iter_mut().enumerate() {
+        if !row.columns().eq(keys.iter().copied()) {
+            keys = row.columns().collect();
+            columns = keys
+                .iter()
+                .map(|key| headers.iter().position(|header| header == key))
+                .collect();
+        }
+        for (value, column) in row.values_mut().zip(&columns) {
+            let Some(price_type) = column.and_then(|column| price_types.get(index, column)) else {
+                continue;
+            };
+            // A float is the cell's mantissa scaled by a power of ten, which
+            // this undoes exactly for every `i32` mantissa. An integer was
+            // decoded from the cell some other way and is written as it was.
+            let Some(number) = value.as_f64().filter(|_| value.is_f64()) else {
+                continue;
+            };
+            let mantissa = (number * 10f64.powi(10 - price_type.get())).round() as i32;
+            let text = Price::new(mantissa, price_type.get()).to_string();
+            // Every price spells a JSON number except a zero above type 10
+            // (`000.0`), whose shortest form is already the terminal's JSON.
+            if let Ok(price) = sonic_rs::from_str::<sonic_rs::RawNumber>(&text)
+                .and_then(|raw| sonic_rs::to_value(&raw))
+            {
+                *value = price;
+            }
+        }
+    }
 }
 
 /// Wrap flat v3 rows in the JSON envelope, grouping option rows under their
@@ -2979,7 +3028,7 @@ mod tests {
             ],
             columns::ColumnPresence::default().with_symbol("AAPL"),
         ));
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         let envelope = json_envelope(ep, rows);
 
         let response = envelope
@@ -3058,7 +3107,7 @@ mod tests {
             quote_tick(20260116, 90.0, 'C'),
             quote_tick(20260116, 1000.0, 'C'),
         ]));
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         let envelope = json_envelope(ep, rows);
         let response = envelope
             .get("response")
@@ -3085,7 +3134,12 @@ mod tests {
         let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
         let output =
             EndpointOutput::QuoteTicks(columns::Ticks::from(vec![quote_tick(0, 0.0, '\0')]));
-        let rows = response_rows(ep, Some("AAPL,MSFT"), &output);
+        let rows = response_rows(
+            ep,
+            Some("AAPL,MSFT"),
+            &output,
+            &decode::PriceTypes::default(),
+        );
         assert_eq!(rows.len(), 1);
         assert!(
             rows[0].get("symbol").is_none(),
@@ -3104,7 +3158,7 @@ mod tests {
             vec![quote_tick(0, 0.0, '\0')],
             columns::ColumnPresence::default().with_symbol("AAPL"),
         ));
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         let envelope = json_envelope(ep, rows);
         let response = envelope
             .get("response")
@@ -3133,7 +3187,7 @@ mod tests {
     fn stock_history_has_no_symbol_column() {
         let ep = thetadatadx::find("stock_history_quote").expect("endpoint exists");
         let output = EndpointOutput::QuoteTicks(labelled_row(quote_tick(0, 0.0, '\0')));
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         assert!(
             rows[0].get("symbol").is_none(),
             "stock history rows have no symbol column"
@@ -3147,7 +3201,12 @@ mod tests {
     fn list_endpoints_use_v3_keys_and_iso() {
         // Symbol list: single `symbol` key, value verbatim.
         let ep = thetadatadx::find("stock_list_symbols").expect("endpoint exists");
-        let rows = response_rows(ep, None, &EndpointOutput::StringList(vec!["AAPL".into()]));
+        let rows = response_rows(
+            ep,
+            None,
+            &EndpointOutput::StringList(vec!["AAPL".into()]),
+            &decode::PriceTypes::default(),
+        );
         assert_eq!(
             rows[0]
                 .get("symbol")
@@ -3161,6 +3220,7 @@ mod tests {
             ep,
             None,
             &EndpointOutput::StringList(vec!["20160816".into()]),
+            &decode::PriceTypes::default(),
         );
         assert_eq!(
             rows[0]
@@ -3175,6 +3235,7 @@ mod tests {
             ep,
             Some("AAPL"),
             &EndpointOutput::StringList(vec!["20120601".into()]),
+            &decode::PriceTypes::default(),
         );
         assert_eq!(
             rows[0]
@@ -3190,12 +3251,13 @@ mod tests {
         );
 
         // Option strikes: paired with the symbol the request named, not the
-        // raw parameter, strike numeric.
+        // raw parameter, strike a number spelled as the vendor wrote it.
         let ep = thetadatadx::find("option_list_strikes").expect("endpoint exists");
         let rows = response_rows(
             ep,
             Some(" AAPL,AAPL"),
             &EndpointOutput::StringList(vec!["80.000".into()]),
+            &decode::PriceTypes::default(),
         );
         assert_eq!(
             rows[0]
@@ -3206,8 +3268,8 @@ mod tests {
         assert_eq!(
             rows[0]
                 .get("strike")
-                .and_then(|v: &sonic_rs::Value| v.as_f64()),
-            Some(80.0)
+                .map(|v: &sonic_rs::Value| sonic_rs::to_string(v).expect("number serializes")),
+            Some("80.000".to_string())
         );
     }
 
@@ -3243,7 +3305,12 @@ mod tests {
             strike: 220.0,
             right: 'C',
         };
-        let rows = response_rows(ep, None, &EndpointOutput::TradeTicks(labelled_row(tick)));
+        let rows = response_rows(
+            ep,
+            None,
+            &EndpointOutput::TradeTicks(labelled_row(tick)),
+            &decode::PriceTypes::default(),
+        );
         let csv = json_to_csv(ep, &rows).expect("CSV");
         assert!(csv.ends_with("\r\n"), "v3 CSV is CRLF-framed: {csv:?}");
         let header = csv.split("\r\n").next().expect("header line");
@@ -3254,6 +3321,99 @@ mod tests {
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price",
             "v3 option_history_trade CSV header must match the spec column order exactly"
         );
+    }
+
+    /// A price is written at the precision its wire cell carries, in every
+    /// format, as the terminal writes it. The decode to `f64` keeps only the
+    /// value, so the price types travel beside the rows; the second row's
+    /// underlying price carries a decimal more than the first's, as the
+    /// vendor's prices do from row to row within a column.
+    #[test]
+    fn prices_are_written_at_the_precision_of_their_wire_cell() {
+        use thetadatadx::wire::{data_value::DataType, DataTable, DataValue, DataValueList};
+        let text = |text: &str| DataValue {
+            data_type: Some(DataType::Text(text.into())),
+        };
+        let price = |value, r#type| DataValue {
+            data_type: Some(DataType::Price(thetadatadx::wire::Price { value, r#type })),
+        };
+        // 2024-06-21 09:30:00 in New York.
+        let opening_bell = || DataValue {
+            data_type: Some(DataType::Timestamp(thetadatadx::wire::ZonedDateTime {
+                epoch_ms: 1_718_976_600_000,
+                zone: 0,
+            })),
+        };
+        let row = |underlying_price| DataValueList {
+            values: vec![
+                text("SPY"),
+                text("2024-06-21"),
+                price(766_000, 7),
+                text("CALL"),
+                opening_bell(),
+                price(1_430, 8),
+                price(5_800, 6),
+                price(1_450, 8),
+                price(5_900, 6),
+                price(1_470, 8),
+                price(6_000, 6),
+                price(0, 6),
+                opening_bell(),
+                underlying_price,
+            ],
+        };
+        let table = DataTable {
+            headers: [
+                "symbol",
+                "expiration",
+                "strike",
+                "right",
+                "timestamp",
+                "bid",
+                "bid_implied_vol",
+                "midpoint",
+                "implied_vol",
+                "ask",
+                "ask_implied_vol",
+                "iv_error",
+                "underlying_timestamp",
+                "underlying_price",
+            ]
+            .map(String::from)
+            .to_vec(),
+            data_table: vec![row(price(340_680, 7)), row(price(3_406_800, 6))],
+        };
+        let ep =
+            thetadatadx::find("option_history_greeks_implied_volatility").expect("endpoint exists");
+        let ticks = decode::parse_iv_ticks(&table).expect("wire rows decode");
+        let output = EndpointOutput::IvTicks(columns::Ticks::new(
+            ticks,
+            <IvTick as columns::WireColumns>::all_columns().with_symbol("SPY"),
+        ));
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::from_table(&table));
+
+        assert_eq!(
+            json_to_csv(ep, &rows).expect("CSV"),
+            "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price\r\n\
+             SPY,2024-06-21,766.000,CALL,2024-06-21T09:30:00.000,14.30,0.5800,14.50,0.5900,14.70,0.6000,0.0000,2024-06-21T09:30:00.000,340.680\r\n\
+             SPY,2024-06-21,766.000,CALL,2024-06-21T09:30:00.000,14.30,0.5800,14.50,0.5900,14.70,0.6000,0.0000,2024-06-21T09:30:00.000,340.6800\r\n"
+        );
+        let html = json_to_html(ep, &rows).expect("HTML");
+        assert!(
+            html.contains("<td>766.000</td><td>CALL</td>"),
+            "HTML writes the strike as CSV does: {html}"
+        );
+        let json = sonic_rs::to_string(&json_envelope(ep, rows)).expect("JSON");
+        for field in [
+            r#""strike":766.000"#,
+            r#""bid":14.30"#,
+            r#""bid_implied_vol":0.5800"#,
+            r#""iv_error":0.0000"#,
+            r#""underlying_price":340.680"#,
+            r#""underlying_price":340.6800"#,
+        ] {
+            assert!(json.contains(field), "JSON lacks {field}: {json}");
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -3368,7 +3528,7 @@ mod tests {
     /// `output`.
     fn csv_header_for(ep_name: &str, output: EndpointOutput) -> String {
         let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         let csv = json_to_csv(ep, &rows).expect("CSV");
         csv.split("\r\n").next().expect("header line").to_string()
     }
@@ -3717,6 +3877,7 @@ mod tests {
             ep,
             request_symbol,
             &EndpointOutput::StringList(vec!["20120601".into(), "20120608".into()]),
+            &decode::PriceTypes::default(),
         );
         let envelope = json_envelope(ep, rows);
         let response = envelope
@@ -3759,7 +3920,7 @@ mod tests {
                 right: 'C',
             },
         ]));
-        let rows = response_rows(ep, None, &output);
+        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
         let envelope = json_envelope(ep, rows);
         let response = envelope
             .get("response")
@@ -3922,6 +4083,7 @@ mod tests {
             &EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
                 0, 0.0, '\0',
             )])),
+            &decode::PriceTypes::default(),
         );
         let csv = json_to_csv(ep, &rows).expect("CSV");
         let header = csv.split("\r\n").next().expect("header line");
@@ -4324,7 +4486,7 @@ mod tests {
         }
         fn first_row(ep_name: &str, output: EndpointOutput) -> sonic_rs::Value {
             let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-            response_rows(ep, None, &output)
+            response_rows(ep, None, &output, &decode::PriceTypes::default())
                 .into_iter()
                 .next()
                 .expect("one row")
@@ -4671,7 +4833,7 @@ mod tests {
         // The request parameter is the whole list, as the server received it.
         let request_symbol = Some("AAPL,MSFT,TSLA");
 
-        let built = response_rows(ep, request_symbol, &output);
+        let built = response_rows(ep, request_symbol, &output, &decode::PriceTypes::default());
         assert_eq!(built.len(), wire.len(), "one row per requested symbol");
         for (row, expected) in built.iter().zip(wire) {
             let symbol = row.get("symbol").expect("identity carries a symbol");
@@ -4720,7 +4882,7 @@ mod tests {
         // The request asked for two.
         let request_symbol = Some("AAPL,MSFT");
 
-        let built = response_rows(ep, request_symbol, &output);
+        let built = response_rows(ep, request_symbol, &output, &decode::PriceTypes::default());
         assert_eq!(built.len(), 1);
         let symbol = built[0].get("symbol").expect("identity carries a symbol");
         assert_eq!(

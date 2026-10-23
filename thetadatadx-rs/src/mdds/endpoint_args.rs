@@ -546,6 +546,10 @@ pub enum EndpointOutput {
 /// `EndpointError::Server(Error::Timeout { duration_ms })`. Subsequent calls
 /// on the same `MarketDataClient` succeed.
 ///
+/// `price_types`, when given, receives the price type of every cell of a
+/// buffered response's rows, row for row, which is the precision the vendor
+/// wrote each price at. A list response leaves it untouched.
+///
 /// # Errors
 ///
 /// Returns [`EndpointError::UnknownEndpoint`] for an unrecognized `name`,
@@ -559,8 +563,9 @@ pub async fn invoke_endpoint(
     client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
+    price_types: Option<&mut crate::mdds::decode::extract::PriceTypes>,
 ) -> Result<EndpointOutput, EndpointError> {
-    invoke_generated_endpoint(client, name, args).await
+    invoke_generated_endpoint(client, name, args, price_types).await
 }
 
 /// Transport-neutral endpoint dispatch that drains the response

@@ -87,6 +87,12 @@ impl Row {
         self.0.iter().map(|(k, _)| *k)
     }
 
+    /// The values in declaration order, each writable in place, so a price
+    /// can be rewritten at the precision its wire cell carries.
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut sonic_rs::Value> + '_ {
+        self.0.iter_mut().map(|(_, v)| v)
+    }
+
     /// Convert to a `sonic_rs` object for the JSON envelope.
     ///
     /// The JSON object's on-wire field order is not a stable contract (the

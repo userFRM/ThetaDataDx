@@ -51,7 +51,7 @@ Option market-data routes group the rows by contract, one block per contract in 
 {
     "response": [
         {
-            "contract": { "symbol": "SPY", "expiration": "2025-03-21", "strike": 570.0, "right": "CALL" },
+            "contract": { "symbol": "SPY", "expiration": "2025-03-21", "strike": 570.000, "right": "CALL" },
             "data": [ ... ]
         }
     ]
@@ -59,6 +59,8 @@ Option market-data routes group the rows by contract, one block per contract in 
 ```
 
 The CSV and NDJSON forms carry the contract columns inline on every row instead.
+
+Each price is written at the precision the vendor sent it with, in every format, as the terminal writes it: a strike reads `570.000` and a greek `0.5800`.
 
 A failed request is answered with an HTTP status and a plain-text description; see [server errors](/articles/error-codes#server-errors).
 
