@@ -388,14 +388,15 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
             "    /// chunk's `ColumnPresence`, which names the root each row belongs to:\n",
         );
         out.push_str(
-            "    /// `symbols()` holds one per row when the rows span several roots, as\n",
+            "    /// `symbols()` holds one per row when the rows span several roots, and\n",
         );
-        out.push_str("    /// in a flat file, and `symbol()` the one they share when they share\n");
-        out.push_str("    /// one; a response that carries no root, such as stock history, sets\n");
-        out.push_str("    /// neither. The chunk is freed before the next is fetched, so peak\n");
+        out.push_str("    /// `symbol()` the one they share when they share one. A flat file's\n");
+        out.push_str("    /// chunks come either way, so read whichever is set; a response that\n");
         out.push_str(
-            "    /// memory tracks a single chunk rather than the whole result. Carries\n",
+            "    /// carries no root, such as stock history, sets neither. The chunk is\n",
         );
+        out.push_str("    /// freed before the next is fetched, so peak memory tracks a single\n");
+        out.push_str("    /// chunk rather than the whole result. Carries\n");
         out.push_str("    /// the same optional builder parameters and `timeout_ms` as the\n");
         out.push_str("    /// buffered method via `options`. Throws on a wire or decode error\n");
         out.push_str("    /// once the stream drains; both arguments are valid only for the\n");

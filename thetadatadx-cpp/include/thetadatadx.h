@@ -2342,10 +2342,11 @@ void thetadatadx_string_free(char* s);
  *
  *  `columns` is the chunk's column presence, never NULL: the columns the
  *  chunk's wire carried and the root each row belongs to. When the chunk's
- *  rows span several roots, as in a flat file, `symbols` holds one root per
- *  row (`symbols_len == len`); when every row shares one, as in option and
- *  index history, `symbol` holds it. A response that carries no root, such
- *  as stock history, sets neither. The library owns it: it is valid only for
+ *  rows span several roots, `symbols` holds one root per row
+ *  (`symbols_len == len`); when every row shares one, as in option and index
+ *  history and a flat-file chunk inside one root, `symbol` holds it, so a
+ *  flat-file reader checks both. A response that carries no root, such as
+ *  stock history, sets neither. The library owns it: it is valid only for
  *  the duration of the call and must not be freed by the callback.
  *
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed

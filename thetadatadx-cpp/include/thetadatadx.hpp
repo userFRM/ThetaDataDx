@@ -383,12 +383,13 @@ public:
         for (size_t i = 0; i < raw_.len; ++i) { out.emplace_back(raw_.names[i]); }
         return out;
     }
-    /// The root every row shares, as in option and index history; `nullptr`
-    /// when the rows span several roots (see `symbols()`) or the response
-    /// carries none, as in stock history.
+    /// The root every row shares, as in option and index history or a
+    /// flat-file chunk inside one root; `nullptr` when the rows span several
+    /// roots (see `symbols()`) or the response carries none, as in stock
+    /// history.
     const char* symbol() const noexcept { return raw_.symbol; }
-    /// One root per row when the rows span several roots, as in a flat file
-    /// or a multi-symbol snapshot; empty otherwise.
+    /// One root per row when the rows span several roots, as a flat-file or
+    /// multi-symbol snapshot chunk can; empty otherwise.
     Span<const char* const> symbols() const noexcept { return {raw_.symbols, raw_.symbols_len}; }
     /// The C carrier, for the projected serialiser. Not owned by the callee:
     /// it lives as long as this object, or, in a `_stream` handler, for the

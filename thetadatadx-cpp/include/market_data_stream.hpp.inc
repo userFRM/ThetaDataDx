@@ -38,11 +38,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -55,11 +56,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const OhlcTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -72,11 +74,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -89,11 +92,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const QuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -106,11 +110,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -123,11 +128,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -140,11 +146,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const QuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -157,11 +164,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -174,11 +182,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -191,11 +200,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -208,11 +218,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -225,11 +236,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const OhlcTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -242,11 +254,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -259,11 +272,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const QuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -276,11 +290,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -293,11 +308,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const OpenInterestTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -310,11 +326,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksEodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -327,11 +344,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksEodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -344,11 +362,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksAllTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -361,11 +380,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksAllTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -378,11 +398,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -395,11 +416,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -412,11 +434,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -429,11 +452,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -446,11 +470,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -463,11 +488,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -480,11 +506,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -497,11 +524,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -514,11 +542,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -531,11 +560,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -548,11 +578,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -565,11 +596,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -582,11 +614,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -599,11 +632,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -616,11 +650,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const IvTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -633,11 +668,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeGreeksImpliedVolatilityTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -650,11 +686,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -667,11 +704,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const QuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -684,11 +722,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -701,11 +740,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const TradeQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -718,11 +758,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const OpenInterestTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -735,11 +776,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const IntervalQuoteTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -752,11 +794,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -769,11 +812,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const OhlcTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -786,11 +830,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const PriceTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -803,11 +848,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const IndexPriceAtTimeTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -820,11 +866,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const EodTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
@@ -837,11 +884,12 @@
     /// response. `handler` is invoked once per server chunk with a
     /// `Span<const InterestRateTick>` view over a contiguous run of rows and the
     /// chunk's `ColumnPresence`, which names the root each row belongs to:
-    /// `symbols()` holds one per row when the rows span several roots, as
-    /// in a flat file, and `symbol()` the one they share when they share
-    /// one; a response that carries no root, such as stock history, sets
-    /// neither. The chunk is freed before the next is fetched, so peak
-    /// memory tracks a single chunk rather than the whole result. Carries
+    /// `symbols()` holds one per row when the rows span several roots, and
+    /// `symbol()` the one they share when they share one. A flat file's
+    /// chunks come either way, so read whichever is set; a response that
+    /// carries no root, such as stock history, sets neither. The chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries
     /// the same optional builder parameters and `timeout_ms` as the
     /// buffered method via `options`. Throws on a wire or decode error
     /// once the stream drains; both arguments are valid only for the
