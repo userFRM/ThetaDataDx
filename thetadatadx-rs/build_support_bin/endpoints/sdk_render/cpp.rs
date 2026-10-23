@@ -261,9 +261,9 @@ fn render_cpp_async_overload(
             "    /// The future resolves to the rows and the `ColumnPresence` the blocking\n",
         );
         out.push_str(
-            "    /// call fills through `out_columns`: the columns the response carried and\n",
+            "    /// call fills through `out_columns`: the columns the response carried and,\n",
         );
-        out.push_str("    /// the root each row belongs to.\n");
+        out.push_str("    /// when it carries one, the root each row belongs to.\n");
         out.push_str("    ///\n");
     }
     out.push_str(

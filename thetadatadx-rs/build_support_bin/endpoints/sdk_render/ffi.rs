@@ -408,10 +408,11 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("/// is invoked once per server chunk with a pointer to a contiguous run\n");
     out.push_str("/// of the endpoint's tick struct (the same layout the buffered\n");
     out.push_str("/// `_with_options` array returns) and the chunk's column presence,\n");
-    out.push_str("/// which carries the root each row belongs to; the chunk is freed before\n");
-    out.push_str("/// the next is fetched, so peak memory tracks a single chunk. Accepts the\n");
-    out.push_str("/// same optional builder parameters as the buffered form. Returns 0 on a\n");
-    out.push_str("/// clean drain, -1 on error (inspect `thetadatadx_last_error`).\n");
+    out.push_str("/// which carries the root each row belongs to when the response has one;\n");
+    out.push_str("/// the chunk is freed before the next is fetched, so peak memory tracks a\n");
+    out.push_str("/// single chunk. Accepts the same optional builder parameters as the\n");
+    out.push_str("/// buffered form. Returns 0 on a clean drain, -1 on error (inspect\n");
+    out.push_str("/// `thetadatadx_last_error`).\n");
     out.push_str("#[no_mangle]\n");
     write!(
         out,

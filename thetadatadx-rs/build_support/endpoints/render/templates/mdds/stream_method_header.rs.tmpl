@@ -23,10 +23,11 @@
     /// `handler` receives each chunk as a [`Ticks`](crate::columns::Ticks):
     /// it derefs to the chunk's rows, and its
     /// [`columns`](crate::columns::Ticks::columns) name the columns the
-    /// chunk's wire carried and the root each row belongs to: one root for
-    /// every row in [`symbol`](crate::columns::ColumnPresence::symbol), or
-    /// one per row in [`symbols`](crate::columns::ColumnPresence::symbols)
-    /// when the rows span several.
+    /// chunk's wire carried and, when it carries one, the root each row
+    /// belongs to: one root for every row in
+    /// [`symbol`](crate::columns::ColumnPresence::symbol), or one per row in
+    /// [`symbols`](crate::columns::ColumnPresence::symbols) when the rows
+    /// span several.
     ///
     /// # Retry / refresh semantics
     ///
