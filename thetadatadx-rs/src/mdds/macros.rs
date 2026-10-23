@@ -1124,10 +1124,10 @@ macro_rules! parsed_endpoint {
             /// `.await` returns: it derefs to the chunk's rows, and its
             /// [`columns`](crate::columns::Ticks::columns) name the columns
             /// the chunk's wire carried and the root each row belongs to.
-            /// When the chunk's rows span several roots, as in a flat file,
+            /// When the chunk's rows span several roots,
             /// [`symbols`](crate::columns::ColumnPresence::symbols) holds
             /// one root per row; when every row shares one, as in option
-            /// and index history,
+            /// and index history and a flat-file chunk inside one root,
             /// [`symbol`](crate::columns::ColumnPresence::symbol) holds it.
             /// A response that carries no root, such as stock history, sets
             /// neither.

@@ -653,10 +653,11 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         "Stream `{name}` rows into `callback` without materialising the full \
          response in memory. `callback(rows: {tick}[], columns: ColumnPresence) => \
          void` is invoked once per server chunk with the chunk's rows and the \
-         columns its wire carried: when the rows span several roots, as in a flat \
-         file, `columns.symbols` holds the root of each row; when they share one, \
-         as in option and index history, `columns.symbol` holds it; a response \
-         that carries no root, such as stock history, sets neither. The chunk is \
+         columns its wire carried: when the rows span several roots, \
+         `columns.symbols` holds the root of each row; when they share one, as in \
+         option and index history, `columns.symbol` holds it. A flat file's chunks \
+         come either way, so read whichever is set; a response that carries no \
+         root, such as stock history, sets neither. The chunk is \
          freed before that stream's next chunk is fetched, so peak memory tracks \
          a single chunk rather than the whole result.{fan_out} This is the \
          memory-bounded companion to the `{camel}` method; prefer it \
