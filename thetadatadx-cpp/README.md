@@ -91,7 +91,7 @@ auto client = thetadatadx::MarketDataClient::connect(
     thetadatadx::Config::production());
 ```
 
-Every market-data method returns a typed `std::vector`. Iterate it directly:
+Every blocking market-data method returns a typed `std::vector`. Iterate it directly:
 
 ```cpp
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");

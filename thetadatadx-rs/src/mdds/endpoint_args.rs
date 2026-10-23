@@ -445,29 +445,29 @@ impl From<EndpointError> for Error {
 pub enum EndpointOutput {
     /// `Vec<String>` list result.
     StringList(Vec<String>),
-    /// `Vec<EodTick>` result.
+    /// `Ticks<EodTick>` result.
     EodTicks(Ticks<EodTick>),
-    /// `Vec<OhlcTick>` result.
+    /// `Ticks<OhlcTick>` result.
     OhlcTicks(Ticks<OhlcTick>),
-    /// `Vec<TradeTick>` result.
+    /// `Ticks<TradeTick>` result.
     TradeTicks(Ticks<TradeTick>),
-    /// `Vec<QuoteTick>` result.
+    /// `Ticks<QuoteTick>` result.
     QuoteTicks(Ticks<QuoteTick>),
-    /// `Vec<TradeQuoteTick>` result.
+    /// `Ticks<TradeQuoteTick>` result.
     TradeQuoteTicks(Ticks<TradeQuoteTick>),
-    /// `Vec<OpenInterestTick>` result.
+    /// `Ticks<OpenInterestTick>` result.
     OpenInterestTicks(Ticks<OpenInterestTick>),
-    /// `Vec<IntervalQuoteTick>` result. Returned by the quote flat files
+    /// `Ticks<IntervalQuoteTick>` result. Returned by the quote flat files
     /// (`*_flat_file_quote`): one NBBO quote per interval, carrying both the
     /// interval time and the time the quote was reported.
     IntervalQuoteTicks(Ticks<IntervalQuoteTick>),
-    /// `Vec<MarketValueTick>` result.
+    /// `Ticks<MarketValueTick>` result.
     MarketValueTicks(Ticks<MarketValueTick>),
-    /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all`
+    /// `Ticks<GreeksAllTick>` result. Returned by `option_*_greeks_all`
     /// endpoints (interval-sampled full-union Greeks paired with the
     /// bid/ask quote pair).
     GreeksAllTicks(Ticks<GreeksAllTick>),
-    /// `Vec<GreeksEodTick>` result. Returned by
+    /// `Ticks<GreeksEodTick>` result. Returned by
     /// `option_history_greeks_eod` -- end-of-day full-union Greeks
     /// calculation fused with the twelve EOD trade/quote context
     /// columns (`open`, `high`, `low`, `close`, `volume`, `count`,
@@ -475,43 +475,43 @@ pub enum EndpointOutput {
     /// `ask_exchange`, `ask_condition`) the bare `GreeksAllTick`
     /// silently dropped.
     GreeksEodTicks(Ticks<GreeksEodTick>),
-    /// `Vec<GreeksFirstOrderTick>` result. Returned by
+    /// `Ticks<GreeksFirstOrderTick>` result. Returned by
     /// `option_*_greeks_first_order` endpoints.
     GreeksFirstOrderTicks(Ticks<GreeksFirstOrderTick>),
-    /// `Vec<GreeksSecondOrderTick>` result. Returned by
+    /// `Ticks<GreeksSecondOrderTick>` result. Returned by
     /// `option_*_greeks_second_order` endpoints.
     GreeksSecondOrderTicks(Ticks<GreeksSecondOrderTick>),
-    /// `Vec<GreeksThirdOrderTick>` result. Returned by
+    /// `Ticks<GreeksThirdOrderTick>` result. Returned by
     /// `option_*_greeks_third_order` endpoints.
     GreeksThirdOrderTicks(Ticks<GreeksThirdOrderTick>),
-    /// `Vec<TradeGreeksAllTick>` result. Returned by
+    /// `Ticks<TradeGreeksAllTick>` result. Returned by
     /// `option_history_trade_greeks_all` -- per-OPRA-trade Greeks calculation
     /// carrying both the trade-side execution columns and every Greek the
     /// server publishes for the all-union endpoint.
     TradeGreeksAllTicks(Ticks<TradeGreeksAllTick>),
-    /// `Vec<TradeGreeksFirstOrderTick>` result. Returned by
+    /// `Ticks<TradeGreeksFirstOrderTick>` result. Returned by
     /// `option_history_trade_greeks_first_order` -- per-OPRA-trade first-order
     /// Greeks calculation with trade execution columns.
     TradeGreeksFirstOrderTicks(Ticks<TradeGreeksFirstOrderTick>),
-    /// `Vec<TradeGreeksSecondOrderTick>` result. Returned by
+    /// `Ticks<TradeGreeksSecondOrderTick>` result. Returned by
     /// `option_history_trade_greeks_second_order` -- per-OPRA-trade
     /// second-order Greeks calculation with trade execution columns.
     TradeGreeksSecondOrderTicks(Ticks<TradeGreeksSecondOrderTick>),
-    /// `Vec<TradeGreeksThirdOrderTick>` result. Returned by
+    /// `Ticks<TradeGreeksThirdOrderTick>` result. Returned by
     /// `option_history_trade_greeks_third_order` -- per-OPRA-trade third-order
     /// Greeks calculation with trade execution columns.
     TradeGreeksThirdOrderTicks(Ticks<TradeGreeksThirdOrderTick>),
-    /// `Vec<TradeGreeksImpliedVolatilityTick>` result. Returned by
+    /// `Ticks<TradeGreeksImpliedVolatilityTick>` result. Returned by
     /// `option_history_trade_greeks_implied_volatility` -- per-OPRA-trade IV
     /// calculation with trade execution columns. Carries only the single
     /// `implied_volatility` + `iv_error` pair (not the bid/mid/ask IV triple
     /// of the interval-sampled `IvTick`).
     TradeGreeksImpliedVolatilityTicks(Ticks<TradeGreeksImpliedVolatilityTick>),
-    /// `Vec<IvTick>` result.
+    /// `Ticks<IvTick>` result.
     IvTicks(Ticks<IvTick>),
-    /// `Vec<PriceTick>` result.
+    /// `Ticks<PriceTick>` result.
     PriceTicks(Ticks<PriceTick>),
-    /// `Vec<IndexPriceAtTimeTick>` result. Returned by
+    /// `Ticks<IndexPriceAtTimeTick>` result. Returned by
     /// `index_at_time_price` -- trade-shaped row (10 columns:
     /// `timestamp`, `sequence`, `ext_condition1..4`, `condition`,
     /// `size`, `exchange`, `price`) carrying the seven trade-side
@@ -520,7 +520,7 @@ pub enum EndpointOutput {
     IndexPriceAtTimeTicks(Ticks<IndexPriceAtTimeTick>),
     /// `Vec<CalendarDay>` result.
     CalendarDays(Ticks<CalendarDay>),
-    /// `Vec<InterestRateTick>` result.
+    /// `Ticks<InterestRateTick>` result.
     InterestRateTicks(Ticks<InterestRateTick>),
     /// `Vec<OptionContract>` result.
     OptionContracts(Ticks<OptionContract>),

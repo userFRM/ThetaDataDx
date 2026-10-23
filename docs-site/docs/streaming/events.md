@@ -5,7 +5,7 @@ description: The typed event catalogue and how to narrow events in each language
 
 # Handling Events
 
-Every streaming update reaches your callback as one typed event. There are five **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields, with no JSON and no string parsing.
+Every streaming update reaches your callback as one typed event. There are six **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields, with no JSON and no string parsing.
 
 ## Narrowing
 

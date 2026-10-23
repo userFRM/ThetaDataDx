@@ -182,7 +182,7 @@ pub struct MarketDataConfig {
     /// workload.
     ///
     /// The buffered path materializes the full response as
-    /// `Vec<Tick>` before returning; the streaming path drops each
+    /// `Ticks<Tick>` before returning; the streaming path drops each
     /// chunk after the user callback consumes it. When
     /// `row_count * size_of::<Tick>() > threshold`, the SDK logs an
     /// `endpoint = ..., row_count = ..., bytes_est = ...` warn once

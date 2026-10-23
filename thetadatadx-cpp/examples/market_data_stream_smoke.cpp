@@ -6,9 +6,10 @@
 // result exactly -- count and content -- and that every chunk names the
 // queried root. A pull large enough to fan out streams its bands
 // concurrently, so chunks arrive in arrival order rather than the buffered
-// result's merged order; both sides are sorted before they are compared. Also reports the chunk count and the peak
-// single-chunk row count to show that peak memory tracks a single chunk
-// rather than the whole result.
+// result's merged order; both sides are sorted before they are compared.
+// Also reports the chunk count and the largest chunk: the SDK holds one
+// chunk at a time, so the largest chunk is what streaming costs it, while
+// this program keeps every row only to compare the two pulls.
 //
 //   usage: market_data_stream_smoke [creds.txt] [symbol] [expiration] [date]
 //   defaults:                       creds.txt   QQQ      *            20250303
@@ -136,8 +137,8 @@ int main(int argc, char** argv) {
             return 2;
         }
 
-        std::cout << "MATCH: " << streamed.size() << " rows identical (count + content); peak memory "
-                  << "bounded to one chunk of " << peak_chunk_rows << " rows ("
+        std::cout << "MATCH: " << streamed.size() << " rows identical (count + content); largest "
+                  << "chunk " << peak_chunk_rows << " rows ("
                   << (100.0 * static_cast<double>(peak_chunk_rows) / static_cast<double>(streamed.size()))
                   << "% of the full result)\n";
         return 0;

@@ -136,7 +136,7 @@ const AWAIT_VS_STREAM_DOC: &str = "\n\
 | Tick-interval responses | `.stream(handler)` |\n\
 | Greeks responses across a long horizon | `.stream(handler)` |\n\
 \n\
-Buffered (`.await`) collects the full response into `Vec<Tick>`. On a\n\
+Buffered (`.await`) collects the full response into `Ticks<Tick>`. On a\n\
 2.4 M-tick day this consumes ~5 GiB before any caller code runs.\n\
 Streaming yields chunks via `handler(&Ticks<Tick>)`, capping per-request\n\
 RSS at ~150 MiB regardless of response size.\n\
