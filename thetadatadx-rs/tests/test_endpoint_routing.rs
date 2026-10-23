@@ -433,6 +433,36 @@ async fn streamed_flat_file_chunks_name_each_rows_root() {
     assert_eq!(rows, expected, ".stream_async");
 }
 
+/// The by-name stream dispatch ends the call at a `Break` from its handler, so
+/// a caller can stop a whole-universe file once it has seen enough of it
+/// instead of downloading the rest.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn by_name_stream_ends_at_a_break() {
+    let (_mock, client) = client_for_response(vec![
+        flat_file_quote_chunk(&[("AAPL", 34_260_000, 10)]),
+        flat_file_quote_chunk(&[("MSFT", 34_260_000, 20)]),
+    ])
+    .await;
+    let mut args = thetadatadx::endpoint::EndpointArgs::new();
+    args.insert(
+        "date".to_owned(),
+        thetadatadx::endpoint::EndpointArgValue::Str("20261021".to_owned()),
+    );
+    let mut chunks = 0;
+    thetadatadx::endpoint::invoke_endpoint_stream(
+        &client,
+        "stock_flat_file_quote",
+        &args,
+        |_, _, _| {
+            chunks += 1;
+            std::ops::ControlFlow::Break(())
+        },
+    )
+    .await
+    .expect("stock_flat_file_quote by-name stream via mock");
+    assert_eq!(chunks, 1, "the handler was called again after it broke");
+}
+
 // List endpoints honor the per-request deadline
 //
 // List RPCs (`*_list_*`) must apply the same deadline contract as the

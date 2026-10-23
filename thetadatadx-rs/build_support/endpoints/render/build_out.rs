@@ -303,13 +303,14 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
     // pointer + length to `handler` as type-erased `(*const c_void, usize)`,
     // with the chunk's column presence beside them; the chunk is freed before
     // the next one is fetched, so peak memory tracks a single chunk rather
-    // than the whole result. `handler` is moved in: only this arm runs per
-    // call. The core primitive surfaces the crate `Error`; convert to
+    // than the whole result, and a `Break` from `handler` ends the call.
+    // `handler` is moved in: only this arm runs per call. The core primitive
+    // surfaces the crate `Error`; convert to
     // `EndpointError` (the dispatch return type) through the same
     // `From<Error>` the buffered arms reach via `?`.
     out.push_str("            builder\n");
     out.push_str(
-        "                .stream(move |chunk| handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len(), chunk.columns()))\n",
+        "                .stream_ticks(move |chunk| handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len(), chunk.columns()))\n",
     );
     out.push_str("                .await\n");
     out.push_str("                .map_err(EndpointError::from)\n");

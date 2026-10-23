@@ -162,7 +162,10 @@ fn invoke_endpoint_stream_blocking(
         client,
         name,
         args,
-        move |rows, len, columns| sink.emit(rows, len, columns),
+        move |rows, len, columns| {
+            sink.emit(rows, len, columns);
+            std::ops::ControlFlow::Continue(())
+        },
     ))
 }
 

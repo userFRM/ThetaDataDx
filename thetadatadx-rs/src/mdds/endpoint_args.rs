@@ -579,7 +579,9 @@ pub async fn invoke_endpoint(
 /// type-erased `(*const c_void, usize)` pointing at a contiguous run of the
 /// endpoint's `#[repr(C)]` tick, the boundary the FFI layer rebuilds the
 /// typed pointer from without re-marshaling, and the chunk's
-/// [`crate::columns::ColumnPresence`], which carries each row's root.
+/// [`crate::columns::ColumnPresence`], which carries each row's root. A
+/// `Break` from `handler` ends the call, every band of a fan-out included,
+/// and it returns `Ok(())` without calling `handler` again.
 ///
 /// The per-call deadline is resolved inside the generated dispatch — the
 /// `.stream()` builder threads [`EndpointArgs::deadline_setting`] through
@@ -605,7 +607,12 @@ pub async fn invoke_endpoint_stream(
     client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
-    handler: impl FnMut(*const core::ffi::c_void, usize, &crate::columns::ColumnPresence) + Send,
+    handler: impl FnMut(
+        *const core::ffi::c_void,
+        usize,
+        &crate::columns::ColumnPresence,
+    ) -> core::ops::ControlFlow<()>
+    + Send,
 ) -> Result<(), EndpointError> {
     invoke_generated_endpoint_stream(client, name, args, handler).await
 }
