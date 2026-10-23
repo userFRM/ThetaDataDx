@@ -398,9 +398,9 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
         out.push_str("    /// freed before the next is fetched, so peak memory tracks a single\n");
         out.push_str("    /// chunk rather than the whole result. Carries\n");
         out.push_str("    /// the same optional builder parameters and `timeout_ms` as the\n");
-        out.push_str("    /// buffered method via `options`. Throws on a wire or decode error\n");
-        out.push_str("    /// once the stream drains; both arguments are valid only for the\n");
-        out.push_str("    /// duration of each call.\n");
+        out.push_str("    /// buffered method via `options`. Throws on a wire or decode error.\n");
+        out.push_str("    /// An exception `handler` throws stops the stream and is rethrown.\n");
+        out.push_str("    /// Both arguments are valid only for the duration of each call.\n");
         writeln!(
             out,
             "    void {}_stream({}) const;\n",
@@ -461,8 +461,8 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         )
         .unwrap();
         // Erase the typed handler into the shim context, which also carries a
-        // slot for the first exception the handler throws so it can be
-        // rethrown after the drain rather than silently lost. The borrow of
+        // slot for the exception the handler throws so it can be rethrown
+        // once the stream has stopped rather than silently lost. The borrow of
         // `handler` is sound because both live to the end of this synchronous
         // call.
         writeln!(

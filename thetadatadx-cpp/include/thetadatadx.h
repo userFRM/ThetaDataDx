@@ -2352,6 +2352,10 @@ void thetadatadx_string_free(char* s);
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed
  *  back unchanged on every invocation.
  *
+ *  Return 0 to receive the next chunk, or any other value to stop the stream:
+ *  the download is cancelled, no further chunk is delivered, and the `_stream`
+ *  call returns 0.
+ *
  *  The callback runs SERIALLY, but not necessarily on the thread that called
  *  the `_stream` entry point: the library may invoke it from an internal
  *  runtime worker while the calling thread blocks in the drain. Do not assume
@@ -2364,7 +2368,7 @@ void thetadatadx_string_free(char* s);
  *  fault on its own side of the boundary, but that does not contain an
  *  exception thrown out of your callback. Catch and handle every exception
  *  before returning. */
-typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, const ThetaDataDxColumnPresence* columns, void* ctx);
+typedef int32_t (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, const ThetaDataDxColumnPresence* columns, void* ctx);
 
 /* Generated server-stream endpoint declarations. */
 #include "market_data_stream.h.inc"
