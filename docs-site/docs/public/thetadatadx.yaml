@@ -546,16 +546,6 @@ x-anchors:
         schema:
           type: string
 
-  flat-file-format-param: &flat-file-format-param
-    name: format
-    in: query
-    required: false
-    schema:
-      type: string
-      enum: [csv, json, ndjson, jsonl, html]
-      default: csv
-    description: 'File representation. Defaults to csv; `jsonl` is an alias of `ndjson`.'
-
   flat-file-response: &flat-file-response
     description: |
       The whole file for the date, written as it arrives in the terminal's
@@ -564,22 +554,30 @@ x-anchors:
       own columns. Times are integer milliseconds since midnight ET and dates
       `YYYYMMDD` integers. In CSV every text and price cell is quoted and
       prices keep a decimal point (`"808.0"`); with `format=json` the rows sit
-      in a `response` array with prices as strings. A download that fails
-      after the first bytes ends in a broken transfer, never a short file.
+      in a `response` array with prices as strings, and with
+      `format=json_legacy` each column is an array keyed by its name. A
+      download that fails after the first bytes ends in a broken transfer,
+      never a short file.
     content:
       text/csv:
         schema:
           type: string
       application/json:
         schema:
-          type: object
-          required: [response]
-          properties:
-            response:
-              type: array
-              items:
-                type: object
-                additionalProperties: true
+          anyOf:
+            - description: '`format=json` / `json_new`: the rows inside the `response` envelope.'
+              type: object
+              required: [response]
+              properties:
+                response:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+            - description: '`format=json_legacy`: no envelope; one array per column, keyed by column name, where index `i` of every array is row `i`.'
+              type: object
+              additionalProperties:
+                type: array
       application/x-ndjson:
         schema:
           type: string
@@ -3893,7 +3891,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -3921,7 +3919,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -3949,7 +3947,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -3977,7 +3975,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -4005,7 +4003,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -4033,7 +4031,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -4061,7 +4059,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:
@@ -4089,7 +4087,7 @@ paths:
       tags: [Flat Files]
       parameters:
         - *date-param
-        - *flat-file-format-param
+        - *format-param
       responses:
         '200': *flat-file-response
       x-code-examples:

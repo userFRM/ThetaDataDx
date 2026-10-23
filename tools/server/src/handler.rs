@@ -515,7 +515,7 @@ pub(crate) const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson; charset=utf-
 /// silently downgrading `format=parquet` to the JSON envelope made the
 /// caller's pipeline fail far from the cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ResponseFormat {
+pub(crate) enum ResponseFormat {
     /// JSON envelope.
     Json,
     /// One array per column, keyed by column name. The shape the vendor
@@ -532,7 +532,7 @@ enum ResponseFormat {
 /// Parse the `format` query parameter. Absent means CSV — the v3 spec
 /// defaults `format` to `csv` on every path (the vendor terminal's
 /// `ResultsFormat.fromString` returns `CSV` for an absent / blank value).
-fn parse_response_format(
+pub(crate) fn parse_response_format(
     params: &HashMap<String, String>,
 ) -> Result<ResponseFormat, EndpointError> {
     let Some(raw) = params.get("format") else {
