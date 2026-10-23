@@ -275,44 +275,29 @@ impl fmt::Debug for Price {
 
 impl fmt::Display for Price {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // `price_type` is `0..=MAX_PRICE_TYPE` by construction, so the
-        // digit-count arithmetic below stays non-negative and bounded.
         let price_type = self.price_type.get();
         if price_type == 0 {
-            return write!(f, "0.0");
+            return f.write_str("0.0");
         }
-        if price_type == 10 {
-            return write!(f, "{}.0", self.value);
+        if price_type >= 10 {
+            write!(f, "{}", self.value)?;
+            for _ in 10..price_type {
+                f.write_str("0")?;
+            }
+            return f.write_str(".0");
         }
-        if price_type > 10 {
-            let zeros = "0".repeat((price_type - 10).unsigned_abs() as usize);
-            return write!(f, "{}{}.0", self.value, zeros);
-        }
-
-        let is_neg = self.value < 0;
-        let abs_str = if is_neg {
-            // Widen to i64 before negating so `i32::MIN` (no positive
-            // i32 counterpart) does not overflow.
-            format!("{}", -i64::from(self.value))
-        } else {
-            format!("{}", self.value)
-        };
-
-        let frac_digits = (10 - price_type).unsigned_abs() as usize;
-        let padded = if abs_str.len() <= frac_digits {
-            let pad = "0".repeat(frac_digits - abs_str.len() + 1);
-            format!("{pad}{abs_str}")
-        } else {
-            abs_str
-        };
-
-        let split = padded.len() - frac_digits;
-        let result = format!("{}.{}", &padded[..split], &padded[split..]);
-        if is_neg {
-            write!(f, "-{result}")
-        } else {
-            write!(f, "{result}")
-        }
+        // `price_type` is `1..=9` here, so `decimals` indexes the table; the
+        // magnitude is taken in `i64` because `i32::MIN` has no `i32` one.
+        let decimals = (10 - price_type).unsigned_abs() as usize;
+        let scale = POW10_I64[decimals].unsigned_abs();
+        let magnitude = i64::from(self.value).unsigned_abs();
+        let sign = if self.value < 0 { "-" } else { "" };
+        write!(
+            f,
+            "{sign}{}.{:0decimals$}",
+            magnitude / scale,
+            magnitude % scale
+        )
     }
 }
 

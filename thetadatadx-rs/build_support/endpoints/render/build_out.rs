@@ -508,7 +508,8 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     // The buffered builder resolves to `Ticks<T>` (rows + wire column set),
     // which the `EndpointOutput` variant carries through so the FFI
     // `_with_options` out-param can surface the projected column set.
-    out.push_str("            let result = builder.await?;\n");
+    // `fetch` is what `.await` runs, with the caller's price-type record.
+    out.push_str("            let result = builder.fetch(price_types).await?;\n");
     writeln!(
         out,
         "            Ok(EndpointOutput::{}(result))",
