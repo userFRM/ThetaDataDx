@@ -9,7 +9,7 @@ description: Automatic reconnect policy and the counters that tell you a stream 
 
 A dropped streaming connection recovers by itself: the client reconnects with exponential backoff and jitter, re-subscribes everything you had installed (paced in bursts so a recovering server is not flooded), and reports progress through `reconnecting` / `reconnected` [events](/streaming/events). Rate-limited drops honor the server's cooldown in full; a session that runs cleanly for the stable window earns its full retry budget back.
 
-If recovery stops — budget exhausted, a permanent disconnect reason, or a `manual` policy — a terminal `reconnects_exhausted` event fires with the reason and attempt count:
+If recovery stops (budget exhausted, a permanent disconnect reason, or a `manual` policy), a terminal `reconnects_exhausted` event fires with the reason and attempt count:
 
 ```python
 def on_event(event):
@@ -52,25 +52,25 @@ All on the [configuration object](/articles/configuration), prefixed `reconnect_
 | `reconnect_stable_window_secs` | 60 | Clean runtime after which budgets reset. |
 | `reconnect_replay_burst_size` / `reconnect_replay_pace_ms` | 50 / 5 | Re-subscription pacing after a reconnect. |
 
-A custom policy is a callback receiving `(reason, attempt)` and returning the delay in milliseconds — or nothing to give up:
+A custom policy is a callback receiving `(reason, attempt)` and returning the delay in milliseconds, or nothing to give up:
 
 ```python
 cfg = Config.production()
 cfg.reconnect_callback = lambda reason, attempt: min(1_000 * attempt, 60_000)
 ```
 
-Permanent failures (for example rejected credentials) never reach the callback — no policy can turn them into a retry loop.
+Permanent failures (for example rejected credentials) never reach the callback. No policy can turn them into a retry loop.
 
 Caller-driven recovery is always available: `reconnect()` re-opens the session and restores the saved subscription set on demand.
 
 ## Monitoring a live stream
 
-Incoming events are buffered between the connection and your callback. If your callback can't keep up, the buffer fills and the newest events are **counted and dropped** rather than stalling the feed — so these counters are the health dashboard:
+Incoming events are buffered between the connection and your callback. If your callback can't keep up, the buffer fills and the newest events are **counted and dropped** rather than stalling the feed, so these counters are the health dashboard:
 
 | Accessor | Tells you |
 |---|---|
 | `ring_occupancy()` / `ring_capacity()` | Buffered-event count against the fixed buffer size. Occupancy trending toward capacity predicts drops; sample it freely, it never blocks the feed. |
-| `dropped_event_count()` | Total events dropped across every session this client has run, kept across a reconnect or a stop. Nonzero means your callback is too slow — do less work per event or hand off to a queue. |
+| `dropped_event_count()` | Total events dropped across every session this client has run, kept across a reconnect or a stop. Nonzero means your callback is too slow: do less work per event or hand off to a queue. |
 | `millis_since_last_event()` | Milliseconds since the last inbound frame of any kind. Steady growth during market hours is the earliest sign of a dead connection. |
 | `last_event_received_at_unix_nanos()` | Timestamp of the most recent inbound frame. |
 | `last_connected_addr()` | The live server `host:port`, following the session across reconnects. |

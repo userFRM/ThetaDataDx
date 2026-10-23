@@ -4,7 +4,7 @@
 
 # thetadatadx (TypeScript / Node.js)
 
-The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
+The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways (point-in-time **history**, real-time **streaming**, and whole-universe **flat files**), all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![npm](https://img.shields.io/npm/v/thetadatadx-ts?logo=npm)](https://www.npmjs.com/package/thetadatadx-ts)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
@@ -18,11 +18,11 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 ## Features
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
-- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Fully typed** — every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
-- **Greeks on demand** — five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
-- **Arrow on the way out** — flat-file results emit Arrow IPC for a zero-copy handoff to `apache-arrow`.
-- **No terminal to run** — prebuilt native binaries; nothing to compile, nothing to babysit locally.
+- **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Fully typed:** every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
+- **Greeks on demand:** five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
+- **Arrow on the way out:** flat-file results emit Arrow IPC for a zero-copy handoff to `apache-arrow`.
+- **No terminal to run:** prebuilt native binaries; nothing to compile, nothing to babysit locally.
 
 ## Install
 
@@ -75,7 +75,7 @@ console.log(eod.length, eod[0].close);
 const bars = await client.marketData.stockHistoryOHLC('AAPL', { date: '20240315', interval: '1m' });
 const exps = await client.marketData.optionListExpirations('SPY');
 
-// Optional parameters — including a per-call timeout — ride in the trailing options object
+// Optional parameters, including a per-call timeout, ride in the trailing options object
 const snap = await client.marketData.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
 ```
 
@@ -112,7 +112,7 @@ client.stream.subscribeMany([
 ]);
 ```
 
-Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribeMany`. Every subscription is the same typed value, so quotes, trades, and open interest across contracts mix freely in one array:
+Build subscriptions with the fluent `Contract` API and pass them, one at a time or in bulk, to `subscribe` / `subscribeMany`. Every subscription is the same typed value, so quotes, trades, and open interest across contracts mix freely in one array:
 
 ```typescript
 import { Contract, SecType } from 'thetadatadx-ts';
@@ -124,7 +124,7 @@ client.stream.subscribe(stock.quote());
 client.stream.subscribeMany([option.quote(), option.trade(), option.openInterest()]);
 ```
 
-Or take a whole-market feed — every option trade across the universe, no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `ohlcvc` branch to the callback to handle the bars:
+Or take a whole-market feed: every option trade across the universe, with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `ohlcvc` branch to the callback to handle the bars:
 
 ```typescript
 import { SecType } from 'thetadatadx-ts';
@@ -140,7 +140,7 @@ await client.stream.startStreaming((event) => {
   // ...plus the quote/trade branches from above.
 });
 
-client.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
+client.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event, so keep it fast
 ```
 
 When you are done, stop the stream and drain it. `awaitDrain` waits for the consumer thread to stop reading events and calling your callback, and resolves `true` when that happened inside the timeout and `false` when the timeout elapsed first, so check what it returned rather than only that it resolved.
@@ -153,7 +153,7 @@ const drained = await client.stream.awaitDrain(5000);
 ```
 
 > [!TIP]
-> On an involuntary disconnect the client recovers on its own — exponential
+> On an involuntary disconnect the client recovers on its own: exponential
 > backoff with jitter, host failover, then a paced re-subscribe of every active
 > contract.
 
@@ -201,7 +201,7 @@ await client.stream.startStreaming((event: StreamEvent) => {
 
 > [!NOTE]
 > Wherever a 64-bit integer crosses the boundary it surfaces as `bigint`, not
-> `number` — `volume` and `count` on OHLC / EOD ticks, `droppedEventCount()`,
+> `number`: `volume` and `count` on OHLC / EOD ticks, `droppedEventCount()`,
 > and `receivedAtNs` on every event. Use `42n` literals for comparisons, or
 > widen with `Number(x)` at the point of display.
 
@@ -242,7 +242,7 @@ Every endpoint is a camelCase method on `client.marketData`. The full method lis
 
 ## Errors
 
-Every call rejects with a typed error under a common `ThetaDataError` base — authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest — so the same cases are catchable here exactly as they are in every other binding.
+Every call rejects with a typed error under a common `ThetaDataError` base (authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest), so the same cases are catchable here exactly as they are in every other binding.
 
 ## Building from source
 
@@ -256,7 +256,7 @@ npm run build          # requires Rust stable + protoc
 
 ## Documentation
 
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, flat files
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, flat files
 - [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
 - Community discussion on the [ThetaData Discord](https://discord.thetadata.us/)
 

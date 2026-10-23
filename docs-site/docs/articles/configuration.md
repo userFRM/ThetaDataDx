@@ -107,7 +107,7 @@ Your account's concurrent-request allowance is enforced server-side; the SDK doe
 
 ## Config file (Rust)
 
-With the `config-file` feature, Rust loads the same fields from TOML — useful for operating the [server binary](/server/) or any deployment where configuration should live outside code:
+With the `config-file` feature, Rust loads the same fields from TOML, which is useful for operating the [server binary](/server/) or any deployment where configuration should live outside code:
 
 ```toml
 [market_data]

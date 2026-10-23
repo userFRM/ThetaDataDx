@@ -28,17 +28,17 @@ Security fixes land on the latest release. This is the project's first public re
 ### Terminal API Key
 
 The ThetaData terminal ships with a hardcoded API key that is identical across all
-installations. **This is not a secret** — it is a protocol constant embedded in every
+installations. **This is not a secret**: it is a protocol constant embedded in every
 official terminal copy. thetadatadx includes this key for protocol compatibility. It
 provides no privileged access.
 
 ### Credential Handling
 
 - User credentials (email/password) are used for both account authentication and streaming authentication
-- The `Debug` trait implementation for `Credentials` **redacts** passwords — they
+- The `Debug` trait implementation for `Credentials` **redacts** passwords, so they
   never appear in debug output or log lines
-- Authentication request bodies do **not** derive `Debug` — prevents accidental password
-  exposure in error traces
+- Authentication request bodies do **not** derive `Debug`, which prevents accidental
+  password exposure in error traces
 - **Session UUIDs** (bearer tokens for market-data requests) are logged at `debug!` level only,
   redacted to first 8 characters. They never appear at `info!` or higher.
 - Credentials are not persisted to disk by the library (the `creds.txt` file is
@@ -76,8 +76,8 @@ official terminal), so passwords longer than 127 bytes authenticate correctly
 ### Concurrent Request Limiting
 
 The SDK bounds the number of in-flight market-data requests with a semaphore sized to the
-request pool — the account's subscription-tier allowance by default, or the configured
-`max_concurrent_requests` — so a burst of calls can never turn into an unbounded request
+request pool (the account's subscription-tier allowance by default, or the configured
+`max_concurrent_requests`), so a burst of calls can never turn into an unbounded request
 storm against the upstream server. The account's real concurrent-request allowance is
 enforced server-side; requests past it are rejected upstream and retried with backoff
 rather than amplified.

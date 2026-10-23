@@ -6,8 +6,8 @@ by the CI `bench` job.
 `criterion.json` lists the headline benches the gate watches, each
 entry mapping a stable display ID to:
 
-* `p50_ns` — the last-blessed median runtime in nanoseconds.
-* `criterion_path` — the relative path under `target/criterion/`
+* `p50_ns`: the last-blessed median runtime in nanoseconds.
+* `criterion_path`: the relative path under `target/criterion/`
   where Criterion writes that bench's `new/estimates.json`. Criterion
   replaces `/` in `criterion_group()` names with `_`; the bench
   function name keeps its real form. Both are reflected here.
@@ -18,7 +18,7 @@ CI runs `cargo bench` on the tracked benches (mock-based, no
 live creds required) and feeds the resulting `target/criterion/`
 tree into `scripts/ci/check_bench_regression.py`. The script fails
 when any tracked bench's p50 has regressed by more than **25 %**
-versus the baseline — the threshold was calibrated against the
+versus the baseline; the threshold was calibrated against the
 GitHub-hosted runner's observed local↔CI spread in PR #566. A 10×
 slowdown that previously landed silently now fails the build.
 
@@ -63,5 +63,5 @@ intentional perf regression both need a human in the loop.
    shift and the percent delta it produced.
 
 Refresh PRs are review-gated specifically because they unblock
-otherwise-failing perf gates — they're the single chokepoint that
+otherwise-failing perf gates: they're the single chokepoint that
 catches a maintainer ratifying a regression by accident.

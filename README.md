@@ -1,5 +1,5 @@
 > [!IMPORTANT]
-> **The SDK now ships under per-language package names, starting fresh at `0.1.0`:** `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm), and the in-repo `thetadatadx-cpp`. The API and import surface are unchanged — only the package names and the version differ. Install the packages below.
+> **The SDK now ships under per-language package names, starting fresh at `0.1.0`:** `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm), and the in-repo `thetadatadx-cpp`. The API and import surface are unchanged: only the package names and the version differ. Install the packages below.
 
 <p align="center">
   <img src="assets/logo.svg" alt="ThetaDataDx" width="100%" />
@@ -41,7 +41,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Clients
 
-Three client shapes over the same engine and the same auth. Pick per workload — they are not layers, they are separate entry points:
+Three client shapes over the same engine and the same auth. Pick one per workload, since they are separate entry points rather than layers:
 
 | Client | Connects to | Use it for |
 |---|---|---|
@@ -64,12 +64,12 @@ client = Client(api_key="td1_...")                                              
 > The real-time feed is a **single live session per account**. Run one `StreamingClient` (or one unified `Client` that streams) per account and fan out to your consumers in-process. Opening a second streaming session on the same account takes over the connection and drops the first. Market-data is unaffected: it is per-request, so it runs alongside streaming and across as many `MarketDataClient` instances as you like.
 
 > [!NOTE]
-> Market-data concurrency is **account-wide** and enforced server-side (base allowance set by your highest subscription tier; accounts can be boosted above it). Each client's request pool defaults to your tier's allowance — set `max_concurrent_requests` to use a boosted one — and multiple `MarketDataClient` instances share the one server-side budget, with extra requests queuing and running in order. The real-time feed requires a Standard subscription or above. A FREE account gets delayed market-data and no streaming, and so does a Value account, which is paid.
+> Market-data concurrency is **account-wide** and enforced server-side (base allowance set by your highest subscription tier; accounts can be boosted above it). Each client's request pool defaults to your tier's allowance (set `max_concurrent_requests` to use a boosted one), and multiple `MarketDataClient` instances share the one server-side budget, with extra requests queuing and running in order. The real-time feed requires a Standard subscription or above. A FREE account gets delayed market-data and no streaming, and so does a Value account, which is paid.
 
 ## Install
 
 > [!IMPORTANT]
-> Install the per-language packages at `0.1.0` below — `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
+> Install the per-language packages at `0.1.0` below: `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
 >
 > ```bash
 > pip install thetadatadx-py            # Python
@@ -256,8 +256,8 @@ Call the async function from your application's runtime.
 
 ## DataFrames
 
-Every market-data result is a typed list that converts directly to a dataframe:
-no row-by-row iteration:
+Every market-data result is a typed list that converts directly to a dataframe,
+with no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
@@ -346,7 +346,7 @@ common `ThetaDataError` base.
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
 | [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp-server` (npm) | MCP server exposing every market-data endpoint to AI clients |
-| [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
+| [`docs-site`](docs-site/) | n/a | Documentation site (GitHub Pages) |
 
 ## Documentation
 
@@ -355,7 +355,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp-server`.
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm: `npx -y thetadatadx-mcp-server`.
 
 ## Contributing
 

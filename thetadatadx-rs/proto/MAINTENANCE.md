@@ -18,7 +18,7 @@ Earlier revisions of this crate shipped two separate proto files
 been superseded by the single-file definition. Do not hand-edit `mdds.proto`;
 request an updated file from ThetaData when the wire protocol changes.
 
-Package: `BetaEndpoints` (everything lives here — shared types, request/response
+Package: `BetaEndpoints` (everything lives here: shared types, request/response
 messages, and the `BetaThetaTerminal` service). Production MDDS routes on this
 package name; do not rename without confirming the server has been updated.
 
@@ -42,7 +42,7 @@ build. They are pre-generated and committed at
 `proto/beta_endpoints.snapshot.rs` (included directly by `src/lib.rs` and
 exposed at `crate::proto`), so a default `cargo build` needs no `protoc`.
 Regenerating them from `mdds.proto` happens only under the `grpc-codegen`
-feature — see "replace `mdds.proto`" below.
+feature; see "replace `mdds.proto`" below.
 
 The build script (`build_support/`) still runs on every build to generate:
 
@@ -90,14 +90,14 @@ Example: ThetaData adds a `vwap` column to the EOD response.
    ```toml
    { name = "vwap", field = "vwap", type = "price" },
    ```
-4. Run `cargo build` — the `EodTick` struct now has a `vwap: f64` field and the
+4. Run `cargo build`. The `EodTick` struct now has a `vwap: f64` field and the
    parser extracts it from the DataTable automatically.
 
 ## How to: add a new RPC endpoint
 
 Example: ThetaData adds `GetStockHistoryVwap` to the service.
 
-**Step 1 — Update `mdds.proto`** (usually via a new file from ThetaData):
+**Step 1: Update `mdds.proto`** (usually via a new file from ThetaData):
 
 ```protobuf
 message StockHistoryVwapRequestQuery {
@@ -118,7 +118,7 @@ service BetaThetaTerminal {
 }
 ```
 
-**Step 2 — Column schema**
+**Step 2: Column schema**
 
 If the response uses a new column layout, add a type to `../tick_schema.toml`:
 ```toml
@@ -138,7 +138,7 @@ columns = [
 If the response reuses an existing layout (e.g., OHLC bars), skip this step and
 use the existing type.
 
-**Step 3 — Add the endpoint surface entry**
+**Step 3: Add the endpoint surface entry**
 
 Add a new entry to `../endpoint_surface.toml` describing the normalized endpoint
 surface. The build will validate it against the wire contract in
@@ -149,7 +149,7 @@ parameter blocks. If the new endpoint introduces a new repeated family shape,
 add a new template or parameter group first and then reference it from the
 concrete endpoint entry.
 
-**Step 4 — Build and test**
+**Step 4: Build and test**
 
 ```bash
 # If mdds.proto changed, regenerate the committed gRPC snapshot first

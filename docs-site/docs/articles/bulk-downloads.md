@@ -27,9 +27,9 @@ Raise them for even fatter streams if you have memory to spare, or lower them wh
 
 ## Automatic sharding
 
-A single large request does not have to be one stream. The SDK splits the requested time (or date) range into equal concurrent pieces — straight from the shape of the request, with no sizing round-trip — runs them in parallel across your concurrent-request pool, and reassembles them into exactly the rows one request would have returned.
+A single large request does not have to be one stream. The SDK splits the requested time (or date) range into equal concurrent pieces. The split comes straight from the shape of the request, with no sizing round-trip. It then runs them in parallel across your concurrent-request pool and reassembles them into exactly the rows one request would have returned.
 
-The number of pieces is the request-pool size, which defaults to your account's allowance: the SDK sizes the pool to your subscription tier at connect time (Free 1 / Value 2 / Standard 4 / Pro 8), and setting `max_concurrent_requests` overrides that with no client-side cap — the server enforces the real allowance. See [Concurrent Requests](/articles/concurrent-requests).
+The number of pieces is the request-pool size, which defaults to your account's allowance: the SDK sizes the pool to your subscription tier at connect time (Free 1 / Value 2 / Standard 4 / Pro 8), and setting `max_concurrent_requests` overrides that with no client-side cap, because the server enforces the real allowance. See [Concurrent Requests](/articles/concurrent-requests).
 
 On Pro, one big query becomes eight pieces fetching at once; a boosted account with `max_concurrent_requests = 32` fans out 32 ways. How much that shortens the wall clock depends on how much of the fan-out the server actually runs in parallel under current conditions; the table below shows one measured day. It scales down cleanly too: four pieces on Standard, two on Value, one on Free.
 

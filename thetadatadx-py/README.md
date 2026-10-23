@@ -4,7 +4,7 @@
 
 # thetadatadx (Python)
 
-The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
+The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways (point-in-time **history**, real-time **streaming**, and whole-universe **flat files**), all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![PyPI](https://img.shields.io/pypi/v/thetadatadx-py?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx-py)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
@@ -18,10 +18,10 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 ## Features
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
-- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
-- **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
+- **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **DataFrames built in:** every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
+- **Typed all the way down:** every tick is a typed object with attribute access and IDE completion, not a dict.
+- **No terminal to run:** a direct connection to ThetaData; nothing to install and babysit locally.
 
 ## Install
 
@@ -70,7 +70,7 @@ client = Client(email="you@example.com", password="your_password")
 client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
-Every market-data method returns a typed list — iterate it, index it, or convert it to a dataframe:
+Every market-data method returns a typed list. Iterate it, index it, or convert it to a dataframe:
 
 ```python
 eod = client.market_data.stock_history_eod("AAPL", "20240101", "20240301")
@@ -85,7 +85,7 @@ strikes = client.market_data.option_list_strikes("SPY", exps[0])
 
 ## DataFrames
 
-Every result converts directly to a dataframe — no row-by-row iteration:
+Every result converts directly to a dataframe, with no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
@@ -94,7 +94,7 @@ greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 greeks.to_list()     # list[GreeksTick]
 ```
 
-The `.to_arrow()` terminal hands the underlying Arrow buffers to pyarrow over the [Arrow C Data Interface](https://arrow.apache.org/docs/format/CDataInterface.html) — zero-copy at the boundary — so the table plugs straight into DuckDB, polars, cuDF, or Arrow Flight:
+The `.to_arrow()` terminal hands the underlying Arrow buffers to pyarrow over the [Arrow C Data Interface](https://arrow.apache.org/docs/format/CDataInterface.html) (zero-copy at the boundary), so the table plugs straight into DuckDB, polars, cuDF, or Arrow Flight:
 
 ```python
 import duckdb
@@ -122,7 +122,7 @@ def on_chunk(ticks):
 
 ## Streaming
 
-Real-time quotes and trades flow through the same client. Register a callback and match on typed event classes — `Trade`, `Quote`, `Ohlcvc`, `OpenInterest` for market data, plus one typed class per lifecycle event (`Connected`, `LoginSuccess`, `Disconnected`, `Reconnecting`, …):
+Real-time quotes and trades flow through the same client. Register a callback and match on typed event classes: `Trade`, `Quote`, `Ohlcvc`, and `OpenInterest` for market data, plus one typed class per lifecycle event (`Connected`, `LoginSuccess`, `Disconnected`, `Reconnecting`, …):
 
 ```python
 import time
@@ -149,7 +149,7 @@ with client.streaming(on_event) as session:
     time.sleep(60)   # park the main thread while events flow into on_event
 ```
 
-Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribe_many`. Every subscription is the same typed value, so quotes, trades, open interest, and market value across contracts mix freely in one list:
+Build subscriptions with the fluent `Contract` API and pass them, one at a time or in bulk, to `subscribe` / `subscribe_many`. Every subscription is the same typed value, so quotes, trades, open interest, and market value across contracts mix freely in one list:
 
 ```python
 from thetadatadx import Contract, SecType
@@ -162,9 +162,9 @@ with client.streaming(on_event) as session:
     session.subscribe_many([option.quote(), option.trade(), option.open_interest(), option.market_value()])
 ```
 
-The option constructor is `Contract.option(symbol, *, expiration, strike, right)` — the leg parameters are keyword-only, so the call site always reads `expiration=…, strike=…, right=…` and never depends on argument order. Pair it with `Contract.stock(symbol)` for equities.
+The option constructor is `Contract.option(symbol, *, expiration, strike, right)`. The leg parameters are keyword-only, so the call site always reads `expiration=…, strike=…, right=…` and never depends on argument order. Pair it with `Contract.stock(symbol)` for equities.
 
-Or take a whole-market feed — every option trade across the universe, no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the callback to handle the bars:
+Or take a whole-market feed: every option trade across the universe, with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the callback to handle the bars:
 
 ```python
 from thetadatadx import Ohlcvc
@@ -181,7 +181,7 @@ def on_full_trade(event):
 
 with client.streaming(on_full_trade) as session:
     session.subscribe(SecType.OPTION.full_trades())
-    time.sleep(60)   # the callback runs on the streaming thread — keep it fast
+    time.sleep(60)   # the callback runs on the streaming thread, so keep it fast
 ```
 
 Watch feed health from the main thread without touching the callback. The session resolves the client's observability getters directly: `millis_since_last_event()` is the staleness clock (a steadily growing value is the earliest sign of a wedged link), `ring_occupancy()` against `ring_capacity()` shows how close the consumer is to falling behind, and `dropped_event_count()` is the cumulative tally of events shed on a full ring:
@@ -202,11 +202,11 @@ with client.streaming(on_event) as session:
 > [!TIP]
 > The `with client.streaming(callback)` block opens the session on entry and drains
 > it cleanly on exit, so the callback has stopped firing by the time the block
-> returns. On an involuntary disconnect the client recovers on its own —
+> returns. On an involuntary disconnect the client recovers on its own:
 > exponential backoff with jitter, host failover, then a paced re-subscribe of
 > every active contract.
 
-Prefer columns? `client.stream.batches(...)` is a sibling to the callback — the same subscriptions, delivered as `pyarrow.RecordBatch` values under a fixed schema. The reader is iterable (sync, releasing the GIL on the blocking pull) and async-iterable, and closes on context-manager exit:
+Prefer columns? `client.stream.batches(...)` is a sibling to the callback: the same subscriptions, delivered as `pyarrow.RecordBatch` values under a fixed schema. The reader is iterable (sync, releasing the GIL on the blocking pull) and async-iterable, and closes on context-manager exit:
 
 ```python
 # `batches(...)` starts the streaming session, so open it first, then subscribe.
@@ -250,11 +250,11 @@ Every endpoint is a method on `Client`. The full per-method list with signatures
 
 ## Errors
 
-Every call raises a typed exception under a common `ThetaDataError` base — `AuthenticationError`, `RateLimitError`, `NotFoundError`, `DeadlineExceededError`, `InvalidParameterError`, and the rest — so the same cases are catchable here exactly as they are in every other binding.
+Every call raises a typed exception under a common `ThetaDataError` base (`AuthenticationError`, `RateLimitError`, `NotFoundError`, `DeadlineExceededError`, `InvalidParameterError`, and the rest), so the same cases are catchable here exactly as they are in every other binding.
 
 ## Documentation
 
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, flat files
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, flat files
 - [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
 - Community discussion on the [ThetaData Discord](https://discord.thetadata.us/)
 

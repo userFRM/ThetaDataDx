@@ -4,11 +4,11 @@
 
 # thetadatadx-ffi
 
-C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.
+C FFI layer for `thetadatadx`: it exposes the Rust SDK as `extern "C"` functions.
 
 Compiled as both `cdylib` (shared library) and `staticlib` (archive). Consumed by the C++ (RAII) and TypeScript/Node.js (napi-rs) SDKs, and available to any third-party C/C++ consumer that wants to roll their own wrapper against the `thetadatadx_*` symbols.
 
-> **Surface coverage:** the FFI layer exposes all three ThetaData surfaces — market-data, streaming, and FLATFILES (whole-universe daily blobs). The flat-files entry points are `thetadatadx_flatfile_request_decoded` (pull + decode into an opaque row-list), `thetadatadx_flatfile_rows_to_arrow_ipc` (serialise to Arrow IPC bytes), `thetadatadx_flatfile_request_to_path` (raw vendor bytes straight to disk), and the matching `_rowlist_free` / `_bytes_free` cleanup helpers.
+> **Surface coverage:** the FFI layer exposes all three ThetaData surfaces: market-data, streaming, and FLATFILES (whole-universe daily blobs). The flat-files entry points are `thetadatadx_flatfile_request_decoded` (pull + decode into an opaque row-list), `thetadatadx_flatfile_rows_to_arrow_ipc` (serialise to Arrow IPC bytes), `thetadatadx_flatfile_request_to_path` (raw vendor bytes straight to disk), and the matching `_rowlist_free` / `_bytes_free` cleanup helpers.
 
 ## Building
 
@@ -46,8 +46,8 @@ Every market-data endpoint is available as `thetadatadx_stock_*`, `thetadatadx_o
 | Function | Description |
 |----------|-------------|
 | `thetadatadx_client_set_callback` | Register the user callback on the unified handle. The streaming delivery thread invokes it for every typed streaming event. Any Rust panic on the dispatch path is contained at the boundary; the callback itself must not unwind across the C ABI (see Panic boundary). |
-| `thetadatadx_client_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` (per-contract or full-stream) |
-| `thetadatadx_client_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
+| `thetadatadx_client_subscribe` | Polymorphic subscribe; takes `ThetaDataDxSubscriptionRequest` (per-contract or full-stream) |
+| `thetadatadx_client_unsubscribe` | Polymorphic unsubscribe; takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_client_is_streaming` | Check if the streaming connection is live |
 | `thetadatadx_client_active_subscriptions` | List active subscriptions (typed `ThetaDataDxSubscriptionArray`) |
 | `thetadatadx_client_await_drain` | Block until the previous session's consumer has finished firing the callback (drain barrier) |
@@ -61,8 +61,8 @@ Every market-data endpoint is available as `thetadatadx_stock_*`, `thetadatadx_o
 |----------|-------------|
 | `thetadatadx_streaming_connect` | Connect standalone streaming client |
 | `thetadatadx_streaming_set_callback` | Register the user callback. The streaming delivery thread invokes it for every typed streaming event. Any Rust panic on the dispatch path is contained at the boundary; the callback itself must not unwind across the C ABI (see Panic boundary). |
-| `thetadatadx_streaming_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` |
-| `thetadatadx_streaming_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
+| `thetadatadx_streaming_subscribe` | Polymorphic subscribe; takes `ThetaDataDxSubscriptionRequest` |
+| `thetadatadx_streaming_unsubscribe` | Polymorphic unsubscribe; takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_streaming_is_authenticated` | Check if the streaming client is authenticated |
 | `thetadatadx_streaming_active_subscriptions` | List active subscriptions (typed `ThetaDataDxSubscriptionArray`) |
 | `thetadatadx_streaming_dropped_events` | Cumulative count of events the TLS reader could not publish into the event ring |

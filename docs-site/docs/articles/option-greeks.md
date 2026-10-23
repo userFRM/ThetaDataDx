@@ -7,7 +7,7 @@ description: The model behind the Greeks endpoints, with input conventions.
 
 ## Server-computed Greeks
 
-The `option/*/greeks/*` [reference endpoints](/reference/option/snapshot/greeks/all) return Greeks computed by ThetaData using the Black-Scholes model — specifically the formulas catalogued on [Wikipedia's Greeks page](https://en.wikipedia.org/wiki/Greeks_(finance)). Input conventions:
+The `option/*/greeks/*` [reference endpoints](/reference/option/snapshot/greeks/all) return Greeks computed by ThetaData using the Black-Scholes model, specifically the formulas catalogued on [Wikipedia's Greeks page](https://en.wikipedia.org/wiki/Greeks_(finance)). Input conventions:
 
 - **Risk-free rate** defaults to SOFR; override the source with `rate_type` (SOFR or a Treasury tenor) or pin an exact rate with `rate_value`.
 - **Dividends** are ignored unless you pass `annual_dividend`, a continuous yield as a decimal, or `annual_dividend_amount`, a dividend in dollars per share per year; the server refuses `annual_dividend_amount` beside a non-zero `annual_dividend`.

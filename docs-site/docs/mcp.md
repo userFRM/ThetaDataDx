@@ -9,7 +9,7 @@ description: Give any Model Context Protocol client live access to every market-
 
 ## Configure your client
 
-Most MCP clients read an `mcpServers` block from a project-local or user-level settings file; the shape is the same across clients (for example `.cursor/mcp.json` in Cursor). Point the client at `npx`, which downloads and runs the server on demand — no toolchain to install:
+Most MCP clients read an `mcpServers` block from a project-local or user-level settings file; the shape is the same across clients (for example `.cursor/mcp.json` in Cursor). Point the client at `npx`, which downloads and runs the server on demand, with no toolchain to install:
 
 ```json
 {
@@ -53,14 +53,14 @@ cargo install thetadatadx-mcp-server --git https://github.com/userFRM/ThetaDataD
 ```
 
 ::: warning
-Keep credentials in environment variables or a secrets manager — not in config files committed to version control.
+Keep credentials in environment variables or a secrets manager, not in config files committed to version control.
 :::
 
 ## Tools
 
 Every generated market-data endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
-Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, since those are the only classes with flat files. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
+Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class (stock, options, indices, or interest-rate) is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, since those are the only classes with flat files. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
 When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV (the default), a JSON array, JSON Lines or an HTML table, and returns the written path:
 
@@ -75,7 +75,7 @@ The endpoint tools named `*_flat_file_*` return a flat file's rows like any othe
 
 The `entitlements` tool reports the subscription tier held for each asset class, which is what decides the rest of the tool list.
 
-Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
+Without credentials, the server still starts and serves the offline tool (`ping`), which is useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
 
 ## Option queries from a model
 
@@ -87,7 +87,7 @@ Without credentials, the server still starts and serves the offline tool (`ping`
 ## Troubleshooting
 
 ::: details The client lists no tools
-Run `thetadatadx-mcp-server` by hand: the process must start silently and wait on stdin. Anything printed to stdout breaks the JSON-RPC channel — logs go to stderr by design, so a corrupted stdout usually means a wrapper script is echoing.
+Run `thetadatadx-mcp-server` by hand: the process must start silently and wait on stdin. Anything printed to stdout breaks the JSON-RPC channel. Logs go to stderr by design, so a corrupted stdout usually means a wrapper script is echoing.
 :::
 
 ::: details Only `ping` appears
@@ -97,7 +97,7 @@ The connect is not blocking: the server answers `initialize` immediately and con
 :::
 
 ::: details Calls fail with permission errors
-The account's tier doesn't cover the endpoint — check the tier badge on the matching [reference page](/reference/) against [Subscriptions](/articles/subscriptions).
+The account's tier doesn't cover the endpoint. Check the tier badge on the matching [reference page](/reference/) against [Subscriptions](/articles/subscriptions).
 :::
 
 ::: details Debug logging
@@ -105,5 +105,5 @@ The account's tier doesn't cover the endpoint — check the tier badge on the ma
 :::
 
 ::: warning
-LLM output varies run to run — treat model-generated parameter choices and analysis as drafts to verify, per [Building with AI / LLMs](/articles/ai-llms).
+LLM output varies run to run, so treat model-generated parameter choices and analysis as drafts to verify, per [Building with AI / LLMs](/articles/ai-llms).
 :::

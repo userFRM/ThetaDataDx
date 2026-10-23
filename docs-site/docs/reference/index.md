@@ -5,7 +5,7 @@ description: Every endpoint, one page, with signatures and runnable samples in R
 
 # API Reference
 
-One page per endpoint. Each page carries the typed signature and a runnable sample in **Rust, Python, TypeScript, C++, and HTTP** — pick your language once in the tab bar and every page follows — plus the parameter table, the response schema, and (where a captured response exists) example output rows.
+One page per endpoint. Each page carries the typed signature and a runnable sample in **Rust, Python, TypeScript, C++, and HTTP** (pick your language once in the tab bar and every page follows), plus the parameter table, the response schema, and (where a captured response exists) example output rows.
 
 | Group | Endpoints |
 |---|---|
@@ -18,6 +18,6 @@ One page per endpoint. Each page carries the typed signature and a runnable samp
 
 Every endpoint has its own page, the flat files included; [Flat Files](/articles/flat-files) covers pulling and streaming them.
 
-Conventions shared by every endpoint — identifiers, units, timestamps — live in [Symbology & Contract Identity](/articles/symbology). Tier badges on each page map to [Subscriptions](/articles/subscriptions).
+Conventions shared by every endpoint (identifiers, units, timestamps) live in [Symbology & Contract Identity](/articles/symbology). Tier badges on each page map to [Subscriptions](/articles/subscriptions).
 
 Connection setup is one [Getting Started](/articles/getting-started) away; every sample on these pages assumes a connected client named `client` and runs as-is with only `creds.txt` present.

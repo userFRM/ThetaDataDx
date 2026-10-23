@@ -23,7 +23,7 @@ curl 'http://127.0.0.1:25503/v3/calendar/open_today'
 
 ## Parameters
 
-Query parameters use the registry names shown on each reference page — `symbol`, `expiration`, `strike`, `right`, `interval`, `start_date`, `end_date`, … Date parameters accept both `YYYYMMDD` and ISO `YYYY-MM-DD`. Strikes are dollars (`570`, `17.5`); rights accept `C` / `P` / `call` / `put`.
+Query parameters use the registry names shown on each reference page: `symbol`, `expiration`, `strike`, `right`, `interval`, `start_date`, `end_date`, … Date parameters accept both `YYYYMMDD` and ISO `YYYY-MM-DD`. Strikes are dollars (`570`, `17.5`); rights accept `C` / `P` / `call` / `put`.
 
 ## Response formats
 
@@ -76,7 +76,7 @@ See [Flat Files](/articles/flat-files) for the datasets and the format.
 
 ## Terminal system routes
 
-Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` bodies.
+Mirrored 1:1 from the JVM terminal: unauthenticated `GET`, bare `text/plain` bodies.
 
 | Method | Route | Description |
 |---|---|---|

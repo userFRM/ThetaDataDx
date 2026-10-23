@@ -4,7 +4,7 @@
 
 # thetadatadx (C++)
 
-The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
+The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways (point-in-time **history**, real-time **streaming**, and whole-universe **flat files**), all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://isocpp.org)
@@ -17,10 +17,10 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 ## Features
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
-- **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
-- **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
-- **Header plus a thin implementation file** — `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
+- **Three access modes:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Typed structs, no JSON:** every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
+- **RAII throughout:** clients own their connections and clean up on scope exit; methods throw on failure.
+- **Header plus a thin implementation file:** `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
 
 ## Install
 
@@ -36,7 +36,7 @@ g++ -std=c++17 -Ithetadatadx-cpp/include \
     -Ltarget/release -lthetadatadx_ffi -o your_app
 ```
 
-A CMake build is provided and is the recommended path — it compiles the implementation file and links the library for you:
+A CMake build is provided and is the recommended path. It compiles the implementation file and links the library for you:
 
 ```bash
 cmake -S thetadatadx-cpp -B build/cpp
@@ -91,7 +91,7 @@ auto client = thetadatadx::MarketDataClient::connect(
     thetadatadx::Config::production());
 ```
 
-Every market-data method returns a typed `std::vector` — iterate it directly:
+Every market-data method returns a typed `std::vector`. Iterate it directly:
 
 ```cpp
 auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");
@@ -106,7 +106,7 @@ auto exps   = client.option_list_expirations("SPY");
 
 ## Streaming
 
-Real-time streaming uses a dedicated `thetadatadx::StreamingClient` — separate from the market-data `MarketDataClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
+Real-time streaming uses a dedicated `thetadatadx::StreamingClient`, separate from the market-data `MarketDataClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
 
 ```cpp
 #include <thetadatadx.hpp>
@@ -160,7 +160,7 @@ int main() {
 }
 ```
 
-Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `OHLCVC` case to the callback to handle the bars:
+Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed: every option trade across the universe, with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `OHLCVC` case to the callback to handle the bars:
 
 ```cpp
 streaming.set_callback([](const thetadatadx::StreamEvent& event) {
@@ -180,16 +180,16 @@ streaming.set_callback([](const thetadatadx::StreamEvent& event) {
     }
 });
 
-streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
+streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event, so keep it fast
 ```
 
 > [!TIP]
-> On an involuntary disconnect the client recovers on its own — exponential
+> On an involuntary disconnect the client recovers on its own: exponential
 > backoff with jitter, host failover, then a paced re-subscribe of every active
 > contract. `StreamingClient` is non-copyable but movable, and its destructor stops
 > the stream and waits for the callback to quiesce before returning.
 
-Prefer columns? `client.stream().batches(...)` is a sibling to the callback — the same subscriptions, delivered as Arrow record batches under a fixed schema through a native `arrow::RecordBatchReader`. Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable it:
+Prefer columns? `client.stream().batches(...)` is a sibling to the callback: the same subscriptions, delivered as Arrow record batches under a fixed schema through a native `arrow::RecordBatchReader`. Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable it:
 
 ```cpp
 // `batches(...)` lives on the unified `Client` and starts the streaming session,
@@ -244,7 +244,7 @@ Every market-data endpoint is a method on `thetadatadx::MarketDataClient`. All p
 
 ## Errors
 
-Every method throws `std::runtime_error` on failure, carrying the same typed cases as every other binding — authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest.
+Every method throws `std::runtime_error` on failure, carrying the same typed cases as every other binding (authentication, rate limit, not found, deadline exceeded, invalid parameter, and the rest).
 
 ## Tests
 
@@ -258,7 +258,7 @@ ctest --test-dir build/cpp-tests --output-on-failure
 
 ## Documentation
 
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, flat files
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, flat files
 - [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
 - Community discussion on the [ThetaData Discord](https://discord.thetadata.us/)
 

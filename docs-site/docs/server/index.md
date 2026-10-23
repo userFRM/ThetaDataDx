@@ -5,11 +5,11 @@ description: Run the local HTTP REST and WebSocket server speaking the v3 route 
 
 # Server
 
-`thetadatadx-server` runs the full data surface as a **local HTTP REST + WebSocket server** on the v3 route scheme. Scripts and tools that already speak the v3 routes point at it unchanged — same ports, same paths, same response envelope.
+`thetadatadx-server` runs the full data surface as a **local HTTP REST + WebSocket server** on the v3 route scheme. Scripts and tools that already speak the v3 routes point at it unchanged: same ports, same paths, same response envelope.
 
 ## Download and run
 
-Prebuilt binaries are attached to each [GitHub Release](https://github.com/userFRM/ThetaDataDx/releases). No Rust toolchain and nothing else to install locally — download the archive for your platform, unpack it, and run the binary.
+Prebuilt binaries are attached to each [GitHub Release](https://github.com/userFRM/ThetaDataDx/releases). No Rust toolchain and nothing else to install locally: download the archive for your platform, unpack it, and run the binary.
 
 The binaries are not code-signed yet, so each operating system asks for a one-time confirmation the first time you launch one.
 
@@ -39,7 +39,7 @@ Credentials resolve in this order, highest first: the `--api-key` flag, then `TH
 
 This starts:
 
-- **HTTP REST** on `http://127.0.0.1:25503` — every `/v3/...` route; see [HTTP API](/server/http).
+- **HTTP REST** on `http://127.0.0.1:25503` for every `/v3/...` route (see [HTTP API](/server/http)).
 - **WebSocket streaming** on `ws://127.0.0.1:25520/v1/events`; see [WebSocket Streaming](/server/websocket).
 
 First request:
@@ -64,28 +64,28 @@ thetadatadx-server --creds creds.txt
 
 | Flag | Default | Description |
 |---|---|---|
-| `--api-key <key>` | — | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path. |
+| `--api-key <key>` | | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path. |
 | `--creds <path>` | `creds.txt` | Credentials file (email line 1, password line 2). |
-| `--email` / `--password` | — | Inline credentials (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`). |
-| `--config <path>` | — | TOML [configuration](/articles/configuration) file. |
+| `--email` / `--password` | | Inline credentials (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`). |
+| `--config <path>` | | TOML [configuration](/articles/configuration) file. |
 | `--market-data-region <region>` | `production` | Market-data environment: `production` or `stage`. |
 | `--streaming-region <region>` | `production` | Streaming environment: `production` or `dev`. |
 | `--http-port <port>` | `25503` | HTTP REST port. |
 | `--ws-port <port>` | `25520` | WebSocket port. |
 | `--bind <addr>` | `0.0.0.0` | Bind address. Defaults to all interfaces; pass `--bind 127.0.0.1` to restrict to loopback. |
 | `--log-level <filter>` | `info` | Tracing filter (`info,tower_http=off` silences the access log). |
-| `--log-file <path>` | — | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
+| `--log-file <path>` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
 | `--log-format <fmt>` | `text` | `text`, `json` (one object per line), or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC). |
-| `--no-streaming` | — | Skip streaming startup (HTTP only). |
+| `--no-streaming` | | Skip streaming startup (HTTP only). |
 | `--strike-format <fmt>` | `terminal` | WebSocket option-strike encoding: `terminal` (the terminal's 1/10-cent integer, the exact drop-in) or `dollars` (a dollar value, the SDK's convenience form). |
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `THETADATA_API_KEY` | — | API key used for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
-| `THETADATA_EMAIL` | — | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
-| `THETADATA_PASSWORD` | — | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
+| `THETADATA_API_KEY` | | API key used for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
+| `THETADATA_EMAIL` | | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
+| `THETADATA_PASSWORD` | | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer starts dropping events; invalid or zero values keep the default. |
 
 ## Logging
@@ -96,6 +96,6 @@ thetadatadx-server --creds creds.txt
 
 ## Security defaults
 
-- Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. The server imposes no per-IP rate limit, matching the terminal it replaces — request limits are enforced upstream by the data service.
-- The system routes mirror the terminal 1:1 and are unauthenticated, including `GET /v3/terminal/shutdown` — exactly as the terminal exposes them.
+- Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. The server imposes no per-IP rate limit, matching the terminal it replaces. Request limits are enforced upstream by the data service.
+- The system routes mirror the terminal 1:1 and are unauthenticated, including `GET /v3/terminal/shutdown`, exactly as the terminal exposes them.
 - Request bodies are capped at 64 KiB and query strings at 32 parameters.

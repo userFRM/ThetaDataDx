@@ -5,7 +5,7 @@ description: The typed event catalogue and how to narrow events in each language
 
 # Handling Events
 
-Every streaming update reaches your callback as one typed event. There are five **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields — no JSON, no string parsing.
+Every streaming update reaches your callback as one typed event. There are five **data** events and a set of **control** events covering session lifecycle; your callback narrows on the event type and reads typed fields, with no JSON and no string parsing.
 
 ## Narrowing
 
@@ -49,7 +49,7 @@ def on_event(event):
 client.stream.start_streaming(on_event)
 ```
 
-`match event: case Quote(): ...` works too — the event classes (`Quote`, `Trade`, `OpenInterest`, `Ohlcvc`, …) are importable from `thetadatadx`.
+`match event: case Quote(): ...` works too. The event classes (`Quote`, `Trade`, `OpenInterest`, `Ohlcvc`, …) are importable from `thetadatadx`.
 
 </template>
 
@@ -111,7 +111,7 @@ client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
 websocat ws://127.0.0.1:25520/v1/events
 ```
 
-Over the [server's WebSocket](/server/websocket), each event arrives as one JSON message with a `header.type` of `QUOTE`, `TRADE`, `OHLC`, or `STATUS`. Open interest is a valid SDK event but has no WebSocket frame — the native SDK callbacks deliver it; the server does not serialize it over the WebSocket.
+Over the [server's WebSocket](/server/websocket), each event arrives as one JSON message with a `header.type` of `QUOTE`, `TRADE`, `OHLC`, or `STATUS`. Open interest is a valid SDK event but has no WebSocket frame. The native SDK callbacks deliver it; the server does not serialize it over the WebSocket.
 
 </template>
 
@@ -124,7 +124,7 @@ Over the [server's WebSocket](/server/websocket), each event arrives as one JSON
 | `quote` | Best bid and offer (BBO for stocks, NBBO for options): `bid` / `ask` price, size, exchange, condition; `ms_of_day`, `date`, `received_at_ns` | [Quote streams](/streaming/stocks/quote) |
 | `trade` | `price`, `size`, `exchange`, `condition`, `sequence`, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
 | `open_interest` | `open_interest`, `ms_of_day`, `date`, `received_at_ns` | [Open-interest streams](/streaming/options/open-interest) |
-| `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars that arrive from upstream automatically — one per traded contract, ahead of that contract's trade |
+| `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars that arrive from upstream automatically: one per traded contract, ahead of that contract's trade |
 | `market_value` | `market_price` (calculated value), `market_bid` / `market_ask`, `ms_of_day`, `date`, `received_at_ns` | Per-contract market-value streams for stocks and options |
 | `index_market_value` | `market_price` (the vendor's indicative figure, off the index level by a random 1 to 5 cents), `ms_of_day`, `date`, `received_at_ns` | [Index market value](/streaming/indices/market-value). An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price, and it arrives under its own discriminator rather than `market_value` |
 
@@ -132,7 +132,7 @@ Each stream-type page in the sidebar lists its event's complete field table.
 
 ### The contract on every data event
 
-Data events carry a resolved, typed contract — read identity straight off the event, no lookup table:
+Data events carry a resolved, typed contract. Read identity straight off the event, with no lookup table:
 
 | Field | Type | Notes |
 |---|---|---|

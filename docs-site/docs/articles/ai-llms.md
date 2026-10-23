@@ -9,7 +9,7 @@ Three artifacts make this SDK legible to coding assistants and agents:
 
 ## llms.txt
 
-[`/llms.txt`](/llms.txt) is a one-line-per-page index of this entire site — path plus a one-sentence summary — regenerated with the documentation. Point a coding assistant at it to let the model pick the right page instead of crawling.
+[`/llms.txt`](/llms.txt) is a one-line-per-page index of this entire site (path plus a one-sentence summary), regenerated with the documentation. Point a coding assistant at it to let the model pick the right page instead of crawling.
 
 ## MCP server
 

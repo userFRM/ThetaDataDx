@@ -1,7 +1,7 @@
 {
   "name": "thetadatadx-mcp-server",
   "version": "0.7.0",
-  "description": "MCP server for ThetaData market data — run it with `npx -y thetadatadx-mcp-server`, no Rust toolchain required",
+  "description": "MCP server for ThetaData market data: run it with `npx -y thetadatadx-mcp-server`, no Rust toolchain required",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
