@@ -7,9 +7,8 @@
 // queried root. A pull large enough to fan out streams its bands
 // concurrently, so chunks arrive in arrival order rather than the buffered
 // result's merged order; both sides are sorted before they are compared.
-// Also reports the chunk count and the largest chunk: the SDK holds one
-// chunk at a time, so the largest chunk is what streaming costs it, while
-// this program keeps every row only to compare the two pulls.
+// Also reports the chunk count and the largest chunk delivered. This
+// program keeps every row only to compare the two pulls.
 //
 //   usage: market_data_stream_smoke [creds.txt] [symbol] [expiration] [date]
 //   defaults:                       creds.txt   QQQ      *            20250303
