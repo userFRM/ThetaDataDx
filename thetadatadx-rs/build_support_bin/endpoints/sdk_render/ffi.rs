@@ -378,10 +378,11 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
 /// primitive: it builds the same `EndpointArgs` the buffered `_with_options`
 /// form builds (reusing the identical positional + options extraction), then
 /// drains the response chunk-by-chunk via `invoke_endpoint_stream`, handing
-/// each chunk to the registered `ThetaDataDxTickChunkCallback`. The chunk pointer is
-/// the same `#[repr(C)]` tick the buffered `thetadatadx_<endpoint>_with_options` array
-/// exposes, so the callback sees zero re-marshaling — peak memory tracks a
-/// single chunk rather than the full result.
+/// each chunk and its column presence to the registered
+/// `ThetaDataDxTickChunkCallback`. The chunk pointer is the same `#[repr(C)]`
+/// tick the buffered `thetadatadx_<endpoint>_with_options` array exposes, so
+/// the rows cross with zero re-marshaling and peak memory tracks a single
+/// chunk rather than the full result.
 pub(super) fn render_ffi_stream_endpoints(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -403,12 +404,13 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
 
     super::doc::doc_lines(&mut out, "", &endpoint.description);
     out.push_str("///\n/// Stream the result chunk-by-chunk through `callback` without\n");
-    out.push_str("/// materialising the full response. `callback(rows, len, ctx)` is\n");
-    out.push_str("/// invoked once per server chunk with a pointer to a contiguous run\n");
+    out.push_str("/// materialising the full response. `callback(rows, len, columns, ctx)`\n");
+    out.push_str("/// is invoked once per server chunk with a pointer to a contiguous run\n");
     out.push_str("/// of the endpoint's tick struct (the same layout the buffered\n");
-    out.push_str("/// `_with_options` array returns); the chunk is freed before the next\n");
-    out.push_str("/// is fetched, so peak memory tracks a single chunk. Accepts the same\n");
-    out.push_str("/// optional builder parameters as the buffered form. Returns 0 on a\n");
+    out.push_str("/// `_with_options` array returns) and the chunk's column presence,\n");
+    out.push_str("/// which carries the root each row belongs to; the chunk is freed before\n");
+    out.push_str("/// the next is fetched, so peak memory tracks a single chunk. Accepts the\n");
+    out.push_str("/// same optional builder parameters as the buffered form. Returns 0 on a\n");
     out.push_str("/// clean drain, -1 on error (inspect `thetadatadx_last_error`).\n");
     out.push_str("#[no_mangle]\n");
     write!(

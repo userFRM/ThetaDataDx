@@ -629,7 +629,7 @@ impl StockHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -652,7 +652,7 @@ impl StockHistoryEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -676,7 +676,7 @@ impl StockHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -712,7 +712,7 @@ impl StockHistoryEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -920,7 +920,7 @@ impl StockHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: OhlcTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -969,7 +969,7 @@ impl StockHistoryOhlcBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = ohlc_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -993,7 +993,7 @@ impl StockHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. `handler(chunk: OhlcTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1055,7 +1055,7 @@ impl StockHistoryOhlcBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match ohlc_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1246,7 +1246,7 @@ impl StockHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1291,7 +1291,7 @@ impl StockHistoryTradeBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -1315,7 +1315,7 @@ impl StockHistoryTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. `handler(chunk: TradeTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1373,7 +1373,7 @@ impl StockHistoryTradeBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1582,7 +1582,7 @@ impl StockHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: QuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1631,7 +1631,7 @@ impl StockHistoryQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -1655,7 +1655,7 @@ impl StockHistoryQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. `handler(chunk: QuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1717,7 +1717,7 @@ impl StockHistoryQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1940,7 +1940,7 @@ impl StockHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1993,7 +1993,7 @@ impl StockHistoryTradeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -2017,7 +2017,7 @@ impl StockHistoryTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. `handler(chunk: TradeQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2083,7 +2083,7 @@ impl StockHistoryTradeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2229,7 +2229,7 @@ impl StockAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2257,7 +2257,7 @@ impl StockAtTimeTradeBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -2281,7 +2281,7 @@ impl StockAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: TradeTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2322,7 +2322,7 @@ impl StockAtTimeTradeBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2468,7 +2468,7 @@ impl StockAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: QuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2496,7 +2496,7 @@ impl StockAtTimeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -2520,7 +2520,7 @@ impl StockAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: QuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2561,7 +2561,7 @@ impl StockAtTimeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2654,7 +2654,7 @@ impl StockFlatFileEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -2675,7 +2675,7 @@ impl StockFlatFileEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -2699,7 +2699,7 @@ impl StockFlatFileEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -2733,7 +2733,7 @@ impl StockFlatFileEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2826,7 +2826,7 @@ impl StockFlatFileTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -2847,7 +2847,7 @@ impl StockFlatFileTradeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -2871,7 +2871,7 @@ impl StockFlatFileTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_trade_quote` rows finishes. `handler(chunk: TradeQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -2905,7 +2905,7 @@ impl StockFlatFileTradeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2998,7 +2998,7 @@ impl StockFlatFileQuoteBuilder {
         }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `stock_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: IntervalQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -3019,7 +3019,7 @@ impl StockFlatFileQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = interval_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = interval_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -3043,7 +3043,7 @@ impl StockFlatFileQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `stock_flat_file_quote` rows finishes. `handler(chunk: IntervalQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -3077,7 +3077,7 @@ impl StockFlatFileQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match interval_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match interval_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -3460,7 +3460,7 @@ impl OptionListContractsBuilder {
         }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: OptionContractList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -3490,7 +3490,7 @@ impl OptionListContractsBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = option_contracts_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = option_contracts_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -3514,7 +3514,7 @@ impl OptionListContractsBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: OptionContractList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -3557,7 +3557,7 @@ impl OptionListContractsBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match option_contracts_vec_to_pylist(py, chunk) {
+                            let py_list = match option_contracts_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -7053,7 +7053,7 @@ impl OptionHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7093,7 +7093,7 @@ impl OptionHistoryEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -7117,7 +7117,7 @@ impl OptionHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7170,7 +7170,7 @@ impl OptionHistoryEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -7418,7 +7418,7 @@ impl OptionHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: OhlcTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7476,7 +7476,7 @@ impl OptionHistoryOhlcBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = ohlc_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -7500,7 +7500,7 @@ impl OptionHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. `handler(chunk: OhlcTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7571,7 +7571,7 @@ impl OptionHistoryOhlcBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match ohlc_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -7819,7 +7819,7 @@ impl OptionHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7877,7 +7877,7 @@ impl OptionHistoryTradeBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -7901,7 +7901,7 @@ impl OptionHistoryTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. `handler(chunk: TradeTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7972,7 +7972,7 @@ impl OptionHistoryTradeBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -8235,7 +8235,7 @@ impl OptionHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: QuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8297,7 +8297,7 @@ impl OptionHistoryQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -8321,7 +8321,7 @@ impl OptionHistoryQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. `handler(chunk: QuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8396,7 +8396,7 @@ impl OptionHistoryQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -8676,7 +8676,7 @@ impl OptionHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8742,7 +8742,7 @@ impl OptionHistoryTradeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -8766,7 +8766,7 @@ impl OptionHistoryTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. `handler(chunk: TradeQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8845,7 +8845,7 @@ impl OptionHistoryTradeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -9060,7 +9060,7 @@ impl OptionHistoryOpenInterestBuilder {
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: OpenInterestTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9110,7 +9110,7 @@ impl OptionHistoryOpenInterestBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = open_interest_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = open_interest_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -9134,7 +9134,7 @@ impl OptionHistoryOpenInterestBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: OpenInterestTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9197,7 +9197,7 @@ impl OptionHistoryOpenInterestBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match open_interest_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -9494,7 +9494,7 @@ impl OptionHistoryGreeksEodBuilder {
         }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksEodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9562,7 +9562,7 @@ impl OptionHistoryGreeksEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -9586,7 +9586,7 @@ impl OptionHistoryGreeksEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: GreeksEodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9667,7 +9667,7 @@ impl OptionHistoryGreeksEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -9981,7 +9981,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksEodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10053,7 +10053,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -10077,7 +10077,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_eod` rows finishes. `handler(chunk: GreeksEodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10162,7 +10162,7 @@ impl OptionHistoryBinomialGreeksEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -10488,7 +10488,7 @@ impl OptionHistoryGreeksAllBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksAllTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10566,7 +10566,7 @@ impl OptionHistoryGreeksAllBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_all_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -10590,7 +10590,7 @@ impl OptionHistoryGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. `handler(chunk: GreeksAllTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10681,7 +10681,7 @@ impl OptionHistoryGreeksAllBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_all_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -11024,7 +11024,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksAllTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11106,7 +11106,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_all_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -11130,7 +11130,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_all` rows finishes. `handler(chunk: GreeksAllTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11225,7 +11225,7 @@ impl OptionHistoryBinomialGreeksAllBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_all_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -11566,7 +11566,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksAllTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11648,7 +11648,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_all_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -11672,7 +11672,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. `handler(chunk: TradeGreeksAllTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11767,7 +11767,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_all_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -12125,7 +12125,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksAllTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12211,7 +12211,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_all_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -12235,7 +12235,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_all` rows finishes. `handler(chunk: TradeGreeksAllTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12334,7 +12334,7 @@ impl OptionHistoryBinomialTradeGreeksAllBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_all_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -12660,7 +12660,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksFirstOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12738,7 +12738,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_first_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -12762,7 +12762,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. `handler(chunk: GreeksFirstOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12853,7 +12853,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_first_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -13196,7 +13196,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksFirstOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13278,7 +13278,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_first_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -13302,7 +13302,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_first_order` rows finishes. `handler(chunk: GreeksFirstOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13397,7 +13397,7 @@ impl OptionHistoryBinomialGreeksFirstOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_first_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -13738,7 +13738,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksFirstOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13820,7 +13820,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_first_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -13844,7 +13844,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. `handler(chunk: TradeGreeksFirstOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13939,7 +13939,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_first_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -14297,7 +14297,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksFirstOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14383,7 +14383,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_first_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -14407,7 +14407,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_first_order` rows finishes. `handler(chunk: TradeGreeksFirstOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14506,7 +14506,7 @@ impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_first_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -14832,7 +14832,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksSecondOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14910,7 +14910,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_second_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -14934,7 +14934,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. `handler(chunk: GreeksSecondOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -15025,7 +15025,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_second_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -15368,7 +15368,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksSecondOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -15450,7 +15450,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_second_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -15474,7 +15474,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_second_order` rows finishes. `handler(chunk: GreeksSecondOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -15569,7 +15569,7 @@ impl OptionHistoryBinomialGreeksSecondOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_second_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -15910,7 +15910,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksSecondOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -15992,7 +15992,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_second_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -16016,7 +16016,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. `handler(chunk: TradeGreeksSecondOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -16111,7 +16111,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_second_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -16469,7 +16469,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksSecondOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -16555,7 +16555,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_second_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -16579,7 +16579,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_second_order` rows finishes. `handler(chunk: TradeGreeksSecondOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -16678,7 +16678,7 @@ impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_second_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -17004,7 +17004,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksThirdOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -17082,7 +17082,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_third_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -17106,7 +17106,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. `handler(chunk: GreeksThirdOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -17197,7 +17197,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_third_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -17540,7 +17540,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: GreeksThirdOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -17622,7 +17622,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = greeks_third_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -17646,7 +17646,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_greeks_third_order` rows finishes. `handler(chunk: GreeksThirdOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -17741,7 +17741,7 @@ impl OptionHistoryBinomialGreeksThirdOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match greeks_third_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -18082,7 +18082,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksThirdOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -18164,7 +18164,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_third_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -18188,7 +18188,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. `handler(chunk: TradeGreeksThirdOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -18283,7 +18283,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_third_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -18641,7 +18641,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_binomial_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_binomial_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksThirdOrderTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -18727,7 +18727,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_third_order_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -18751,7 +18751,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_third_order` rows finishes. `handler(chunk: TradeGreeksThirdOrderTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -18850,7 +18850,7 @@ impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_third_order_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -19175,7 +19175,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: IvTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -19253,7 +19253,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = iv_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = iv_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -19277,7 +19277,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. `handler(chunk: IvTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -19368,7 +19368,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match iv_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match iv_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -19708,7 +19708,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         }, |py, ticks| trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeGreeksImpliedVolatilityTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -19790,7 +19790,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_greeks_implied_volatility_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -19814,7 +19814,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. `handler(chunk: TradeGreeksImpliedVolatilityTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -19909,7 +19909,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_greeks_implied_volatility_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -20107,7 +20107,7 @@ impl OptionAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -20148,7 +20148,7 @@ impl OptionAtTimeTradeBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -20172,7 +20172,7 @@ impl OptionAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: TradeTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -20226,7 +20226,7 @@ impl OptionAtTimeTradeBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -20422,7 +20422,7 @@ impl OptionAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: QuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -20463,7 +20463,7 @@ impl OptionAtTimeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -20487,7 +20487,7 @@ impl OptionAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: QuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -20541,7 +20541,7 @@ impl OptionAtTimeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -20634,7 +20634,7 @@ impl OptionFlatFileEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -20655,7 +20655,7 @@ impl OptionFlatFileEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -20679,7 +20679,7 @@ impl OptionFlatFileEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -20713,7 +20713,7 @@ impl OptionFlatFileEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -20806,7 +20806,7 @@ impl OptionFlatFileTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_flat_file_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: TradeQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -20827,7 +20827,7 @@ impl OptionFlatFileTradeQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = trade_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -20851,7 +20851,7 @@ impl OptionFlatFileTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_trade_quote` rows finishes. `handler(chunk: TradeQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -20885,7 +20885,7 @@ impl OptionFlatFileTradeQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match trade_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -20978,7 +20978,7 @@ impl OptionFlatFileOpenInterestBuilder {
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_flat_file_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_flat_file_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: OpenInterestTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -20999,7 +20999,7 @@ impl OptionFlatFileOpenInterestBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = open_interest_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = open_interest_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -21023,7 +21023,7 @@ impl OptionFlatFileOpenInterestBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_open_interest` rows finishes. `handler(chunk: OpenInterestTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -21057,7 +21057,7 @@ impl OptionFlatFileOpenInterestBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match open_interest_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -21150,7 +21150,7 @@ impl OptionFlatFileQuoteBuilder {
         }, |py, ticks| interval_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `option_flat_file_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: IntervalQuoteTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -21171,7 +21171,7 @@ impl OptionFlatFileQuoteBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = interval_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = interval_quote_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -21195,7 +21195,7 @@ impl OptionFlatFileQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `option_flat_file_quote` rows finishes. `handler(chunk: IntervalQuoteTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -21229,7 +21229,7 @@ impl OptionFlatFileQuoteBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match interval_quote_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match interval_quote_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -21725,7 +21725,7 @@ impl IndexHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -21748,7 +21748,7 @@ impl IndexHistoryEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -21772,7 +21772,7 @@ impl IndexHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -21808,7 +21808,7 @@ impl IndexHistoryEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -21973,7 +21973,7 @@ impl IndexHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: OhlcTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22008,7 +22008,7 @@ impl IndexHistoryOhlcBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = ohlc_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -22032,7 +22032,7 @@ impl IndexHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. `handler(chunk: OhlcTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22080,7 +22080,7 @@ impl IndexHistoryOhlcBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match ohlc_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -22273,7 +22273,7 @@ impl IndexHistoryPriceBuilder {
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: PriceTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22318,7 +22318,7 @@ impl IndexHistoryPriceBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = price_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = price_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -22342,7 +22342,7 @@ impl IndexHistoryPriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_history_price` rows finishes. `handler(chunk: PriceTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22400,7 +22400,7 @@ impl IndexHistoryPriceBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match price_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match price_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -22523,7 +22523,7 @@ impl IndexAtTimePriceBuilder {
         }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: IndexPriceAtTimeTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22547,7 +22547,7 @@ impl IndexAtTimePriceBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = index_price_at_time_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = index_price_at_time_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -22571,7 +22571,7 @@ impl IndexAtTimePriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: IndexPriceAtTimeTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -22608,7 +22608,7 @@ impl IndexAtTimePriceBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match index_price_at_time_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match index_price_at_time_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -22701,7 +22701,7 @@ impl IndexFlatFileEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `index_flat_file_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: EodTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -22722,7 +22722,7 @@ impl IndexFlatFileEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = eod_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -22746,7 +22746,7 @@ impl IndexFlatFileEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_flat_file_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `index_flat_file_eod` rows finishes. `handler(chunk: EodTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let date = self.date.clone();
@@ -22780,7 +22780,7 @@ impl IndexFlatFileEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match eod_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -23070,7 +23070,7 @@ impl InterestRateHistoryEodBuilder {
         }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: InterestRateTickList) -> None` is called once per gRPC chunk with the chunk's rows in the typed list a whole result returns, which carries the root of each row: when the response carries roots, as a flat file or option history does, its `to_arrow()`, `to_pandas()` and `to_polars()` lead with a `symbol` column naming the root each row belongs to. The chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -23093,7 +23093,7 @@ impl InterestRateHistoryEodBuilder {
             }
             request.stream_ticks(|chunk| {
                 Python::attach(|py| {
-                    let delivered = interest_rate_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                    let delivered = interest_rate_ticks_to_pyclass_list(py, chunk).and_then(|py_list| {
                         let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                         handler_for_closure.call1(py, (py_list,)).map(drop)
                     });
@@ -23117,7 +23117,7 @@ impl InterestRateHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()`: the awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: InterestRateTickList) -> None` receives each gRPC chunk as `stream()` does, rows and roots, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion (Python is not interruptible mid-call), so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -23153,7 +23153,7 @@ impl InterestRateHistoryEodBuilder {
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match interest_rate_ticks_vec_to_pylist(py, chunk) {
+                            let py_list = match interest_rate_ticks_to_pyclass_list(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);

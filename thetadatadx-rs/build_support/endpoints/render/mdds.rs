@@ -138,7 +138,7 @@ const AWAIT_VS_STREAM_DOC: &str = "\n\
 \n\
 Buffered (`.await`) collects the full response into `Vec<Tick>`. On a\n\
 2.4 M-tick day this consumes ~5 GiB before any caller code runs.\n\
-Streaming yields chunks via `handler(&[Tick])`, capping per-request\n\
+Streaming yields chunks via `handler(&Ticks<Tick>)`, capping per-request\n\
 RSS at ~150 MiB regardless of response size.\n\
 \n\
 When the buffered path returns a response whose estimated size\n\
@@ -402,12 +402,24 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         out.push_str("            };\n");
     }
     // Wrap the `FnMut + Send` handler in a `Mutex` so the per-attempt
-    // closure — and, under a shard plan, every concurrent band — gets a
-    // fresh mutable borrow per chunk (the closure may run twice on a
-    // post-refresh restart) and the returned future stays Send. Defined
-    // before the shard branch so both arms share the one handler.
-    out.push_str("            let handler_mutex = std::sync::Mutex::new(handler);\n");
+    // closure, and under a shard plan every concurrent band, gets a fresh
+    // mutable borrow per chunk (the closure may run twice on a post-refresh
+    // restart) and the returned future stays Send. Defined before the shard
+    // branch so both arms share the one handler. The shared delivery
+    // primitive hands each chunk over by value and lets a handler end the
+    // call; this builder's handler borrows the chunk and never ends it, so
+    // `stopped` stays clear.
+    writeln!(
+        out,
+        "            let handler_mutex = std::sync::Mutex::new(move |ticks: crate::columns::Ticks<{tick_type}>| {{"
+    )
+    .unwrap();
+    out.push_str("                handler(&ticks);\n");
+    out.push_str("                std::ops::ControlFlow::Continue(())\n");
+    out.push_str("            });\n");
     out.push_str("            let handler_mutex = &handler_mutex;\n");
+    out.push_str("            let stopped = std::sync::atomic::AtomicBool::new(false);\n");
+    out.push_str("            let stopped = &stopped;\n");
     // Bulk-fetch auto-sharding, same gate as the buffered `.await`
     // builders: policy `Off` and small pulls resolve to `None` — the
     // single-stream arm below, exactly the pre-shard behaviour. The
@@ -438,15 +450,16 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     .unwrap();
     // Per-attempt stream body shared by both arms: open the stream via
     // the generated stub, then drain chunk-by-chunk through
-    // `deliver_chunk_slices` — the same delivery primitive the
+    // `deliver_chunk_ticks`, the same delivery primitive the
     // `parsed_endpoint!` stream arms use, so the dedicated `*_stream`
     // builders and the `.stream(handler)` methods of one endpoint agree
-    // on the no-resume `delivered` gating (non-empty chunks only) and
-    // on breaking the drain at the first decode failure.
+    // on each chunk's columns and roots, on the no-resume `delivered`
+    // gating (non-empty chunks only), and on breaking the drain at the
+    // first decode failure.
     let stub_call = include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
         .replace("__GRPC_NAME__", &endpoint.grpc_name);
     let chunk_body = format!(
-        "                    client.deliver_chunk_slices(stream, {parser_name}, handler_mutex, delivered).await\n"
+        "                    client.deliver_chunk_ticks(stream, {parser_name}, handler_mutex, delivered, stopped).await\n"
     );
     let field_idents = endpoint
         .fields

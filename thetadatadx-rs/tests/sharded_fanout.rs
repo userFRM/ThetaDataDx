@@ -685,7 +685,7 @@ async fn time_banded_pull_applies_each_bands_window_on_the_wire() {
         .end_date(DAY1)
         .start_time("09:30:00")
         .end_time("16:00:00")
-        .stream(|_ticks: &[thetadatadx::TradeTick]| {})
+        .stream(|_ticks| {})
         .await
         .expect("time-banded pull");
 
@@ -786,7 +786,7 @@ async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
             .stock_history_trade("AAPL")
             .start_date(DAY1)
             .end_date(DAY1)
-            .stream_async(move |ticks: &[thetadatadx::TradeTick]| {
+            .stream_async(move |ticks: &thetadatadx::Ticks<thetadatadx::TradeTick>| {
                 rows_sink.lock().unwrap().extend(prices(ticks));
                 let inner_slot = Arc::clone(&inner_slot);
                 async move {
@@ -839,7 +839,7 @@ async fn handler_inline_call_succeeds_on_pool_headroom() {
             .stock_history_trade("AAPL")
             .start_date(DAY1)
             .end_date(DAY2)
-            .stream_async(move |_ticks: &[thetadatadx::TradeTick]| {
+            .stream_async(move |_ticks: &thetadatadx::Ticks<thetadatadx::TradeTick>| {
                 let inner_slot = Arc::clone(&inner_slot);
                 async move {
                     let fire = inner_slot.lock().unwrap().is_none();
@@ -892,7 +892,7 @@ async fn sharded_pull_with_a_reentrant_handler_never_hangs() {
             .stock_history_trade("AAPL")
             .start_date(DAY1)
             .end_date(DAY2)
-            .stream_async(move |ticks: &[thetadatadx::TradeTick]| {
+            .stream_async(move |ticks: &thetadatadx::Ticks<thetadatadx::TradeTick>| {
                 rows_sink.lock().unwrap().extend(prices(ticks));
                 let inner_slot = Arc::clone(&inner_slot);
                 async move {

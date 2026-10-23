@@ -577,7 +577,9 @@ pub unsafe extern "C" fn thetadatadx_arrow_bytes_free(bytes: ThetaDataDxArrowByt
 /// [`thetadatadx::columns::ColumnPresence`] crossing the C boundary). Built by
 /// `thetadatadx_<tick>_present_columns` and consumed by
 /// `thetadatadx_<tick>_ticks_to_arrow_ipc_projected`. Caller MUST free with
-/// `thetadatadx_column_presence_free`.
+/// `thetadatadx_column_presence_free`, except the carrier a
+/// `ThetaDataDxTickChunkCallback` receives, which the library owns and frees
+/// itself.
 #[repr(C)]
 pub struct ThetaDataDxColumnPresence {
     /// Array of pointers to NUL-terminated schema-column names; null when

@@ -60,42 +60,20 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 /// converter emitted into `thetadatadx-py/src/_generated/tick_classes.rs`.
 /// Consumed by the `ticks` generator to decide emission per tick type.
 ///
-/// The set covers two callers today:
-///
-/// 1. Snapshot / calendar endpoints (`is_snapshot_endpoint`) — the
-///    original consumer; uses the converter on the latency-sensitive
-///    fast path that skips the `<TickName>List` wrapper allocation.
-/// 2. Parsed-endpoint `.stream(handler)` terminals — the OOM-fix
-///    consumer; uses the converter to build a per-chunk
-///    `Py<PyList>` of typed tick instances handed to the user's
-///    callback. Without this, every parsed endpoint with a wide
-///    response (`option_history_quote`, `stock_history_trade`, ...)
-///    would still buffer the full `Vec<T>` because the only converter
-///    available is the `_to_pyclass_list` wrapper-returning variant.
-///
-/// Single SSOT: classification logic lives in
-/// [`sdk_helpers::is_snapshot_endpoint`] for the snapshot half and is
-/// driven entirely by TOML `category` / `subcategory` / `kind` fields.
-/// The streaming half pulls every endpoint whose `kind == "parsed"`
-/// (excluding the simple list endpoints that return `StringList` —
-/// those have no per-tick decoder). Adding a parsed endpoint of a new
-/// tick type to the TOML automatically opts its converter into
-/// emission on the next generator run.
+/// The only caller is a snapshot / calendar endpoint that returns a plain
+/// list ([`sdk_helpers::snapshot_returns_plain_pylist`]): the converter
+/// skips the `<TickName>List` wrapper on that latency-sensitive path. Every
+/// other endpoint, the `.stream(handler)` chunks included, returns the
+/// wrapper, which carries the column presence and so each row's root. Keying
+/// emission on the same predicate the endpoint emitter uses keeps a tick type
+/// no plain-list snapshot returns from landing as a dead-code function.
 pub fn snapshot_return_types(
 ) -> Result<std::collections::HashSet<String>, Box<dyn std::error::Error>> {
     let endpoints = parser::load_endpoint_specs()?;
     Ok(endpoints
         .endpoints
         .iter()
-        .filter(|e| {
-            // Snapshot fast-path consumer + streaming `.stream()` consumer.
-            // Parsed list endpoints that return `StringList` have no per-tick
-            // decoder, so they're excluded; the streaming variant only
-            // exists on endpoints whose `return_type` resolves to a
-            // tick collection in `tick_schema.toml`.
-            sdk_helpers::is_snapshot_endpoint(e)
-                || (e.kind == "parsed" && e.return_type != "StringList")
-        })
+        .filter(|e| sdk_helpers::snapshot_returns_plain_pylist(e))
         .map(|e| e.return_type.clone())
         .collect())
 }

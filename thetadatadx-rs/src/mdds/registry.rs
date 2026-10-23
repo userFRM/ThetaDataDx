@@ -14,7 +14,7 @@
 //! - Return type discriminant
 //!
 //! Streaming endpoints (`*_stream`) are excluded because they use a callback
-//! API (`FnMut(&[T])`) that does not map to CLI/MCP output semantics. They
+//! API (`FnMut(&Ticks<T>)`) that does not map to CLI/MCP output semantics. They
 //! remain available on `MarketDataClient` for programmatic use.
 
 // Items in this module are split into two groups:

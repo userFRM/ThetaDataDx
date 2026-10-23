@@ -3,9 +3,10 @@
 // Streams one large historical pull (option_history_trade, all strikes of a
 // single underlying on one trading day) through the chunk callback, then runs
 // the same pull buffered and asserts the streamed rows match the buffered
-// result exactly -- count and byte-for-byte content. Also reports the chunk
-// count and the peak single-chunk row count to show that peak memory tracks a
-// single chunk rather than the whole result.
+// result exactly -- count and byte-for-byte content -- and that every chunk
+// names the queried root. Also reports the chunk count and the peak
+// single-chunk row count to show that peak memory tracks a single chunk
+// rather than the whole result.
 //
 //   usage: market_data_stream_smoke [creds.txt] [symbol] [expiration] [date]
 //   defaults:                       creds.txt   QQQ      *            20250303
@@ -55,12 +56,19 @@ int main(int argc, char** argv) {
         std::vector<thetadatadx::TradeTick> streamed;
         std::size_t chunk_count = 0;
         std::size_t peak_chunk_rows = 0;
+        std::size_t chunks_without_root = 0;
         const auto t0 = std::chrono::steady_clock::now();
 
         client.market_data().option_history_trade_stream(
             symbol, expiration,
-            [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
+            [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk,
+                const thetadatadx::ColumnPresence& columns) {
                 ++chunk_count;
+                // Every row of an option-history chunk shares the queried root.
+                const char* root = columns.symbol();
+                if (root == nullptr || symbol != root) {
+                    ++chunks_without_root;
+                }
                 if (chunk.size() > peak_chunk_rows) {
                     peak_chunk_rows = chunk.size();
                 }
@@ -89,6 +97,11 @@ int main(int argc, char** argv) {
         std::cout << "  buffered: " << buffered.size() << " rows, " << buffered_ms << " ms\n";
 
         // ── Compare ──
+        if (chunks_without_root != 0) {
+            std::cerr << "MISMATCH: " << chunks_without_root << " of " << chunk_count
+                      << " chunks did not name the root " << symbol << "\n";
+            return 1;
+        }
         if (streamed.size() != buffered.size()) {
             std::cerr << "MISMATCH: streamed " << streamed.size() << " rows, buffered "
                       << buffered.size() << " rows\n";

@@ -206,18 +206,20 @@ fn generate_endpoint_runtime(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std
     Ok(())
 }
 
-/// Emit `invoke_generated_endpoint_stream` — the server-stream sibling of
+/// Emit `invoke_generated_endpoint_stream`, the server-stream sibling of
 /// [`generate_endpoint_runtime`]'s buffered dispatch.
 ///
 /// The buffered dispatch returns the full `EndpointOutput`; the streaming
 /// dispatch never materializes it. Each arm builds the SAME typed builder and
 /// applies the SAME `EndpointArgs`-sourced optional setters as the buffered
 /// arm, then drains the response chunk-by-chunk through the core
-/// `request.stream(handler)` primitive. The per-chunk slice is type-erased to
-/// `(*const c_void, usize)` at the boundary so one dispatch signature covers
-/// every tick shape — the FFI layer reconstructs the typed pointer on the
-/// caller side (the chunk pointer is the same `#[repr(C)]` tick the buffered
-/// array exposes, so no re-marshaling happens). This dispatch exists solely to
+/// `request.stream(handler)` primitive. The per-chunk rows are type-erased to
+/// `(*const c_void, usize)` at the boundary, beside the chunk's column
+/// presence, so one dispatch signature covers every tick shape: the FFI layer
+/// reconstructs the typed pointer on the caller side (the chunk pointer is the
+/// same `#[repr(C)]` tick the buffered array exposes, so no re-marshaling
+/// happens) and hands the presence, with each row's root, to the caller
+/// beside it. This dispatch exists solely to
 /// serve the C ABI, so it is keyed off [`endpoint_streams_repr_c_ticks`]: only
 /// endpoints whose core row is a flat `#[repr(C)]` tick get an arm. The
 /// bounded snapshot / calendar lookups and the flat list endpoints have
@@ -297,17 +299,17 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
 
     emit_builder_deadline(out);
 
-    // Drain row-by-row. The closure hands the decoder-owned slice's data
-    // pointer + length to `handler` as type-erased `(*const c_void, usize)`;
-    // the slice (and its backing chunk) is freed before the next chunk is
-    // fetched, so peak memory tracks a single chunk rather than the whole
-    // result. `handler` is moved in — only this arm runs per call.
-    // The core primitive surfaces the crate `Error`; convert to
+    // Drain chunk by chunk. The closure hands the decoder-owned rows' data
+    // pointer + length to `handler` as type-erased `(*const c_void, usize)`,
+    // with the chunk's column presence beside them; the chunk is freed before
+    // the next one is fetched, so peak memory tracks a single chunk rather
+    // than the whole result. `handler` is moved in: only this arm runs per
+    // call. The core primitive surfaces the crate `Error`; convert to
     // `EndpointError` (the dispatch return type) through the same
     // `From<Error>` the buffered arms reach via `?`.
     out.push_str("            builder\n");
     out.push_str(
-        "                .stream(move |chunk| handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len()))\n",
+        "                .stream(move |chunk| handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len(), chunk.columns()))\n",
     );
     out.push_str("                .await\n");
     out.push_str("                .map_err(EndpointError::from)\n");

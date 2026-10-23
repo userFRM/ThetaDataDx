@@ -213,9 +213,16 @@ Whole-universe files for one date. Each file the vendor serves is an endpoint li
 ```cpp
 auto eod = client.market_data().stock_flat_file_eod("20260428");
 
-// The large files stream chunk by chunk, with the default deadline lifted
+// The large files stream chunk by chunk, with the default deadline lifted.
+// `columns.symbols()` holds the root of each row (`columns.symbol()` when
+// every row of the chunk shares one).
 client.market_data().option_flat_file_trade_quote_stream("20260428",
-    [](auto chunk) { std::cout << chunk.size() << "\n"; },
+    [](auto rows, const thetadatadx::ColumnPresence& columns) {
+        auto roots = columns.symbols();
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            std::cout << (roots.empty() ? columns.symbol() : roots[i]) << " " << rows[i].price << "\n";
+        }
+    },
     thetadatadx::EndpointRequestOptions{}.with_timeout_ms(0));
 ```
 

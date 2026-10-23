@@ -56,15 +56,15 @@ mod capture_loader;
 
 use capture_loader::load_response_data as load_response;
 
-/// Stand up an in-process gRPC mock that serves one
-/// `proto::ResponseData` chunk and a clean `grpc-status: 0`, then
-/// return an `MarketDataClient` wired to that mock via the
+/// Stand up an in-process gRPC mock that serves `chunks` as one
+/// response's `proto::ResponseData` chunks and a clean `grpc-status: 0`,
+/// then return an `MarketDataClient` wired to that mock via the
 /// `__test-helpers`-gated `for_endpoint_routing_test` constructor. The mock
 /// handle stays alive as long as the test owning it.
 async fn client_for_response(
-    response: proto::ResponseData,
+    chunks: Vec<proto::ResponseData>,
 ) -> (mock::MockServer, MarketDataClient) {
-    let server = mock::MockServer::spawn(vec![response], 0).await;
+    let server = mock::MockServer::spawn(chunks, 0).await;
     let channel = Channel::connect_h2c("127.0.0.1", server.addr.port())
         .await
         .expect("h2c connect to mock");
@@ -82,7 +82,7 @@ async fn client_for_response(
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
     let response = load_response("option_history_greeks_eod");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     // Compile-time type binding: this `let` would not type-check if
     // the dispatch returned `Vec<GreeksAllTick>` (the silent
@@ -127,7 +127,7 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn index_at_time_price_routes_to_index_price_at_time_parser() {
     let response = load_response("index_at_time_price");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<IndexPriceAtTimeTick> = client
         .index_at_time_price("SPX", "20240614", "20240614", "16:00:00")
@@ -159,7 +159,7 @@ async fn index_at_time_price_routes_to_index_price_at_time_parser() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_trade_greeks_all_routes_to_trade_greeks_all_parser() {
     let response = load_response("option_history_trade_greeks_all");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksAllTick> = client
         .option_history_trade_greeks_all("SPY", "20240621")
@@ -182,7 +182,7 @@ async fn option_history_trade_greeks_all_routes_to_trade_greeks_all_parser() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_trade_greeks_first_order_routes_to_first_order_parser() {
     let response = load_response("option_history_trade_greeks_first_order");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksFirstOrderTick> = client
         .option_history_trade_greeks_first_order("SPY", "20240621")
@@ -205,7 +205,7 @@ async fn option_history_trade_greeks_first_order_routes_to_first_order_parser() 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_trade_greeks_second_order_routes_to_second_order_parser() {
     let response = load_response("option_history_trade_greeks_second_order");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksSecondOrderTick> = client
         .option_history_trade_greeks_second_order("SPY", "20240621")
@@ -228,7 +228,7 @@ async fn option_history_trade_greeks_second_order_routes_to_second_order_parser(
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_trade_greeks_third_order_routes_to_third_order_parser() {
     let response = load_response("option_history_trade_greeks_third_order");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksThirdOrderTick> = client
         .option_history_trade_greeks_third_order("SPY", "20240621")
@@ -251,7 +251,7 @@ async fn option_history_trade_greeks_third_order_routes_to_third_order_parser() 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn option_history_trade_greeks_implied_volatility_routes_to_iv_parser() {
     let response = load_response("option_history_trade_greeks_implied_volatility");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksImpliedVolatilityTick> = client
         .option_history_trade_greeks_implied_volatility("SPY", "20240621")
@@ -287,7 +287,7 @@ async fn stock_trade_quote_await_projects_columns_end_to_end() {
     use thetadatadx::frames::TicksArrowExt;
 
     let response = load_response("stock_history_trade_quote");
-    let (_mock, client) = client_for_response(response).await;
+    let (_mock, client) = client_for_response(vec![response]).await;
 
     let ticks: thetadatadx::Ticks<thetadatadx::TradeQuoteTick> = client
         .stock_history_trade_quote("AAPL")
@@ -338,6 +338,99 @@ async fn stock_trade_quote_await_projects_columns_end_to_end() {
         full_cols.contains(&"condition_flags".to_string()),
         "full slice builder must keep every column; got {full_cols:?}"
     );
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Each streamed chunk names the root of every row
+//
+// The tick rows of a response that spans several roots, such as a
+// whole-universe flat file, hold no root: each row's root rides on the
+// chunk's column presence. `.stream(handler)` and `.stream_async(handler)`
+// hand every chunk the presence decoded from that chunk, so a caller can
+// attribute each row whether the chunk's rows span several roots or share
+// one.
+// ────────────────────────────────────────────────────────────────────
+
+/// One `stock_flat_file_quote` chunk of `(root, interval_ms_of_day, bid)`
+/// rows, its ask equal to its bid, under the flat file's header names.
+fn flat_file_quote_chunk(rows: &[(&str, i64, i64)]) -> proto::ResponseData {
+    let cell = |data_type| proto::DataValue {
+        data_type: Some(data_type),
+    };
+    let table = proto::DataTable {
+        headers: ["root", "interval_ms_of_day", "bid", "ask"]
+            .map(String::from)
+            .to_vec(),
+        data_table: rows
+            .iter()
+            .map(|&(root, ms_of_day, bid)| proto::DataValueList {
+                values: vec![
+                    cell(proto::data_value::DataType::Text(root.to_string())),
+                    cell(proto::data_value::DataType::Number(ms_of_day)),
+                    cell(proto::data_value::DataType::Number(bid)),
+                    cell(proto::data_value::DataType::Number(bid)),
+                ],
+            })
+            .collect(),
+    };
+    proto::ResponseData {
+        compression_description: Some(proto::CompressionDescription {
+            algo: proto::CompressionAlgo::None as i32,
+            level: 0,
+        }),
+        original_size: 0,
+        compressed_data: prost::Message::encode_to_vec(&table),
+    }
+}
+
+/// Each row of a streamed chunk with its root, read the way a caller reads
+/// it: `symbols()[i]` when the chunk's rows span several roots, else the
+/// `symbol()` they share.
+fn rooted_bids(chunk: &thetadatadx::Ticks<thetadatadx::IntervalQuoteTick>) -> Vec<(String, f64)> {
+    let columns = chunk.columns();
+    chunk
+        .iter()
+        .enumerate()
+        .map(|(i, tick)| {
+            let root = match columns.symbols() {
+                Some(roots) => &*roots[i],
+                None => columns.symbol().expect("the chunk names its rows' root"),
+            };
+            (root.to_owned(), tick.bid)
+        })
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn streamed_flat_file_chunks_name_each_rows_root() {
+    let (_mock, client) = client_for_response(vec![
+        flat_file_quote_chunk(&[("AAPL", 34_260_000, 10), ("MSFT", 34_260_000, 20)]),
+        flat_file_quote_chunk(&[("SPY", 34_260_000, 30), ("SPY", 34_320_000, 40)]),
+    ])
+    .await;
+    let expected: Vec<(String, f64)> =
+        [("AAPL", 10.0), ("MSFT", 20.0), ("SPY", 30.0), ("SPY", 40.0)]
+            .map(|(root, bid)| (root.to_owned(), bid))
+            .to_vec();
+
+    let mut rows = Vec::new();
+    client
+        .stock_flat_file_quote("20261021")
+        .stream(|chunk| rows.extend(rooted_bids(chunk)))
+        .await
+        .expect("stock_flat_file_quote stream via mock");
+    assert_eq!(rows, expected, ".stream");
+
+    let mut rows = Vec::new();
+    client
+        .stock_flat_file_quote("20261021")
+        .stream_async(|chunk| {
+            rows.extend(rooted_bids(chunk));
+            std::future::ready(())
+        })
+        .await
+        .expect("stock_flat_file_quote stream_async via mock");
+    assert_eq!(rows, expected, ".stream_async");
 }
 
 // List endpoints honor the per-request deadline

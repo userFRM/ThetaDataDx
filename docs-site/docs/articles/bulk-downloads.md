@@ -88,7 +88,7 @@ def on_chunk(chunk):
 client
     .option_history_quote("SPXW", "20260710").date("20260710")
     .strike("*").right("both").interval("tick")
-    .stream(|chunk: &[QuoteTick]| { /* handle chunk */ })
+    .stream(|chunk| { /* handle chunk: it derefs to &[QuoteTick] */ })
     .await?;
 ```
 

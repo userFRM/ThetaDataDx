@@ -930,10 +930,9 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("    }\n\n");
 
     // Streaming terminal. Skip for snapshot endpoints (bounded rows).
-    // Every
-    // other market-data parsed endpoint gets `.stream(handler)` and
-    // `.stream_async(handler)` — the handler receives one Python list
-    // of typed tick instances per gRPC chunk, never the full Vec.
+    // Every other market-data parsed endpoint gets `.stream(handler)` and
+    // `.stream_async(handler)`: the handler receives one typed
+    // `<TickName>List` per gRPC chunk, never the full Vec.
     if !is_snapshot {
         write_sync_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
         out.push('\n');
@@ -946,11 +945,12 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
 }
 
 /// Emit the `stream(handler)` sync terminal that routes each gRPC
-/// chunk into a Python callback as a typed `list[Tick]`. The decoder-
-/// owned `Vec<tick::T>` is converted under the GIL via the per-tick
-/// `*_vec_to_pylist` factory then handed to the user's callable; once
-/// the call returns the Python list is dropped and the wire `Bytes`
-/// are released before the next chunk is fetched.
+/// chunk into a Python callback as the typed `<TickName>List` a whole
+/// result returns, carrying the chunk's column presence and so each row's
+/// root. The decoder-owned `Vec<tick::T>` moves into the wrapper under the
+/// GIL via the per-tick `*_to_pyclass_list` factory, then is handed to the
+/// user's callable; the wire `Bytes` are released before the next chunk is
+/// fetched.
 ///
 /// PyErr bridging: callback exceptions are captured into the spawned
 /// future's `Result<(), thetadatadx::Error>` via
@@ -966,7 +966,8 @@ fn write_sync_stream_terminal(
     method_params: &[&GeneratedParam],
     builder_params: &[&GeneratedParam],
 ) {
-    let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    let list_converter = python_pyclass_list_converter(&endpoint.return_type);
+    let list_class = python_pyclass_list_class(&endpoint.return_type);
     // Only shardable history endpoints can fan out; the rest are always
     // single-stream, so omit the fan-out note for them (see `endpoint_can_fan_out`).
     let fan_out = if super::endpoint_can_fan_out(endpoint) {
@@ -979,10 +980,14 @@ fn write_sync_stream_terminal(
     };
     let doc = format!(
         "Stream chunks of `{}` rows into `handler` without materialising the full \
-         response in memory. `handler(chunk: list[Tick]) -> None` is called once per \
-         gRPC chunk; the chunk is freed before the stream's next chunk is fetched.{fan_out} \
-         An exception raised by `handler` stops the stream, so no further chunk is \
-         fetched, and is raised from this call.",
+         response in memory. `handler(chunk: {list_class}) -> None` is called once per \
+         gRPC chunk with the chunk's rows in the typed list a whole result returns, \
+         which carries the root of each row: when the response carries roots, as a \
+         flat file or option history does, its `to_arrow()`, `to_pandas()` and \
+         `to_polars()` lead with a `symbol` column naming the root each row belongs \
+         to. The chunk is freed before the stream's next chunk is \
+         fetched.{fan_out} An exception raised by `handler` stops the stream, so no \
+         further chunk is fetched, and is raised from this call.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));
@@ -1003,8 +1008,7 @@ fn write_sync_stream_terminal(
     out.push_str("                Python::attach(|py| {\n");
     writeln!(
         out,
-        "                    let delivered = {}(py, chunk).and_then(|py_list| {{",
-        pylist_converter
+        "                    let delivered = {list_converter}(py, chunk).and_then(|py_list| {{"
     )
     .unwrap();
     out.push_str(
@@ -1056,7 +1060,8 @@ fn write_async_stream_terminal(
     method_params: &[&GeneratedParam],
     builder_params: &[&GeneratedParam],
 ) {
-    let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    let list_converter = python_pyclass_list_converter(&endpoint.return_type);
+    let list_class = python_pyclass_list_class(&endpoint.return_type);
     // Only shardable history endpoints can fan out (see `endpoint_can_fan_out`).
     let fan_out = if super::endpoint_can_fan_out(endpoint) {
         " Under `bulk_fetch = \"auto\"` a large history pull may fan \
@@ -1069,10 +1074,10 @@ fn write_async_stream_terminal(
     };
     let doc = format!(
         "Async companion to `stream()`: the awaitable yields `None` when the \
-         streamed response of `{}` rows finishes. `handler(chunk: list[Tick]) \
-         -> None` runs once per gRPC chunk, one call at a time, on a worker \
-         thread; a stream's next chunk is not fetched until its handler call \
-         returns.{fan_out} Cancelling the awaitable \
+         streamed response of `{}` rows finishes. `handler(chunk: {list_class}) \
+         -> None` receives each gRPC chunk as `stream()` does, rows and roots, \
+         one call at a time, on a worker thread; a stream's next chunk is not \
+         fetched until its handler call returns.{fan_out} Cancelling the awaitable \
          drops the in-flight gRPC stream (RST_STREAM on the underlying h2 \
          stream) and fetches no further chunks. A handler already running when \
          cancellation lands runs to completion (Python is not interruptible \
@@ -1117,8 +1122,7 @@ fn write_async_stream_terminal(
     out.push_str("                        Python::attach(|py| {\n");
     writeln!(
         out,
-        "                            let py_list = match {}(py, chunk) {{",
-        pylist_converter
+        "                            let py_list = match {list_converter}(py, chunk) {{"
     )
     .unwrap();
     out.push_str("                                Ok(list) => list,\n");

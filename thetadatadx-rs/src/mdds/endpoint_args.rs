@@ -570,10 +570,11 @@ pub async fn invoke_endpoint(
 /// dispatch, same typed builder construction and `EndpointArgs`-sourced
 /// optional setters, but the response is delivered through `handler` one
 /// decoded gRPC chunk at a time so peak memory tracks a single chunk rather
-/// than the whole result. `handler` receives each chunk as a type-erased
-/// `(*const c_void, usize)` pointing at a contiguous run of the endpoint's
-/// `#[repr(C)]` tick — the boundary the FFI layer rebuilds the typed pointer
-/// from without re-marshaling.
+/// than the whole result. `handler` receives each chunk's rows as a
+/// type-erased `(*const c_void, usize)` pointing at a contiguous run of the
+/// endpoint's `#[repr(C)]` tick, the boundary the FFI layer rebuilds the
+/// typed pointer from without re-marshaling, and the chunk's
+/// [`crate::columns::ColumnPresence`], which carries each row's root.
 ///
 /// The per-call deadline is resolved inside the generated dispatch — the
 /// `.stream()` builder threads [`EndpointArgs::deadline_setting`] through
@@ -599,7 +600,7 @@ pub async fn invoke_endpoint_stream(
     client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
-    handler: impl FnMut(*const core::ffi::c_void, usize) + Send,
+    handler: impl FnMut(*const core::ffi::c_void, usize, &crate::columns::ColumnPresence) + Send,
 ) -> Result<(), EndpointError> {
     invoke_generated_endpoint_stream(client, name, args, handler).await
 }

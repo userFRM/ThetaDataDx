@@ -31,8 +31,7 @@ tokio::task_local! {
     /// Request-semaphore addresses of EVERY streaming delivery handler
     /// the current task is executing, innermost last — scoped by
     /// [`in_delivery_scope`] around every user handler await
-    /// (`deliver_chunk_slices_async` / `deliver_chunk_ticks_async` in
-    /// [`super::stream`]).
+    /// (`deliver_chunk_ticks_async` in [`super::stream`]).
     ///
     /// Same-client requests issued inside a handler's scope must not
     /// block on that client's request pool — the pull whose handler is

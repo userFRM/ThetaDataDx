@@ -32,11 +32,12 @@
 //! `<endpoint>Stream(...args, options, callback)` server-stream companion
 //! (the TypeScript surface of the Python builders' `.stream(handler)`).
 //! Instead of buffering the whole response, it pumps each decoded gRPC
-//! chunk to `callback(chunk: Tick[])` through a napi-rs
-//! `ThreadsafeFunction` and awaits that callback before fetching the next
-//! chunk, so peak memory tracks one chunk rather than the full result — the
-//! path the `Config.setWarnOnBufferedThresholdBytes` warning points
-//! oversized buffered pulls at. The coverage set mirrors the Python streaming
+//! chunk to `callback(rows: Tick[], columns: ColumnPresence)` through a
+//! napi-rs `ThreadsafeFunction` and awaits that callback before fetching the
+//! next chunk, so peak memory tracks one chunk rather than the full result:
+//! the path the `Config.setWarnOnBufferedThresholdBytes` warning points
+//! oversized buffered pulls at. `columns` names the root each row belongs
+//! to. The coverage set mirrors the Python streaming
 //! builders exactly (non-snapshot, non-FPSS-kind endpoints that decode to a
 //! row collection); snapshot endpoints and the flat `StringList` list
 //! endpoints have no stream companion.
@@ -111,6 +112,8 @@ pub(super) fn render_typescript_market_data_methods(endpoints: &[GeneratedEndpoi
             out.push('\n');
         }
     }
+    out.push_str(include_str!("templates/typescript/column_presence.rs.tmpl"));
+    out.push('\n');
     for class_name in MARKET_DATA_IMPL_CLASSES {
         out.push_str(&render_typescript_market_data_impl_block(
             endpoints, class_name,
@@ -610,20 +613,22 @@ fn render_typescript_endpoint_with_columns_method(endpoint: &GeneratedEndpoint) 
 /// same trailing `Options` object the buffered method takes (so `timeoutMs`
 /// and every optional builder param ride along identically), and finally a
 /// JS `callback`. Each decoded gRPC chunk is converted to the typed row
-/// array (`Tick[]`) and delivered to `callback` through a napi-rs
-/// `ThreadsafeFunction`, which routes the call onto the Node main thread —
-/// the only thread allowed to execute V8 — and the Rust future awaits that
-/// callback before the next chunk is fetched. The decoder-owned chunk is
-/// dropped after the awaited callback returns, so peak memory tracks one
-/// chunk, never the full response: the memory-bounded path the `Config` doc
-/// points buffered callers at.
+/// array (`Tick[]`) and its `ColumnPresence`, and delivered to `callback`
+/// through a napi-rs `ThreadsafeFunction`, which routes the call onto the
+/// Node main thread (the only thread allowed to execute V8), and the Rust
+/// future awaits that callback before the next chunk is fetched. The
+/// decoder-owned chunk is dropped after the awaited callback returns, so
+/// peak memory tracks one chunk, never the full response: the
+/// memory-bounded path the `Config` doc points buffered callers at.
 ///
 /// The callback is the LAST positional argument (after the options object)
 /// rather than riding inside the options object: a `ThreadsafeFunction`
 /// cannot be a `#[napi(object)]` field, and a trailing function argument is
-/// the JavaScript idiom for a stream sink. `callback(chunk: Tick[]) => void`
-/// is invoked once per gRPC chunk; a slow callback applies back-pressure by
-/// delaying the next chunk fetch rather than dropping rows.
+/// the JavaScript idiom for a stream sink.
+/// `callback(rows: Tick[], columns: ColumnPresence) => void` is invoked once
+/// per gRPC chunk, `columns` carrying the root each row belongs to; a slow
+/// callback applies back-pressure by delaying the next chunk fetch rather
+/// than dropping rows.
 fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let builder_params = builder_params(endpoint);
@@ -646,10 +651,14 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     };
     let doc = format!(
         "Stream `{name}` rows into `callback` without materialising the full \
-         response in memory. `callback(chunk: {tick}[]) => void` is invoked once \
-         per server chunk; the chunk is freed before that stream's next chunk is \
-         fetched, so peak memory tracks a single chunk rather than the whole \
-         result.{fan_out} This is the \
+         response in memory. `callback(rows: {tick}[], columns: ColumnPresence) => \
+         void` is invoked once per server chunk with the chunk's rows and the \
+         columns its wire carried: when the rows span several roots, as in a flat \
+         file, `columns.symbols` holds the root of each row; when they share one, \
+         as in option and index history, `columns.symbol` holds it; a response \
+         that carries no root, such as stock history, sets neither. The chunk is \
+         freed before that stream's next chunk is fetched, so peak memory tracks \
+         a single chunk rather than the whole result.{fan_out} This is the \
          memory-bounded companion to the `{camel}` method; prefer it \
          for multi-day or full-universe pulls. The returned Promise resolves when \
          the stream drains and rejects (typed like the buffered method) on a wire \
@@ -674,13 +683,13 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         .unwrap();
     }
     writeln!(out, "        options: Option<{struct_name}>,").unwrap();
-    // `ErrorStrategy::CalleeHandled` is false, but the body uses
-    // `call_async_catch`, so a JS-callback throw is returned as
-    // `Err(napi::Error)` and rejects the Promise instead of being routed to
-    // `uncaughtException`.
+    // `ChunkCallback` handles a JS-callback throw as `Err(napi::Error)`, which
+    // rejects the Promise instead of being routed to `uncaughtException`. The
+    // alias hides the callback's arguments from the declaration generator, so
+    // they are spelled out for `index.d.ts`.
     writeln!(
         out,
-        "        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<{tick_class}>, (), Vec<{tick_class}>, napi::Status, false>,"
+        "        #[napi(ts_arg_type = \"(rows: Array<{tick_class}>, columns: ColumnPresence) => void\")] callback: ChunkCallback<{tick_class}>,"
     )
     .unwrap();
     out.push_str("    ) -> napi::Result<()> {\n");
@@ -806,8 +815,9 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     );
     out.push_str("            }\n");
     // Per-chunk: convert the decoder-owned rows to the typed napi row
-    // array, hand it to the `ThreadsafeFunction`, and await the JS callback
-    // result before the next chunk is fetched. `call_async_catch` turns a
+    // array and the chunk's column presence to its napi object, hand both to
+    // the `ThreadsafeFunction`, and await the JS callback result before the
+    // next chunk is fetched. `call_async_catch` turns a
     // thrown JS handler error into `Err(napi::Error)` instead of routing it
     // through `uncaughtException`; the first such error ends the stream, so
     // no further chunk is fetched or handed to the callback.
@@ -823,8 +833,11 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         "                    let rows = {vec_converter}(chunk.as_slice());"
     )
     .unwrap();
+    out.push_str("                    let columns = ColumnPresence::from(chunk.columns());\n");
     out.push_str("                    async move {\n");
-    out.push_str("                        match callback.call_async_catch(rows).await {\n");
+    out.push_str(
+        "                        match callback.call_async_catch((rows, columns).into()).await {\n",
+    );
     out.push_str("                            Ok(_) => std::ops::ControlFlow::Continue(()),\n");
     out.push_str("                            Err(err) => {\n");
     out.push_str("                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);\n");
@@ -940,7 +953,7 @@ mod tests {
 
         assert!(rendered.contains("spawn_napi_task(async move"));
         assert!(rendered.contains(".stream_ticks_async(move |chunk|"));
-        assert!(rendered.contains("callback.call_async_catch(rows).await"));
+        assert!(rendered.contains("callback.call_async_catch((rows, columns).into()).await"));
         assert!(rendered.contains("let callback_error ="));
         assert!(!rendered.contains("callback.call(rows"));
     }

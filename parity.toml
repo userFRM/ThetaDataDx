@@ -110,6 +110,12 @@ python = true
 typescript = true
 cpp = true
 
+[[class]]
+name = "ColumnPresence"
+python = false      # carried on the `<TickName>List` a buffered call returns and a streamed chunk arrives as, whose frames lead with each row's `symbol`
+typescript = true   # plain object, the second argument of every `<endpoint>Stream` callback
+cpp = true          # `thetadatadx::ColumnPresence`, filled through a buffered call's `out_columns` and passed to every `_stream` handler
+
 # `NoDataFoundError` / `TimeoutError` are Python-only back-compat
 # aliases of the canonical `NotFoundError` / `DeadlineExceededError`
 # (registered as the same type object under both names). TypeScript and
