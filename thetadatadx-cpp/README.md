@@ -18,7 +18,7 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes:** point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Typed structs, no JSON:** every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
+- **Typed structs, no JSON:** every blocking tick endpoint returns a `std::vector` of decoded structs, with prices as `double`; the `_async` forms resolve to the same rows with their `ColumnPresence`.
 - **RAII throughout:** clients own their connections and clean up on scope exit; methods throw on failure.
 - **Header plus a thin implementation file:** `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
 
