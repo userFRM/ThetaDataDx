@@ -341,7 +341,11 @@ public:
 /// `_async` method resolves to one beside the rows, and a `_stream` handler
 /// receives one with each chunk. Pass it to the matching
 /// `<tick>_to_arrow_ipc_projected` for a terminal-exact columnar export.
-/// Move-only RAII over the C ABI carrier; frees it on destruction.
+/// Move-only RAII over the C ABI carrier. One filled by a buffered call or
+/// resolved by an `_async` method owns its carrier and frees it on
+/// destruction; the one a `_stream` handler receives is borrowed from the
+/// library and, with every pointer read from it, is valid only for the
+/// duration of that call.
 class ColumnPresence {
 public:
     // Default-constructs to the empty {nullptr, 0} state so a caller can write
@@ -386,8 +390,9 @@ public:
     /// One root per row when the rows span several roots, as in a flat file
     /// or a multi-symbol snapshot; empty otherwise.
     Span<const char* const> symbols() const noexcept { return {raw_.symbols, raw_.symbols_len}; }
-    /// The borrowed C carrier, for the projected serialiser. Not owned by
-    /// the callee; this object retains ownership and frees it.
+    /// The C carrier, for the projected serialiser. Not owned by the callee:
+    /// it lives as long as this object, or, in a `_stream` handler, for the
+    /// duration of the call.
     const ThetaDataDxColumnPresence& raw() const noexcept { return raw_; }
 
 private:
