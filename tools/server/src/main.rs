@@ -30,6 +30,10 @@ mod state;
 mod validation;
 mod ws;
 
+#[cfg(test)]
+#[path = "../tests/golden_responses.rs"]
+pub mod golden_responses;
+
 use std::io::{IsTerminal, Write};
 use std::net::SocketAddr;
 use std::path::Path;

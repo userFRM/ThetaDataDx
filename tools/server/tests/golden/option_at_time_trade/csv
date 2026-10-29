@@ -1,0 +1,9 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_at_time_trade_20240610_20240614.csv"
+
+symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price
+SPY,2024-06-21,500.000,CALL,2024-06-11T09:55:42.085,540454040,255,255,255,255,129,2,11,33.45
+SPY,2024-06-21,500.000,CALL,2024-06-12T09:44:00.223,1021730234,255,255,255,255,131,10,5,43.19
+SPY,2024-06-21,500.000,CALL,2024-06-13T09:58:53.021,1746764149,255,255,255,255,130,3,6,42.52
+SPY,2024-06-21,500.000,CALL,2024-06-14T09:55:03.122,-1986932228,255,255,255,255,130,10,6,41.71

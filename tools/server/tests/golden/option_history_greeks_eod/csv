@@ -1,0 +1,7 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_history_greeks_eod_20240610_20240614.csv"
+
+symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price
+SPY,2024-06-21,500.000,CALL,2024-06-10T15:27:23.438,35.32,36.38,35.18,36.32,692,23,100,9,35.66,50,75,5,36.25,50,1.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0000,0.0142,2024-06-10T17:15:52.665,535.6600
+SPY,2024-06-21,500.000,CALL,2024-06-11T16:14:38.527,34.38,37.91,33.16,37.91,3133,27,100,9,37.55,50,4,7,37.91,50,0.9908,-0.0925,2.1903,13.5427,-14.5764,14.1013,0.0014,-0.3060,1.0051,64.1945,250.7789,-4.5627,-0.0002,0.0354,0.1153,854.2514,2.3597,2.3287,-0.9886,0.0017,0.1875,0.0000,2024-06-11T17:17:29.196,536.9500

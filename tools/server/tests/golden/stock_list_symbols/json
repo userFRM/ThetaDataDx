@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"symbol":".PR.I.PR.A"},{"symbol":".PR.I.PR.B"},{"symbol":".PR.S/WI"},{"symbol":"A"},{"symbol":"AA"},{"symbol":"AAA"},{"symbol":"AAAA"},{"symbol":"AAAB"},{"symbol":"AAAC"},{"symbol":"AAAD"},{"symbol":"AAAP"},{"symbol":"AAAU"},{"symbol":"AABA"},{"symbol":"AAC"},{"symbol":"AAC.U"},{"symbol":"AAC.WS"},{"symbol":"AACB"},{"symbol":"AACBR"},{"symbol":"AACBU"},{"symbol":"AACC"},{"symbol":"EWP"},{"symbol":"EWQ"},{"symbol":"EWRE"},{"symbol":"EWS"},{"symbol":"EWSC"},{"symbol":"EWT"},{"symbol":"EWTX"},{"symbol":"EWU"},{"symbol":"EWUS"},{"symbol":"EWV"},{"symbol":"EWW"},{"symbol":"EWX"},{"symbol":"EWY"},{"symbol":"EWZ"},{"symbol":"EWZS"},{"symbol":"EXA"},{"symbol":"EXAC"},{"symbol":"EXAI"},{"symbol":"EXAR"},{"symbol":"EXAS"}]}

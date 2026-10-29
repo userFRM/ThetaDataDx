@@ -1,0 +1,9 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>type</th><th>open</th><th>close</th></tr></thead>
+<tbody><tr><td>open</td><td>09:30:00</td><td>16:00:00</td></tr>
+</tbody></table></body></html>

@@ -1,0 +1,9 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>timestamp</th><th>symbol</th><th>expiration</th><th>strike</th><th>right</th><th>open_interest</th></tr></thead>
+<tbody><tr><td>2026-10-29T06:30:00.729</td><td>SPY</td><td>2026-12-18</td><td>600.000</td><td>CALL</td><td>4443</td></tr>
+</tbody></table></body></html>

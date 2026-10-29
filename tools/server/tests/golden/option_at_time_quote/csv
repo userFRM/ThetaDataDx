@@ -1,0 +1,10 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_at_time_quote_20240610_20240614.csv"
+
+symbol,expiration,strike,right,timestamp,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition
+SPY,2024-06-21,500.000,CALL,2024-06-10T09:59:59.429,100,9,33.71,50,75,5,34.37,50
+SPY,2024-06-21,500.000,CALL,2024-06-11T09:59:58.373,100,9,33.23,50,75,5,33.94,50
+SPY,2024-06-21,500.000,CALL,2024-06-12T09:59:59.789,100,9,43.06,50,93,42,43.64,50
+SPY,2024-06-21,500.000,CALL,2024-06-13T09:59:59.350,50,1,42.23,50,85,5,42.85,50
+SPY,2024-06-21,500.000,CALL,2024-06-14T09:59:59.945,1,47,40.02,50,10,4,43.35,50

@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"close":null,"open":null,"type":"full_close"}]}

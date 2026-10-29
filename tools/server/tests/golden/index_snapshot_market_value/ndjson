@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"market_price":7720.43,"symbol":"SPX","timestamp":"2026-10-29T16:04:38.000"}

@@ -1,0 +1,8 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"created":"2024-06-10","rate":5.3200}
+{"created":"2024-06-11","rate":5.3200}
+{"created":"2024-06-12","rate":5.3100}
+{"created":"2024-06-13","rate":5.3100}
+{"created":"2024-06-14","rate":5.3100}

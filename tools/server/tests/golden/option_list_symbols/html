@@ -1,0 +1,48 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th></tr></thead>
+<tbody><tr><td>1BXSL</td></tr>
+<tr><td>1CORZ</td></tr>
+<tr><td>1INVH</td></tr>
+<tr><td>1LNCO</td></tr>
+<tr><td>1ZURA</td></tr>
+<tr><td>2CLSK</td></tr>
+<tr><td>2PRKS</td></tr>
+<tr><td>2SAVA</td></tr>
+<tr><td>9AC</td></tr>
+<tr><td>9AD</td></tr>
+<tr><td>9AE</td></tr>
+<tr><td>9BC</td></tr>
+<tr><td>9BD</td></tr>
+<tr><td>9BE</td></tr>
+<tr><td>9CC</td></tr>
+<tr><td>9CD</td></tr>
+<tr><td>9CE</td></tr>
+<tr><td>9DC</td></tr>
+<tr><td>9DD</td></tr>
+<tr><td>9DE</td></tr>
+<tr><td>LITE</td></tr>
+<tr><td>LITE1</td></tr>
+<tr><td>LITM</td></tr>
+<tr><td>LITM1</td></tr>
+<tr><td>LITS</td></tr>
+<tr><td>LITX</td></tr>
+<tr><td>LITZ</td></tr>
+<tr><td>LITZ1</td></tr>
+<tr><td>LIVE</td></tr>
+<tr><td>LIVE1</td></tr>
+<tr><td>LIVN</td></tr>
+<tr><td>LIVR</td></tr>
+<tr><td>LIVX</td></tr>
+<tr><td>LIWA</td></tr>
+<tr><td>LIZI</td></tr>
+<tr><td>LIZI1</td></tr>
+<tr><td>LJC</td></tr>
+<tr><td>LJD</td></tr>
+<tr><td>LJE</td></tr>
+<tr><td>LJPC</td></tr>
+</tbody></table></body></html>

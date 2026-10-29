@@ -1,0 +1,5 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"ask":192.290,"ask_condition":0,"ask_exchange":7,"ask_size":1,"bid":192.270,"bid_condition":0,"bid_exchange":65,"bid_size":5,"close":193.120,"count":1106141,"created":"2024-06-10T17:15:55.261","high":197.300,"last_trade":"2024-06-10T17:15:52.757","low":192.150,"open":196.890,"volume":96522643}
+{"ask":207.580,"ask_condition":0,"ask_exchange":1,"ask_size":1,"bid":207.570,"bid_condition":0,"bid_exchange":7,"bid_size":15,"close":207.150,"count":1590634,"created":"2024-06-11T17:17:35.950","high":207.160,"last_trade":"2024-06-11T17:17:32.214","low":193.630,"open":193.670,"volume":170112246}

@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"contract":{"expiration":"2026-12-18","right":"CALL","strike":600.000,"symbol":"SPY"},"data":[{"close":180.00,"count":5,"high":180.00,"low":175.03,"open":175.36,"timestamp":"2026-10-28T16:01:48.841","volume":18}]}]}

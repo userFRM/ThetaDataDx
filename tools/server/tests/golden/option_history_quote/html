@@ -1,0 +1,19 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th><th>timestamp</th><th>bid_size</th><th>bid_exchange</th><th>bid</th><th>bid_condition</th><th>ask_size</th><th>ask_exchange</th><th>ask</th><th>ask_condition</th></tr></thead>
+<tbody><tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:30:00.000</td><td>0</td><td>0</td><td>0.0</td><td>0</td><td>0</td><td>0</td><td>0.0</td><td>0</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:31:00.000</td><td>325</td><td>5</td><td>40.52</td><td>50</td><td>325</td><td>5</td><td>41.78</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:32:00.000</td><td>100</td><td>9</td><td>40.61</td><td>50</td><td>325</td><td>5</td><td>41.83</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:33:00.000</td><td>250</td><td>5</td><td>40.60</td><td>50</td><td>325</td><td>5</td><td>41.72</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:34:00.000</td><td>432</td><td>5</td><td>40.78</td><td>50</td><td>264</td><td>5</td><td>41.88</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:35:00.000</td><td>264</td><td>5</td><td>40.91</td><td>50</td><td>264</td><td>5</td><td>41.98</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:36:00.000</td><td>50</td><td>1</td><td>40.94</td><td>50</td><td>325</td><td>5</td><td>41.96</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:37:00.000</td><td>264</td><td>5</td><td>40.99</td><td>50</td><td>339</td><td>5</td><td>41.96</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:38:00.000</td><td>339</td><td>5</td><td>41.15</td><td>50</td><td>339</td><td>5</td><td>42.15</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:39:00.000</td><td>339</td><td>5</td><td>41.25</td><td>50</td><td>339</td><td>5</td><td>42.23</td><td>50</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:40:00.000</td><td>339</td><td>5</td><td>41.33</td><td>50</td><td>339</td><td>5</td><td>42.31</td><td>50</td></tr>
+</tbody></table></body></html>

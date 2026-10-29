@@ -1,0 +1,19 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>timestamp</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>count</th><th>vwap</th></tr></thead>
+<tbody><tr><td>2024-06-14T09:30:00.000</td><td>213.8500</td><td>214.1141</td><td>213.660</td><td>214.0700</td><td>1242274</td><td>11861</td><td>213.88</td></tr>
+<tr><td>2024-06-14T09:31:00.000</td><td>214.0950</td><td>214.210</td><td>213.620</td><td>213.635</td><td>470818</td><td>3828</td><td>213.89</td></tr>
+<tr><td>2024-06-14T09:32:00.000</td><td>213.650</td><td>213.6700</td><td>213.318</td><td>213.610</td><td>279590</td><td>3951</td><td>213.84</td></tr>
+<tr><td>2024-06-14T09:33:00.000</td><td>213.6592</td><td>214.770</td><td>213.598</td><td>214.6750</td><td>519233</td><td>5692</td><td>213.93</td></tr>
+<tr><td>2024-06-14T09:34:00.000</td><td>214.670</td><td>215.170</td><td>214.380</td><td>214.5250</td><td>516308</td><td>6120</td><td>214.09</td></tr>
+<tr><td>2024-06-14T09:35:00.000</td><td>214.5296</td><td>214.690</td><td>214.320</td><td>214.515</td><td>284586</td><td>4074</td><td>214.12</td></tr>
+<tr><td>2024-06-14T09:36:00.000</td><td>214.515</td><td>214.835</td><td>214.190</td><td>214.650</td><td>328016</td><td>3960</td><td>214.16</td></tr>
+<tr><td>2024-06-14T09:37:00.000</td><td>214.6799</td><td>214.6800</td><td>214.1300</td><td>214.4050</td><td>272320</td><td>3412</td><td>214.18</td></tr>
+<tr><td>2024-06-14T09:38:00.000</td><td>214.3985</td><td>214.660</td><td>214.310</td><td>214.6005</td><td>199272</td><td>2926</td><td>214.19</td></tr>
+<tr><td>2024-06-14T09:39:00.000</td><td>214.6050</td><td>214.9061</td><td>214.520</td><td>214.560</td><td>273286</td><td>3522</td><td>214.22</td></tr>
+<tr><td>2024-06-14T09:40:00.000</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0</td><td>0</td><td>214.22</td></tr>
+</tbody></table></body></html>

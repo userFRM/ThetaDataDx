@@ -1,0 +1,9 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th><th>timestamp</th><th>bid</th><th>ask</th><th>delta</th><th>theta</th><th>vega</th><th>rho</th><th>epsilon</th><th>lambda</th><th>gamma</th><th>vanna</th><th>charm</th><th>vomma</th><th>veta</th><th>vera</th><th>speed</th><th>zomma</th><th>color</th><th>ultima</th><th>d1</th><th>d2</th><th>dual_delta</th><th>dual_gamma</th><th>implied_vol</th><th>iv_error</th><th>underlying_timestamp</th><th>underlying_price</th></tr></thead>
+<tbody><tr><td>SPY</td><td>2026-12-18</td><td>600.000</td><td>CALL</td><td>2026-10-29T16:15:00.082</td><td>168.6600</td><td>171.3700</td><td>0.9571</td><td>-0.1663</td><td>25.8944</td><td>76.9433</td><td>-100.2323</td><td>4.3049</td><td>0.0007</td><td>-0.3497</td><td>0.4973</td><td>170.3615</td><td>336.7376</td><td>-40.2894</td><td>0.0000</td><td>0.0032</td><td>0.0045</td><td>-134.6836</td><td>1.7160</td><td>1.5650</td><td>-0.9361</td><td>0.0012</td><td>0.4082</td><td>0.0000</td><td>2026-10-29T17:09:39.990</td><td>764.6300</td></tr>
+</tbody></table></body></html>

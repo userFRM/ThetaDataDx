@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="index_snapshot_price.csv"
+
+timestamp,symbol,price
+2026-10-29T16:04:38.000,SPX,7720.39

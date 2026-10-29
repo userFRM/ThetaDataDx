@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_snapshot_trade.csv"
+
+symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price
+SPY,2026-12-18,600.000,CALL,2026-10-28T16:01:48.841,-629032505,,,,,18,1,,180.00

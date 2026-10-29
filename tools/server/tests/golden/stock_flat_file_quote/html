@@ -1,0 +1,48 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>root</th><th>interval_ms_of_day</th><th>quote_ms_of_day</th><th>bid_size</th><th>bid_exchange</th><th>bid</th><th>bid_condition</th><th>ask_size</th><th>ask_exchange</th><th>ask</th><th>ask_condition</th><th>date</th></tr></thead>
+<tbody><tr><td>HCMA</td><td>14460000</td><td>14435873</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>23760000</td><td>23731958</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>25140000</td><td>25080050</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>25260000</td><td>25203960</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>28920000</td><td>28868151</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>32460000</td><td>32431802</td><td>100</td><td>7</td><td>10.26</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>32580000</td><td>32574798</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33120000</td><td>33064052</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33480000</td><td>33461794</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33600000</td><td>33598711</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33660000</td><td>33600937</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33720000</td><td>33700467</td><td>500</td><td>1</td><td>10.28</td><td>0</td><td>100</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>33960000</td><td>33910062</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>500</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>34140000</td><td>34139385</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>500</td><td>7</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>34200000</td><td>34199018</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>400</td><td>1</td><td>10.35</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>34260000</td><td>34222075</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>1800</td><td>1</td><td>10.33</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>34440000</td><td>34392071</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>1800</td><td>1</td><td>10.33</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>34740000</td><td>34690718</td><td>900</td><td>1</td><td>10.28</td><td>0</td><td>1800</td><td>1</td><td>10.33</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>35160000</td><td>35100092</td><td>2700</td><td>7</td><td>10.29</td><td>0</td><td>1800</td><td>1</td><td>10.33</td><td>0</td><td>20261028</td></tr>
+<tr><td>HCMA</td><td>36420000</td><td>36370128</td><td>2700</td><td>7</td><td>10.29</td><td>0</td><td>1800</td><td>1</td><td>10.33</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36360000</td><td>36344065</td><td>600</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>3</td><td>17.9</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36420000</td><td>36362104</td><td>600</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>3</td><td>17.9</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36540000</td><td>36522811</td><td>100</td><td>3</td><td>17.8</td><td>0</td><td>100</td><td>60</td><td>17.89</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36600000</td><td>36596388</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>600</td><td>3</td><td>17.89</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36660000</td><td>36659682</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>600</td><td>3</td><td>17.89</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>36840000</td><td>36809104</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37020000</td><td>36982051</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37080000</td><td>37076940</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37140000</td><td>37111305</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37320000</td><td>37296941</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37440000</td><td>37387445</td><td>900</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37620000</td><td>37600302</td><td>500</td><td>3</td><td>17.8</td><td>0</td><td>800</td><td>65</td><td>17.88</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37680000</td><td>37659082</td><td>100</td><td>3</td><td>17.8</td><td>0</td><td>100</td><td>1</td><td>17.85</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37740000</td><td>37736328</td><td>100</td><td>3</td><td>17.78</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37800000</td><td>37764096</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>37980000</td><td>37943867</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>38100000</td><td>38075670</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>38220000</td><td>38212960</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>38280000</td><td>38272944</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+<tr><td>BAC.PR.N</td><td>38340000</td><td>38320363</td><td>200</td><td>3</td><td>17.77</td><td>0</td><td>400</td><td>8</td><td>17.83</td><td>0</td><td>20261028</td></tr>
+</tbody></table></body></html>

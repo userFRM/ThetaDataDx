@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"close":7720.39,"count":0,"high":7732.21,"low":7690.94,"open":7699.61,"symbol":"SPX","timestamp":"2026-10-29T16:04:38.000","volume":0}]}

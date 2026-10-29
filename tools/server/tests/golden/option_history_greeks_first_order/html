@@ -1,0 +1,15 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th><th>timestamp</th><th>bid</th><th>ask</th><th>delta</th><th>theta</th><th>vega</th><th>rho</th><th>epsilon</th><th>lambda</th><th>implied_vol</th><th>iv_error</th><th>underlying_timestamp</th><th>underlying_price</th></tr></thead>
+<tbody><tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:30:00.000</td><td>0.0</td><td>0.0</td><td>0.99999</td><td>0.00000</td><td>0.00000</td><td>0.00000</td><td>0.00000</td><td>0.00000</td><td>0.00000</td><td>100.00000</td><td>2024-06-14T09:30:00.000</td><td>540.86</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:35:00.000</td><td>40.91</td><td>41.98</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0060</td><td>2024-06-14T09:35:00.000</td><td>541.18</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:40:00.000</td><td>41.33</td><td>42.31</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0052</td><td>2024-06-14T09:40:00.000</td><td>541.53</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:45:00.000</td><td>41.21</td><td>42.08</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0050</td><td>2024-06-14T09:45:00.000</td><td>541.34</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:50:00.000</td><td>41.35</td><td>42.24</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0030</td><td>2024-06-14T09:50:00.000</td><td>541.41</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:55:00.000</td><td>41.20</td><td>42.09</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0038</td><td>2024-06-14T09:55:00.000</td><td>541.29</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T10:00:00.000</td><td>40.02</td><td>43.35</td><td>1.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0000</td><td>0.0081</td><td>2024-06-14T10:00:00.000</td><td>541.51</td></tr>
+</tbody></table></body></html>

@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"ask":350.65,"ask_condition":0,"ask_exchange":29,"ask_size":4,"bid":350.50,"bid_condition":0,"bid_exchange":29,"bid_size":480,"symbol":"AAPL","timestamp":"2026-10-29T17:10:13.040"}]}

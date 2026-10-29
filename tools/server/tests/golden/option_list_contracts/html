@@ -1,0 +1,28 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th></tr></thead>
+<tbody><tr><td>SPY</td><td>2024-12-20</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-01-17</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>225.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-06-20</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-09-20</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2025-09-19</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-12-20</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>230.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2024-09-20</td><td>230.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2024-09-20</td><td>235.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2024-12-20</td><td>235.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-06-20</td><td>235.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-09-20</td><td>240.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2025-09-19</td><td>235.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-12-20</td><td>240.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-12-19</td><td>235.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-03-21</td><td>240.000</td><td>CALL</td></tr>
+<tr><td>SPY</td><td>2025-03-21</td><td>240.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2025-06-20</td><td>240.000</td><td>PUT</td></tr>
+<tr><td>SPY</td><td>2024-08-16</td><td>245.000</td><td>PUT</td></tr>
+</tbody></table></body></html>

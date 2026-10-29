@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"strike":533.000,"symbol":"SPY"},{"strike":320.000,"symbol":"SPY"},{"strike":448.000,"symbol":"SPY"},{"strike":512.000,"symbol":"SPY"},{"strike":576.000,"symbol":"SPY"},{"strike":640.000,"symbol":"SPY"},{"strike":405.000,"symbol":"SPY"},{"strike":469.000,"symbol":"SPY"},{"strike":575.000,"symbol":"SPY"},{"strike":426.000,"symbol":"SPY"},{"strike":490.000,"symbol":"SPY"},{"strike":554.000,"symbol":"SPY"},{"strike":255.000,"symbol":"SPY"},{"strike":447.000,"symbol":"SPY"},{"strike":511.000,"symbol":"SPY"},{"strike":553.000,"symbol":"SPY"},{"strike":340.000,"symbol":"SPY"},{"strike":468.000,"symbol":"SPY"},{"strike":532.000,"symbol":"SPY"},{"strike":660.000,"symbol":"SPY"}]}

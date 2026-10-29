@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"expiration":["2024-06-21"],"open_interest":[49340],"right":["CALL"],"strike":[500.000],"symbol":["SPY"],"timestamp":["2024-06-14T06:30:01.545"]}

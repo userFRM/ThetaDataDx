@@ -1,0 +1,48 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>root</th><th>expiration</th><th>strike</th><th>right</th><th>ms_of_day</th><th>open_interest</th><th>date</th></tr></thead>
+<tbody><tr><td>SPY</td><td>20261030</td><td>808.0</td><td>P</td><td>23400572</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>808.0</td><td>C</td><td>23400707</td><td>8434</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>723.0</td><td>C</td><td>23400573</td><td>41</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>723.0</td><td>P</td><td>23400738</td><td>2889</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>595.0</td><td>C</td><td>23400813</td><td>314</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>595.0</td><td>P</td><td>23400739</td><td>23823</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>765.0</td><td>P</td><td>23400737</td><td>45690</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>765.0</td><td>C</td><td>23400816</td><td>6254</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>510.0</td><td>P</td><td>23400671</td><td>36293</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>510.0</td><td>C</td><td>23400866</td><td>11</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261105</td><td>765.0</td><td>P</td><td>23400978</td><td>1864</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261105</td><td>765.0</td><td>C</td><td>23403169</td><td>1349</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>850.0</td><td>C</td><td>23400690</td><td>2318</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>850.0</td><td>P</td><td>23400658</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>681.0</td><td>P</td><td>23400673</td><td>660</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>681.0</td><td>C</td><td>23400867</td><td>19</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>807.0</td><td>P</td><td>23400693</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>807.0</td><td>C</td><td>23400763</td><td>3242</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>724.0</td><td>C</td><td>23400566</td><td>104</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261030</td><td>724.0</td><td>P</td><td>23400628</td><td>1326</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20280121</td><td>1040.0</td><td>P</td><td>23400693</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20280121</td><td>1040.0</td><td>C</td><td>23400614</td><td>2509</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261127</td><td>766.0</td><td>P</td><td>23400566</td><td>685</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261127</td><td>766.0</td><td>C</td><td>23401994</td><td>249</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270219</td><td>430.0</td><td>C</td><td>23400570</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261028</td><td>807.0</td><td>P</td><td>23400662</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261127</td><td>725.0</td><td>C</td><td>23403127</td><td>6</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270219</td><td>430.0</td><td>P</td><td>23400568</td><td>1</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261127</td><td>725.0</td><td>P</td><td>23400588</td><td>1083</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261028</td><td>807.0</td><td>C</td><td>23400845</td><td>7</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>225.0</td><td>C</td><td>23403755</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>225.0</td><td>P</td><td>23400729</td><td>35</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>1290.0</td><td>P</td><td>23400572</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20280121</td><td>700.0</td><td>C</td><td>23403408</td><td>2699</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20280121</td><td>700.0</td><td>P</td><td>23400568</td><td>10306</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>1290.0</td><td>C</td><td>23401512</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261103</td><td>807.0</td><td>P</td><td>23400849</td><td>0</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20261103</td><td>807.0</td><td>C</td><td>23402044</td><td>6</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>610.0</td><td>C</td><td>23400690</td><td>137</td><td>20261028</td></tr>
+<tr><td>SPY</td><td>20270917</td><td>610.0</td><td>P</td><td>23400732</td><td>972</td><td>20261028</td></tr>
+</tbody></table></body></html>

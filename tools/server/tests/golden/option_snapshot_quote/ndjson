@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"ask":171.37,"ask_condition":50,"ask_exchange":4,"ask_size":30,"bid":168.66,"bid_condition":50,"bid_exchange":1,"bid_size":1,"expiration":"2026-12-18","right":"CALL","strike":600.000,"symbol":"SPY","timestamp":"2026-10-29T16:15:00.082"}

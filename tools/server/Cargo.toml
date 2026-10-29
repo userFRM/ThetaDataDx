@@ -14,6 +14,9 @@ categories = ["finance", "network-programming", "web-programming::http-server"]
 # Binary — not published to crates.io. Only `thetadatadx-rs` is published
 # per the publish-crate CI job.
 publish = false
+# The one test outside `src/`, `tests/golden_responses.rs`, needs the server's
+# private modules, so `main.rs` includes it as a unit-test module instead.
+autotests = false
 
 [workspace]
 
@@ -73,6 +76,15 @@ rpassword = "7.5.4"
 # to drive the governor composition with an injected peer `ConnectInfo`
 # without binding a real socket or a live upstream client.
 tower = { version = "0.5.3", features = ["limit", "util"] }
+# The golden-response test: the engine's test-only client constructor and the
+# in-process gRPC mock it shares with the engine's own suites.
+thetadatadx = { package = "thetadatadx-rs", path = "../../thetadatadx-rs", features = ["__test-helpers"] }
+bytes = "1"
+futures = "0.3"
+futures-core = "0.3"
+h2 = "0.4"
+http = "1"
+prost = "=0.14.4"
 
 [lints.rust]
 warnings = "deny"

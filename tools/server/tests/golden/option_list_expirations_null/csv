@@ -1,0 +1,25 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_list_expirations.csv"
+
+symbol,expiration
+SPY,2012-06-01
+SPY,2012-06-08
+SPY,2012-06-16
+SPY,2012-06-22
+SPY,2012-06-29
+SPY,2012-07-06
+SPY,2012-07-13
+SPY,2012-07-21
+SPY,2012-07-27
+SPY,2012-08-03
+SPY,2012-08-10
+SPY,2012-08-18
+SPY,2012-08-24
+SPY,2012-08-31
+SPY,2012-09-07
+SPY,2012-09-14
+SPY,2012-09-22
+SPY,2012-09-28
+SPY,2012-10-05
+SPY,2012-10-12

@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"market_ask":350.64,"market_bid":350.51,"market_price":350.57,"symbol":"AAPL","timestamp":"2026-10-29T17:10:13.040"}]}

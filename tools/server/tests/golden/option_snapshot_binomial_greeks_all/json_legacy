@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"ask":[171.3700],"bid":[168.6600],"charm":[0.4973],"color":[0.0045],"d1":[1.7160],"d2":[1.5650],"delta":[0.9571],"dual_delta":[-0.9361],"dual_gamma":[0.0012],"epsilon":[-100.2323],"expiration":["2026-12-18"],"gamma":[0.0007],"implied_vol":[0.4082],"iv_error":[0.0000],"lambda":[4.3049],"rho":[76.9433],"right":["CALL"],"speed":[0.0000],"strike":[600.000],"symbol":["SPY"],"theta":[-0.1663],"timestamp":["2026-10-29T16:15:00.082"],"ultima":[-134.6836],"underlying_price":[764.6300],"underlying_timestamp":["2026-10-29T17:09:39.990"],"vanna":[-0.3497],"vega":[25.8944],"vera":[-40.2894],"veta":[336.7376],"vomma":[170.3615],"zomma":[0.0032]}

@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_snapshot_binomial_greeks_all.csv"
+
+symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price
+SPY,2026-12-18,600.000,CALL,2026-10-29T16:15:00.082,168.6600,171.3700,0.9571,-0.1663,25.8944,76.9433,-100.2323,4.3049,0.0007,-0.3497,0.4973,170.3615,336.7376,-40.2894,0.0000,0.0032,0.0045,-134.6836,1.7160,1.5650,-0.9361,0.0012,0.4082,0.0000,2026-10-29T17:09:39.990,764.6300

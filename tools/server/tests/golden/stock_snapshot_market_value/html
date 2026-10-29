@@ -1,0 +1,9 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>timestamp</th><th>symbol</th><th>market_bid</th><th>market_ask</th><th>market_price</th></tr></thead>
+<tbody><tr><td>2026-10-29T17:10:13.040</td><td>AAPL</td><td>350.51</td><td>350.64</td><td>350.57</td></tr>
+</tbody></table></body></html>

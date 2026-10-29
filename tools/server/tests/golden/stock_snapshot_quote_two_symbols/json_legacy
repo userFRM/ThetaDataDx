@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"ask":[527.95,350.65],"ask_condition":[0,0],"ask_exchange":[29,29],"ask_size":[18,4],"bid":[527.02,350.50],"bid_condition":[0,0],"bid_exchange":[29,29],"bid_size":[20,480],"symbol":["MSFT","AAPL"],"timestamp":["2026-10-29T17:10:04.789","2026-10-29T17:10:13.040"]}

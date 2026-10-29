@@ -1,0 +1,18 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="calendar_year.csv"
+
+date,type,open,close
+2024-01-01,full_close,,
+2024-01-15,full_close,,
+2024-02-19,full_close,,
+2024-03-29,full_close,,
+2024-05-27,full_close,,
+2024-06-19,full_close,,
+2024-07-03,early_close,09:30:00,13:00:00
+2024-07-04,full_close,,
+2024-09-02,full_close,,
+2024-11-28,full_close,,
+2024-11-29,early_close,09:30:00,13:00:00
+2024-12-24,early_close,09:30:00,13:00:00
+2024-12-25,full_close,,

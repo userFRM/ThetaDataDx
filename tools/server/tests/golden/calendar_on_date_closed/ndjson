@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"close":null,"open":null,"type":"full_close"}

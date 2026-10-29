@@ -53,3 +53,7 @@ thetadatadx-ts/index.d.ts               text eol=lf linguist-generated=true
 # builds emit the same bytes as Linux and the build-time drift check
 # does not false-positive.
 thetadatadx-rs/proto/beta_endpoints.snapshot.rs text eol=lf linguist-generated=true
+
+# The local server's golden responses are compared byte for byte, line endings
+# included (the registry CSV ends its lines with CRLF).
+tools/server/tests/golden/** -text

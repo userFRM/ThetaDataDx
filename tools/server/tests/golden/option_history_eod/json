@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"contract":{"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY"},"data":[{"ask":36.25,"ask_condition":50,"ask_exchange":5,"ask_size":75,"bid":35.66,"bid_condition":50,"bid_exchange":9,"bid_size":100,"close":36.32,"count":23,"created":"2024-06-10T17:22:49.198","high":36.38,"last_trade":"2024-06-10T15:27:23.438","low":35.18,"open":35.32,"volume":692},{"ask":37.91,"ask_condition":50,"ask_exchange":7,"ask_size":4,"bid":37.55,"bid_condition":50,"bid_exchange":9,"bid_size":100,"close":37.91,"count":27,"created":"2024-06-11T17:16:02.906","high":37.91,"last_trade":"2024-06-11T16:14:38.527","low":33.16,"open":34.38,"volume":3133}]}]}

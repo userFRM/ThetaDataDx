@@ -1,0 +1,7 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_history_eod_20240610_20240614.csv"
+
+symbol,expiration,strike,right,created,last_trade,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition
+SPY,2024-06-21,500.000,CALL,2024-06-10T17:22:49.198,2024-06-10T15:27:23.438,35.32,36.38,35.18,36.32,692,23,100,9,35.66,50,75,5,36.25,50
+SPY,2024-06-21,500.000,CALL,2024-06-11T17:16:02.906,2024-06-11T16:14:38.527,34.38,37.91,33.16,37.91,3133,27,100,9,37.55,50,4,7,37.91,50

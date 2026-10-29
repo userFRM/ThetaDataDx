@@ -1,0 +1,14 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"close":214.0700,"count":11861,"high":214.1141,"low":213.660,"open":213.8500,"timestamp":"2024-06-14T09:30:00.000","volume":1242274,"vwap":213.88}
+{"close":213.635,"count":3828,"high":214.210,"low":213.620,"open":214.0950,"timestamp":"2024-06-14T09:31:00.000","volume":470818,"vwap":213.89}
+{"close":213.610,"count":3951,"high":213.6700,"low":213.318,"open":213.650,"timestamp":"2024-06-14T09:32:00.000","volume":279590,"vwap":213.84}
+{"close":214.6750,"count":5692,"high":214.770,"low":213.598,"open":213.6592,"timestamp":"2024-06-14T09:33:00.000","volume":519233,"vwap":213.93}
+{"close":214.5250,"count":6120,"high":215.170,"low":214.380,"open":214.670,"timestamp":"2024-06-14T09:34:00.000","volume":516308,"vwap":214.09}
+{"close":214.515,"count":4074,"high":214.690,"low":214.320,"open":214.5296,"timestamp":"2024-06-14T09:35:00.000","volume":284586,"vwap":214.12}
+{"close":214.650,"count":3960,"high":214.835,"low":214.190,"open":214.515,"timestamp":"2024-06-14T09:36:00.000","volume":328016,"vwap":214.16}
+{"close":214.4050,"count":3412,"high":214.6800,"low":214.1300,"open":214.6799,"timestamp":"2024-06-14T09:37:00.000","volume":272320,"vwap":214.18}
+{"close":214.6005,"count":2926,"high":214.660,"low":214.310,"open":214.3985,"timestamp":"2024-06-14T09:38:00.000","volume":199272,"vwap":214.19}
+{"close":214.560,"count":3522,"high":214.9061,"low":214.520,"open":214.6050,"timestamp":"2024-06-14T09:39:00.000","volume":273286,"vwap":214.22}
+{"close":0.0,"count":0,"high":0.0,"low":0.0,"open":0.0,"timestamp":"2024-06-14T09:40:00.000","volume":0,"vwap":214.22}

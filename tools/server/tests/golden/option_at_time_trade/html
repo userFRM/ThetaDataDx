@@ -1,0 +1,12 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th><th>timestamp</th><th>sequence</th><th>ext_condition1</th><th>ext_condition2</th><th>ext_condition3</th><th>ext_condition4</th><th>condition</th><th>size</th><th>exchange</th><th>price</th></tr></thead>
+<tbody><tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-11T09:55:42.085</td><td>540454040</td><td>255</td><td>255</td><td>255</td><td>255</td><td>129</td><td>2</td><td>11</td><td>33.45</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-12T09:44:00.223</td><td>1021730234</td><td>255</td><td>255</td><td>255</td><td>255</td><td>131</td><td>10</td><td>5</td><td>43.19</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-13T09:58:53.021</td><td>1746764149</td><td>255</td><td>255</td><td>255</td><td>255</td><td>130</td><td>3</td><td>6</td><td>42.52</td></tr>
+<tr><td>SPY</td><td>2024-06-21</td><td>500.000</td><td>CALL</td><td>2024-06-14T09:55:03.122</td><td>-1986932228</td><td>255</td><td>255</td><td>255</td><td>255</td><td>130</td><td>10</td><td>6</td><td>41.71</td></tr>
+</tbody></table></body></html>
