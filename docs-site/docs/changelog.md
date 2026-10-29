@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The local server no longer holds a CPU core while the stream is idle.** It started the streaming bridge at launch with the SDK's default spin wait, which keeps one core fully busy for as long as the process runs, nights and weekends included. Without a config file it now backs off when no events arrive, as the MCP server does: it spins while events flow and sleeps after a short idle stretch, so an event arriving after a quiet spell can be delivered up to one park interval (1 ms by default) late. A config file that sets `wait_mode` is used as written.
+
+- **The local server returns large option chains in the terminal's row order.** It split large history requests into concurrent sub-requests and merged the results, and for an option chain the merge returns the contracts sorted by expiration, strike and right, because the vendor enumerates them in an order no column reproduces. The terminal sends one request and returns the vendor's order. Without a config file the server now sends each request upstream once, as the terminal does, so the rows and their order match it; a large chain pull takes about as long as it does on the terminal. A config file that sets `bulk_fetch = "auto"` keeps the faster split and its sorted order.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added
