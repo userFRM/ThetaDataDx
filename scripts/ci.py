@@ -91,7 +91,6 @@ GATES: dict[str, list[list[str]]] = {
     "version_sync": (
         _ci("check_version_sync", "--selftest") + _ci("check_version_sync")
     ),
-    "lockfile_drift": _ci("check_lockfile_drift"),
     # Rebuilds the napi bindings and diffs the committed output. Skipped by
     # `all` (see SLOW_GATES) because it compiles the crate; run it by name
     # before pushing anything that touches the TypeScript surface or bumps

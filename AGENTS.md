@@ -25,9 +25,9 @@ binaries.
 | `scripts/ci/` | The gate suite. One script per gate, dispatched by `scripts/ci.py`. |
 | `docs-site/` | The published documentation. Its changelog is kept identical to `CHANGELOG.md`. |
 
-**`thetadatadx-py`, `thetadatadx-ts`, `tools/mcp` and `tools/server` are excluded from the Cargo
-workspace.** A workspace-wide `cargo test` does not touch them. This is the single most common way a
-change reaches CI untested. Run them separately; see §4.
+Every crate is a member of one Cargo workspace with one `Cargo.lock`, so `cargo test --workspace` and
+`cargo clippy --workspace` cover the bindings and both binaries. The Python and TypeScript packages
+still need their own build (maturin, napi) to be tested from their language; see §4.
 
 ### The baseline
 
@@ -180,14 +180,18 @@ before believing.
 ### Tests, per surface
 
 ```sh
-cargo test -p thetadatadx-rs                   # the core
-cargo test -p thetadatadx-ffi                  # the C ABI
-(cd tools/mcp && cargo test)                   # workspace-EXCLUDED
-(cd tools/server && cargo test)                # workspace-EXCLUDED
-(cd thetadatadx-ts && npm ci && npm test)      # workspace-EXCLUDED
-maturin develop -m thetadatadx-py/Cargo.toml   # workspace-EXCLUDED; needs an active virtualenv
+cargo test --workspace                         # every crate's Rust tests
+cargo test -p thetadatadx-rs                   # the core alone, default features
+(cd thetadatadx-ts && npm ci && npm test)      # the TypeScript package
+maturin develop -m thetadatadx-py/Cargo.toml   # needs an active virtualenv
 python -m pytest thetadatadx-py/tests -q
 ```
+
+The PyO3 crate's Rust tests link libpython, so when the interpreter's library directory is not one
+the loader searches, put it on `LD_LIBRARY_PATH` (Linux) before `cargo test --workspace`.
+
+A workspace build unifies the core's features across every member, so `cargo build -p
+thetadatadx-rs` is the build that proves a `#[cfg(feature)]` gate is not missing.
 
 `maturin develop` needs `VIRTUAL_ENV` set or a `.venv` in a parent directory, and **the Python
 extension must be rebuilt before pytest** or the suite tests the previous build.
@@ -195,7 +199,7 @@ extension must be rebuilt before pytest** or the suite tests the previous build.
 ### Lint
 
 ```sh
-cargo clippy --all-targets -- -D warnings      # and again inside each excluded crate
+cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all
 ```
 
@@ -276,7 +280,7 @@ Three ways this proves nothing, all worth checking for:
 Restore from a copy taken beforehand. Never use version control to undo it: that reverts everything
 else in the file too.
 
-**Run the full gate locally before pushing**, including the excluded crates.
+**Run the full gate locally before pushing**, including the Python and TypeScript packages.
 
 **Never push in the same command as the gate.** The push runs whether the gate passed or not.
 

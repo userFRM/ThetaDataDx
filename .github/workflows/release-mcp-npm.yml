@@ -67,10 +67,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          # The MCP crate declares its own `[workspace]`, so its build
-          # output lands under `tools/mcp/target`. Key the cache on the
-          # target triple so each matrix leg keeps a separate cache.
-          workspaces: tools/mcp
+          # Key the cache on the target triple so each matrix leg keeps a
+          # separate cache.
           key: ${{ matrix.target }}
 
       # `thetadatadx` builds its gRPC client from `proto/mdds.proto` via
@@ -104,14 +102,14 @@ jobs:
           CC_x86_64_unknown_linux_musl: musl-gcc
           CC_aarch64_unknown_linux_musl: musl-gcc
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --locked --manifest-path tools/mcp/Cargo.toml --target ${{ matrix.target }}
+        run: cargo build --release --locked -p thetadatadx-mcp-server --target ${{ matrix.target }}
 
       # The runner has the redistributable, so nothing else here would notice
       # the binary falling back to the dynamic runtime.
       - name: Verify the binary does not import the Visual C++ runtime
         if: runner.os == 'Windows'
         shell: bash
-        run: python scripts/ci/check_windows_crt_static.py tools/mcp/target/${{ matrix.target }}/release/thetadatadx-mcp-server.exe
+        run: python scripts/ci/check_windows_crt_static.py target/${{ matrix.target }}/release/thetadatadx-mcp-server.exe
 
       - name: Stage binary
         shell: bash
@@ -121,7 +119,7 @@ jobs:
         # A relative path resolves against the workspace for both.
         run: |
           set -euo pipefail
-          bindir="tools/mcp/target/${{ matrix.target }}/release"
+          bindir="target/${{ matrix.target }}/release"
           rm -rf stage && mkdir -p stage
           if [ "${{ runner.os }}" = "Windows" ]; then
             cp "$bindir/thetadatadx-mcp-server.exe" stage/

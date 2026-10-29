@@ -69,8 +69,10 @@ jobs:
               encoding="utf-8",
           )
       - run: cargo build --release -p thetadatadx-ffi --locked
-      - run: cargo build --release --manifest-path tools/server/Cargo.toml --locked
-      - run: cargo build --release --manifest-path tools/mcp/Cargo.toml --locked
+      # Built one at a time so neither binary picks up the other's engine
+      # features, matching the release builds.
+      - run: cargo build --release -p thetadatadx-server --locked
+      - run: cargo build --release -p thetadatadx-mcp-server --locked
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash

@@ -11,9 +11,8 @@ version of the published artifact and rewrites it. Every npm
 packages, and the MCP server launcher + its five platform packages), the
 six member Cargo.toml files (thetadatadx-rs + ffi + tools/mcp + tools/server
 + thetadatadx-py + thetadatadx-ts), and the ``optionalDependencies`` pins
-inside both ``package.json`` launchers. Cargo.lock files are refreshed via
-``cargo update --workspace`` against every manifest that carries its own
-lockfile.
+inside both ``package.json`` launchers. The workspace ``Cargo.lock`` is
+refreshed via ``cargo update --workspace``.
 
 After the bump, ``scripts/ci/check_version_sync.py`` runs to verify nothing
 got missed. Exits non-zero if anything is out of sync.
@@ -41,14 +40,6 @@ WORKSPACE_CARGOS = [
     ROOT / "thetadatadx-py" / "Cargo.toml",
     ROOT / "thetadatadx-ts" / "Cargo.toml",
 ]
-
-SUB_LOCK_MANIFESTS = [
-    ROOT / "tools" / "mcp" / "Cargo.toml",
-    ROOT / "tools" / "server" / "Cargo.toml",
-    ROOT / "thetadatadx-py" / "Cargo.toml",
-    ROOT / "thetadatadx-ts" / "Cargo.toml",
-]
-
 
 def parse_semver(value: str) -> tuple[int, int, int]:
     # Accept an optional SemVer pre-release / build suffix (e.g.
@@ -250,14 +241,6 @@ def bump_doc_pins(current: str, target: str) -> list[Path]:
     return touched
 
 
-def cargo_update(manifest: Path) -> None:
-    subprocess.run(
-        ["cargo", "update", "--manifest-path", str(manifest), "--workspace"],
-        cwd=ROOT,
-        check=True,
-    )
-
-
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         sys.exit("usage: scripts/release/bump_version.py <new-version>")
@@ -316,10 +299,8 @@ def main(argv: list[str]) -> int:
     for doc in bump_doc_pins(current, target):
         print(f"  bumped {doc.relative_to(ROOT)} (doc pin)")
 
-    print("refreshing Cargo.lock files ...")
-    cargo_update(WORKSPACE_CARGOS[0])
-    for manifest in SUB_LOCK_MANIFESTS:
-        cargo_update(manifest)
+    print("refreshing Cargo.lock ...")
+    subprocess.run(["cargo", "update", "--workspace"], cwd=ROOT, check=True)
 
     print("verifying with scripts/ci/check_version_sync.py ...")
     subprocess.run(
