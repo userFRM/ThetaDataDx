@@ -57,9 +57,10 @@ cargo test --manifest-path tools/mcp/Cargo.toml
 cargo clippy --manifest-path tools/server/Cargo.toml -- -D warnings
 cargo test --manifest-path tools/server/Cargo.toml
 
-# 6. Language SDK smoke checks (if modified)
-cargo check --manifest-path thetadatadx-py/Cargo.toml
-(cd thetadatadx-ts && npm run build)
+# 6. Language SDK tests (if modified; outside the Cargo workspace)
+maturin develop -m thetadatadx-py/Cargo.toml   # needs an active virtualenv
+python -m pytest thetadatadx-py/tests -q
+(cd thetadatadx-ts && npm ci && npm test)
 c++ -std=c++17 -fsyntax-only -I thetadatadx-cpp/include thetadatadx-cpp/src/thetadatadx.cpp
 cmake -S thetadatadx-cpp -B build/cpp
 cmake --build build/cpp --target thetadatadx_cpp
@@ -111,7 +112,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 | `cpp` | `thetadatadx-cpp/` |
 | `mcp` | `tools/mcp/` |
 | `server` | `tools/server/` |
-| `docs` | `docs/`, `docs-site/` |
+| `docs` | `docs-site/`, top-level Markdown |
 
 ### Examples
 
@@ -194,25 +195,13 @@ Every PR must include:
 
 ## Public API Stability
 
-The Rust crate published from this repo (`thetadatadx`) follows
-[semver](https://semver.org/) on every release. CI gates this with
-[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks):
-
-- **Patch and minor PRs** must pass `cargo-semver-checks` against the
-  latest released tag. The CI `Semver check` job runs
-  `obi1kenobi/cargo-semver-checks-action@v2` with
-  `baseline-rev: v9.0.0`; bump that baseline whenever a new minor tag
-  ships so additive changes are checked against the most recent surface.
-- **Major bumps** may break the public API. Set the baseline to the
-  previous major (`baseline-rev: v8.x.y`) for the bump PR, document the
-  breakage in the PR body, and add a `### Removed` / `### Changed`
-  bucket in `CHANGELOG.md` for every removed or renamed symbol.
+The Rust crate published from this repo (`thetadatadx-rs`) follows [semver](https://semver.org/) on every release, with cargo's 0.x rules: while the version is below 1.0, the minor position is the breaking one. CI gates this with [`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks), comparing against the version published on crates.io. The check is advisory on pull requests and main, where an unreleased line normally accumulates changes, and fatal on a release tag: a break tagged as a patch release stops the publish. A release that breaks the public API bumps the minor version, says so in the PR body, and lists every removed or renamed symbol under `### Removed` or `### Changed` in `CHANGELOG.md`.
 
 To run the same check locally before opening a PR:
 
 ```bash
 cargo install cargo-semver-checks --locked  # one-time
-cargo semver-checks check-release --baseline-rev v9.0.0
+cargo semver-checks check-release -p thetadatadx-rs
 ```
 
 If a false positive surfaces (typically on macro-generated re-exports),

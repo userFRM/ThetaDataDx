@@ -69,7 +69,7 @@ client = Client(api_key="td1_...")                                              
 ## Install
 
 > [!IMPORTANT]
-> Install the per-language packages at `0.1.0` below: `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
+> Install the per-language packages below: `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
 >
 > ```bash
 > pip install thetadatadx-py            # Python
