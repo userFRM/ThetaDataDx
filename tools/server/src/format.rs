@@ -654,9 +654,8 @@ fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
 /// The sub-second fraction is a fixed three digits, always present: `0` ms ->
 /// `.000`, `100` ms -> `.100`, `430` ms -> `.430`.
 ///
-/// The terminal formats with an explicit `HH:mm:ss.SSS` (`PojoMessageUtils`);
-/// the vendor OpenAPI examples show trimmed fractions and are not what the
-/// terminal emits.
+/// The terminal writes the fraction this way; the vendor OpenAPI examples
+/// show trimmed fractions and are not what the terminal emits.
 fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     let year = date / 10_000;
     let month = (date / 100) % 100;

@@ -47,7 +47,7 @@ param = "out_ms"
 abi_type = "u64"
 path = "reconnect.wait_ms"
 out_safety = """
-        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // SAFETY: out_ms checked non-null above; FFI contract pins
         // the `u64` storage for the call. Writing the `reconnect.wait_ms`
         // field cannot tear under a concurrent reader because the FFI
         // surface is not thread-safe on a single config handle.
@@ -105,7 +105,7 @@ param = "out_ms"
 abi_type = "u64"
 path = "reconnect.wait_rate_limited_ms"
 out_safety = """
-        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // SAFETY: out_ms checked non-null above; FFI contract pins
         // the `u64` storage for the call. Writing
         // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
         // reader; FFI handles are not thread-safe per the public contract.

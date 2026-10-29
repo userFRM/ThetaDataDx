@@ -31,7 +31,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_ms(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // SAFETY: out_ms checked non-null above; FFI contract pins
         // the `u64` storage for the call. Writing the `reconnect.wait_ms`
         // field cannot tear under a concurrent reader because the FFI
         // surface is not thread-safe on a single config handle.
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_wait_rate_limited_ms(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // SAFETY: out_ms checked non-null above; FFI contract pins
         // the `u64` storage for the call. Writing
         // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
         // reader; FFI handles are not thread-safe per the public contract.

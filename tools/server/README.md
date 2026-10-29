@@ -158,9 +158,8 @@ Send JSON commands to manage subscriptions:
 
 - **256 simultaneous HTTP requests admitted at the edge:** requests past the cap queue and are served in order rather than rejected, so a connection flood can't exhaust the runtime. Genuine upstream exhaustion surfaces as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
-- **CSV output defuses formula injection:** cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
 - **Streaming TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
-- **Dropped-events observability:** per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
+- **Dropped events are logged:** when the WebSocket fan-out falls behind and the server's broadcast buffer is full, events are dropped rather than stalling the stream, and a warning with the running total is logged every 1,024 drops.
 
 Example: shutting the server down, exactly as with the JVM terminal:
 
