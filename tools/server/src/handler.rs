@@ -15,7 +15,7 @@ use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
 use thetadatadx::endpoint::{EndpointArgs, EndpointError, invoke_endpoint};
-use thetadatadx::{EndpointMeta, ParamType};
+use thetadatadx::{EndpointMeta, MarketDataClient, ParamType};
 
 use crate::format;
 use crate::state::AppState;
@@ -677,17 +677,26 @@ pub async fn generic_with_overrides(
     for (key, value) in overrides {
         params.insert((*key).to_string(), value.clone());
     }
+    respond(state.client().market_data(), ep, &params).await
+}
 
+/// Answer one registry request from its folded query parameters: validate
+/// them, call the endpoint through `client`, and render the negotiated format.
+pub(crate) async fn respond(
+    client: &MarketDataClient,
+    ep: &EndpointMeta,
+    params: &HashMap<String, String>,
+) -> Response {
     // v2 → v3 parameter migration gate. A request carrying a deprecated v2
     // parameter name is rejected with `410 Gone` naming the v3 replacement,
     // matching the terminal's pre-matching filter. Runs before any
     // validation / dispatch so a v2 client gets the upgrade message rather
     // than an opaque missing-parameter error from a name v3 does not know.
-    if let Some(response) = deprecated_v2_param_response(&params) {
+    if let Some(response) = deprecated_v2_param_response(params) {
         return response;
     }
 
-    let args = match build_endpoint_args(ep, &params) {
+    let args = match build_endpoint_args(ep, params) {
         Ok(args) => args,
         Err(error) => return endpoint_error_response(ep, error),
     };
@@ -696,20 +705,13 @@ pub async fn generic_with_overrides(
     // the length validators in there cap `format` at the generic
     // 64-byte bound, so the lowercase copy and the echoed-value 400
     // below can never amplify an oversized query value.
-    let response_format = match parse_response_format(&params) {
+    let response_format = match parse_response_format(params) {
         Ok(f) => f,
         Err(error) => return endpoint_error_response(ep, error),
     };
 
     let mut price_types = thetadatadx::decode::PriceTypes::default();
-    let output = match invoke_endpoint(
-        state.client().market_data(),
-        ep.name,
-        &args,
-        Some(&mut price_types),
-    )
-    .await
-    {
+    let output = match invoke_endpoint(client, ep.name, &args, Some(&mut price_types)).await {
         Ok(output) => output,
         Err(error) => return endpoint_error_response(ep, error),
     };
@@ -743,7 +745,7 @@ pub async fn generic_with_overrides(
         ResponseFormat::Csv => {
             let disposition = format!(
                 "attachment; filename=\"{}\"",
-                csv_attachment_filename(ep, &params)
+                csv_attachment_filename(ep, params)
             );
             let body = format::json_to_csv(ep, &rows).unwrap_or_default();
             (
