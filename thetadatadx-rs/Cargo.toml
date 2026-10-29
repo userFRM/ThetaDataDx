@@ -19,7 +19,7 @@ readme = "README.md"
 # crate that cannot compile: `cargo build --all-features` against the
 # published package fails on the missing module. The default verify build
 # never caught it because all four carry `required-features`.
-include = ["src/**/*", "!src/bin/**", "proto/**/*", "data/*.toml", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
 name = "thetadatadx"
@@ -297,10 +297,8 @@ regex = "1.12.3"
 # (snake_case / UpperCamelCase / lowerCamelCase). Standard build-time
 # crate; replaces hand-rolled per-word case folders.
 heck = "0.5.0"
-# Parses `data/{trade,quote}_conditions.toml` into the committed
-# `src/tdbe/conditions/tables_generated.rs` (see `build_support/conditions.rs`),
-# and loads the captured-response fixture sidecars for the decode-surface
-# generators. Build-time only — not in the runtime dep graph.
+# Parses the surface specs and the captured-response fixture sidecars for
+# the build-time generators. Build-time only — not in the runtime dep graph.
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 
