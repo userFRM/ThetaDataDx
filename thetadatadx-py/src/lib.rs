@@ -1,6 +1,11 @@
 //! Python bindings over the Rust `thetadatadx` core. Every call crosses the
 //! PyO3 boundary into the same Rust code path used by the CLI and FFI.
 
+// A `#[pymethods]` signature is the Python call signature: every keyword
+// argument is its own parameter, so the generated endpoint methods and tick
+// constructors take one per query parameter or column.
+#![expect(clippy::too_many_arguments)]
+
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::sync::OnceLock;

@@ -1,17 +1,18 @@
 [package]
 name = "thetadatadx-mcp-server"
 version = "0.7.0"
-edition = "2024"
-rust-version = "1.94"
+edition.workspace = true
+rust-version.workspace = true
 description = "MCP server for ThetaDataDx, giving LLMs instant access to ThetaData market data"
-license = "Apache-2.0"
-repository = "https://github.com/userFRM/ThetaDataDx"
+license.workspace = true
+repository.workspace = true
 
 # Binary — not published to crates.io. Only `thetadatadx-rs` is published
 # per the publish-crate CI job.
 publish = false
 
-[workspace]
+[lints]
+workspace = true
 
 [[bin]]
 name = "thetadatadx-mcp-server"
@@ -25,14 +26,3 @@ sonic-rs = "0.5.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 zeroize = "1.8.2"
-
-# Match the main workspace's strict bar. This crate declares its own
-# `[workspace]` table so it's an independent workspace — it can't inherit
-# via `[lints] workspace = true` from the parent repo. Mirror the rules
-# locally to keep `cargo clippy` parity.
-[lints.rust]
-warnings = "deny"
-unsafe_op_in_unsafe_fn = "deny"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
