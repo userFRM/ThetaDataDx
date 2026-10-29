@@ -50,7 +50,7 @@ The server starts:
 | `--email` | | ThetaData email (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
-| `--config` | | Path to TOML config file |
+| `--config` | | Path to a TOML config file in the SDK's format (see `thetadatadx-rs/config.default.toml`). The file's values are used as written. Without it, the server uses production settings with two changes suited to a long-running local process: the stream backs off when idle (`wait_mode = "backoff"`) instead of holding a core, and each request goes upstream once (`bulk_fetch = "off"`), so large option chains come back in the terminal's row order. |
 | `--market-data-region` | `production` | Market-data region: `production` or `stage` |
 | `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
