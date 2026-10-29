@@ -37,9 +37,8 @@ git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDa
 Or build from source:
 
 ```bash
-cd tools/mcp
-cargo build --release
-# Binary at tools/mcp/target/release/thetadatadx-mcp-server
+cargo build --release -p thetadatadx-mcp-server
+# Binary at target/release/thetadatadx-mcp-server
 ```
 
 ## Configuration

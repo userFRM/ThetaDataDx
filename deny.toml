@@ -8,21 +8,20 @@
 #                   deps and surface duplicate-version bloat.
 #   - `sources`:    only pull from crates.io; any git source surfaces.
 #
-# Scope: the workspace and every crate excluded from it, each against its
-# own Cargo.lock. The same policy applies to all of them.
+# Scope: every crate in the workspace, against the one Cargo.lock.
 #
 # Run locally:
 #   cargo install cargo-deny
-#   cargo deny --all-features --manifest-path <Cargo.toml> check
+#   cargo deny --all-features check
 #
 # Every `ignore` entry requires a `# Reason:` comment explaining why the
 # advisory does not apply to our use. No silent pins.
 #
-# CI runs the same command against every manifest on every PR
-# (`.github/workflows/ci.yml`), and a RustSec scan of every lockfile runs on
-# a weekly Monday 03:00 UTC cron (`.github/workflows/security-audit.yml`). A
-# newly-published advisory on a transitive dependency is surfaced by the
-# cron job before it reaches a release; do not downgrade the
+# CI runs the same command on every PR (`.github/workflows/ci.yml`), and a
+# RustSec scan of the lockfile runs on a weekly Monday 03:00 UTC cron
+# (`.github/workflows/security-audit.yml`). A newly-published advisory on a
+# transitive dependency is surfaced by the cron job before it reaches a
+# release; do not downgrade the
 # `yanked = "deny"` bar without a matching `# Reason:` entry below.
 
 [graph]

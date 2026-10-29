@@ -26,7 +26,7 @@ Note: a normal `cargo build` does not need `protoc`. The crate ships the committ
 git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx
 
-# Run the core workspace test suite
+# Run the workspace test suite (every crate, bindings and tools included)
 cargo test --workspace
 
 # For integration tests against ThetaData servers, create creds.txt:
@@ -43,7 +43,7 @@ Run these **before every commit**. CI will reject anything that fails.
 cargo fmt --all -- --check
 
 # 2. Lint
-cargo clippy --workspace -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 
 # 3. Test
 cargo test --workspace
@@ -51,13 +51,7 @@ cargo test --workspace
 # 4. FFI build (if modified)
 cargo build --release -p thetadatadx-ffi
 
-# 5. Extended surfaces (if modified)
-cargo clippy --manifest-path tools/mcp/Cargo.toml -- -D warnings
-cargo test --manifest-path tools/mcp/Cargo.toml
-cargo clippy --manifest-path tools/server/Cargo.toml -- -D warnings
-cargo test --manifest-path tools/server/Cargo.toml
-
-# 6. Language SDK tests (if modified; outside the Cargo workspace)
+# 5. Language SDK tests (if modified)
 maturin develop -m thetadatadx-py/Cargo.toml   # needs an active virtualenv
 python -m pytest thetadatadx-py/tests -q
 (cd thetadatadx-ts && npm ci && npm test)
@@ -69,10 +63,10 @@ cmake --build build/cpp --target thetadatadx_cpp
 One-liner for the common Rust-only case:
 
 ```bash
-cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo test --workspace
+cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
 ```
 
-For full Linux parity with the current CI `surfaces` job, run the extended-surface and language-SDK checks above as well.
+For full Linux parity with the current CI `surfaces` job, run the language-SDK checks above as well.
 
 ## Commit Convention
 

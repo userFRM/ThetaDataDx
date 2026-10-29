@@ -100,13 +100,8 @@ jobs:
       - uses: ./.github/actions/install-protoc
       - working-directory: thetadatadx-ts
         run: npm install
-      # `too_many_arguments` is allow-listed because every offender is a
-      # generated napi endpoint method whose signature mirrors the
-      # underlying REST surface — not a real code smell. Every other
-      # warning (including new ones) stays fatal.
       - name: Clippy (TypeScript SDK)
-        working-directory: thetadatadx-ts
-        run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings -A clippy::too_many_arguments
+        run: cargo clippy -p thetadatadx-napi --all-targets --target ${{ matrix.target }} --locked -- -D warnings
       - name: Build native addon
         working-directory: thetadatadx-ts
         # Mirror the local `npm run build` two-step: napi-rs emits

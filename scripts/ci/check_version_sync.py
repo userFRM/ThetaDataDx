@@ -161,8 +161,7 @@ def cargo_lock_mismatches(canonical: str) -> list[str]:
     A lockfile is valid TOML with a top-level `[[package]]` array; the
     first-party crates appear there with their resolved version. A stale
     pin here means the resolved dependency graph ships an aged crate even
-    when the manifest is correct, so every lockfile in the tree (the
-    excluded-from-workspace SDK / tool lockfiles included) is scanned.
+    when the manifest is correct, so every lockfile in the tree is scanned.
     """
     issues: list[str] = []
     for path in sorted(ROOT.rglob("Cargo.lock")):

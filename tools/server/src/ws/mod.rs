@@ -19,7 +19,7 @@
 //! The WS router composes the same generic admission layers as the REST
 //! router (`router::build`): a 256-wide `ConcurrencyLimitLayer` and a 64 KiB
 //! `DefaultBodyLimit`. On top of that, `handle_client_message` rejects any
-//! `Message::Text` longer than [`WS_MAX_TEXT_BYTES`]. A legitimate subscribe
+//! `Message::Text` longer than [`WS_MAX_TEXT_BYTES`](subscribe::WS_MAX_TEXT_BYTES). A legitimate subscribe
 //! / stop command is well under 200 bytes; anything larger is attack-shaped
 //! and discarded before `sonic_rs::from_str` touches it.
 

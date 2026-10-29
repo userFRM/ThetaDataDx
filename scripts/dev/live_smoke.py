@@ -33,17 +33,10 @@ RATE_SYMBOL = "SOFR"
 
 def _bin_path(name: str) -> pathlib.Path:
     suffix = ".exe" if os.name == "nt" else ""
-    candidates = [
-        REPO / "target" / "release" / f"{name}{suffix}",
-        REPO / "tools" / "server" / "target" / "release" / f"{name}{suffix}",
-        REPO / "tools" / "mcp" / "target" / "release" / f"{name}{suffix}",
-    ]
-    for path in candidates:
-        if path.exists():
-            return path
-    raise RuntimeError(
-        "missing required binary; looked in:\n" + "\n".join(str(path) for path in candidates)
-    )
+    path = REPO / "target" / "release" / f"{name}{suffix}"
+    if not path.exists():
+        raise RuntimeError(f"missing required binary: {path}")
+    return path
 
 
 def _columnar_len(value: Any) -> int:
