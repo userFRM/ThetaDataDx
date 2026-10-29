@@ -1,17 +1,18 @@
 [package]
 name = "thetadatadx-napi"
 version = "0.7.0"
-edition = "2024"
-rust-version = "1.94"
+edition.workspace = true
+rust-version.workspace = true
 description = "TypeScript/Node.js bindings for thetadatadx, the native ThetaData SDK powered by Rust"
-license = "Apache-2.0"
-homepage = "https://github.com/userFRM/ThetaDataDx"
-repository = "https://github.com/userFRM/ThetaDataDx"
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 readme = "README.md"
 # npm package only; never publish this napi shim to crates.io.
 publish = false
 
-[workspace]
+[lints]
+workspace = true
 
 [lib]
 crate-type = ["cdylib"]
@@ -19,14 +20,13 @@ crate-type = ["cdylib"]
 [dependencies]
 thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
 
-napi = { version = "3.8.5", features = ["async", "serde-json", "napi6", "chrono_date"] }
+napi = { version = "3.8.5", features = ["async", "serde-json", "napi6"] }
 arrow-ipc = "60.0.0"
 # RecordBatch / Schema types for the streaming `RecordBatch` reader's Arrow
 # IPC boundary. Pinned to the same major as `arrow-ipc` and the parent crate.
 arrow-array = "60.0.0"
 arrow-schema = "60.0.0"
 napi-derive = "3.5.4"
-chrono = { version = "=0.4.44", default-features = false, features = ["alloc", "clock"] }
 
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -34,20 +34,3 @@ serde_json = "1.0.149"
 
 [build-dependencies]
 napi-build = "2.3.1"
-
-# Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
-# in the root `Cargo.toml` (it has its own toolchain / feature footprint), so
-# it can't inherit via `[lints] workspace = true` — mirror the rules locally.
-[lints.rust]
-warnings = "deny"
-unsafe_op_in_unsafe_fn = "deny"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }
-# napi-rs `#[napi]` methods become flat free-function signatures, one param
-# per optional kwarg. Generated endpoints expose every query parameter from
-# `endpoint_surface.toml` as a separate `Option<T>` arg, routinely hitting
-# 10-27 params. The "too many arguments" heuristic is a style lint built
-# for hand-written Rust APIs; it doesn't apply to generator-emitted binding
-# crates where the argument list is the language's public contract.
-too_many_arguments = "allow"

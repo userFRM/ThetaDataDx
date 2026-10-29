@@ -1,13 +1,13 @@
 [package]
 name = "thetadatadx-server"
 version = "0.7.0"
-edition = "2024"
-rust-version = "1.94"
-authors = ["userFRM"]
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
 description = "Drop-in Rust replacement for the ThetaData JVM terminal"
-homepage = "https://github.com/userFRM/ThetaDataDx"
-repository = "https://github.com/userFRM/ThetaDataDx"
-license = "Apache-2.0"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
 keywords = ["thetadata", "terminal", "market-data", "rest-api", "websocket"]
 categories = ["finance", "network-programming", "web-programming::http-server"]
 
@@ -18,7 +18,8 @@ publish = false
 # private modules, so `main.rs` includes it as a unit-test module instead.
 autotests = false
 
-[workspace]
+[lints]
+workspace = true
 
 [[bin]]
 name = "thetadatadx-server"
@@ -67,10 +68,6 @@ zeroize = "1.8.2"
 # `--password` flag path.
 rpassword = "7.5.4"
 
-# Match the main workspace's strict bar. This crate declares its own
-# `[workspace]` table (line 15) so it's an independent workspace — it
-# can't inherit via `[lints] workspace = true` from the parent repo.
-# Mirror the rules locally to keep `cargo clippy` parity.
 [dev-dependencies]
 # `util` provides `ServiceExt::oneshot`, used by the rate-limit wire tests
 # to drive the governor composition with an injected peer `ConnectInfo`
@@ -85,10 +82,3 @@ futures-core = "0.3"
 h2 = "0.4"
 http = "1"
 prost = "=0.14.4"
-
-[lints.rust]
-warnings = "deny"
-unsafe_op_in_unsafe_fn = "deny"
-
-[lints.clippy]
-all = { level = "deny", priority = -1 }

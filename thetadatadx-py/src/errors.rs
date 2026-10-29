@@ -101,6 +101,8 @@ fn build_invalid_parameter_error(py: Python<'_>) -> PyResult<Py<PyType>> {
     let ptr = unsafe {
         pyo3::ffi::PyErr_NewException(name.as_ptr(), bases.as_ptr(), std::ptr::null_mut())
     };
+    // SAFETY: `ptr` is the new (owned) reference returned above, or null with
+    // a Python error set, which `from_owned_ptr_or_err` turns into `Err`.
     let obj = unsafe { Bound::from_owned_ptr_or_err(py, ptr)? };
     Ok(obj.cast_into::<PyType>()?.unbind())
 }
