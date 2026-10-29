@@ -178,6 +178,9 @@ pub struct MockBehaviour {
     /// terminal error, and later streams on the same connection must
     /// still be served.
     pub invalid_status_details_streams: usize,
+    /// When `Some`, the trailing trailers carry this value as the service's
+    /// `http_status_code` trailer, the HTTP status it attaches to an error.
+    pub http_status_code: Option<u16>,
 }
 
 impl MockServer {
@@ -510,6 +513,7 @@ async fn handle_request(
         status_code,
         &status_message,
         poison_status_details,
+        behaviour.http_status_code,
     )?;
     Ok(())
 }
@@ -605,6 +609,7 @@ fn respond_chunks(
     status_code: u32,
     status_message: &str,
     poison_status_details: bool,
+    http_status_code: Option<u16>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut response = Response::new(());
     *response.status_mut() = StatusCode::OK;
@@ -638,6 +643,9 @@ fn respond_chunks(
             HeaderName::from_static("grpc-status-details-bin"),
             HeaderValue::from_static(INVALID_STATUS_DETAILS_BIN),
         );
+    }
+    if let Some(code) = http_status_code {
+        trailers.insert(HeaderName::from_static("http_status_code"), code.into());
     }
     send_stream.send_trailers(trailers)?;
     Ok(())
