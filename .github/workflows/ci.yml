@@ -529,11 +529,11 @@ jobs:
   bench:
     name: Bench regression gate
     needs: changes
-    # Criterion wall-clock benches are runner-sensitive and the baseline
-    # is admittedly deferred, so this never runs on a PR — the
-    # deterministic allocations `perf-gate` covers per-PR regressions.
-    # Runs post-merge on main, on the nightly schedule, on tags, and in
-    # the merge queue, where a real regression is caught before release.
+    # Criterion wall-clock benches are runner-sensitive, so this never runs
+    # on a PR; the deterministic allocations `perf-gate` covers per-PR
+    # regressions. It runs on main, on the nightly schedule, on tags and in
+    # the merge queue, where a regression shows as a failed job, but it is
+    # not in `verified`: shared-runner timing noise must not stop a release.
     if: >-
       github.event_name != 'pull_request'
     runs-on: ubuntu-latest
@@ -991,7 +991,6 @@ jobs:
       - test
       - feature-tests
       - rustdoc
-      - bench
       - semver
       - surfaces
       - docs-render-check
@@ -1224,7 +1223,7 @@ jobs:
   # conditionally-skipped required check can no longer leave the merge
   # gate permanently unsatisfiable.
   #
-  # It depends on `verified` rather than restating its 28 jobs, so a
+  # It depends on `verified` rather than restating its 27 jobs, so a
   # new verification job is added in ONE place -- `verified` -- and is
   # covered by both the merge gate and the publish gate at once. That
   # is the whole point of the split: the two lists cannot drift apart
