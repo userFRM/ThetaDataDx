@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
-use thetadatadx::Client;
+use thetadatadx::{Client, MarketDataClient};
 use tokio::sync::{RwLock, mpsc};
 
 /// Default per-client channel capacity. Matches the old `broadcast::channel(4096)`.
@@ -368,6 +368,13 @@ impl AppState {
     /// Wait for the shutdown signal.
     pub async fn shutdown_signal(&self) {
         self.inner.shutdown.notified().await;
+    }
+}
+
+/// The market-data client the flat-file routes stream through.
+impl AsRef<MarketDataClient> for AppState {
+    fn as_ref(&self) -> &MarketDataClient {
+        self.client().market_data()
     }
 }
 

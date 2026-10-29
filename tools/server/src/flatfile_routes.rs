@@ -24,9 +24,9 @@ use axum::body::{Body, Bytes};
 use axum::extract::State;
 use axum::http::{StatusCode, header};
 use axum::response::Response;
-use thetadatadx::EndpointMeta;
 use thetadatadx::endpoint::EndpointError;
 use thetadatadx::wire::{DataValue, DataValueList, data_value::DataType};
+use thetadatadx::{EndpointMeta, MarketDataClient};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -45,7 +45,19 @@ pub(crate) async fn serve(
     BoundedQuery(pairs): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &'static EndpointMeta,
 ) -> Response {
-    let params = handler::fold_query_pairs(ep, pairs);
+    respond(state, ep, handler::fold_query_pairs(ep, pairs)).await
+}
+
+/// Answer one flat-file request from its folded query parameters, streaming
+/// the file from the service through `client`.
+pub(crate) async fn respond<C>(
+    client: C,
+    ep: &'static EndpointMeta,
+    params: HashMap<String, String>,
+) -> Response
+where
+    C: AsRef<MarketDataClient> + Send + Sync + 'static,
+{
     if let Some(response) = handler::deprecated_v2_param_response(&params) {
         return response;
     }
@@ -64,7 +76,7 @@ pub(crate) async fn serve(
 
     let (chunks, body) = mpsc::channel(CHUNKS_IN_FLIGHT);
     let (started, start) = oneshot::channel();
-    tokio::spawn(stream_file(state, ep, date, format, chunks, started));
+    tokio::spawn(stream_file(client, ep, date, format, chunks, started));
     match start.await {
         Ok(Ok(())) => file_response(ep, &params, format, body),
         Ok(Err(error)) => handler::endpoint_error_response(ep, error),
@@ -110,14 +122,14 @@ fn file_response(
 /// Stream the file from the service into `chunks`, reporting on `started`
 /// whether the response can begin.
 async fn stream_file(
-    state: AppState,
+    client: impl AsRef<MarketDataClient>,
     ep: &'static EndpointMeta,
     date: String,
     format: ResponseFormat,
     chunks: mpsc::Sender<Chunk>,
     started: oneshot::Sender<Result<(), EndpointError>>,
 ) {
-    let client = state.client().market_data();
+    let client = client.as_ref();
     let mut file = FileWriter::new(format, chunks.clone(), started);
     // The download has no deadline. The client bounds it instead: the
     // download ends, and the upstream call is cancelled, as soon as the client
