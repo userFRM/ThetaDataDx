@@ -1,18 +1,15 @@
 //! Trade and quote condition lookup tables for `ThetaData` market data.
 //!
-//! Source-of-truth lives in
-//! `thetadatadx-rs/data/{trade,quote}_conditions.toml`. At build time,
-//! `build_support/conditions.rs` reads the TOML and regenerates
-//! `tables_generated.rs`, which is committed so consumers building from
-//! crates.io don't need to re-run codegen.
+//! The tables themselves are in `tables.rs`, one entry per code, indexed by
+//! code.
 //!
 //! The public surface — [`TradeCondition`], [`QuoteCondition`],
 //! [`TRADE_CONDITIONS`], [`QUOTE_CONDITIONS`], and the eight lookup
 //! functions — wraps the generated tables with O(1) array-index lookups.
 
-mod tables_generated;
+mod tables;
 
-pub use tables_generated::{QUOTE_CONDITIONS, TRADE_CONDITIONS};
+pub use tables::{QUOTE_CONDITIONS, TRADE_CONDITIONS};
 
 // ───────────────────────────────────────────────────────────────────────
 //  Trade conditions
