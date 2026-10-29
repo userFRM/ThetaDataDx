@@ -49,6 +49,8 @@ pub use extract::{PriceTypes, ResponseSymbol, response_symbol};
 // `decode_data_table_with_max` is the production per-chunk decode used
 // by `mdds/stream.rs` — keep it always-available.
 pub use transport::decode_data_table_with_max;
+#[cfg(feature = "__test-helpers")]
+pub use transport::record_responses;
 #[cfg(feature = "__internal")]
 pub use transport::{decode_data_table, decompress_response, decompress_response_with_max};
 

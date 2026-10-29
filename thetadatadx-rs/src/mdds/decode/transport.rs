@@ -197,10 +197,40 @@ pub fn decode_data_table_with_max(
     response: &mut proto::ResponseData,
     max_message_size: usize,
 ) -> Result<proto::DataTable, Error> {
+    #[cfg(feature = "__test-helpers")]
+    if let Some(recorded) = RECORDED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_mut()
+    {
+        recorded.push(response.clone());
+    }
     let bytes = decompress_response_with_max(response, max_message_size)?;
     let table: proto::DataTable = prost::Message::decode(bytes.as_slice())
         .map_err(|e| Error::decode_protobuf(e.to_string()))?;
     Ok(table)
+}
+
+/// Every chunk decoded in this process while a recording is open, as it
+/// arrived from the upstream.
+#[cfg(feature = "__test-helpers")]
+static RECORDED: std::sync::Mutex<Option<Vec<proto::ResponseData>>> = std::sync::Mutex::new(None);
+
+/// Open (`Some(Vec::new())`) or close (`None`) the recording of every
+/// `ResponseData` chunk this process decodes, returning what was recorded
+/// since the previous call. Lets a recorder capture upstream responses
+/// byte for byte through the real request path.
+#[cfg(feature = "__test-helpers")]
+#[doc(hidden)]
+pub fn record_responses(
+    recording: Option<Vec<proto::ResponseData>>,
+) -> Option<Vec<proto::ResponseData>> {
+    std::mem::replace(
+        &mut *RECORDED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        recording,
+    )
 }
 
 #[cfg(test)]

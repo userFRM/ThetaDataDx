@@ -510,6 +510,12 @@ name = "build_eod_greeks_fixtures"
 path = "examples/build_eod_greeks_fixtures.rs"
 required-features = ["__test-helpers"]
 
+# Records the upstream responses the local server's golden test replays.
+# Gated on `__test-helpers` for the decode recording hook.
+[[example]]
+name = "record_server_responses"
+required-features = ["__test-helpers"]
+
 # DataFrame extension-trait tests. Each is gated on its feature so the
 # test job that enables `arrow` / `polars` runs the column/order/dtype
 # contract; without the feature the target is skipped rather than
