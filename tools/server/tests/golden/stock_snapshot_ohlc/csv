@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="stock_snapshot_ohlc.csv"
+
+timestamp,symbol,open,high,low,close,volume,count
+2026-10-29T17:10:17.156,AAPL,348.000,351.430,347.300,348.910,31600997,533975

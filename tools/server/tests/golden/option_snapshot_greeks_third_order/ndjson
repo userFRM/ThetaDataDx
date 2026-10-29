@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"ask":171.3700,"bid":168.6600,"color":0.0045,"expiration":"2026-12-18","implied_vol":0.4082,"iv_error":0.0000,"right":"CALL","speed":0.0000,"strike":600.000,"symbol":"SPY","timestamp":"2026-10-29T16:15:00.082","ultima":-134.7167,"underlying_price":764.6300,"underlying_timestamp":"2026-10-29T17:09:39.990","zomma":0.0032}

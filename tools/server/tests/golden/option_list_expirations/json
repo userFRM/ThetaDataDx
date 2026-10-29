@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"expiration":"2012-06-01","symbol":"SPY"},{"expiration":"2012-06-08","symbol":"SPY"},{"expiration":"2012-06-16","symbol":"SPY"},{"expiration":"2012-06-22","symbol":"SPY"},{"expiration":"2012-06-29","symbol":"SPY"},{"expiration":"2012-07-06","symbol":"SPY"},{"expiration":"2012-07-13","symbol":"SPY"},{"expiration":"2012-07-21","symbol":"SPY"},{"expiration":"2012-07-27","symbol":"SPY"},{"expiration":"2012-08-03","symbol":"SPY"},{"expiration":"2012-08-10","symbol":"SPY"},{"expiration":"2012-08-18","symbol":"SPY"},{"expiration":"2012-08-24","symbol":"SPY"},{"expiration":"2012-08-31","symbol":"SPY"},{"expiration":"2012-09-07","symbol":"SPY"},{"expiration":"2012-09-14","symbol":"SPY"},{"expiration":"2012-09-22","symbol":"SPY"},{"expiration":"2012-09-28","symbol":"SPY"},{"expiration":"2012-10-05","symbol":"SPY"},{"expiration":"2012-10-12","symbol":"SPY"}]}

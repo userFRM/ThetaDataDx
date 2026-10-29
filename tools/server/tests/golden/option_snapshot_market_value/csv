@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_snapshot_market_value.csv"
+
+timestamp,symbol,expiration,strike,right,market_bid,market_ask,market_price
+2026-10-29T16:15:00.082,SPY,2026-12-18,600.000,CALL,168.65,171.38,170.01

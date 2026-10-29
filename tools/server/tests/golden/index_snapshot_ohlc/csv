@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="index_snapshot_ohlc.csv"
+
+timestamp,symbol,open,high,low,close,volume,count
+2026-10-29T16:04:38.000,SPX,7699.61,7732.21,7690.94,7720.39,0,0

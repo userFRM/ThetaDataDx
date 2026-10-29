@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"symbol":[".PR.I.PR.A",".PR.I.PR.B",".PR.S/WI","A","AA","AAA","AAAA","AAAB","AAAC","AAAD","AAAP","AAAU","AABA","AAC","AAC.U","AAC.WS","AACB","AACBR","AACBU","AACC","EWP","EWQ","EWRE","EWS","EWSC","EWT","EWTX","EWU","EWUS","EWV","EWW","EWX","EWY","EWZ","EWZS","EXA","EXAC","EXAI","EXAR","EXAS"]}

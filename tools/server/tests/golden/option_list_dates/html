@@ -1,0 +1,28 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>date</th></tr></thead>
+<tbody><tr><td>2022-06-27</td></tr>
+<tr><td>2022-06-29</td></tr>
+<tr><td>2022-06-30</td></tr>
+<tr><td>2022-07-01</td></tr>
+<tr><td>2022-07-05</td></tr>
+<tr><td>2022-07-06</td></tr>
+<tr><td>2022-07-07</td></tr>
+<tr><td>2022-07-11</td></tr>
+<tr><td>2022-07-13</td></tr>
+<tr><td>2022-07-15</td></tr>
+<tr><td>2022-07-18</td></tr>
+<tr><td>2022-07-20</td></tr>
+<tr><td>2022-07-25</td></tr>
+<tr><td>2022-07-28</td></tr>
+<tr><td>2022-08-02</td></tr>
+<tr><td>2022-08-08</td></tr>
+<tr><td>2022-08-12</td></tr>
+<tr><td>2022-08-16</td></tr>
+<tr><td>2022-08-17</td></tr>
+<tr><td>2022-08-19</td></tr>
+</tbody></table></body></html>

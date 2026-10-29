@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"close":[null,null,null,null,null,null,"13:00:00",null,null,null,"13:00:00","13:00:00",null],"date":["2024-01-01","2024-01-15","2024-02-19","2024-03-29","2024-05-27","2024-06-19","2024-07-03","2024-07-04","2024-09-02","2024-11-28","2024-11-29","2024-12-24","2024-12-25"],"open":[null,null,null,null,null,null,"09:30:00",null,null,null,"09:30:00","09:30:00",null],"type":["full_close","full_close","full_close","full_close","full_close","full_close","early_close","full_close","full_close","full_close","early_close","early_close","full_close"]}

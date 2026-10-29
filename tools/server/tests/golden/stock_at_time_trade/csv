@@ -1,0 +1,10 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="stock_at_time_trade_20240610_20240614.csv"
+
+timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price
+2024-06-10T10:00:00.000,31834,32,255,255,255,0,100,1,195.420
+2024-06-11T09:59:59.972,84331,32,255,255,255,0,270,57,199.130
+2024-06-12T09:59:59.998,118133,32,255,255,115,115,5,57,214.260
+2024-06-13T09:59:59.997,73261,32,255,255,115,115,33,1,214.7300
+2024-06-14T09:59:59.992,33661,32,255,255,115,115,49,1,213.7500

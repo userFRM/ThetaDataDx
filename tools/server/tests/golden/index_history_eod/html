@@ -1,0 +1,10 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>created</th><th>last_trade</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>count</th><th>bid_size</th><th>bid_exchange</th><th>bid</th><th>bid_condition</th><th>ask_size</th><th>ask_exchange</th><th>ask</th><th>ask_condition</th></tr></thead>
+<tbody><tr><td>2024-06-10T17:17:51.996</td><td>2024-06-10T16:02:07.000</td><td>5341.22</td><td>5365.79</td><td>5331.52</td><td>5360.79</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0.00</td><td>0</td><td>0</td><td>0</td><td>0.00</td><td>0</td></tr>
+<tr><td>2024-06-11T17:15:48.416</td><td>2024-06-11T16:02:31.000</td><td>5353.00</td><td>5375.95</td><td>5327.25</td><td>5375.32</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0.00</td><td>0</td><td>0</td><td>0</td><td>0.00</td><td>0</td></tr>
+</tbody></table></body></html>

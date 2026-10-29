@@ -1,0 +1,28 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>strike</th></tr></thead>
+<tbody><tr><td>SPY</td><td>533.000</td></tr>
+<tr><td>SPY</td><td>320.000</td></tr>
+<tr><td>SPY</td><td>448.000</td></tr>
+<tr><td>SPY</td><td>512.000</td></tr>
+<tr><td>SPY</td><td>576.000</td></tr>
+<tr><td>SPY</td><td>640.000</td></tr>
+<tr><td>SPY</td><td>405.000</td></tr>
+<tr><td>SPY</td><td>469.000</td></tr>
+<tr><td>SPY</td><td>575.000</td></tr>
+<tr><td>SPY</td><td>426.000</td></tr>
+<tr><td>SPY</td><td>490.000</td></tr>
+<tr><td>SPY</td><td>554.000</td></tr>
+<tr><td>SPY</td><td>255.000</td></tr>
+<tr><td>SPY</td><td>447.000</td></tr>
+<tr><td>SPY</td><td>511.000</td></tr>
+<tr><td>SPY</td><td>553.000</td></tr>
+<tr><td>SPY</td><td>340.000</td></tr>
+<tr><td>SPY</td><td>468.000</td></tr>
+<tr><td>SPY</td><td>532.000</td></tr>
+<tr><td>SPY</td><td>660.000</td></tr>
+</tbody></table></body></html>

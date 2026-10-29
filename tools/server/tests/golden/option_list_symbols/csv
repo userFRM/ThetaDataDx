@@ -1,0 +1,45 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_list_symbols.csv"
+
+symbol
+1BXSL
+1CORZ
+1INVH
+1LNCO
+1ZURA
+2CLSK
+2PRKS
+2SAVA
+9AC
+9AD
+9AE
+9BC
+9BD
+9BE
+9CC
+9CD
+9CE
+9DC
+9DD
+9DE
+LITE
+LITE1
+LITM
+LITM1
+LITS
+LITX
+LITZ
+LITZ1
+LIVE
+LIVE1
+LIVN
+LIVR
+LIVX
+LIWA
+LIZI
+LIZI1
+LJC
+LJD
+LJE
+LJPC

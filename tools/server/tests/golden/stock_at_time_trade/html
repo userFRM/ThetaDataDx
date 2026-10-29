@@ -1,0 +1,13 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>timestamp</th><th>sequence</th><th>ext_condition1</th><th>ext_condition2</th><th>ext_condition3</th><th>ext_condition4</th><th>condition</th><th>size</th><th>exchange</th><th>price</th></tr></thead>
+<tbody><tr><td>2024-06-10T10:00:00.000</td><td>31834</td><td>32</td><td>255</td><td>255</td><td>255</td><td>0</td><td>100</td><td>1</td><td>195.420</td></tr>
+<tr><td>2024-06-11T09:59:59.972</td><td>84331</td><td>32</td><td>255</td><td>255</td><td>255</td><td>0</td><td>270</td><td>57</td><td>199.130</td></tr>
+<tr><td>2024-06-12T09:59:59.998</td><td>118133</td><td>32</td><td>255</td><td>255</td><td>115</td><td>115</td><td>5</td><td>57</td><td>214.260</td></tr>
+<tr><td>2024-06-13T09:59:59.997</td><td>73261</td><td>32</td><td>255</td><td>255</td><td>115</td><td>115</td><td>33</td><td>1</td><td>214.7300</td></tr>
+<tr><td>2024-06-14T09:59:59.992</td><td>33661</td><td>32</td><td>255</td><td>255</td><td>115</td><td>115</td><td>49</td><td>1</td><td>213.7500</td></tr>
+</tbody></table></body></html>

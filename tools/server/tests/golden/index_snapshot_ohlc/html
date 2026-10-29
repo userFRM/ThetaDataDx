@@ -1,0 +1,9 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>timestamp</th><th>symbol</th><th>open</th><th>high</th><th>low</th><th>close</th><th>volume</th><th>count</th></tr></thead>
+<tbody><tr><td>2026-10-29T16:04:38.000</td><td>SPX</td><td>7699.61</td><td>7732.21</td><td>7690.94</td><td>7720.39</td><td>0</td><td>0</td></tr>
+</tbody></table></body></html>

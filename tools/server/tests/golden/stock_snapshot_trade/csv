@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="stock_snapshot_trade.csv"
+
+timestamp,symbol,sequence,size,condition,price
+2026-10-29T17:10:17.156,AAPL,78285289,20,1,350.600

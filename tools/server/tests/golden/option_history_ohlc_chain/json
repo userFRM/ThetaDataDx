@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"contract":{"expiration":"2024-06-21","right":"CALL","strike":533.000,"symbol":"SPY"},"data":[{"close":0.0,"count":0,"high":0.0,"low":0.0,"open":0.0,"timestamp":"2024-06-14T09:30:00.000","volume":0,"vwap":0.00},{"close":0.0,"count":0,"high":0.0,"low":0.0,"open":0.0,"timestamp":"2024-06-14T09:31:00.000","volume":0,"vwap":0.00},{"close":0.0,"count":0,"high":0.0,"low":0.0,"open":0.0,"timestamp":"2024-06-14T09:32:00.000","volume":0,"vwap":0.00}]},{"contract":{"expiration":"2024-06-21","right":"PUT","strike":533.000,"symbol":"SPY"},"data":[{"close":1.00,"count":8,"high":1.02,"low":0.95,"open":1.02,"timestamp":"2024-06-14T09:30:00.000","volume":32,"vwap":0.97},{"close":0.99,"count":10,"high":0.99,"low":0.97,"open":0.97,"timestamp":"2024-06-14T09:31:00.000","volume":57,"vwap":0.97},{"close":0.0,"count":0,"high":0.0,"low":0.0,"open":0.0,"timestamp":"2024-06-14T09:32:00.000","volume":0,"vwap":0.97}]}]}

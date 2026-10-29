@@ -1,0 +1,25 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_list_strikes.csv"
+
+symbol,strike
+SPY,533.000
+SPY,320.000
+SPY,448.000
+SPY,512.000
+SPY,576.000
+SPY,640.000
+SPY,405.000
+SPY,469.000
+SPY,575.000
+SPY,426.000
+SPY,490.000
+SPY,554.000
+SPY,255.000
+SPY,447.000
+SPY,511.000
+SPY,553.000
+SPY,340.000
+SPY,468.000
+SPY,532.000
+SPY,660.000

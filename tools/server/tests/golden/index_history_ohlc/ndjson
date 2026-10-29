@@ -1,0 +1,14 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"close":5413.63,"count":0,"high":5424.08,"low":5413.63,"open":5424.08,"timestamp":"2024-06-14T09:30:00.000","volume":0,"vwap":0.00}
+{"close":5414.24,"count":0,"high":5414.85,"low":5412.02,"open":5413.83,"timestamp":"2024-06-14T09:31:00.000","volume":0,"vwap":0.00}
+{"close":5412.01,"count":0,"high":5415.27,"low":5412.01,"open":5414.59,"timestamp":"2024-06-14T09:32:00.000","volume":0,"vwap":0.00}
+{"close":5415.04,"count":0,"high":5415.24,"low":5411.62,"open":5411.72,"timestamp":"2024-06-14T09:33:00.000","volume":0,"vwap":0.00}
+{"close":5416.82,"count":0,"high":5416.84,"low":5414.71,"open":5415.08,"timestamp":"2024-06-14T09:34:00.000","volume":0,"vwap":0.00}
+{"close":5416.85,"count":0,"high":5417.44,"low":5415.38,"open":5416.99,"timestamp":"2024-06-14T09:35:00.000","volume":0,"vwap":0.00}
+{"close":5416.81,"count":0,"high":5417.57,"low":5415.75,"open":5416.51,"timestamp":"2024-06-14T09:36:00.000","volume":0,"vwap":0.00}
+{"close":5418.04,"count":0,"high":5418.04,"low":5416.41,"open":5416.88,"timestamp":"2024-06-14T09:37:00.000","volume":0,"vwap":0.00}
+{"close":5419.66,"count":0,"high":5419.74,"low":5417.98,"open":5418.25,"timestamp":"2024-06-14T09:38:00.000","volume":0,"vwap":0.00}
+{"close":5420.62,"count":0,"high":5420.65,"low":5418.98,"open":5419.64,"timestamp":"2024-06-14T09:39:00.000","volume":0,"vwap":0.00}
+{"close":5420.25,"count":0,"high":5421.50,"low":5419.75,"open":5420.53,"timestamp":"2024-06-14T09:40:00.000","volume":0,"vwap":0.00}

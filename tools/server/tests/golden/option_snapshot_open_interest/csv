@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="option_snapshot_open_interest.csv"
+
+timestamp,symbol,expiration,strike,right,open_interest
+2026-10-29T06:30:00.729,SPY,2026-12-18,600.000,CALL,4443

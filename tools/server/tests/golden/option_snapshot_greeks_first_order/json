@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"contract":{"expiration":"2026-12-18","right":"CALL","strike":600.000,"symbol":"SPY"},"data":[{"ask":171.3700,"bid":168.6600,"delta":0.9569,"epsilon":-100.2322,"implied_vol":0.4082,"iv_error":0.0000,"lambda":4.3038,"rho":76.9433,"theta":-0.1663,"timestamp":"2026-10-29T16:15:00.082","underlying_price":764.6300,"underlying_timestamp":"2026-10-29T17:09:39.990","vega":25.8942}]}]}

@@ -1,0 +1,110 @@
+# The local server's golden corpus: one request per route, replayed offline by
+# tests/golden_responses.rs from the response recorded in <case>/response.pb.
+#
+# <case> <endpoint> <query>
+#
+# Query values are literal, never percent-encoded. Every parameter the server
+# fills in with the terminal's default when it is absent (venue, start_time,
+# end_time, interval, exclusive) is spelled out, so the recorder sends the
+# request the server would send. Record with
+#   cargo run -p thetadatadx-rs --features __test-helpers \
+#     --example record_server_responses -- <creds file> tools/server/tests/golden [case ...]
+
+# Stock
+stock_list_symbols stock_list_symbols
+stock_list_dates stock_list_dates request_type=trade&symbol=AAPL
+stock_snapshot_ohlc stock_snapshot_ohlc symbol=AAPL&venue=nqb
+stock_snapshot_trade stock_snapshot_trade symbol=AAPL&venue=nqb
+stock_snapshot_quote stock_snapshot_quote symbol=AAPL&venue=nqb
+stock_snapshot_quote_two_symbols stock_snapshot_quote symbol=AAPL,MSFT&venue=nqb
+stock_snapshot_market_value stock_snapshot_market_value symbol=AAPL&venue=nqb
+stock_history_eod stock_history_eod symbol=AAPL&start_date=20240610&end_date=20240614
+stock_history_ohlc stock_history_ohlc symbol=AAPL&date=20240614&interval=1m&start_time=09:30:00&end_time=09:40:00&venue=nqb
+stock_history_trade stock_history_trade symbol=AAPL&date=20240614&start_time=09:30:00&end_time=09:35:00&venue=nqb
+stock_history_quote stock_history_quote symbol=AAPL&date=20240614&interval=1s&start_time=09:30:00&end_time=09:31:00&venue=nqb
+stock_history_trade_quote stock_history_trade_quote symbol=AAPL&date=20240614&start_time=09:30:00&end_time=09:35:00&exclusive=true&venue=nqb
+stock_at_time_trade stock_at_time_trade symbol=AAPL&start_date=20240610&end_date=20240614&time_of_day=10:00:00&venue=nqb
+stock_at_time_quote stock_at_time_quote symbol=AAPL&start_date=20240610&end_date=20240614&time_of_day=10:00:00&venue=nqb
+stock_flat_file_eod stock_flat_file_eod date=20261028
+stock_flat_file_trade_quote stock_flat_file_trade_quote date=20261028
+stock_flat_file_quote stock_flat_file_quote date=20261028
+# A date before the account's flat-file entitlement: the refusal arrives before any data.
+stock_flat_file_eod_before_entitlement stock_flat_file_eod date=20240614
+
+# Option
+option_list_symbols option_list_symbols
+option_list_dates option_list_dates request_type=trade&symbol=SPY&expiration=20240621&strike=500&right=call
+option_list_expirations option_list_expirations symbol=SPY
+option_list_strikes option_list_strikes symbol=SPY&expiration=20240621
+option_list_contracts option_list_contracts request_type=trade&symbol=SPY&date=20240614
+
+# Option snapshots name a contract that is still listed when they are recorded.
+option_snapshot_ohlc option_snapshot_ohlc symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_trade option_snapshot_trade symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_quote option_snapshot_quote symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_open_interest option_snapshot_open_interest symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_market_value option_snapshot_market_value symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_greeks_implied_volatility option_snapshot_greeks_implied_volatility symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_greeks_all option_snapshot_greeks_all symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_binomial_greeks_all option_snapshot_binomial_greeks_all symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_greeks_first_order option_snapshot_greeks_first_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_binomial_greeks_first_order option_snapshot_binomial_greeks_first_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_greeks_second_order option_snapshot_greeks_second_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_binomial_greeks_second_order option_snapshot_binomial_greeks_second_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_greeks_third_order option_snapshot_greeks_third_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_snapshot_binomial_greeks_third_order option_snapshot_binomial_greeks_third_order symbol=SPY&expiration=20261218&strike=600&right=call
+option_history_eod option_history_eod symbol=SPY&expiration=20240621&strike=500&right=call&start_date=20240610&end_date=20240614
+option_history_ohlc option_history_ohlc symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=1m&start_time=09:30:00&end_time=09:40:00
+option_history_ohlc_chain option_history_ohlc symbol=SPY&expiration=20240621&strike=*&right=both&date=20240614&interval=1m&start_time=09:30:00&end_time=09:32:00
+option_history_trade option_history_trade symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_quote option_history_quote symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=1m&start_time=09:30:00&end_time=09:40:00
+option_history_trade_quote option_history_trade_quote symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00&exclusive=true
+option_history_open_interest option_history_open_interest symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614
+option_history_greeks_eod option_history_greeks_eod symbol=SPY&expiration=20240621&strike=500&right=call&start_date=20240610&end_date=20240614
+option_history_binomial_greeks_eod option_history_binomial_greeks_eod symbol=SPY&expiration=20240621&strike=500&right=call&start_date=20240610&end_date=20240614
+option_history_greeks_all option_history_greeks_all symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_binomial_greeks_all option_history_binomial_greeks_all symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_greeks_first_order option_history_greeks_first_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_binomial_greeks_first_order option_history_binomial_greeks_first_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_greeks_second_order option_history_greeks_second_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_binomial_greeks_second_order option_history_binomial_greeks_second_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_greeks_third_order option_history_greeks_third_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_binomial_greeks_third_order option_history_binomial_greeks_third_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_greeks_implied_volatility option_history_greeks_implied_volatility symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&interval=5m&start_time=09:30:00&end_time=10:00:00
+option_history_trade_greeks_all option_history_trade_greeks_all symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_binomial_trade_greeks_all option_history_binomial_trade_greeks_all symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_trade_greeks_first_order option_history_trade_greeks_first_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_binomial_trade_greeks_first_order option_history_binomial_trade_greeks_first_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_trade_greeks_second_order option_history_trade_greeks_second_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_binomial_trade_greeks_second_order option_history_binomial_trade_greeks_second_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_trade_greeks_third_order option_history_trade_greeks_third_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_binomial_trade_greeks_third_order option_history_binomial_trade_greeks_third_order symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_history_trade_greeks_implied_volatility option_history_trade_greeks_implied_volatility symbol=SPY&expiration=20240621&strike=500&right=call&date=20240614&start_time=09:30:00&end_time=16:00:00
+option_at_time_trade option_at_time_trade symbol=SPY&expiration=20240621&strike=500&right=call&start_date=20240610&end_date=20240614&time_of_day=10:00:00
+option_at_time_quote option_at_time_quote symbol=SPY&expiration=20240621&strike=500&right=call&start_date=20240610&end_date=20240614&time_of_day=10:00:00
+option_flat_file_eod option_flat_file_eod date=20261028
+option_flat_file_trade_quote option_flat_file_trade_quote date=20261028
+option_flat_file_open_interest option_flat_file_open_interest date=20261028
+option_flat_file_quote option_flat_file_quote date=20261028
+
+# Index
+index_list_symbols index_list_symbols
+index_list_dates index_list_dates symbol=SPX
+index_snapshot_ohlc index_snapshot_ohlc symbol=SPX
+index_snapshot_price index_snapshot_price symbol=SPX
+index_snapshot_market_value index_snapshot_market_value symbol=SPX
+index_history_eod index_history_eod symbol=SPX&start_date=20240610&end_date=20240614
+index_history_ohlc index_history_ohlc symbol=SPX&start_date=20240614&end_date=20240614&interval=1m&start_time=09:30:00&end_time=09:40:00
+index_history_price index_history_price symbol=SPX&date=20240614&interval=1m&start_time=09:30:00&end_time=09:40:00
+index_at_time_price index_at_time_price symbol=SPX&start_date=20240610&end_date=20240614&time_of_day=10:00:00
+index_flat_file_eod index_flat_file_eod date=20261028
+
+# Calendar
+calendar_open_today calendar_open_today
+calendar_on_date calendar_on_date date=20240614
+calendar_on_date_closed calendar_on_date date=20241225
+calendar_on_date_early_close calendar_on_date date=20241129
+calendar_year calendar_year year=2024
+
+# Interest rate
+interest_rate_history_eod interest_rate_history_eod symbol=SOFR&start_date=20240610&end_date=20240614

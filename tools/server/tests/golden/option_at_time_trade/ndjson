@@ -1,0 +1,7 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"condition":129,"exchange":11,"expiration":"2024-06-21","ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"price":33.45,"right":"CALL","sequence":540454040,"size":2,"strike":500.000,"symbol":"SPY","timestamp":"2024-06-11T09:55:42.085"}
+{"condition":131,"exchange":5,"expiration":"2024-06-21","ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"price":43.19,"right":"CALL","sequence":1021730234,"size":10,"strike":500.000,"symbol":"SPY","timestamp":"2024-06-12T09:44:00.223"}
+{"condition":130,"exchange":6,"expiration":"2024-06-21","ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"price":42.52,"right":"CALL","sequence":1746764149,"size":3,"strike":500.000,"symbol":"SPY","timestamp":"2024-06-13T09:58:53.021"}
+{"condition":130,"exchange":6,"expiration":"2024-06-21","ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"price":41.71,"right":"CALL","sequence":-1986932228,"size":10,"strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:55:03.122"}

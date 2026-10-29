@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"close":null,"date":"2024-01-01","open":null,"type":"full_close"},{"close":null,"date":"2024-01-15","open":null,"type":"full_close"},{"close":null,"date":"2024-02-19","open":null,"type":"full_close"},{"close":null,"date":"2024-03-29","open":null,"type":"full_close"},{"close":null,"date":"2024-05-27","open":null,"type":"full_close"},{"close":null,"date":"2024-06-19","open":null,"type":"full_close"},{"close":"13:00:00","date":"2024-07-03","open":"09:30:00","type":"early_close"},{"close":null,"date":"2024-07-04","open":null,"type":"full_close"},{"close":null,"date":"2024-09-02","open":null,"type":"full_close"},{"close":null,"date":"2024-11-28","open":null,"type":"full_close"},{"close":"13:00:00","date":"2024-11-29","open":"09:30:00","type":"early_close"},{"close":"13:00:00","date":"2024-12-24","open":"09:30:00","type":"early_close"},{"close":null,"date":"2024-12-25","open":null,"type":"full_close"}]}

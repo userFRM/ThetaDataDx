@@ -1,0 +1,7 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="index_history_eod_20240610_20240614.csv"
+
+created,last_trade,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition
+2024-06-10T17:17:51.996,2024-06-10T16:02:07.000,5341.22,5365.79,5331.52,5360.79,0,0,0,0,0.00,0,0,0,0.00,0
+2024-06-11T17:15:48.416,2024-06-11T16:02:31.000,5353.00,5375.95,5327.25,5375.32,0,0,0,0,0.00,0,0,0,0.00,0

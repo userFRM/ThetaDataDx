@@ -1,0 +1,21 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>date</th><th>type</th><th>open</th><th>close</th></tr></thead>
+<tbody><tr><td>2024-01-01</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-01-15</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-02-19</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-03-29</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-05-27</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-06-19</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-07-03</td><td>early_close</td><td>09:30:00</td><td>13:00:00</td></tr>
+<tr><td>2024-07-04</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-09-02</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-11-28</td><td>full_close</td><td>null</td><td>null</td></tr>
+<tr><td>2024-11-29</td><td>early_close</td><td>09:30:00</td><td>13:00:00</td></tr>
+<tr><td>2024-12-24</td><td>early_close</td><td>09:30:00</td><td>13:00:00</td></tr>
+<tr><td>2024-12-25</td><td>full_close</td><td>null</td><td>null</td></tr>
+</tbody></table></body></html>

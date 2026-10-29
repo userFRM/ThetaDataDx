@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"close":[348.910],"count":[533975],"high":[351.430],"low":[347.300],"open":[348.000],"symbol":["AAPL"],"timestamp":["2026-10-29T17:10:17.156"],"volume":[31600997]}

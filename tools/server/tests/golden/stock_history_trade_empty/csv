@@ -1,0 +1,4 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="stock_history_trade_20240614.csv"
+

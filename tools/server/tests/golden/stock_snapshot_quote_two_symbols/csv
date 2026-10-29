@@ -1,0 +1,7 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="stock_snapshot_quote.csv"
+
+timestamp,symbol,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition
+2026-10-29T17:10:04.789,MSFT,20,29,527.02,0,18,29,527.95,0
+2026-10-29T17:10:13.040,AAPL,480,29,350.50,0,4,29,350.65,0

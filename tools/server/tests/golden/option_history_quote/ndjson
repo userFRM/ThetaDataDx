@@ -1,0 +1,14 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"ask":0.0,"ask_condition":0,"ask_exchange":0,"ask_size":0,"bid":0.0,"bid_condition":0,"bid_exchange":0,"bid_size":0,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:30:00.000"}
+{"ask":41.78,"ask_condition":50,"ask_exchange":5,"ask_size":325,"bid":40.52,"bid_condition":50,"bid_exchange":5,"bid_size":325,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:31:00.000"}
+{"ask":41.83,"ask_condition":50,"ask_exchange":5,"ask_size":325,"bid":40.61,"bid_condition":50,"bid_exchange":9,"bid_size":100,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:32:00.000"}
+{"ask":41.72,"ask_condition":50,"ask_exchange":5,"ask_size":325,"bid":40.60,"bid_condition":50,"bid_exchange":5,"bid_size":250,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:33:00.000"}
+{"ask":41.88,"ask_condition":50,"ask_exchange":5,"ask_size":264,"bid":40.78,"bid_condition":50,"bid_exchange":5,"bid_size":432,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:34:00.000"}
+{"ask":41.98,"ask_condition":50,"ask_exchange":5,"ask_size":264,"bid":40.91,"bid_condition":50,"bid_exchange":5,"bid_size":264,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:35:00.000"}
+{"ask":41.96,"ask_condition":50,"ask_exchange":5,"ask_size":325,"bid":40.94,"bid_condition":50,"bid_exchange":1,"bid_size":50,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:36:00.000"}
+{"ask":41.96,"ask_condition":50,"ask_exchange":5,"ask_size":339,"bid":40.99,"bid_condition":50,"bid_exchange":5,"bid_size":264,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:37:00.000"}
+{"ask":42.15,"ask_condition":50,"ask_exchange":5,"ask_size":339,"bid":41.15,"bid_condition":50,"bid_exchange":5,"bid_size":339,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:38:00.000"}
+{"ask":42.23,"ask_condition":50,"ask_exchange":5,"ask_size":339,"bid":41.25,"bid_condition":50,"bid_exchange":5,"bid_size":339,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:39:00.000"}
+{"ask":42.31,"ask_condition":50,"ask_exchange":5,"ask_size":339,"bid":41.33,"bid_condition":50,"bid_exchange":5,"bid_size":339,"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY","timestamp":"2024-06-14T09:40:00.000"}

@@ -1,0 +1,8 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"ask":195.43,"ask_condition":0,"ask_exchange":1,"ask_size":2,"bid":195.41,"bid_condition":0,"bid_exchange":1,"bid_size":2,"timestamp":"2024-06-10T10:00:00.000"}
+{"ask":199.14,"ask_condition":0,"ask_exchange":1,"ask_size":2,"bid":199.12,"bid_condition":0,"bid_exchange":1,"bid_size":6,"timestamp":"2024-06-11T10:00:00.000"}
+{"ask":214.28,"ask_condition":0,"ask_exchange":43,"ask_size":1,"bid":214.23,"bid_condition":0,"bid_exchange":1,"bid_size":2,"timestamp":"2024-06-12T10:00:00.000"}
+{"ask":214.76,"ask_condition":0,"ask_exchange":1,"ask_size":2,"bid":214.73,"bid_condition":0,"bid_exchange":60,"bid_size":1,"timestamp":"2024-06-13T10:00:00.000"}
+{"ask":213.76,"ask_condition":0,"ask_exchange":1,"ask_size":1,"bid":213.72,"bid_condition":0,"bid_exchange":1,"bid_size":1,"timestamp":"2024-06-14T10:00:00.000"}

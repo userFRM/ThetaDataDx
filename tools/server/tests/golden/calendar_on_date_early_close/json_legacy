@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"close":["13:00:00"],"open":["09:30:00"],"type":["early_close"]}

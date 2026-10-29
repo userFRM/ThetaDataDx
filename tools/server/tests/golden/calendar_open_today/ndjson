@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"close":"16:00:00","open":"09:30:00","type":"open"}

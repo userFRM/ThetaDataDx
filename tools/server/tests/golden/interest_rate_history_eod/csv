@@ -1,0 +1,10 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="interest_rate_history_eod_20240610_20240614.csv"
+
+created,rate
+2024-06-10,5.3200
+2024-06-11,5.3200
+2024-06-12,5.3100
+2024-06-13,5.3100
+2024-06-14,5.3100

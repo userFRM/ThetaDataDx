@@ -1,0 +1,4 @@
+200 OK
+content-type: application/json
+
+{"response":[{"contract":{"expiration":"2024-06-21","right":"CALL","strike":500.000,"symbol":"SPY"},"data":[{"ask":34.37,"ask_condition":50,"ask_exchange":5,"ask_size":75,"bid":33.71,"bid_condition":50,"bid_exchange":9,"bid_size":100,"timestamp":"2024-06-10T09:59:59.429"},{"ask":33.94,"ask_condition":50,"ask_exchange":5,"ask_size":75,"bid":33.23,"bid_condition":50,"bid_exchange":9,"bid_size":100,"timestamp":"2024-06-11T09:59:58.373"},{"ask":43.64,"ask_condition":50,"ask_exchange":42,"ask_size":93,"bid":43.06,"bid_condition":50,"bid_exchange":9,"bid_size":100,"timestamp":"2024-06-12T09:59:59.789"},{"ask":42.85,"ask_condition":50,"ask_exchange":5,"ask_size":85,"bid":42.23,"bid_condition":50,"bid_exchange":1,"bid_size":50,"timestamp":"2024-06-13T09:59:59.350"},{"ask":43.35,"ask_condition":50,"ask_exchange":4,"ask_size":10,"bid":40.02,"bid_condition":50,"bid_exchange":47,"bid_size":1,"timestamp":"2024-06-14T09:59:59.945"}]}]}

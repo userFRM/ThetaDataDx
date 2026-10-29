@@ -1,0 +1,48 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th></tr></thead>
+<tbody><tr><td>.PR.I.PR.A</td></tr>
+<tr><td>.PR.I.PR.B</td></tr>
+<tr><td>.PR.S/WI</td></tr>
+<tr><td>A</td></tr>
+<tr><td>AA</td></tr>
+<tr><td>AAA</td></tr>
+<tr><td>AAAA</td></tr>
+<tr><td>AAAB</td></tr>
+<tr><td>AAAC</td></tr>
+<tr><td>AAAD</td></tr>
+<tr><td>AAAP</td></tr>
+<tr><td>AAAU</td></tr>
+<tr><td>AABA</td></tr>
+<tr><td>AAC</td></tr>
+<tr><td>AAC.U</td></tr>
+<tr><td>AAC.WS</td></tr>
+<tr><td>AACB</td></tr>
+<tr><td>AACBR</td></tr>
+<tr><td>AACBU</td></tr>
+<tr><td>AACC</td></tr>
+<tr><td>EWP</td></tr>
+<tr><td>EWQ</td></tr>
+<tr><td>EWRE</td></tr>
+<tr><td>EWS</td></tr>
+<tr><td>EWSC</td></tr>
+<tr><td>EWT</td></tr>
+<tr><td>EWTX</td></tr>
+<tr><td>EWU</td></tr>
+<tr><td>EWUS</td></tr>
+<tr><td>EWV</td></tr>
+<tr><td>EWW</td></tr>
+<tr><td>EWX</td></tr>
+<tr><td>EWY</td></tr>
+<tr><td>EWZ</td></tr>
+<tr><td>EWZS</td></tr>
+<tr><td>EXA</td></tr>
+<tr><td>EXAC</td></tr>
+<tr><td>EXAI</td></tr>
+<tr><td>EXAR</td></tr>
+<tr><td>EXAS</td></tr>
+</tbody></table></body></html>

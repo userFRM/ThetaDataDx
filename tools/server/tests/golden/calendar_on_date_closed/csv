@@ -1,0 +1,6 @@
+200 OK
+content-type: text/csv; charset=utf-8
+content-disposition: attachment; filename="calendar_on_date_20241225.csv"
+
+type,open,close
+full_close,,

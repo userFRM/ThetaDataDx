@@ -1,0 +1,4 @@
+200 OK
+content-type: application/x-ndjson; charset=utf-8
+
+{"condition":1,"price":350.600,"sequence":78285289,"size":20,"symbol":"AAPL","timestamp":"2026-10-29T17:10:17.156"}
