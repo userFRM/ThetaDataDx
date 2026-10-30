@@ -777,8 +777,8 @@ macro_rules! py_decode {
         /// Decode recorded gRPC response bytes into the same typed pyclass list
         /// the matching `Client` endpoint would have returned.
         ///
-        /// `endpoint` must match an endpoint name from `endpoint_surface.toml` that
-        /// exposes a typed decoder (every entry whose `returns` is not `StringList`).
+        /// `endpoint` is the name of a market-data endpoint that returns typed rows,
+        /// which is every endpoint except those returning a list of strings.
         /// `chunks` is the recorded byte list; one prost-encoded `proto::ResponseData`
         /// per entry, same frame boundaries tonic hands out of `Streaming::next()`.
         ///
@@ -809,7 +809,7 @@ macro_rules! py_decode {
                     Ok(thetadatadx::__paste!([<$item:snake s_to_pyclass_list>])(py, ticks)?.into_any())
                 })*
                 other => Err(PyValueError::new_err(format!(
-                    "decode_response_bytes: unknown endpoint `{other}`; extend endpoint_surface.toml and regen `cargo run --bin generate_sdk_surfaces`"
+                    "decode_response_bytes: unknown endpoint `{other}`; expected a market-data endpoint that returns typed rows, not a list of strings"
                 ))),
             }
         }
