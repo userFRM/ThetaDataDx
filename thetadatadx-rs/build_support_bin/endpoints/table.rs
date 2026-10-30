@@ -62,23 +62,23 @@ macro_rules! param_records {
 }
 
 macro_rules! endpoint_records {
-    ($out:ident $( $(#[$attr:meta])* $shape:ident $name:ident {
+    ($( $(#[$attr:meta])* $shape:ident $name:ident {
         group: $cat:ident / $sub:ident,
         rest: $rest:literal,
         returns: $ret:ident $(($col:literal))?,
         params: [$($key:tt)*],
         doc: [$($doc:literal),* $(,)?],
     } )*) => {
-        $( thetadatadx::__resolve! { [$($key)*] => endpoint_record {
-            $out $shape $name $cat $sub $rest $ret $(($col))? [$($doc)*]
-        } } )*
+        vec![$( thetadatadx::__resolve! { [$($key)*] => endpoint_record {
+            $shape $name $cat $sub $rest $ret $(($col))? [$($doc)*]
+        } } ),*]
     };
 }
 
 macro_rules! endpoint_record {
-    ($out:ident $shape:ident $name:ident $cat:ident $sub:ident $rest:literal $ret:ident $(($col:literal))?
+    ($shape:ident $name:ident $cat:ident $sub:ident $rest:literal $ret:ident $(($col:literal))?
         [$description:literal $($doc:literal)*] params { all [$($all:tt)*] $($resolved:tt)* }) => {
-        $out.push(GeneratedEndpoint {
+        GeneratedEndpoint {
             name: stringify!($name),
             description: $description,
             doc: &[$description $(, $doc)*],
@@ -89,7 +89,7 @@ macro_rules! endpoint_record {
             return_type: endpoint_record!(@returns $ret $(($col))?),
             list_column: endpoint_record!(@column $($col)?),
             params: param_records!($($all)*),
-        });
+        }
     };
     (@returns StringList($col:literal)) => { "StringList" };
     (@returns $ret:ident) => { concat!(stringify!($ret), "s") };
@@ -107,9 +107,8 @@ pub(super) const REQUEST_OPTIONS: &[GeneratedParam] =
 
 /// Every endpoint, in registry order, the raw server streams last.
 pub(super) fn endpoints() -> Vec<GeneratedEndpoint> {
-    let mut out = Vec::new();
-    thetadatadx::__endpoints! { endpoint_records { out } }
-    thetadatadx::__stream_endpoints! { endpoint_records { out } }
+    let mut out = thetadatadx::__endpoints! { endpoint_records {} };
+    out.extend(thetadatadx::__stream_endpoints! { endpoint_records {} });
     out
 }
 
