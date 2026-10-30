@@ -234,7 +234,47 @@ impl<'py> FromPyObject<'_, 'py> for PySymbols {
     }
 }
 
-include!("_generated/enums_generated.rs");
+/// Expands `__enums!` into frozen string enums, one class attribute per
+/// variant holding its wire value.
+macro_rules! py_string_enums {
+    ($($name:ident { $($variant:ident $wire:literal $py:ident [$($alias:literal)*]),+ $(,)? })*) => {
+        $(
+            #[pyclass(module = "thetadatadx", frozen, eq, hash, skip_from_py_object)]
+            #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+            pub(crate) struct $name {
+                value: &'static str,
+            }
+
+            #[pymethods]
+            impl $name {
+                $(
+                    #[classattr]
+                    const $py: Self = Self { value: $wire };
+                )+
+
+                #[getter]
+                fn value(&self) -> &'static str {
+                    self.value
+                }
+
+                fn __str__(&self) -> &'static str {
+                    self.value
+                }
+
+                fn __repr__(&self) -> String {
+                    format!("{}.{}", stringify!($name), self.value)
+                }
+            }
+        )*
+
+        pub(crate) fn register_string_enums(m: &Bound<'_, PyModule>) -> PyResult<()> {
+            $(m.add_class::<$name>()?;)*
+            Ok(())
+        }
+    };
+}
+
+thetadatadx::__enums! { py_string_enums {} }
 
 #[cfg(test)]
 mod time_arg_tests {

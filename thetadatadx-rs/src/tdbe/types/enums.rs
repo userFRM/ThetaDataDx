@@ -410,7 +410,63 @@ impl std::fmt::Display for CalendarStatus {
     }
 }
 
-include!("generated/enums_endpoint.rs");
+/// Expands `__enums!` into the parameter enums, with their wire strings and
+/// the spellings each parses.
+macro_rules! wire_enums {
+    (@methods Right) => {
+        /// Returns the single-character option-right code (`C`/`P`/`*`).
+        #[must_use]
+        pub fn as_char(&self) -> char {
+            match self {
+                Self::Call => 'C',
+                Self::Put => 'P',
+                Self::Both => '*',
+            }
+        }
+    };
+    (@methods $name:ident) => {};
+    ($($name:ident { $($variant:ident $wire:literal $py:ident [$($alias:literal)*]),+ $(,)? })*) => {$(
+        #[doc = concat!("Wire string enum `", stringify!($name), "`.")]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum $name {
+            $(
+                #[doc = concat!("Wire value `", $wire, "`.")]
+                $variant,
+            )+
+        }
+
+        impl $name {
+            /// Returns the wire string for this variant.
+            #[must_use]
+            pub fn as_str(&self) -> &'static str {
+                match self {
+                    $(Self::$variant => $wire,)+
+                }
+            }
+
+            wire_enums!(@methods $name);
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(self.as_str())
+            }
+        }
+
+        impl TryFrom<&str> for $name {
+            type Error = ();
+
+            fn try_from(value: &str) -> Result<Self, Self::Error> {
+                match value {
+                    $($wire $(| $alias)* => Ok(Self::$variant),)+
+                    _ => Err(()),
+                }
+            }
+        }
+    )*};
+}
+
+crate::__enums! { wire_enums {} }
 
 #[cfg(test)]
 mod wire_token_tests {

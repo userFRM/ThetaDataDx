@@ -64,6 +64,7 @@ so a consumer never needs the generator.
 | --- | --- |
 | `thetadatadx-rs/src/surface/ticks.rs` | The tick table: every tick struct, its columns, its decoder, its Arrow and Polars builders and its flag and timestamp accessors, the Python and TypeScript row classes, and through `generate_sdk_surfaces` the C++ layout asserts, flag accessors and Arrow IPC helpers and the docs site's response tables. |
 | `thetadatadx-rs/src/surface/endpoints.rs` | The endpoint table: every `MarketDataClient` method and builder, the endpoint registry and its dispatch, the Python and TypeScript endpoint methods and builders, the C ABI entry points and options struct, and through `generate_sdk_surfaces` the Python type stub, the C and C++ headers, the live validators and the docs site's endpoint pages. |
+| `thetadatadx-rs/src/surface/enums.rs` | The endpoint parameter enums (`Right`, `Venue`, `Interval`, `RateType`, `RequestType`, `Version`) in Rust, Python and TypeScript, and the values `generate_sdk_surfaces` holds each enum parameter's "Accepted values" description to. |
 | `thetadatadx-rs/sdk_surface.toml` | The non-endpoint SDK surface. |
 | `thetadatadx-rs/config_surface.toml` | Config accessors for the FFI and C++. |
 | `thetadatadx-rs/fpss_event_schema.toml` | Every streaming event. |

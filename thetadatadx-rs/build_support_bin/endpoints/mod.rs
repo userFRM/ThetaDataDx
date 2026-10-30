@@ -14,7 +14,6 @@
 //! * [`docs_render`]: the docs site.
 
 mod docs_render;
-mod enum_projection;
 mod helpers;
 mod modes;
 mod sdk_helpers;
