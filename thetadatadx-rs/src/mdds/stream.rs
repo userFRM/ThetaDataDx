@@ -25,6 +25,16 @@ use crate::proto;
 
 use super::client::MarketDataClient;
 
+/// Opens one endpoint's server stream for an attempt of
+/// [`MarketDataClient::stream_tables`], given the attempt's query info.
+#[cfg(feature = "__internal")]
+pub(crate) type TableRequest<'a> = dyn Fn(
+        proto::QueryInfo,
+    ) -> std::pin::Pin<
+        Box<dyn Future<Output = Result<ServerStreaming<proto::ResponseData>, Error>> + Send + 'a>,
+    > + Sync
+    + 'a;
+
 pub(crate) fn chunk_columns<T: crate::columns::WireColumns>(
     table: &proto::DataTable,
 ) -> crate::columns::ColumnPresence {
@@ -340,6 +350,63 @@ impl MarketDataClient {
                 .await
             },
         )
+        .await
+    }
+
+    /// Send one generated endpoint's request and hand each chunk's column
+    /// headers and cells to `handler` as the vendor sends them, unconverted:
+    /// the body of every builder's `stream_tables`.
+    ///
+    /// `request` opens the endpoint's server stream for one attempt. The
+    /// request goes upstream once as built, never split into bands, so the
+    /// rows keep the vendor's order. `deadline` resolves as on every other
+    /// call, and a `Break` from `handler` ends the call. Transient failures
+    /// are retried only until the first rows reach `handler`.
+    #[cfg(feature = "__internal")]
+    pub(crate) async fn stream_tables<F, Fut>(
+        &self,
+        endpoint: &'static str,
+        deadline: Option<std::time::Duration>,
+        request: &TableRequest<'_>,
+        handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+        Fut: Future<Output = ControlFlow<()>>,
+    {
+        let deadline = super::macros::effective_deadline(
+            deadline,
+            self.config().market_data.request_timeout_secs,
+        );
+        super::macros::run_with_optional_deadline(deadline, async {
+            tracing::debug!(endpoint, "gRPC streaming request");
+            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
+            let started = std::time::Instant::now();
+            let _permit = self.acquire_request_permit().await?;
+            let handler = tokio::sync::Mutex::new(handler);
+            let delivered = std::sync::atomic::AtomicBool::new(false);
+            let (handler, delivered) = (&handler, &delivered);
+            super::macros::run_streaming_retry_loop(
+                self.session(),
+                &self.config().retry,
+                endpoint,
+                delivered,
+                |snap| async move {
+                    let stream = request(self.build_query_info(snap.uuid.clone())).await?;
+                    self.for_each_chunk_async_control(stream, |headers, rows| async move {
+                        if !rows.is_empty() {
+                            delivered.store(true, std::sync::atomic::Ordering::Release);
+                        }
+                        (handler.lock().await)(headers, rows).await
+                    })
+                    .await
+                },
+            )
+            .await?;
+            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
+                .record(started.elapsed().as_secs_f64() * 1_000.0);
+            Ok(())
+        })
         .await
     }
 
