@@ -1354,17 +1354,24 @@ impl StreamService {
         }
     }
 
-    /// Increment the panic counter on the live streaming session by one.
+    /// Count one user-callback fault.
     ///
     /// Called by language-binding dispatchers when the user callback raises
     /// a language-level exception that bypasses the Rust `catch_unwind`
-    /// boundary. No-op when streaming is not active.
+    /// boundary. A stop leaves the slot before its dispatcher drains the
+    /// events already in the ring, so a fault raised on those is added to the
+    /// retired total directly: the session's own counter was already folded.
     #[cfg(feature = "__internal")]
     #[doc(hidden)]
     pub(crate) fn record_panic(&self) {
         let snap = self.streaming.state.load();
-        if let StreamingSlot::Live { client } = &**snap {
-            client.record_panic();
+        match &**snap {
+            StreamingSlot::Live { client } => client.record_panic(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => {
+                self.streaming
+                    .retired_panics
+                    .fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
 
@@ -3760,5 +3767,22 @@ mod tests {
             ),
             "the dispatcher's own fault record must flip its Running session to Failed",
         );
+    }
+
+    /// A stop leaves the slot before its dispatcher drains the events already
+    /// in the ring, and the session's own counter is folded at that point. A
+    /// binding callback fault raised on one of those last events must still
+    /// reach `panic_count`.
+    #[cfg(feature = "__internal")]
+    #[test]
+    fn a_binding_fault_after_the_session_left_the_slot_is_counted() {
+        let service =
+            StreamService::validated(&Credentials::api_key("test"), DirectConfig::production());
+        service
+            .streaming
+            .state
+            .store(Arc::new(StreamingSlot::Stopped));
+        service.record_panic();
+        assert_eq!(service.panic_count(), 1);
     }
 }

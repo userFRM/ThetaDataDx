@@ -65,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Python `panic_count()` counts an exception raised on the last events of a stopped stream.** A stop retires the session before its dispatcher has delivered the events already queued, and an exception the callback raised on one of those was printed but never counted, so `panic_count()` read lower than the number of failures written to `sys.stderr`. This affected `client.stream` and the standalone `StreamingClient`, during `stop_streaming()` and during the drain of the old session in `reconnect()`.
+
 - **The local server writes each timestamp from its own instant.** The EOD routes wrote `last_trade` with the date of `created`, and the trade-quote routes wrote `quote_timestamp` with the date of `trade_timestamp`, so either one carried the wrong day whenever it fell on a different day from the other. Each is now written from the instant the vendor sent, as the terminal writes it.
 
 - **The local server no longer holds a CPU core while the stream is idle.** It started the streaming bridge at launch with the SDK's default spin wait, which keeps one core fully busy for as long as the process runs, nights and weekends included. Without a config file it now backs off when no events arrive, as the MCP server does: it spins while events flow and sleeps after a short idle stretch, so an event arriving after a quiet spell can be delivered up to one park interval (1 ms by default) late. A config file that sets `wait_mode` is used as written.
