@@ -127,6 +127,8 @@ jobs:
               - 'thetadatadx-rs/**'
               - 'thetadatadx-ffi/**'
               - 'thetadatadx-cpp/**'
+              # The cross-binding manifest the C++ parity unit in cpp-tests reads.
+              - 'parity.json'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
@@ -145,6 +147,8 @@ jobs:
               - 'thetadatadx-py/**'
               - 'thetadatadx-ffi/**'
               - 'thetadatadx-rs/**'
+              # The cross-binding manifest test_parity.py reads.
+              - 'parity.json'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
@@ -155,6 +159,8 @@ jobs:
               - 'thetadatadx-ts/**'
               - 'thetadatadx-ffi/**'
               - 'thetadatadx-rs/**'
+              # The cross-binding manifest parity.test.mjs reads.
+              - 'parity.json'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'rust-toolchain.toml'
