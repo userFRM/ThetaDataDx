@@ -31,7 +31,7 @@ prost = "=0.14.4"
 
 # PyO3 bindings. We target the stable ABI so one wheel per platform supports
 # every Python version from 3.12 upward.
-pyo3 = { version = "=0.29.0", features = ["abi3-py312", "multiple-pymethods"] }
+pyo3 = { version = "=0.29.3", features = ["abi3-py312", "multiple-pymethods"] }
 
 # Bridge between pyo3 and tokio so generated `*_async` methods return real
 # awaitables backed by the shared runtime singleton (no second runtime is
