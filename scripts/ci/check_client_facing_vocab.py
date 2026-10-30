@@ -103,7 +103,6 @@ EXEMPT_PATH_FRAGMENTS = (
     # CI config, internal source trees, generated wire includes, build output.
     "/.github/workflows/",
     "/src/",
-    "/_generated/",
     "/node_modules/",
     "/target/",
     "/.git/",

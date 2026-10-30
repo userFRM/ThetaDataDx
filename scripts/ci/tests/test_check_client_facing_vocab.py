@@ -183,17 +183,6 @@ def test_internal_src_not_swept() -> None:
         _expect("internal src/ not swept", _hits(root) == [])
 
 
-def test_generated_path_exempt() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        root = pathlib.Path(tmp)
-        _write(
-            root,
-            "thetadatadx-ts/src/_generated/tick_classes.rs",
-            "/// FPSS Quote tick.\n",
-        )
-        _expect("_generated path exempt", _hits(root) == [])
-
-
 # ── Shared-line + clean-real-surface cases ──────────────────────────────────
 
 

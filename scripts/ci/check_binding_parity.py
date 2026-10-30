@@ -2093,8 +2093,8 @@ def _collect_typescript_class_methods(
 
     Parses every `#[napi]` / `#[napi(js_name = "...")] impl <Name>` block
     and harvests the JS-visible method names inside. The TS impl blocks
-    live across multiple files (`lib.rs`, `_generated/*.rs`,
-    `config_class.rs`, ...); the collector walks each one and bounds
+    live across multiple files (`lib.rs`, `config_class.rs`,
+    ...); the collector walks each one and bounds
     the method scan to the impl body with a brace counter.
 
     A method may also be added on the WRAPPER side rather than the napi
@@ -3428,11 +3428,9 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
     """Snake_case names of free functions declared in the `thetadatadx`
     namespace of the C++ wrapper.
 
-    The calculator declarations live in
-    `thetadatadx-cpp/include/utilities.hpp.inc`, pulled into `thetadatadx.hpp` via
-    `#include "utilities.hpp.inc"`. `_expand_cpp_includes` inlines the
-    `.inc` first, then a `<ret> <name>(` shape outside any `class {...}`
-    body is a free function. The collector blanks class bodies (mirroring
+    The calculator declarations live in `thetadatadx.hpp`. After
+    `_expand_cpp_includes` inlines the `.inc` files, a `<ret> <name>(`
+    shape outside any `class {...}` body is a free function. The collector blanks class bodies (mirroring
     the TS impl-body blanking) so member functions are not counted.
     """
     out: set[str] = set()
@@ -5613,7 +5611,7 @@ VALUE_FIELD_TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
 def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | None:
     """Declared Rust-side type of `field` on `struct` in a binding crate.
 
-    Scans every `.rs` file (including `_generated/`) for the struct body
+    Scans every `.rs` file for the struct body
     and returns the type text of the named field, attribute prefixes
     (`#[pyo3(get)]`) stripped. Returns `None` when the struct or field
     is absent. Generated and hand-written sources are treated alike —
