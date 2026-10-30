@@ -2302,18 +2302,6 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     return out
 
 
-# The unified `Client`'s data surfaces are reached through view accessors
-# that return a cheap handle clone (`marketData`, `stream`, `flatFiles`).
-# They are hand-written per binding rather than expanded from the endpoint
-# table. Kept as the canonical-name reference for the view
-# accessors; the reverse-orphan scan below is no longer limited to this set.
-# It discovers every Client-level helper from the bindings so a NEW helper
-# (any shape, not just a view accessor) cannot ship on a binding untracked.
-CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
-    {"marketData", "stream", "flatFiles"}
-)
-
-
 # Client-level members the reverse-orphan scan must NOT treat as
 # cross-binding helper methods needing a `[[method]]` row. The scan
 # discovers candidate helpers from the precise Python (`#[pymethods]`) and
