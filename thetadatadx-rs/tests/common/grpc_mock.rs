@@ -181,6 +181,10 @@ pub struct MockBehaviour {
     /// When `Some`, the trailing trailers carry this value as the service's
     /// `http_status_code` trailer, the HTTP status it attaches to an error.
     pub http_status_code: Option<u16>,
+    /// When true, the mock sends the response head and then nothing more,
+    /// holding the stream open: a live server that has stopped sending,
+    /// which the connection's keepalive cannot tell from a slow one.
+    pub stall_after_head: bool,
 }
 
 impl MockServer {
@@ -499,6 +503,15 @@ async fn handle_request(
         // `send_reset` must be called before any `send_response`.
         respond.send_reset(reason);
         return Ok(());
+    }
+    if behaviour.stall_after_head {
+        let mut response = Response::new(());
+        response.headers_mut().insert(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/grpc+proto"),
+        );
+        let _open = respond.send_response(response, false)?;
+        std::future::pending::<()>().await;
     }
     if behaviour.trailers_only {
         // gRPC trailers-only encoding: `grpc-status` (and optional

@@ -245,6 +245,8 @@ proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
 # files for the decoder-regression suite.
 toml = "1.1.2"
+# A paused clock, so a test can wait out a production timeout instantly.
+tokio = { version = "1.52.3", features = ["test-util"] }
 
 # Signal-driven sampling profiler used by the concurrent-burst bench
 # to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
