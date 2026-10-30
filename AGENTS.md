@@ -23,7 +23,7 @@ binaries.
 | `tools/server/` | A drop-in replacement for the vendor's JVM terminal, serving the user's own tooling. Like the terminal, it binds all interfaces by default; `--bind 127.0.0.1` restricts it to loopback. |
 | `tools/mcp/` | An MCP server: one tool per market-data endpoint, plus flat-file tools. |
 | `scripts/ci/` | The gate suite. One script per gate, dispatched by `scripts/ci.py`. |
-| `docs-site/` | The published documentation. Its changelog is kept identical to `CHANGELOG.md`. |
+| `docs-site/` | The published documentation. Its changelog page includes `CHANGELOG.md`. |
 
 Every crate is a member of one Cargo workspace with one `Cargo.lock`, so `cargo test --workspace` and
 `cargo clippy --workspace` cover the bindings and both binaries. The Python and TypeScript packages
@@ -306,8 +306,8 @@ else is noise in the permanent record.
 Conventional Commits. The subject says what changed; the body says why it was wrong before.
 
 Changelog entries describe what a user can now do, or no longer has to work around, in prose, with
-the reason it was wrong before. They are not commit summaries. `CHANGELOG.md` and
-`docs-site/docs/changelog.md` stay identical below the title.
+the reason it was wrong before. They are not commit summaries. Write them in `CHANGELOG.md` only;
+the docs site's changelog page includes that file.
 
 Issues are Problem, Solution, Impact. Check the open ones first, including your own.
 

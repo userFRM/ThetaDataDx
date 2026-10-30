@@ -8,11 +8,13 @@ on:
     # which is what piled deployments onto the shared `pages` concurrency group.
     paths:
       - "docs-site/**"
+      - "CHANGELOG.md"
       - ".github/workflows/docs.yml"
       - ".github/workflows/paths.yml"
   pull_request:
     paths:
       - "docs-site/**"
+      - "CHANGELOG.md"
       - ".github/workflows/docs.yml"
       - ".github/workflows/paths.yml"
   workflow_dispatch:
