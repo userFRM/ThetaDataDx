@@ -2286,7 +2286,7 @@ impl CompressionAlgo {
 /// gRPC client stubs for the `BetaThetaTerminal` service.
 ///
 /// Generated from `proto/mdds.proto` by
-/// `thetadatadx-rs/build_support/grpc/`.
+/// `refresh_grpc_snapshot`.
 pub mod beta_theta_terminal {
     ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols`.
