@@ -7,23 +7,23 @@
 //! # `max_message_size` ceiling
 //!
 //! Every decode path threads the channel's configured
-//! `max_message_size` ceiling into [`decode_data_table`] /
-//! [`decompress_response`]. A hostile peer that sets
+//! `max_message_size` ceiling into [`decode_data_table_with_max`] /
+//! [`decompress_response_with_max`]. A hostile peer that sets
 //! `ResponseData.original_size = i32::MAX` cannot trigger a 2 GiB
 //! allocation: an `original_size` that exceeds the ceiling fails the
 //! decode with [`Error::Decompress`]
 //! (`DecompressErrorKind::MessageTooLarge`) before any `Vec::resize`
 //! runs. Callers that don't have a ceiling (offline test fixtures)
-//! call the `_unchecked` variant; production paths route through the
-//! ceiling-aware variants.
+//! call the variants without `_with_max`, which apply the default
+//! ceiling; production paths route through the `_with_max` variants.
 
 use std::cell::RefCell;
 
 use crate::error::Error;
 use crate::proto;
 
-/// Default per-frame decode ceiling for the `_unchecked`-style entry
-/// points that have no configured channel ceiling to thread through.
+/// Default per-frame decode ceiling for the entry points that have no
+/// configured channel ceiling to thread through.
 /// Matches the gRPC decoder default (4 MiB) and the production
 /// `MarketDataConfig::max_message_size` default.
 #[cfg(feature = "__internal")]
@@ -162,10 +162,10 @@ pub fn decompress_response_with_max(
     }
 }
 
-/// Decode a `ResponseData` into a `DataTable` (legacy signature;
-/// uses the crate's built-in default per-frame ceiling). Kept on the
-/// public API for backwards compatibility with earlier consumers; new
-/// callers should prefer [`decode_data_table_with_max`].
+/// Decode a `ResponseData` into a `DataTable` under the crate's built-in
+/// default per-frame ceiling, for callers with no channel ceiling to
+/// thread through: recorded captures in tests, benches and the offline
+/// decode hooks. A live stream uses [`decode_data_table_with_max`].
 ///
 /// # Errors
 ///
