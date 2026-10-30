@@ -1035,15 +1035,22 @@ private:
 
 class StreamingClient {
 public:
-    /** Get a snapshot of currently active subscriptions. */
+    /** Snapshot the currently-active per-contract subscriptions. Throws on
+     *  FFI error, including when streaming is not active. */
     std::vector<Subscription> active_subscriptions() const;
-    /** Reconnect streaming and re-subscribe all previous subscriptions. */
+    /** Reconnect the live session and re-apply every active subscription,
+     *  under the callback `set_callback` registered. After `shutdown()`,
+     *  which drops the subscriptions, there is nothing to reconnect and it
+     *  throws `NetworkError`: resume with `set_callback()` and subscribe
+     *  again. Throws on failure. If the session reconnected but some
+     *  subscriptions failed to restore, it throws `StreamError` with the
+     *  stream still live; `active_subscriptions()` lists what was
+     *  restored. */
     void reconnect();
-    /**
-     * Shut down the streaming connection.
-     *
-     * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
-     */
+    /** Stop streaming. Idempotent. Returns once the consumer thread has
+     *  exited, except when called from inside the callback. The shutdown
+     *  drops the subscriptions: resume with `set_callback()`, which
+     *  registers a replacement, and subscribe again. */
     void shutdown();
     /** Return true if the streaming client is currently authenticated. */
     bool is_authenticated() const;
@@ -1074,8 +1081,8 @@ public:
      *  existing `callback_` storage. We must drain that wiring on the
      *  C ABI side BEFORE destroying the old `callback_`, otherwise
      *  the consumer thread could invoke through a dangling `void*`
-     *  ctx. `thetadatadx_streaming_shutdown` returns asynchronously, so we follow
-     *  it with `thetadatadx_streaming_await_drain` (5 s budget, matching the free
+     *  ctx. `thetadatadx_streaming_shutdown` does not wait for a consumer it is
+     *  called from, so we follow it with `thetadatadx_streaming_await_drain` (5 s budget, matching the free
      *  contract) to confirm the consumer thread has stopped firing
      *  the callback before releasing the storage.
      *
@@ -1101,9 +1108,8 @@ public:
                 // Only rescue when a callback was actually installed: `callback_`
                 // is non-null only after a successful `set_callback`, the sole
                 // path that starts the consumer thread and wires a live `ctx`.
-                // With no callback there is nothing to outrun and `await_drain`
-                // returns 0 on the empty barrier, so fall through to the
-                // synchronous `callback_.reset()` below.
+                // With no callback there is nothing to outrun, so fall through
+                // to the synchronous `callback_.reset()` below.
                 if (drained == 0 && callback_) {
                     // Drain barrier timed out: the consumer may still be
                     // firing through `callback_`'s storage. Hand the retired
@@ -1162,22 +1168,39 @@ public:
      *  a single thread, so no internal locks are needed for
      *  callback-private state.
      *
-     *  ## Lifecycle contract (one-shot rule)
+     *  ## Lifecycle contract (replacement after shutdown)
      *
-     *  The C ABI permits exactly one successful callback registration
-     *  per handle, and rejects every register / reconnect / shutdown
-     *  call after `thetadatadx_streaming_shutdown`. A second call on a still-live
-     *  handle returns -1 and KEEPS the previously installed
-     *  (callback, ctx) wired into the dispatcher. We therefore
-     *  stage the new `std::function` into a local `unique_ptr`,
-     *  attempt the FFI registration with the staged address, and only
-     *  adopt it into `callback_` after the FFI reports success. On
-     *  failure the existing `callback_` is left untouched so the
-     *  still-live registration keeps pointing at valid storage. */
+     *  Calling `set_callback` on a live session throws `StreamError`
+     *  ("streaming already started"), keeping the installed callback.
+     *  After `shutdown()` another `set_callback` REPLACES the registration
+     *  and starts a session with nothing subscribed, once the previous
+     *  consumer is drained out with the same `await_drain(5000)` budget. If
+     *  that consumer is still firing when the budget elapses, it throws
+     *  `StreamError` and keeps the old storage, and a later call retries.
+     *  `Stream::set_callback` instead retires the old node to a background
+     *  reclaimer that co-owns the handle; this class owns its handle alone,
+     *  so a reclaimer could outlive it. The new `std::function` is staged into a local
+     *  `unique_ptr` and adopted into `callback_` only after the FFI
+     *  reports success, so a failed registration leaves `callback_`
+     *  untouched. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
         if (!fn) {
             throw InvalidParameterError(
                 "set_callback requires a callable target; an empty std::function was passed");
+        }
+        if (callback_) {
+            if (thetadatadx_streaming_is_streaming(handle_.get()) == 1) {
+                detail::throw_for_code(THETADATADX_ERR_STREAM, "streaming already started");
+            }
+            // The previous consumer may still be firing through `callback_`'s
+            // storage, which the adoption below frees. The shutdown is a no-op
+            // after a user stop and retires a session whose dispatcher failed.
+            thetadatadx_streaming_shutdown(handle_.get());
+            if (thetadatadx_streaming_await_drain(handle_.get(), 5000) == 0) {
+                detail::throw_for_code(
+                    THETADATADX_ERR_STREAM,
+                    "previous callback is still in flight; refusing to replace its storage");
+            }
         }
         auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
         int rc = thetadatadx_streaming_set_callback(handle_.get(), &StreamingClient::callback_shim, staged.get());
@@ -1698,11 +1721,13 @@ public:
      *
      *  ## Lifecycle contract (unified replace-allowed rule)
      *
-     *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
-     *  permits stop+register as a normal user flow: after
-     *  `stop_streaming()` another `set_callback` REPLACES the saved
+     *  Stop+register is a normal user flow: after `stop_streaming()`, which
+     *  drops the subscriptions, another `set_callback` REPLACES the saved
      *  `(callback, ctx)`, after the previous one is drained out with the
-     *  same `await_drain(5000)` budget. Calling `set_callback` on a live
+     *  same `await_drain(5000)` budget; subscribe again afterward. On a drain
+     *  timeout this view goes ahead and retires the old node in the
+     *  background (below), where `StreamingClient::set_callback` throws
+     *  `StreamError`. Calling `set_callback` on a live
      *  (running) session throws `StreamError` ("streaming already started"),
      *  matching the C ABI, Python and TypeScript: a new registration starts
      *  a fresh session, so replacing a live one would silently drop every
@@ -1847,8 +1872,9 @@ public:
 
     /// Cumulative count of streaming events the TLS reader could not
     /// publish into the bounded ring because the consumer fell behind and
-    /// the ring was full. Returns 0 when no callback has been installed
-    /// yet.
+    /// the ring was full, across every session this client has run: a
+    /// reconnect or a stop retires the session, and the drops it recorded
+    /// stay in the total. Returns 0 when no session has ever started.
     uint64_t dropped_event_count() const {
         return handle_ ? thetadatadx_client_dropped_events(handle_.get()) : 0;
     }
@@ -1858,37 +1884,36 @@ public:
     /// in-flight depth between the I/O thread and the dispatcher. Rising
     /// occupancy that approaches ring_capacity() predicts drops before
     /// dropped_event_count() moves; sampling never blocks the feed and is
-    /// safe from any thread. Returns 0 when no callback has been installed
-    /// yet.
+    /// safe from any thread. Returns 0 when no session is live.
     uint64_t ring_occupancy() const {
         return handle_ ? thetadatadx_client_ring_occupancy(handle_.get()) : 0;
     }
 
     /// Configured capacity of the streaming event ring in slots (the
     /// streaming_ring_size setting, a power of two) — the fixed denominator for
-    /// ring_occupancy(). Returns 0 when no callback has been installed yet.
+    /// ring_occupancy(). Returns 0 when no session is live.
     uint64_t ring_capacity() const {
         return handle_ ? thetadatadx_client_ring_capacity(handle_.get()) : 0;
     }
 
     /** Milliseconds since the most recent inbound streaming frame of any
-     *  kind. Returns 0 on success with the value in *out_ms, 1 when
-     *  streaming has not started or no frame has been received yet, -1 on a
-     *  null handle. */
+     *  kind. Returns 0 on success with the value in *out_ms, 1 when no
+     *  session is live or no frame has been received yet, -1 on a null
+     *  handle. */
     int32_t millis_since_last_event(uint64_t* out_ms) const {
         return handle_ ? thetadatadx_client_millis_since_last_event(handle_.get(), out_ms) : -1;
     }
 
     /** UNIX-nanosecond receive timestamp of the most recent inbound
-     *  streaming frame. 0 when streaming has not started or no frame has
-     *  arrived yet. */
+     *  streaming frame. 0 when no session is live or no frame has arrived
+     *  yet. */
     int64_t last_event_received_at_unix_nanos() const {
         return handle_ ? thetadatadx_client_last_event_received_at_unix_nanos(handle_.get()) : 0;
     }
 
     /** Address (host:port) of the streaming server the current session is
      *  connected to, following the session across auto-reconnects. Empty
-     *  when streaming has not started. */
+     *  when no session is live. */
     std::string last_connected_addr() const {
         if (!handle_) return {};
         char* raw = thetadatadx_client_last_connected_addr(handle_.get());
@@ -1914,17 +1939,17 @@ public:
     }
 
     /// Snapshot the currently-active per-contract subscriptions. Throws on
-    /// FFI error.
+    /// FFI error, including when streaming is not active.
     std::vector<Subscription> active_subscriptions() const {
         return detail::subscription_array_to_vector(thetadatadx_client_active_subscriptions(handle_.get()));
     }
 
     /// Cumulative count of user-callback failures contained by the
-    /// per-invocation isolation boundary since the current stream started.
-    /// If the callback aborts on a given event, the failure is contained,
-    /// recorded here, and does not stop event delivery — the next event
-    /// continues normally. Returns 0 when no callback has been installed
-    /// yet. Safe to call from any thread without blocking. Mirrors the
+    /// per-invocation isolation boundary, across every session this client
+    /// has run. If the callback aborts on a given event, the failure is
+    /// contained, recorded here, and does not stop event delivery; the
+    /// next event continues normally. Returns 0 when no session has ever
+    /// started. Safe to call from any thread without blocking. Mirrors the
     /// Python / TypeScript `client.stream.panic_count` placement.
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_client_panic_count(handle_.get()) : 0;
