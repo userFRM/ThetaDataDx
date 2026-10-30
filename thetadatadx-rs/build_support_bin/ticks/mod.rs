@@ -1,16 +1,14 @@
 //! Checked-in tick projections emitted by `generate_sdk_surfaces`.
 //!
-//! The TypeScript napi classes and the C++ layout asserts, flag accessors and
-//! Arrow IPC helpers rendered from `tick_schema.toml`. The Rust and Python
-//! tick types expand from the tick table instead.
+//! The C++ layout asserts, flag accessors and Arrow IPC helpers rendered from
+//! `tick_schema.toml`. The Rust, Python and TypeScript tick types expand from
+//! the tick table instead.
 
 pub(super) mod schema;
 
 mod cpp;
 pub(super) mod idents;
 mod layout;
-mod tdbe_structs;
-mod typescript;
 
 use std::path::Path;
 
@@ -72,10 +70,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             // the Python `<TickName>List.to_arrow()` columnar exit.
             relative_path: "thetadatadx-cpp/include/tick_arrow_ipc.hpp.inc",
             contents: cpp::render_cpp_tick_arrow_ipc(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ts/src/_generated/tick_classes.rs",
-            contents: typescript::render_ts_tick_classes(&schema),
         },
     ])
 }

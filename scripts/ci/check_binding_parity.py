@@ -265,7 +265,7 @@ _TICK_COLUMN_RE = re.compile(r'(#\[nullable\]\s*)?(\w+)(?:\((\w+)\))?:\s*(\w+)\s
 def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
     """Every `__ticks!` entry keyed by tick name: whether it carries the
     contract triple, its columns as `(field, type, nullable)` and the names
-    of its timestamp and flag accessors. Raises when the table cannot be
+    of its timestamp and its flag accessors. Raises when the table cannot be
     read, so a reshaped table fails the gate instead of emptying the tick
     surface."""
     text = table_rs.read_text(encoding="utf-8")
@@ -287,7 +287,8 @@ def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
                 (c.group(3) or c.group(2), c.group(4), bool(c.group(1)))
                 for c in _TICK_COLUMN_RE.finditer(columns)
             ],
-            "accessors": re.findall(r"(\w+)\(", timestamps) + re.findall(r"(\w+):", flags),
+            "timestamps": re.findall(r"(\w+)\(", timestamps),
+            "flags": re.findall(r"(\w+):", flags),
         }
     if not entries:
         raise ValueError(f"{table_rs}: the `__ticks!` table has no entries")
@@ -343,8 +344,8 @@ def _python_tick_surface(
         return classes, methods, fields
     for name, entry in _tick_table_entries(TICK_TABLE_RS).items():
         classes |= {name, f"{name}List", f"{name}ListIter"}
-        if entry["accessors"]:
-            methods[name] = set(entry["accessors"])
+        if entry["timestamps"] or entry["flags"]:
+            methods[name] = set(entry["timestamps"] + entry["flags"])
         methods[f"{name}List"] = set(_PY_TICK_LIST_METHODS)
         methods[f"{name}ListIter"] = {"__iter__", "__next__"}
         row = {}
@@ -355,6 +356,51 @@ def _python_tick_surface(
             row.update(_PY_TICK_CONTRACT_FIELDS)
         fields[name] = row
     return classes, methods, fields
+
+
+# How `thetadatadx-ts/src/ticks.rs` expands a tick table entry: the row object
+# with one field per column typed as below, `Option<f64>` when nullable, then
+# the contract triple, a `bool` per flag and an `Option<BigInt>` per timestamp.
+_TS_TICK_COLUMN_TYPES = {
+    "i32": "f64",
+    "eod_num": "f64",
+    "eod_date": "f64",
+    "i64": "BigInt",
+    "eod_num64": "BigInt",
+    "f64": "f64",
+    "price": "f64",
+    "eod_price": "f64",
+    "String": "String",
+    "right": "String",
+    "calendar_status": "String",
+}
+_TS_TICK_CONTRACT_FIELDS = {
+    "expiration": "Option<f64>",
+    "strike": "Option<f64>",
+    "right": "Option<String>",
+}
+
+
+def _tick_fields(src_dir: pathlib.Path) -> dict[str, dict[str, str]]:
+    """The field types per row struct that the binding crate at `src_dir`
+    expands from the tick table, by that binding's rule. Empty for a tree
+    without the expanding `ticks.rs`."""
+    if src_dir.parent.name != "thetadatadx-ts":
+        return _python_tick_surface(src_dir)[2]
+    fields: dict[str, dict[str, str]] = {}
+    if not (src_dir / "ticks.rs").is_file():
+        return fields
+    for name, entry in _tick_table_entries(TICK_TABLE_RS).items():
+        row = {
+            field: "Option<f64>" if nullable else _TS_TICK_COLUMN_TYPES[ty]
+            for field, ty, nullable in entry["columns"]
+        }
+        if entry["contract"]:
+            row.update(_TS_TICK_CONTRACT_FIELDS)
+        row.update(dict.fromkeys(entry["flags"], "bool"))
+        row.update(dict.fromkeys(entry["timestamps"], "Option<BigInt>"))
+        fields[name] = row
+    return fields
 
 
 # `export class X` / `export declare class X` (the `declare` keyword is
@@ -5545,7 +5591,7 @@ def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | 
     is absent. Generated and hand-written sources are treated alike —
     the declared type IS the binding surface either way.
     """
-    expanded = _python_tick_surface(src_dir)[2]
+    expanded = _tick_fields(src_dir)
     if struct in expanded:
         return expanded[struct].get(field)
     struct_re = re.compile(
@@ -5762,7 +5808,7 @@ def _collect_value_struct_fields(
     out: set[str] = set()
     if not src_dir.is_dir():
         return out
-    expanded = _python_tick_surface(src_dir)[2]
+    expanded = _tick_fields(src_dir)
     if struct in expanded:
         return set(expanded[struct])
     struct_re = re.compile(
