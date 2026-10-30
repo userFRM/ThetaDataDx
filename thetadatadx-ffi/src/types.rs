@@ -164,21 +164,6 @@ macro_rules! tick_array_type {
     };
 }
 
-// Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
-// `_second_order` / `_third_order`. The full union for the interval-sampled
-// `option_*_greeks_all` endpoints lands on `ThetaDataDxGreeksAllTickArray`; the
-// end-of-day endpoint `option_history_greeks_eod` lands on
-// `ThetaDataDxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
-// the interval-sampled all-union shape).
-// Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
-// carry the nine trade-side execution columns alongside the Greek values --
-// distinct from the interval-sampled `ThetaDataDxGreeks*TickArray` whose rows carry
-// the bid/ask quote pair instead.
-// Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
-// `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
-// `exchange`, `price`). Distinct from the bare `ThetaDataDxPriceTickArray`
-// used by `index_snapshot_price` / `index_history_price` (3 columns).
-
 /// Generate a `#[unsafe(no_mangle)] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
     ($fn_name:ident, $array_type:ident) => {
