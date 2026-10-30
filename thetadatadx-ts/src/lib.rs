@@ -1394,6 +1394,7 @@ include!("_generated/streaming_methods.rs");
 // and flat-file backoff.
 mod config_class;
 pub use config_class::Config;
+mod config_accessors;
 
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;

@@ -312,15 +312,6 @@ impl Config {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
-    // `retry.initial_delay` / `retry.max_delay` (ms) getters, the
-    // `auth.nexus_url` / `auth.client_type` string accessors, and the
-    // `market_data_host` string accessor are generated from
-    // config_surface.toml (the `ms` / `string` carve-out kinds).
-
-    // `metrics.port` (`Option<number>` exporter port) and the
-    // `reconnectJitter` enum are the generated `enum` / `option`
-    // accessors from config_surface.toml.
-
     /// Target market-data environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
     /// market-data and streaming channels are selected independently;
@@ -386,14 +377,6 @@ impl Config {
             .map(|c| u32::try_from(c).unwrap_or(u32::MAX)))
     }
 }
-
-// Mechanical config setters/getters (`config_surface.toml`), in a second
-// `#[napi] impl Config` block: the scalar / duration pairs plus the
-// `policy_limit` (reconnect `Auto`-limit) and `string` carve-out kinds.
-// The divergent accessors above (enum string labels, `Option`, policy
-// selector) stay hand-written; only the assign/read pairs are projected
-// from the SSOT.
-include!("_generated/config_accessors.rs");
 
 #[cfg(test)]
 mod bigint_to_u64_tests {

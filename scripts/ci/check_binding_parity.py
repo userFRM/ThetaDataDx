@@ -145,6 +145,10 @@ ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoint
 # (`thetadatadx-py/src/ticks.rs`), so no source file spells their structs or
 # methods and the gate reads the table instead.
 TICK_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "ticks.rs"
+# The config accessor table. The C ABI, Python and TypeScript `Config`
+# accessors that read or write one value are expanded from it at compile
+# time, so no source file names them and the gate reads the table instead.
+CONFIG_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "config.rs"
 # The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
 # declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
 # buffered endpoint. Reading the SHIPPED header (not just the `thetadatadx-ffi/src`
@@ -1214,6 +1218,21 @@ def _snake_to_camel(snake: str) -> str:
 FFI_EXPLICIT_SUFFIXES = ("_explicit",)
 
 
+def _config_table_accessors(src: pathlib.Path, direction: str) -> set[str]:
+    """Names (`reconnect_wait_ms`) of the `set` or `get` entries of the
+    config table, when a crate under `src` expands the table; the C ABI,
+    Python and TypeScript each expand every entry."""
+    if not src.is_dir() or not any("__config!" in _read_source(rs) for rs in src.rglob("*.rs")):
+        return set()
+    return set(
+        re.findall(
+            rf"^\s*{direction} thetadatadx_config_{direction}_(\w+)\(",
+            _read_source(CONFIG_TABLE_RS),
+            re.MULTILINE,
+        )
+    )
+
+
 def _collect_python_setters(py_src: pathlib.Path) -> set[str]:
     """Setter names on the `Config` pyclass. The pyo3 macro pattern is
     ``#[setter] fn set_<name>`` (or ``fn <name>``). Field-level parity
@@ -1232,7 +1251,7 @@ def _collect_python_setters(py_src: pathlib.Path) -> set[str]:
                 setters.add(name[4:])
             else:
                 setters.add(name)
-    return setters
+    return setters | _config_table_accessors(py_src, "set")
 
 
 # TypeScript camelCase compound-word aliases. Multi-word terms that
@@ -1291,7 +1310,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
     # name renders to one or more snake-case candidates (the bare
     # snake form plus any compound-word alias rendering); the gate
     # accepts a match against any rendering.
-    setters_snake: set[str] = set()
+    setters_snake = _config_table_accessors(ts_src, "set")
     for name in setters_camel:
         setters_snake.update(_camel_to_snake_with_aliases(name))
     return setters_snake
@@ -1339,7 +1358,7 @@ def _collect_ffi_setters(ffi_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         for m in re.finditer(r"\bfn\s+thetadatadx_config_set_(\w+)\s*\(", text):
             setters.add(m.group(1))
-    return setters
+    return setters | _config_table_accessors(ffi_src, "set")
 
 
 def _setter_present(canonical: str, setters: set[str]) -> bool:
@@ -1399,7 +1418,7 @@ def _collect_python_getters(py_src: pathlib.Path) -> set[str]:
             for m in re.finditer(r"#\[getter\][^}]*?fn\s+(\w+)", body, re.DOTALL):
                 name = m.group(1)
                 getters.add(name[4:] if name.startswith("get_") else name)
-    return getters
+    return getters | _config_table_accessors(py_src, "get")
 
 
 def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
@@ -1428,7 +1447,7 @@ def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
                 m = re.search(r'\bjs_name\s*=\s*"([a-zA-Z_]\w*)"', inner)
                 if m:
                     getters_camel.add(m.group(1))
-    getters_snake: set[str] = set()
+    getters_snake = _config_table_accessors(ts_src, "get")
     for name in getters_camel:
         getters_snake.update(_camel_to_snake_with_aliases(name))
     return getters_snake
@@ -1469,7 +1488,7 @@ def _collect_ffi_getters(ffi_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         for m in re.finditer(r"\bfn\s+thetadatadx_config_get_(\w+)\s*\(", text):
             getters.add(m.group(1))
-    return getters
+    return getters | _config_table_accessors(ffi_src, "get")
 
 
 # ─── Client-facing setter-set parity ────────────────────────────────
@@ -2057,6 +2076,12 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
                 if name in skip_names:
                     continue
                 out.setdefault(class_name, set()).add(name)
+    # The `Config` properties expanded from the config table, by the Rust
+    # `fn` names the expansion gives them.
+    for direction in ("set", "get"):
+        out.setdefault("Config", set()).update(
+            f"{direction}_{name}" for name in _config_table_accessors(py_src, direction)
+        )
     return out | _python_tick_surface(py_src)[1]
 
 
@@ -6077,6 +6102,11 @@ def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
             out.add(m.group(1))
         for m in macro_sym_re.finditer(text):
             out.add(m.group(1))
+    for direction in ("set", "get"):
+        out.update(
+            f"config_{direction}_{name}"
+            for name in _config_table_accessors(ffi_src, direction)
+        )
     return out | _ffi_table_symbols(ffi_src)
 
 

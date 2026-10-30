@@ -50,6 +50,7 @@ plant is corrected.
 from __future__ import annotations
 
 import argparse
+import ast
 import pathlib
 import re
 import sys
@@ -59,6 +60,10 @@ from typing import Optional
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 CONFIG_DIR = pathlib.Path("thetadatadx-rs/src/config")
+
+# The config accessor table: the C ABI, Python and TypeScript accessors and
+# their documentation are expanded from its entries.
+CONFIG_TABLE = pathlib.Path("thetadatadx-rs/src/surface/config.rs")
 
 
 # ── Canonical-value parsing ──────────────────────────────────────────
@@ -290,12 +295,11 @@ class Surface:
     # Fields documented on this surface that are deliberately NOT a
     # single literal: {field_id: reason}.
     skips: dict[str, str] = field(default_factory=dict)
-    # Sibling source files whose lines extend the same surface — the
-    # generator splits the FFI config accessors across `auth.rs` (the
-    # hand-written reconnect knobs) and the emitted `config_accessors.rs`.
-    # Their lines are scanned alongside ``rel_path`` so an anchor that
-    # moved into a generated fragment is still found.
-    extra_paths: list[pathlib.Path] = field(default_factory=list)
+    # Set when ``rel_path`` is the config table: the entry key holding this
+    # surface's documentation (``doc`` for the C ABI, ``ts_doc`` for
+    # TypeScript). Each entry is read as that documentation above a
+    # declaration naming its C symbol.
+    table_doc: Optional[str] = None
 
 
 def _find_defaults_for_anchor(
@@ -398,15 +402,43 @@ def _is_doc_or_comment(line: str) -> bool:
     )
 
 
+def _table_doc_lines(text: str, key: str) -> list[str]:
+    """Read the config table as the code it expands to: each entry's
+    ``key`` documentation becomes ``///`` lines above a ``fn <symbol>``
+    declaration on the line that closes it. Every other line is blank, so
+    reported line numbers are the table's own."""
+    out: list[str] = []
+    symbol: Optional[str] = None
+    in_doc = False
+    for line in text.splitlines():
+        s = line.strip()
+        head = re.match(r"(?:set|get) (thetadatadx_config_\w+)\(", s)
+        if head:
+            symbol = head.group(1)
+            out.append("")
+        elif symbol and s == f"{key}: [":
+            in_doc = True
+            out.append("//")
+        elif in_doc and s == "],":
+            in_doc = False
+            out.append(f"fn {symbol}")
+        elif in_doc:
+            doc = ast.literal_eval(s.rstrip(","))
+            out.append(f"/// {doc}" if doc else "///")
+        else:
+            out.append("")
+    return out
+
+
 def check_surface(
     surface: Surface, canon: dict[str, int], root: pathlib.Path
 ) -> list[Mismatch]:
     mismatches: list[Mismatch] = []
-    lines = (root / surface.rel_path).read_text(encoding="utf-8").splitlines()
-    for extra in surface.extra_paths:
-        p = root / extra
-        if p.is_file():
-            lines += p.read_text(encoding="utf-8").splitlines()
+    text = (root / surface.rel_path).read_text(encoding="utf-8")
+    if surface.table_doc:
+        lines = _table_doc_lines(text, surface.table_doc)
+    else:
+        lines = text.splitlines()
     rel = surface.rel_path.as_posix()
     for sf in surface.fields:
         if sf.field_id in surface.skips:
@@ -472,14 +504,9 @@ def build_surfaces() -> list[Surface]:
     """
     surfaces: list[Surface] = []
 
-    # FFI doc comments (`thetadatadx_config_set_*`). The setters carry the
-    # canonical doc; many getters echo `(default N)` inline and are
-    # caught by the same anchor's window.
-    ffi = Surface(
-        "ffi",
-        pathlib.Path("thetadatadx-ffi/src/auth.rs"),
-        extra_paths=[pathlib.Path("thetadatadx-ffi/src/config_accessors.rs")],
-    )
+    # FFI doc comments (`thetadatadx_config_set_*`), written in the config
+    # table and anchored on each setter's C symbol.
+    ffi = Surface("ffi", CONFIG_TABLE, table_doc="doc")
     ffi.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(
@@ -620,64 +647,58 @@ def build_surfaces() -> list[Surface]:
     ]
     surfaces.append(cpp_h)
 
-    # TypeScript NAPI docstrings (generate index.d.ts). The mechanical
-    # setters live in the generated `_generated/config_accessors.rs`; the
-    # hand-written reconnect knobs stay in `config_class.rs`. Scan both.
-    ts = Surface(
-        "typescript",
-        pathlib.Path("thetadatadx-ts/src/config_class.rs"),
-        extra_paths=[
-            pathlib.Path("thetadatadx-ts/src/_generated/config_accessors.rs")
-        ],
-    )
+    # TypeScript NAPI docstrings (generate index.d.ts), written in the
+    # config table. The anchor is the C symbol of the entry the TypeScript
+    # setter (`setReconnectWaitMs`) is expanded from.
+    ts = Surface("typescript", CONFIG_TABLE, table_doc="ts_doc")
     ts.fields = [
-        SurfaceField("reconnect.max_attempts", _re(r"setReconnectMaxAttempts\b")),
+        SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(
             "reconnect.max_rate_limited_attempts",
-            _re(r"setReconnectMaxRateLimitedAttempts\b"),
+            _re(r"set_reconnect_max_rate_limited_attempts\b"),
         ),
-        SurfaceField("reconnect.wait_ms", _re(r"setReconnectWaitMs\b")),
+        SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
         SurfaceField(
-            "reconnect.wait_rate_limited_ms", _re(r"setReconnectWaitRateLimitedMs\b")
+            "reconnect.wait_rate_limited_ms", _re(r"set_reconnect_wait_rate_limited_ms\b")
         ),
-        SurfaceField("reconnect.wait_max_ms", _re(r"setReconnectWaitMaxMs\b")),
+        SurfaceField("reconnect.wait_max_ms", _re(r"set_reconnect_wait_max_ms\b")),
         SurfaceField(
             "reconnect.wait_server_restart_ms",
-            _re(r"setReconnectWaitServerRestartMs\b"),
+            _re(r"set_reconnect_wait_server_restart_ms\b"),
         ),
         SurfaceField(
-            "reconnect.replay_burst_size", _re(r"setReconnectReplayBurstSize\b")
+            "reconnect.replay_burst_size", _re(r"set_reconnect_replay_burst_size\b")
         ),
         SurfaceField(
-            "reconnect.replay_pace_ms", _re(r"setReconnectReplayPaceMs\b")
+            "reconnect.replay_pace_ms", _re(r"set_reconnect_replay_pace_ms\b")
         ),
-        SurfaceField("streaming.timeout_ms", _re(r"setStreamingTimeoutMs\b")),
-        SurfaceField("streaming.connect_timeout_ms", _re(r"setStreamingConnectTimeoutMs\b")),
-        SurfaceField("streaming.ping_interval_ms", _re(r"setStreamingPingIntervalMs\b")),
-        SurfaceField("streaming.io_read_slice_ms", _re(r"setStreamingIoReadSliceMs\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
+        SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
+        SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
+        SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
         SurfaceField(
-            "streaming.keepalive_idle_secs", _re(r"setStreamingKeepaliveIdleSecs\b")
+            "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
         SurfaceField(
-            "streaming.keepalive_interval_secs", _re(r"setStreamingKeepaliveIntervalSecs\b")
+            "streaming.keepalive_interval_secs", _re(r"set_streaming_keepalive_interval_secs\b")
         ),
-        SurfaceField("streaming.keepalive_retries", _re(r"setStreamingKeepaliveRetries\b")),
-        SurfaceField("retry.max_attempts", _re(r"setRetryMaxAttempts\b")),
-        SurfaceField("flatfiles.max_attempts", _re(r"setFlatfilesMaxAttempts\b")),
+        SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
+        SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
+        SurfaceField("flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")),
         SurfaceField(
             "flatfiles.initial_backoff_secs",
-            _re(r"setFlatfilesInitialBackoffSecs\b"),
+            _re(r"set_flatfiles_initial_backoff_secs\b"),
         ),
         SurfaceField(
-            "flatfiles.max_backoff_secs", _re(r"setFlatfilesMaxBackoffSecs\b")
+            "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
         ),
         SurfaceField(
             "flatfiles.connect_timeout_secs",
-            _re(r"setFlatfilesConnectTimeoutSecs\b"),
+            _re(r"set_flatfiles_connect_timeout_secs\b"),
         ),
         SurfaceField(
             "flatfiles.read_timeout_secs",
-            _re(r"setFlatfilesReadTimeoutSecs\b"),
+            _re(r"set_flatfiles_read_timeout_secs\b"),
         ),
     ]
     surfaces.append(ts)
@@ -890,17 +911,33 @@ impl MddsConfig {
 }
 """
 
-    # One synthetic FFI surface. The reconnect_wait_ms doc is PLANTED
-    # wrong (2_000 vs canonical 250); the rest are correct.
+    # A synthetic config table. The C reconnect_wait_ms doc is PLANTED
+    # wrong (2_000 vs canonical 250); the rest are correct, including the
+    # TypeScript doc of the same entry, which this surface must not read.
     ffi_bad = """
-/// Set the reconnect delay (ms). Default `2_000`.
-pub unsafe extern "C" fn thetadatadx_config_set_reconnect_wait_ms() {}
-
-/// Set the read timeout (ms). Default `3_000`.
-pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms() {}
-
-/// Set the flatfile attempt budget. Default `10`. Validated to `[1, 100]`.
-pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
+        set thetadatadx_config_set_reconnect_wait_ms(ms: u64) [reconnect.wait_ms] {
+            param: ms,
+            doc: [
+                "Set the reconnect delay (ms).",
+                "",
+                "Default `2_000`.",
+            ],
+            ts_doc: [
+                "Default `250`.",
+            ],
+        }
+        set thetadatadx_config_set_streaming_timeout_ms(v: u64) [streaming.timeout_ms] {
+            param: ms,
+            doc: [
+                "Set the read timeout (ms). Default `3_000`.",
+            ],
+        }
+        set thetadatadx_config_set_flatfiles_max_attempts(n: u32) [flatfiles.max_attempts] {
+            param: n,
+            doc: [
+                "Set the flatfile attempt budget. Default `10`. Validated to `[1, 100]`.",
+            ],
+        }
 """
     ffi_good = ffi_bad.replace("Default `2_000`", "Default `250`")
 
@@ -912,12 +949,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
         (cfg / "reconnect.rs").write_text(reconnect_rs, encoding="utf-8")
         (cfg / "retry.rs").write_text(retry_rs, encoding="utf-8")
         (cfg / "mdds.rs").write_text(mdds_rs, encoding="utf-8")
-        ffi_dir = root / "thetadatadx-ffi" / "src"
-        ffi_dir.mkdir(parents=True, exist_ok=True)
-        (ffi_dir / "auth.rs").write_text(ffi_body, encoding="utf-8")
+        (root / CONFIG_TABLE).parent.mkdir(parents=True, exist_ok=True)
+        (root / CONFIG_TABLE).write_text(ffi_body, encoding="utf-8")
 
-    # A minimal surface registry scoped to the synthetic FFI file.
-    synthetic = Surface("ffi", pathlib.Path("thetadatadx-ffi/src/auth.rs"))
+    # A minimal surface registry scoped to the synthetic config table.
+    synthetic = Surface("ffi", CONFIG_TABLE, table_doc="doc")
     synthetic.fields = [
         SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
         SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
@@ -947,7 +983,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
         if not planted:
             print("selftest FAILED: planted wrong default was not caught")
             return 1
-        if planted[0].documented != 2000 or planted[0].canonical != 250:
+        if (
+            len(planted) != 1
+            or planted[0].documented != 2000
+            or planted[0].canonical != 250
+        ):
             print(
                 "selftest FAILED: planted mismatch reported wrong values "
                 f"({planted[0].documented} vs {planted[0].canonical})"

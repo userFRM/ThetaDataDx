@@ -109,20 +109,8 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
     Ok(vec![
         GeneratedSourceFile {
-            relative_path: "thetadatadx-ffi/src/config_accessors.rs",
-            contents: config_accessors::render_ffi_config_accessors()?,
-        },
-        GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/config_accessors.hpp.inc",
-            contents: config_accessors::render_cpp_config_accessors()?,
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/config_accessors.rs",
-            contents: config_accessors::render_python_config_accessors()?,
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ts/src/_generated/config_accessors.rs",
-            contents: config_accessors::render_typescript_config_accessors()?,
+            contents: config_accessors::render_cpp_config_accessors(),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/endpoint_request_options.h.inc",

@@ -512,15 +512,6 @@ impl Config {
         guard.runtime.tokio_worker_threads
     }
 
-    // ``DirectConfig.retry`` ms getters (``initial_delay`` / ``max_delay``)
-    // and the ``DirectConfig.auth`` string fields (``nexus_url`` /
-    // ``client_type``) are the generated ``ms`` / ``string`` accessors in
-    // config_surface.toml.
-
-    // ``DirectConfig.metrics.port`` (``Optional[int]``, exporter port)
-    // and the ``reconnect.jitter`` enum are the generated ``enum`` /
-    // ``option`` accessors in config_surface.toml.
-
     /// Target market-data environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
     /// The market-data and streaming channels are selected independently;
@@ -570,9 +561,6 @@ impl Config {
         guard.streaming.consumer_cpu
     }
 
-    // `market_data_host` (string) is the generated `string` accessor in
-    // config_surface.toml.
-
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
@@ -584,13 +572,10 @@ impl Config {
     }
 }
 
-// Mechanical config setters/getters (`config_surface.toml`), in a second
-// `#[pymethods] impl Config` block enabled by `multiple-pymethods`: the
-// scalar / duration pairs plus the `policy_limit` (reconnect `Auto`-limit)
-// and `string` carve-outs. The divergent accessors above (enum string
-// labels, `Option`, policy selector) stay hand-written; only the
-// assign/read pairs are projected from the SSOT.
-include!("_generated/config_accessors.rs");
+// The properties that read or write one configuration value, expanded from
+// the core config table in a second `#[pymethods] impl Config` block
+// (`multiple-pymethods`). The accessors above have their own logic.
+mod config_accessors;
 
 // ── Tick row classes, expanded from the core tick table ──
 //
