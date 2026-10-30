@@ -6,7 +6,7 @@
 use std::fmt::Write as _;
 
 use super::super::super::upstream_openapi::UpstreamOpenApi;
-use super::super::model::GeneratedEndpoint;
+use super::super::table::GeneratedEndpoint;
 use super::{endpoint_page_path, endpoint_tier, page};
 
 const TIERS: [&str; 4] = ["free", "value", "standard", "professional"];
@@ -69,7 +69,7 @@ pub(super) fn render_subscriptions_page(
         let mut last_group = String::new();
         for endpoint in &in_category {
             if !flat {
-                let group = page::subcategory_label(&endpoint.subcategory);
+                let group = page::subcategory_label(endpoint.subcategory);
                 if group != last_group {
                     let _ = writeln!(out, "| **{group}** |  |  |  |  |");
                     last_group = group.to_string();

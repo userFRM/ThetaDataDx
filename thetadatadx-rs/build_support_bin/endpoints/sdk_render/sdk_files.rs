@@ -1,18 +1,15 @@
 //! Orchestrator for checked-in SDK surface files.
 //!
-//! `write_sdk_generated_files` regenerates every projection from
-//! `endpoint_surface.toml`; `check_sdk_generated_files` verifies the
+//! `write_sdk_generated_files` regenerates every projection from the
+//! endpoint table; `check_sdk_generated_files` verifies the
 //! checked-in tree matches what the current generator would emit. The list
 //! returned by [`render_sdk_generated_files`] is the single place where each
 //! per-language emitter is wired to its output path.
 
 use std::path::Path;
 
-use super::super::enum_projection::load_enum_projections;
-use super::super::fixture_validation::validate_test_fixtures;
-use super::super::parser::load_endpoint_specs;
-use super::super::sdk_helpers::collect_builder_params;
-use super::super::test_fixtures::load_test_fixtures;
+use super::super::enum_projection::ENUMS;
+use super::super::table::{self, REQUEST_OPTIONS};
 use super::{config_accessors, cpp, cpp_validate, enums, ffi, python_stub, python_validate};
 
 struct GeneratedSourceFile {
@@ -30,7 +27,7 @@ struct SplicedSourceFile {
     region: String,
 }
 
-/// Write the checked-in SDK surface artifacts generated from `endpoint_surface.toml`.
+/// Write the checked-in SDK surface artifacts generated from the endpoint table.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
@@ -106,28 +103,23 @@ fn splice_region(
 }
 
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
-    let parsed = load_endpoint_specs()?;
-    let enum_projections = load_enum_projections()?;
-    // Fixtures power the live-validator matrix only, so they are loaded
-    // and validated here rather than in `load_endpoint_specs`. Every
-    // fixture consumer flows through here, so validating at this seam
-    // catches every drift case with full per-endpoint blast radius.
-    let fixtures = load_test_fixtures()?;
-    validate_test_fixtures(&fixtures, &parsed.endpoints, &enum_projections)?;
-    let builder_params = collect_builder_params(&parsed.endpoints);
+    let endpoints = table::endpoints();
+    table::check_proto_coverage(&endpoints)?;
+    table::check_entries(&endpoints)?;
+    super::super::test_fixtures::check_fixtures(&endpoints)?;
 
     Ok(vec![
         GeneratedSourceFile {
             relative_path: "thetadatadx-rs/src/tdbe/types/generated/enums_endpoint.rs",
-            contents: enums::render_tdbe_enums(&enum_projections),
+            contents: enums::render_tdbe_enums(ENUMS),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-py/src/_generated/enums_generated.rs",
-            contents: enums::render_python_enums(&enum_projections),
+            contents: enums::render_python_enums(ENUMS),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-ts/src/_generated/enums_generated.rs",
-            contents: enums::render_typescript_enums(&enum_projections),
+            contents: enums::render_typescript_enums(ENUMS),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-ffi/src/config_accessors.rs",
@@ -147,57 +139,57 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/endpoint_request_options.h.inc",
-            contents: ffi::render_c_endpoint_request_options(&builder_params),
+            contents: ffi::render_c_endpoint_request_options(REQUEST_OPTIONS),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/market_data_stream.h.inc",
-            contents: ffi::render_c_stream_decls(&parsed.endpoints),
+            contents: ffi::render_c_stream_decls(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/endpoint_options.hpp.inc",
-            contents: cpp::render_cpp_options(&builder_params),
+            contents: cpp::render_cpp_options(REQUEST_OPTIONS),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/market_data.hpp.inc",
-            contents: cpp::render_cpp_market_data_decls(&parsed.endpoints),
+            contents: cpp::render_cpp_market_data_decls(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/market_data_stream.hpp.inc",
-            contents: cpp::render_cpp_stream_decls(&parsed.endpoints),
+            contents: cpp::render_cpp_stream_decls(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/endpoint_with_options.h.inc",
-            contents: cpp::render_c_endpoint_with_options_decls(&parsed.endpoints),
+            contents: cpp::render_c_endpoint_with_options_decls(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/src/market_data.cpp.inc",
-            contents: cpp::render_cpp_market_data_defs(&parsed.endpoints),
+            contents: cpp::render_cpp_market_data_defs(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/src/market_data_stream.cpp.inc",
-            contents: cpp::render_cpp_stream_defs(&parsed.endpoints),
+            contents: cpp::render_cpp_stream_defs(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "scripts/ci/check_python.py",
-            contents: python_validate::render_python_validate(&parsed.endpoints, &fixtures),
+            contents: python_validate::render_python_validate(&endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/examples/validate.cpp",
-            contents: cpp_validate::render_cpp_validate(&parsed.endpoints, &fixtures),
+            contents: cpp_validate::render_cpp_validate(&endpoints),
         },
     ])
 }
 
 /// Files whose generated region is spliced between marker comments while
 /// the rest of the file stays hand-maintained. Today this carries only the
-/// Python type stub's `MarketDataView` endpoint surface, projected from
-/// `endpoint_surface.toml`.
+/// Python type stub's `MarketDataView` endpoint surface, projected from the
+/// endpoint table.
 fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::Error>> {
-    let parsed = load_endpoint_specs()?;
+    let endpoints = table::endpoints();
     Ok(vec![SplicedSourceFile {
         relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
         begin_marker: python_stub::STUB_BEGIN_MARKER,
         end_marker: python_stub::STUB_END_MARKER,
-        region: python_stub::render_python_market_data_view_stub(&parsed.endpoints),
+        region: python_stub::render_python_market_data_view_stub(&endpoints),
     }])
 }

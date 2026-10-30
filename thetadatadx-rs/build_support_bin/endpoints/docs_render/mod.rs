@@ -2,11 +2,6 @@
 //! streaming reference pages, the subscriptions matrix, the sidebar
 //! manifests, and the `llms.txt` machine index.
 //!
-//! Reachable only from the `generate_docs_site` binary (gated on the
-//! `__internal` feature because the sample-output renderer decodes the
-//! checked-in capture fixtures through `thetadatadx::wire` +
-//! `thetadatadx::decode`).
-//!
 //! Layout of emitted files (all under `docs-site/`):
 //!   * `docs/reference/<rest-path>.md` — one page per non-stream endpoint,
 //!     six-block anatomy: title + tier badges, language tab carousel
@@ -32,8 +27,7 @@ use std::path::Path;
 
 use super::super::upstream_openapi::UpstreamOpenApi;
 use super::helpers::is_streaming_endpoint;
-use super::model::GeneratedEndpoint;
-use super::parser::load_endpoint_specs;
+use super::table::{self, GeneratedEndpoint};
 
 /// One generated docs-site file: its path relative to the repo root and
 /// its full rendered contents.
@@ -51,7 +45,7 @@ fn endpoint_tier(endpoint: &GeneratedEndpoint, upstream: &UpstreamOpenApi) -> St
     //     data is available on every tier.
     //   * the flat files postdate the pinned snapshot; the vendor serves
     //     them to Professional subscriptions only.
-    let lookup_name = match endpoint.name.as_str() {
+    let lookup_name = match endpoint.name {
         "interest_rate_history_eod" => return "free".to_string(),
         _ if endpoint.subcategory == "flat_file" => return "professional".to_string(),
         other => other,
@@ -73,18 +67,17 @@ fn endpoint_tier(endpoint: &GeneratedEndpoint, upstream: &UpstreamOpenApi) -> St
 /// the HTTP surface one-for-one: `/v3/option/history/trade_greeks/all`
 /// → `reference/option/history/trade-greeks/all`.
 fn endpoint_page_path(endpoint: &GeneratedEndpoint) -> String {
-    let rest = endpoint._rest_path.trim_start_matches("/v3/");
+    let rest = endpoint.rest_path.trim_start_matches("/v3/");
     let kebab = rest.replace('_', "-");
     format!("reference/{kebab}")
 }
 
 fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Error>> {
-    let parsed = load_endpoint_specs()?;
+    let all_endpoints = table::endpoints();
     let tick_schema = super::super::ticks::schema::load_schema()?;
     let upstream = UpstreamOpenApi::load();
 
-    let endpoints: Vec<&GeneratedEndpoint> = parsed
-        .endpoints
+    let endpoints: Vec<&GeneratedEndpoint> = all_endpoints
         .iter()
         .filter(|e| !is_streaming_endpoint(e))
         .collect();
@@ -168,7 +161,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         let actual = std::fs::read_to_string(&path).map_err(|e| {
             format!(
                 "generated docs page '{}' is missing ({e}); run \
-                 `cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site` to refresh",
+                 `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
         })?;
@@ -176,7 +169,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         if actual_normalized != file.contents {
             return Err(format!(
                 "generated docs page '{}' is stale; run \
-                 `cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site` to refresh",
+                 `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());

@@ -1,11 +1,15 @@
 // Reason: build_support_bin modules are string-heavy code generators; pedantic lints are noise here.
 #![allow(clippy::pedantic)]
+// The endpoint table expands through `__resolve!`, one recursion per parameter key.
+#![recursion_limit = "256"]
 
-//! Regenerate checked-in SDK wrapper surfaces from `endpoint_surface.toml`.
+//! Regenerate the checked-in SDK wrapper surfaces and the docs site from the
+//! endpoint table and the schema files.
 //!
 //! Normal crate builds only emit `OUT_DIR` artifacts. This helper keeps the
-//! checked-in FFI/SDK projections explicit so CI can verify drift without
-//! mutating files as a side effect of `cargo build`.
+//! checked-in FFI/SDK projections and docs pages explicit so CI can verify
+//! drift without mutating files as a side effect of `cargo build`. `--check`
+//! verifies the checked-in tree without writing.
 
 use std::path::PathBuf;
 
@@ -34,11 +38,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         build_support_bin::check_sdk_surface_generated_files(&root)?;
         build_support_bin::check_tick_sdk_generated_files(&root)?;
         build_support_bin::check_fpss_event_sdk_generated_files(&root)?;
+        build_support_bin::check_docs_site_files(&root)?;
     } else {
         build_support_bin::write_endpoint_sdk_generated_files(&root)?;
         build_support_bin::write_sdk_surface_generated_files(&root)?;
         build_support_bin::write_tick_sdk_generated_files(&root)?;
         build_support_bin::write_fpss_event_sdk_generated_files(&root)?;
+        build_support_bin::write_docs_site_files(&root)?;
     }
     Ok(())
 }

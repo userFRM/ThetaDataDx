@@ -4,38 +4,24 @@
 //! projection emitters consume, so a registry change reshapes the
 //! builder's seeded values on the next generator run.
 
-use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::builder_params;
+use super::super::table::{GeneratedEndpoint, GeneratedParam};
+use super::super::test_fixtures::{category_symbol, type_value};
 
 // ───────────────────────── Sample fixture values ────────────────────────────
 //
-// Mirrors `[test_fixtures]` in `endpoint_surface.toml`: the same values the
-// generated live validators exercise, so every sample is a request the
-// production server is known to answer.
+// The values the generated live validators exercise, so every sample is a
+// request the production server is known to answer. A range ends a few days
+// after it starts and a time sits inside the session, so the sample reads as
+// a real request.
 
 pub(super) fn sample_value(param: &GeneratedParam, category: &str) -> &'static str {
-    match param.param_type.as_str() {
-        "Symbol" | "Symbols" => match category {
-            "stock" => "AAPL",
-            "option" => "SPY",
-            "index" => "SPX",
-            "rate" => "SOFR",
-            other => panic!("no sample symbol for category {other}"),
-        },
-        "Date" => match param.name.as_str() {
-            "start_date" => "20250303",
-            "end_date" => "20250306",
-            _ => "20250303",
-        },
-        "Expiration" => "20250321",
-        "Strike" => "570",
-        "Right" => "C",
-        "Interval" => "1m",
-        "RequestType" => "trade",
-        "Year" => "2025",
-        "Str" if param.name == "time_of_day" => "10:30:00.000",
-        "Str" => "10:30:00",
-        other => panic!("no sample value for param type {other}"),
+    match (param.param_type, param.name) {
+        ("Symbol" | "Symbols", _) => category_symbol(category),
+        ("Date", "end_date") => "20250306",
+        ("Time", "time_of_day") => "10:30:00.000",
+        ("Time", _) => "10:30:00",
+        (other, _) => type_value(other),
     }
 }
 
@@ -62,9 +48,6 @@ pub(super) fn showcased_builder_params(endpoint: &GeneratedEndpoint) -> Vec<&Gen
     };
     builder
         .into_iter()
-        .filter(|p| {
-            matches!(p.name.as_str(), "strike" | "right" | "interval")
-                || anchors.contains(&p.name.as_str())
-        })
+        .filter(|p| matches!(p.name, "strike" | "right" | "interval") || anchors.contains(&p.name))
         .collect()
 }

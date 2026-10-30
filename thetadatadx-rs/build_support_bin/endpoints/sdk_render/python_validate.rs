@@ -8,23 +8,19 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::is_streaming_endpoint;
-use super::super::model::GeneratedEndpoint;
 use super::super::modes::{is_chain_wide_mode, test_modes_for};
 use super::super::sdk_helpers::{method_params, python_arg_literal, python_builder_kwarg};
-use super::super::test_fixtures::TestFixtures;
+use super::super::table::GeneratedEndpoint;
 
 /// Generate the Python SDK validator (one row per (endpoint, mode) pair).
-pub(super) fn render_python_validate(
-    endpoints: &[GeneratedEndpoint],
-    fixtures: &TestFixtures,
-) -> String {
+pub(super) fn render_python_validate(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::from(include_str!("templates/validate_python/preamble.py.tmpl"));
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
         let mp = method_params(endpoint);
-        for mode in test_modes_for(endpoint, fixtures) {
+        for mode in test_modes_for(endpoint) {
             let mut args_parts: Vec<String> = mp
                 .iter()
                 .zip(mode.args.iter())

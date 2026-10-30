@@ -9,11 +9,11 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::{endpoint_streams_repr_c_ticks, is_streaming_endpoint};
-use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
     builder_copy_expr, builder_value_type_name, cpp_converter_expr, cpp_method_arg_decl,
     cpp_value_type, ffi_array_type, method_params, sdk_method_arg_name,
 };
+use super::super::table::{GeneratedEndpoint, GeneratedParam};
 
 /// Renders the C++ `EndpointRequestOptions` header: the optional builder
 /// fields, their `with_*` setters, and the internal FFI bridge struct.
@@ -24,13 +24,13 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
         "templates/cpp/endpoint_options_header.cpp.tmpl"
     ));
     for param in params {
-        let ty = match param.param_type.as_str() {
+        let ty = match param.param_type {
             "Int" => "std::optional<int32_t>",
             "Float" => "std::optional<double>",
             "Bool" => "std::optional<bool>",
             _ => "std::optional<std::string>",
         };
-        super::doc::doc_lines(&mut out, "    ", &param.description);
+        super::doc::doc_lines(&mut out, "    ", param.description);
         writeln!(out, "    {} {};", ty, param.name).unwrap();
     }
     out.push_str("    /// Per-call deadline in milliseconds.\n");
@@ -70,12 +70,12 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
         "    explicit FfiEndpointRequestOptions(const EndpointRequestOptions& options) {\n",
     );
     for param in params {
-        let template = match param.param_type.as_str() {
+        let template = match param.param_type {
             "Int" | "Float" => include_str!("templates/cpp/ffi_numeric_case.cpp.tmpl"),
             "Bool" => include_str!("templates/cpp/ffi_bool_case.cpp.tmpl"),
             _ => include_str!("templates/cpp/ffi_string_case.cpp.tmpl"),
         };
-        out.push_str(&template.replace("__PARAM__", &param.name));
+        out.push_str(&template.replace("__PARAM__", param.name));
     }
     out.push_str("        if (options.timeout_ms) {\n");
     out.push_str("            raw.timeout_ms = *options.timeout_ms;\n");
@@ -110,7 +110,7 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
         // Use `///` line-comments rather than a `/** ... */` block so a
         // description containing `*/` cannot prematurely close the
         // doc-comment.
-        super::doc::doc_lines(&mut out, "    ", &endpoint.description);
+        super::doc::doc_lines(&mut out, "    ", endpoint.description);
         let has_symbols = method_params(endpoint)
             .iter()
             .any(|param| param.param_type == "Symbols");
@@ -134,7 +134,7 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
             writeln!(
                 out,
                 "    std::vector<{}> {}({}) const;\n",
-                cpp_value_type(&endpoint.return_type),
+                cpp_value_type(endpoint.return_type),
                 endpoint.name,
                 params.join(", ")
             )
@@ -155,7 +155,7 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
         writeln!(
             out,
             "    std::vector<{}> {}({}) const;\n",
-            cpp_value_type(&endpoint.return_type),
+            cpp_value_type(endpoint.return_type),
             endpoint.name,
             params.join(", ")
         )
@@ -192,7 +192,7 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
 /// blocking surface's contract.
 fn render_cpp_async_method(endpoint: &GeneratedEndpoint, has_symbols: bool) -> String {
     let mut out = String::new();
-    let row = cpp_value_type(&endpoint.return_type);
+    let row = cpp_value_type(endpoint.return_type);
     let async_name = format!("{}_async", endpoint.name);
 
     // Emit the singular-symbol overload first when the endpoint takes a
@@ -324,7 +324,7 @@ fn render_cpp_async_overload(
 /// `= {}` default arg, present on the in-class declaration and absent on the
 /// out-of-line definition (a redefaulted parameter is ill-formed in C++).
 fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> String {
-    let tick = cpp_value_type(&endpoint.return_type);
+    let tick = cpp_value_type(endpoint.return_type);
     let mut params = method_params(endpoint)
         .iter()
         .map(|param| cpp_method_arg_decl(param))
@@ -368,9 +368,9 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
         .iter()
         .filter(|endpoint| endpoint_streams_repr_c_ticks(endpoint))
     {
-        let tick = cpp_value_type(&endpoint.return_type);
+        let tick = cpp_value_type(endpoint.return_type);
 
-        super::doc::doc_lines(&mut out, "    ", &endpoint.description);
+        super::doc::doc_lines(&mut out, "    ", endpoint.description);
         out.push_str("    ///\n");
         writeln!(
             out,
@@ -438,7 +438,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         .filter(|endpoint| endpoint_streams_repr_c_ticks(endpoint))
     {
         let method_params = method_params(endpoint);
-        let tick = cpp_value_type(&endpoint.return_type);
+        let tick = cpp_value_type(endpoint.return_type);
 
         writeln!(
             out,
@@ -560,7 +560,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
         writeln!(
             out,
             "std::vector<{}> {}::{}({}) const {{",
-            cpp_value_type(&endpoint.return_type),
+            cpp_value_type(endpoint.return_type),
             class_name,
             endpoint.name,
             singular_parts.join(", ")
@@ -592,7 +592,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     writeln!(
         out,
         "std::vector<{}> {}::{}({}) const {{",
-        cpp_value_type(&endpoint.return_type),
+        cpp_value_type(endpoint.return_type),
         class_name,
         endpoint.name,
         signature_parts.join(", ")
@@ -676,7 +676,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     out.push_str(
         "    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }\n",
     );
-    writeln!(out, "    {}", cpp_converter_expr(&endpoint.return_type)).unwrap();
+    writeln!(out, "    {}", cpp_converter_expr(endpoint.return_type)).unwrap();
     out.push_str("}\n");
     out
 }
@@ -704,7 +704,7 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
     {
         let ffi_name = format!("thetadatadx_{}_with_options", endpoint.name);
-        let return_type = ffi_array_type(&endpoint.return_type);
+        let return_type = ffi_array_type(endpoint.return_type);
         let params = method_params(endpoint);
         write!(
             out,

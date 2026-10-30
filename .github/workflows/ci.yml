@@ -196,17 +196,16 @@ jobs:
     timeout-minutes: 20
     # Every committed snapshot (gRPC proto codegen,
     # FPSS event class projections, tick-layout asserts, SDK surface
-    # tables) must equal the regeneration output. Drift = build
-    # failure. `generate_sdk_surfaces --check` already validates the
-    # endpoint / surface / tick / FPSS event projections; this job
-    # adds the gRPC proto snapshot drift check on top and asserts the
-    # tree is clean afterwards so a stray write from either generator
-    # also surfaces as a hit.
+    # tables, docs site) must equal the regeneration output. Drift =
+    # build failure. `generate_sdk_surfaces --check` already validates the
+    # endpoint / surface / tick / FPSS event projections and the docs
+    # site; this job adds the gRPC proto snapshot drift check on top and
+    # asserts the tree is clean afterwards so a stray write from either
+    # generator also surfaces as a hit.
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust-deps
       - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo run -p thetadatadx-rs --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
         shell: bash
@@ -615,7 +614,6 @@ jobs:
       # rust-gated heavy job). It now lives in the standalone `agreement`
       # fast-lane job above, wired into `ci-gate`.
       - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site --locked -- --check
       - name: TypeScript SDK build + test
         working-directory: thetadatadx-ts
         run: |
@@ -631,13 +629,12 @@ jobs:
   # cross-platform matrix (`test` / `surfaces` / `build-ffi` /
   # `sdk-bindings` / `cpp-tests` and the Python/TS lanes). The doc
   # regeneration `--check`s and fmt already run on EVERY PR in the
-  # always-on fast lane (`wire-schema-drift` runs both
-  # `generate_sdk_surfaces --check` and `generate_docs_site --check`;
-  # `fmt` runs repo-wide), so this job only adds the gaps that the fast
-  # lane misses for the feature-gated generator: clippy of the two
-  # generator bins (the default `clippy --workspace` does not enable
-  # their `config-file` / `__internal` required-features, so it never
-  # compiles them) and intra-doc-link rustdoc. On any PR that also
+  # always-on fast lane (`wire-schema-drift` runs
+  # `generate_sdk_surfaces --check`; `fmt` runs repo-wide), so this job
+  # only adds the gaps that the fast lane misses for the feature-gated
+  # generator: clippy of the generator bin (the default `clippy
+  # --workspace` does not enable its `config-file` required-feature, so
+  # it never compiles it) and intra-doc-link rustdoc. On any PR that also
   # touches real source it does not run (the full matrix does instead),
   # and it never runs on push/tag/schedule.
   # ───────────────────────────────────────────────────────────────
@@ -654,11 +651,10 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
         with:
           components: clippy
-      # Clippy the feature-gated generator bins (and the shared
-      # `build_support_bin` tree both compile) — the gap the always-on
-      # `clippy --workspace --all-targets` leaves because it does not
-      # enable their required-features.
-      - run: cargo clippy -p thetadatadx-rs --bin generate_docs_site --features config-file,__internal --locked -- -D warnings
+      # Clippy the feature-gated generator bin and the `build_support_bin`
+      # tree it compiles: the gap the always-on `clippy --workspace
+      # --all-targets` leaves because it does not enable its
+      # required-features.
       - run: cargo clippy -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file --locked -- -D warnings
       # Intra-doc link hygiene on the core crate the generator lives in.
       - run: cargo doc --no-deps -p thetadatadx-rs --features "config-file" --locked

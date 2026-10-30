@@ -1,4 +1,4 @@
-//! Emit enum projections from `endpoint_surface.toml`.
+//! Emit the endpoint parameter enums for the core, Python and TypeScript.
 
 use std::fmt::Write as _;
 
@@ -13,19 +13,19 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
     for enum_spec in enums {
         writeln!(out, "/// Wire string enum `{}`.", enum_spec.name).unwrap();
         writeln!(out, "#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]").unwrap();
-        writeln!(out, "pub enum {} {{", enum_spec.rust_name).unwrap();
-        for variant in &enum_spec.variants {
+        writeln!(out, "pub enum {} {{", enum_spec.name).unwrap();
+        for variant in enum_spec.variants {
             writeln!(out, "    /// Wire value `{}`.", variant.wire).unwrap();
             writeln!(out, "    {},", variant.rust).unwrap();
         }
         out.push_str("}\n\n");
 
-        writeln!(out, "impl {} {{", enum_spec.rust_name).unwrap();
+        writeln!(out, "impl {} {{", enum_spec.name).unwrap();
         out.push_str("    /// Returns the wire string for this variant.\n");
         out.push_str("    #[must_use]\n");
         out.push_str("    pub fn as_str(&self) -> &'static str {\n");
         out.push_str("        match self {\n");
-        for variant in &enum_spec.variants {
+        for variant in enum_spec.variants {
             writeln!(
                 out,
                 "            Self::{} => {:?},",
@@ -35,7 +35,7 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
         }
         out.push_str("        }\n");
         out.push_str("    }\n");
-        if enum_spec.rust_name == "Right" {
+        if enum_spec.name == "Right" {
             out.push('\n');
             out.push_str("    /// Returns the single-character option-right code (`C`/`P`/`*`).\n");
             out.push_str("    #[must_use]\n");
@@ -49,17 +49,17 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
         }
         out.push_str("}\n\n");
 
-        writeln!(out, "impl std::fmt::Display for {} {{", enum_spec.rust_name).unwrap();
+        writeln!(out, "impl std::fmt::Display for {} {{", enum_spec.name).unwrap();
         out.push_str("    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n");
         out.push_str("        f.write_str(self.as_str())\n");
         out.push_str("    }\n");
         out.push_str("}\n\n");
 
-        writeln!(out, "impl TryFrom<&str> for {} {{", enum_spec.rust_name).unwrap();
+        writeln!(out, "impl TryFrom<&str> for {} {{", enum_spec.name).unwrap();
         out.push_str("    type Error = ();\n\n");
         out.push_str("    fn try_from(value: &str) -> Result<Self, Self::Error> {\n");
         out.push_str("        match value {\n");
-        for variant in &enum_spec.variants {
+        for variant in enum_spec.variants {
             writeln!(
                 out,
                 "            {:?} => Ok(Self::{}),",
@@ -67,7 +67,7 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
             )
             .unwrap();
         }
-        if enum_spec.rust_name == "Right" {
+        if enum_spec.name == "Right" {
             out.push_str("            \"C\" | \"c\" => Ok(Self::Call),\n");
             out.push_str("            \"P\" | \"p\" => Ok(Self::Put),\n");
             out.push_str("            \"*\" => Ok(Self::Both),\n");
@@ -116,7 +116,7 @@ pub(super) fn render_python_enums(enums: &[EnumProjection]) -> String {
     out.push_str("}\n\n");
     for enum_spec in enums {
         writeln!(out, "string_enum!({} {{", enum_spec.name).unwrap();
-        for variant in &enum_spec.variants {
+        for variant in enum_spec.variants {
             writeln!(out, "    {} => {:?},", variant.python, variant.wire).unwrap();
         }
         out.push_str("});\n\n");
@@ -142,7 +142,7 @@ pub(super) fn render_typescript_enums(enums: &[EnumProjection]) -> String {
         writeln!(out, "/// Wire string enum `{}`.", enum_spec.name).unwrap();
         writeln!(out, "#[napi(string_enum)]").unwrap();
         writeln!(out, "pub enum {} {{", enum_spec.name).unwrap();
-        for variant in &enum_spec.variants {
+        for variant in enum_spec.variants {
             writeln!(out, "    #[napi(value = {:?})]", variant.wire).unwrap();
             writeln!(out, "    {},", variant.rust).unwrap();
         }

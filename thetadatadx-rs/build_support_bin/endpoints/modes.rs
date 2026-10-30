@@ -7,9 +7,8 @@
 //! flows from the pinned upstream OpenAPI snapshot.
 //!
 //! Every representative value (symbols, dates, expirations, wildcard
-//! sentinels, optional defaults) comes from the `[test_fixtures]` block in
-//! `endpoint_surface.toml`. `modes.rs` carries no fixture literals — swap
-//! `20250303` for `20260303` by editing one TOML row, not this file.
+//! sentinels, optional values) comes from `test_fixtures.rs`; `modes.rs`
+//! carries no fixture literals.
 //!
 //! Renderers in `render/*_validate.rs` format each mode for their target
 //! language.
@@ -17,9 +16,9 @@
 use std::collections::HashSet;
 
 use super::helpers::{is_simple_list_endpoint, is_streaming_endpoint};
-use super::model::{GeneratedEndpoint, GeneratedParam};
 use super::sdk_helpers::{builder_params, method_params};
-use super::test_fixtures::TestFixtures;
+use super::table::{GeneratedEndpoint, GeneratedParam};
+use super::test_fixtures::{category_symbol, mode_overrides, optional_value, type_value};
 
 // ───────────────────────── Multi-mode parameter matrix ──────────────────────
 //
@@ -94,8 +93,8 @@ fn rationale_for_mode(name: &str) -> &'static str {
 }
 
 /// Build a one-sentence rationale string for a `with_<param>` mode at
-/// generator runtime. The literal value is threaded in from the
-/// [`optional_fixture_value`] table so the two can never drift.
+/// generator runtime. The literal value is threaded in from
+/// [`optional_value`] so the two can never drift.
 fn with_optional_rationale(param_name: &str, literal: &str) -> String {
     let label = match param_name {
         "max_dte" | "strike" | "right" | "interval" | "strike_range" | "min_time" | "exclusive"
@@ -173,87 +172,37 @@ fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
     })
 }
 
-/// Resolve the anchor symbol fixture for an endpoint's category. Panics on
-/// missing rows so a category without a fixture fails loudly at generator
-/// time rather than silently producing empty cells. Pre-flight check in
-/// `parser.rs::validate_test_fixtures` guarantees this never trips for
-/// known-good TOML.
-fn category_symbol<'a>(fixtures: &'a TestFixtures, category: &str) -> &'a str {
-    fixtures
-        .category_symbol
-        .get(category)
-        .map(String::as_str)
-        .unwrap_or_else(|| {
-            panic!(
-                "test_fixtures.category_symbol is missing an entry for category '{category}' in \
-                 endpoint_surface.toml"
-            )
-        })
-}
-
-/// Render the language-agnostic value for a method-call parameter at a
-/// concrete fixture (no wildcards, compact dates).
-///
-/// Resolution order:
-///   1. `test_fixtures.concrete_overrides[param.name]` — per-name overrides
-///      (e.g. compressed `end_date` keeping bulk cells under the 60 s
-///      per-cell timeout the in-CI integration matrix enforces).
-///   2. `test_fixtures.category_symbol[endpoint.category]` — for
-///      `Symbol`/`Symbols` params.
-///   3. `test_fixtures.concrete_by_type[param.param_type]` — default
-///      representative value per wire type.
-fn concrete_value(
-    endpoint: &GeneratedEndpoint,
-    param: &GeneratedParam,
-    fixtures: &TestFixtures,
-) -> String {
-    if let Some(value) = fixtures.concrete_overrides.get(&param.name) {
-        return value.clone();
+/// The value of a method-call parameter at the concrete fixture (no
+/// wildcards, compact dates): the category's symbol for a symbol, the type's
+/// fixture otherwise.
+fn concrete_value(endpoint: &GeneratedEndpoint, param: &GeneratedParam) -> String {
+    match param.param_type {
+        "Symbol" | "Symbols" => category_symbol(endpoint.category),
+        other => type_value(other),
     }
-    match param.param_type.as_str() {
-        "Symbol" | "Symbols" => category_symbol(fixtures, &endpoint.category).to_string(),
-        other => fixtures
-            .concrete_by_type
-            .get(other)
-            .cloned()
-            .unwrap_or_else(|| {
-                panic!(
-                    "test_fixtures.concrete_by_type is missing an entry for param_type '{other}' \
-                     (required by '{}.{}'); add a row in endpoint_surface.toml",
-                    endpoint.name, param.name
-                )
-            }),
-    }
+    .to_string()
 }
 
 /// Build the args vector for a concrete (no-wildcard) call.
-fn concrete_args(endpoint: &GeneratedEndpoint, fixtures: &TestFixtures) -> Vec<String> {
+fn concrete_args(endpoint: &GeneratedEndpoint) -> Vec<String> {
     method_params(endpoint)
         .iter()
-        .map(|param| concrete_value(endpoint, param, fixtures))
+        .map(|param| concrete_value(endpoint, param))
         .collect()
 }
 
-/// Build args for a named mode whose overrides live under
-/// `[test_fixtures.mode_overrides.<mode_name>]`. Any param not listed in the
-/// TOML block falls back to its concrete fixture.
-fn args_for_mode(
-    endpoint: &GeneratedEndpoint,
-    fixtures: &TestFixtures,
-    mode_name: &str,
-) -> Vec<String> {
-    let overrides = fixtures.mode_overrides.get(mode_name).unwrap_or_else(|| {
-        panic!(
-            "test_fixtures.mode_overrides is missing an entry for mode '{mode_name}'; \
-             add one in endpoint_surface.toml"
-        )
-    });
+/// Build args for a wildcard mode. Any param the mode does not override
+/// keeps its concrete fixture.
+fn args_for_mode(endpoint: &GeneratedEndpoint, mode_name: &str) -> Vec<String> {
+    let overrides = mode_overrides(mode_name);
     method_params(endpoint)
         .iter()
-        .map(|param| match overrides.get(&param.name) {
-            Some(value) => value.clone(),
-            None => concrete_value(endpoint, param, fixtures),
-        })
+        .map(
+            |param| match overrides.iter().find(|(name, _)| *name == param.name) {
+                Some((_, value)) => value.to_string(),
+                None => concrete_value(endpoint, param),
+            },
+        )
         .collect()
 }
 
@@ -262,21 +211,16 @@ fn args_for_mode(
 /// the request builder.
 fn builder_overrides_for_mode(
     endpoint: &GeneratedEndpoint,
-    fixtures: &TestFixtures,
     mode_name: &str,
 ) -> Vec<(String, String)> {
-    let overrides = fixtures.mode_overrides.get(mode_name).unwrap_or_else(|| {
-        panic!(
-            "test_fixtures.mode_overrides is missing an entry for mode '{mode_name}'; \
-             add one in endpoint_surface.toml"
-        )
-    });
+    let overrides = mode_overrides(mode_name);
     builder_params(endpoint)
         .iter()
         .filter_map(|param| {
             overrides
-                .get(&param.name)
-                .map(|value| (param.name.clone(), value.clone()))
+                .iter()
+                .find(|(name, _)| *name == param.name)
+                .map(|(name, value)| (name.to_string(), value.to_string()))
         })
         .collect()
 }
@@ -284,19 +228,9 @@ fn builder_overrides_for_mode(
 /// Whether the endpoint's method-call params include the full ContractSpec
 /// quartet (symbol, expiration, strike, right). Drives wildcard mode
 /// generation for option snapshot / history / at-time endpoints.
-///
-/// Exposed to `parser.rs::validate_test_fixtures` so the required-mode and
-/// per-mode closed-vocabulary checks stay in lockstep with the emission
-/// logic in [`test_modes_for`].
-pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
-    let names: HashSet<&str> = method_params(endpoint)
-        .iter()
-        .map(|p| p.name.as_str())
-        .collect();
-    let builder_names: HashSet<&str> = builder_params(endpoint)
-        .iter()
-        .map(|p| p.name.as_str())
-        .collect();
+fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
+    let names: HashSet<&str> = method_params(endpoint).iter().map(|p| p.name).collect();
+    let builder_names: HashSet<&str> = builder_params(endpoint).iter().map(|p| p.name).collect();
     names.contains("symbol")
         && names.contains("expiration")
         && builder_names.contains("strike")
@@ -316,10 +250,6 @@ pub(super) fn has_full_contract_spec(endpoint: &GeneratedEndpoint) -> bool {
 /// `true` — they don't participate in the wildcard matrix anyway (streaming
 /// is skipped upstream of this call, and the SDK-only endpoints don't take
 /// an expiration parameter).
-///
-/// Exposed to `parser.rs::validate_test_fixtures` so wildcard-mode
-/// required-row and per-mode vocabulary checks stay in lockstep with
-/// [`test_modes_for`].
 pub(super) fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
     let spec = super::super::upstream_openapi::UpstreamOpenApi::load();
     spec.endpoint(name)
@@ -329,10 +259,6 @@ pub(super) fn endpoint_supports_expiration_wildcard(name: &str) -> bool {
 
 /// Names of the baseline mode cells emitted for an endpoint before optional
 /// builder-param expansion.
-///
-/// This is the single mode-taxonomy source used by both `test_modes_for`
-/// (which materializes the cells) and `parser.rs` (which validates the
-/// fixture TOML against the live mode graph).
 pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static str> {
     // A flat file is the whole universe for one day, and the vendor serves
     // only the most recent seven calendar days: a cell pinned to the fixture
@@ -340,14 +266,12 @@ pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static s
     if is_streaming_endpoint(endpoint) || endpoint.subcategory == "flat_file" {
         return Vec::new();
     }
-    if is_simple_list_endpoint(endpoint)
-        || matches!(endpoint.category.as_str(), "calendar" | "rate")
-    {
+    if is_simple_list_endpoint(endpoint) || matches!(endpoint.category, "calendar" | "rate") {
         return vec!["basic"];
     }
     if has_full_contract_spec(endpoint) {
         let mut modes = vec!["concrete", "concrete_iso", "all_strikes_one_exp"];
-        if endpoint_supports_expiration_wildcard(&endpoint.name) {
+        if endpoint_supports_expiration_wildcard(endpoint.name) {
             modes.extend(["all_exps_one_strike", "bulk_chain"]);
         }
         return modes;
@@ -369,25 +293,22 @@ pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static s
 ///
 /// Stream endpoints are covered by `scripts/dev/fpss_smoke.py` /
 /// `scripts/dev/fpss_soak.py` and intentionally skipped here.
-pub(super) fn test_modes_for(
-    endpoint: &GeneratedEndpoint,
-    fixtures: &TestFixtures,
-) -> Vec<TestMode> {
+pub(super) fn test_modes_for(endpoint: &GeneratedEndpoint) -> Vec<TestMode> {
     let emitted_modes = emitted_mode_names(endpoint);
     if emitted_modes.is_empty() {
         return Vec::new();
     }
-    let endpoint_tier = endpoint_min_tier(&endpoint.name);
+    let endpoint_tier = endpoint_min_tier(endpoint.name);
     let modes: Vec<TestMode> = emitted_modes
         .into_iter()
         .map(|mode_name| {
             let args = match mode_name {
-                "basic" | "concrete" => concrete_args(endpoint, fixtures),
-                other => args_for_mode(endpoint, fixtures, other),
+                "basic" | "concrete" => concrete_args(endpoint),
+                other => args_for_mode(endpoint, other),
             };
             let builder_overrides = match mode_name {
                 "basic" | "concrete" => Vec::new(),
-                other => builder_overrides_for_mode(endpoint, fixtures, other),
+                other => builder_overrides_for_mode(endpoint, other),
             };
             TestMode {
                 name: mode_name.to_string(),
@@ -402,8 +323,7 @@ pub(super) fn test_modes_for(
         endpoint,
         anchor_dates(
             endpoint,
-            fixtures,
-            append_optional_modes(endpoint, fixtures, endpoint_tier, modes),
+            append_optional_modes(endpoint, endpoint_tier, modes),
         ),
     )
 }
@@ -415,22 +335,13 @@ pub(super) fn test_modes_for(
 /// the history endpoints, and its server refuses a request carrying none of
 /// them. A cell that sets no date therefore exercises a call that can only
 /// fail, whatever else it sets; the fixture date is added to each such cell.
-fn anchor_dates(
-    endpoint: &GeneratedEndpoint,
-    fixtures: &TestFixtures,
-    modes: Vec<TestMode>,
-) -> Vec<TestMode> {
+fn anchor_dates(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) -> Vec<TestMode> {
     let optional: Vec<String> = builder_params(endpoint)
         .iter()
-        .map(|param| param.name.clone())
+        .map(|param| param.name.to_string())
         .collect();
     let has = |name: &str| optional.iter().any(|n| n == name);
-    let fixture = |name: &str| {
-        (
-            name.to_string(),
-            optional_fixture_value(fixtures, name).to_string(),
-        )
-    };
+    let fixture = |name: &str| (name.to_string(), optional_value(name).to_string());
     let anchor = if has("date") {
         vec![fixture("date")]
     } else if has("start_date") && has("end_date") {
@@ -484,25 +395,12 @@ pub(super) fn is_chain_wide_mode(name: &str) -> bool {
     )
 }
 
-/// Look up the representative value for a builder-bound optional parameter.
-/// `parser.rs::validate_test_fixtures` already guarantees every in-use key
-/// is present in `optional_defaults`; a missing row means the validator
-/// was bypassed.
-fn optional_fixture_value<'a>(fixtures: &'a TestFixtures, param_name: &str) -> &'a str {
-    fixtures
-        .optional_defaults
-        .get(param_name)
-        .map(String::as_str)
-        .unwrap_or_else(|| panic!("test_fixtures.optional_defaults is missing key '{param_name}'"))
-}
-
 /// Append `with_<name>` cells (one per optional), plus paired compound modes
 /// (`with_intraday_window`, `with_date_range`) and an `all_optionals` cell.
 /// Paired modes are only emitted when both halves are optional on the
 /// endpoint — sending one half alone is invalid on the wire.
 fn append_optional_modes(
     endpoint: &GeneratedEndpoint,
-    fixtures: &TestFixtures,
     endpoint_tier: &'static str,
     mut modes: Vec<TestMode>,
 ) -> Vec<TestMode> {
@@ -514,7 +412,7 @@ fn append_optional_modes(
     }
     let optional_names: Vec<String> = builder_params(endpoint)
         .iter()
-        .map(|param| param.name.clone())
+        .map(|param| param.name.to_string())
         .collect();
     if optional_names.is_empty() {
         return modes;
@@ -531,17 +429,17 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_time".to_string(),
-                optional_fixture_value(fixtures, "start_time").to_string(),
+                optional_value("start_time").to_string(),
             ),
             (
                 "end_time".to_string(),
-                optional_fixture_value(fixtures, "end_time").to_string(),
+                optional_value("end_time").to_string(),
             ),
         ];
         modes.push(TestMode {
             name: "with_intraday_window".to_string(),
             rationale: rationale_for_mode("with_intraday_window"),
-            args: concrete_args(endpoint, fixtures),
+            args: concrete_args(endpoint),
             min_tier: endpoint_tier,
             builder_overrides: overrides,
         });
@@ -556,17 +454,17 @@ fn append_optional_modes(
         let overrides = vec![
             (
                 "start_date".to_string(),
-                optional_fixture_value(fixtures, "start_date").to_string(),
+                optional_value("start_date").to_string(),
             ),
             (
                 "end_date".to_string(),
-                optional_fixture_value(fixtures, "end_date").to_string(),
+                optional_value("end_date").to_string(),
             ),
         ];
         modes.push(TestMode {
             name: "with_date_range".to_string(),
             rationale: rationale_for_mode("with_date_range"),
-            args: concrete_args(endpoint, fixtures),
+            args: concrete_args(endpoint),
             min_tier: endpoint_tier,
             builder_overrides: overrides,
         });
@@ -579,9 +477,9 @@ fn append_optional_modes(
         if handled.contains(param_name) {
             continue;
         }
-        let value = optional_fixture_value(fixtures, param_name);
+        let value = optional_value(param_name);
         // Rationale carries the exact fixture literal so the cell's text
-        // can never drift from `optional_fixture_value`. `String` is
+        // can never drift from `optional_value`. `String` is
         // promoted to `&'static str` via `Box::leak` — generator runs once
         // per build, so the allocation is effectively one-time.
         let rationale: &'static str =
@@ -589,7 +487,7 @@ fn append_optional_modes(
         modes.push(TestMode {
             name: format!("with_{param_name}"),
             rationale,
-            args: concrete_args(endpoint, fixtures),
+            args: concrete_args(endpoint),
             min_tier: endpoint_tier,
             builder_overrides: vec![(param_name.clone(), value.to_string())],
         });
@@ -603,14 +501,14 @@ fn append_optional_modes(
         if param_name == "annual_dividend_amount" {
             continue;
         }
-        let value = optional_fixture_value(fixtures, param_name);
+        let value = optional_value(param_name);
         all_overrides.push((param_name.clone(), value.to_string()));
     }
     if !all_overrides.is_empty() {
         modes.push(TestMode {
             name: "all_optionals".to_string(),
             rationale: rationale_for_mode("all_optionals"),
-            args: concrete_args(endpoint, fixtures),
+            args: concrete_args(endpoint),
             min_tier: endpoint_tier,
             builder_overrides: all_overrides,
         });
@@ -634,9 +532,9 @@ fn canonicalize_wire_arg(param_name: &str, value: &str) -> String {
         "expiration" => normalize_expiration(value),
         "date" | "start_date" | "end_date" => normalize_date(value),
         "strike" => wire_strike_opt(value).unwrap_or_else(|| UNSET_WIRE_ARG_SENTINEL.to_string()),
-        // Build-time only: fixture inputs come from this repo's TOML, so a
-        // bad `right` here is a build script bug -- treat it as the sentinel
-        // and let the downstream validator flag it.
+        // Generation-time only: fixture inputs come from `test_fixtures.rs`,
+        // so a bad `right` here is a generator bug -- treat it as the
+        // sentinel and let the downstream validator flag it.
         "right" => wire_right_opt(value)
             .ok()
             .flatten()
@@ -662,7 +560,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
 
     let method_param_names: Vec<String> = method_params(endpoint)
         .iter()
-        .map(|param| param.name.clone())
+        .map(|param| param.name.to_string())
         .collect();
     // Per-param SSOT defaults for the builder-bound params on this endpoint.
     // Applied at runtime in the generated `parsed_endpoint!` query block;
@@ -673,8 +571,7 @@ fn collapse_redundant_wires(endpoint: &GeneratedEndpoint, modes: Vec<TestMode>) 
         .filter_map(|param| {
             param
                 .default
-                .as_ref()
-                .map(|v| (param.name.clone(), v.clone()))
+                .map(|v| (param.name.to_string(), v.to_string()))
         })
         .collect();
 

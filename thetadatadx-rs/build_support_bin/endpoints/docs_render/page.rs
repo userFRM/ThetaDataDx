@@ -3,8 +3,8 @@
 use std::fmt::Write as _;
 
 use super::super::super::ticks::schema::Schema;
-use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{builder_params, method_params, to_camel_case};
+use super::super::table::{GeneratedEndpoint, GeneratedParam};
 use super::{lang, response, samples};
 
 /// Sidebar metadata for one endpoint page: its category, subcategory,
@@ -18,7 +18,7 @@ pub(super) struct PageMeta {
 
 /// Bare-noun page title from the REST-path suffix after the category.
 pub(super) fn endpoint_title(endpoint: &GeneratedEndpoint) -> String {
-    let rest = endpoint._rest_path.trim_start_matches("/v3/");
+    let rest = endpoint.rest_path.trim_start_matches("/v3/");
     let mut parts: Vec<&str> = rest.split('/').collect();
     // Drop the category segment; calendar paths have no subcategory.
     parts.remove(0);
@@ -152,7 +152,7 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
     // upstream snapshot the mode taxonomy reads, so the rendered note and the
     // emitted wildcard test modes can never disagree.
     let supports_expiration_wildcard =
-        super::super::modes::endpoint_supports_expiration_wildcard(&endpoint.name);
+        super::super::modes::endpoint_supports_expiration_wildcard(endpoint.name);
 
     let mut out = String::from("## Parameters\n\n");
     out.push_str("| Name | Type | Required | Default | Description |\n|---|---|---|---|---|\n");
@@ -162,7 +162,6 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
     {
         let default = param
             .default
-            .as_deref()
             .map(|d| format!("`{d}`"))
             .unwrap_or_else(|| "-".to_string());
         let required = if param.required { "yes" } else { "no" };
@@ -170,7 +169,7 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
             out,
             "| `{}` | {} | {} | {} | {} |",
             param.name,
-            docs_param_type(&param.param_type),
+            docs_param_type(param.param_type),
             required,
             default,
             param_description_cell(param, supports_expiration_wildcard),
@@ -213,8 +212,8 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
             };
             format!(
                 "{{ key: {}, type: {}, default: {} }}",
-                js_str(&p.name),
-                js_str(docs_param_type(&p.param_type)),
+                js_str(p.name),
+                js_str(docs_param_type(p.param_type)),
                 js_str(default),
             )
         })
@@ -222,20 +221,20 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
 
     let showcased: Vec<&str> = lang::showcased_builder_params(endpoint)
         .into_iter()
-        .map(|p| p.name.as_str())
+        .map(|p| p.name)
         .collect();
     let optional: Vec<String> = builder_params(endpoint)
         .into_iter()
         .map(|p| {
-            let default = if showcased.contains(&p.name.as_str()) {
+            let default = if showcased.contains(&p.name) {
                 lang::sample_value(p, category).to_string()
             } else {
                 String::new()
             };
             format!(
                 "{{ key: {}, type: {}, default: {} }}",
-                js_str(&p.name),
-                js_str(docs_param_type(&p.param_type)),
+                js_str(p.name),
+                js_str(docs_param_type(p.param_type)),
                 js_str(&default),
             )
         })
@@ -245,15 +244,15 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
     let _ = writeln!(
         out,
         "  httpPath: {},",
-        js_str(endpoint._rest_path.trim_start_matches('/'))
+        js_str(endpoint.rest_path.trim_start_matches('/'))
     );
     let _ = writeln!(
         out,
         "  method: {{ rust: {}, python: {}, ts: {}, cpp: {} }},",
-        js_str(&endpoint.name),
-        js_str(&endpoint.name),
-        js_str(&to_camel_case(&endpoint.name)),
-        js_str(&endpoint.name),
+        js_str(endpoint.name),
+        js_str(endpoint.name),
+        js_str(&to_camel_case(endpoint.name)),
+        js_str(endpoint.name),
     );
     let _ = writeln!(out, "  required: [{}],", required.join(", "));
     let _ = writeln!(out, "  optional: [{}],", optional.join(", "));
@@ -263,19 +262,19 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
         // bare row and has no per-field tick sample.
         out.push_str("  scalar: true,\n");
     } else {
-        let fields = response::display_fields(&endpoint.return_type);
+        let fields = response::display_fields(endpoint.return_type);
         let print: Vec<String> = fields.iter().copied().map(js_str).collect();
         let _ = writeln!(out, "  print: [{}],", print.join(", "));
         let _ = writeln!(
             out,
             "  returns: {},",
-            js_str(&response::schema_type_name(&endpoint.return_type))
+            js_str(&response::schema_type_name(endpoint.return_type))
         );
         // The upstream OpenAPI example is the wire/JSON shape; for some endpoints
         // (e.g. calendar) it shares no field names with the SDK tick type and
         // would only mislead next to the schema table. Emit it only when it
         // overlaps the documented display fields.
-        let sample = samples::td_example_rows(&endpoint._rest_path);
+        let sample = samples::td_example_rows(endpoint.rest_path);
         let overlaps = sample
             .first()
             .and_then(|r| r.as_object())
@@ -320,11 +319,9 @@ pub(super) fn render_endpoint_page(
     let _ = writeln!(out, "<TierBadge tier=\"{tier}\" />\n");
     let _ = writeln!(out, "{description}");
 
-    if let Some(vendor) = endpoint.vendor_docstring.as_deref() {
-        let rewritten = rewrite_vendor_docstring(vendor);
-        if !rewritten.is_empty() {
-            let _ = writeln!(out, "\n{rewritten}");
-        }
+    let rewritten = rewrite_vendor_docstring(&endpoint.doc[1..].join("\n"));
+    if !rewritten.is_empty() {
+        let _ = writeln!(out, "\n{rewritten}");
     }
 
     out.push_str("\n<RequestBuilder :cfg=\"cfg\" />\n\n");
@@ -333,8 +330,8 @@ pub(super) fn render_endpoint_page(
     out.push_str(&response::render_response_section(endpoint, tick_schema)?);
 
     let meta = PageMeta {
-        category: endpoint.category.clone(),
-        subcategory: endpoint.subcategory.clone(),
+        category: endpoint.category.to_string(),
+        subcategory: endpoint.subcategory.to_string(),
         title,
         link: format!("/{page_path}"),
     };

@@ -184,9 +184,7 @@ impl FlagAccessorDef {
 pub(crate) struct ColumnDef {
     /// Wire / decode-layer column spelling. Every public surface emits
     /// `field`; only the docs generator still prints `name` (in its
-    /// missing-doc diagnostics), so the field is dead code in the
-    /// `generate_sdk_surfaces` compile unit — same gate as `doc`.
-    #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
+    /// missing-doc diagnostics).
     pub(crate) name: String,
     pub(crate) field: String,
     pub(crate) r#type: String,
@@ -194,13 +192,10 @@ pub(crate) struct ColumnDef {
     #[serde(default)]
     pub(crate) nullable: bool,
     /// One-sentence field description rendered on the docs-site
-    /// response-schema tables (`generate_docs_site`). Optional at the
-    /// serde layer so the build-script view of the same TOML stays
-    /// untouched; the docs generator fails loudly on a missing doc.
-    /// Only the docs generator reads it, so the field is dead code in
-    /// the `generate_sdk_surfaces` compile unit (no `__internal`).
+    /// response-schema tables. Optional at the serde layer so the
+    /// build-script view of the same TOML stays untouched; the docs
+    /// generator fails loudly on a missing doc.
     #[serde(default)]
-    #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
     pub(crate) doc: Option<String>,
 }
 

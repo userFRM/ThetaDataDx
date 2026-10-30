@@ -1,6 +1,6 @@
 //! Safe doc-comment emitters for codegen.
 //!
-//! `endpoint_surface.toml` strings (`description`, `name`, ...) are
+//! Endpoint table strings (`description`, `name`, ...) are
 //! interpolated into generated source files. A description that
 //! contains `"`, `\`, an embedded newline, or — for C-family
 //! languages — `*/` would otherwise produce uncompilable output.

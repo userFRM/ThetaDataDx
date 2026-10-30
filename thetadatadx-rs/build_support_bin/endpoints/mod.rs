@@ -1,41 +1,29 @@
 //! Endpoint surface generation for the `generate_sdk_surfaces` binary.
 //!
-//! This tree loads `endpoint_surface.toml`, joins it to the wire contract in
-//! `proto/mdds.proto`, and renders the per-language SDK projections and the
-//! live-validator matrix from the result.
+//! This tree expands the endpoint table into plain records and renders the
+//! per-language SDK projections, the live-validator matrix and the docs site
+//! from them.
 //!
 //! Module layout:
-//! * [`model`]: TOML data types and the joined endpoint model.
-//! * [`parser`]: TOML loader and its validation against the wire contract.
-//! * [`proto_parser`]: proto parser.
+//! * [`table`]: the endpoint table as records, and its proto cross-check.
 //! * [`helpers`]: cross-renderer helpers.
 //! * [`modes`]: live-validator parameter-mode matrix derivation.
-//! * [`fixture_validation`]: `[test_fixtures]` cross-check.
+//! * [`test_fixtures`]: the values the validators and examples send.
 //! * [`sdk_helpers`]: render-side helpers.
 //! * [`sdk_render`]: per-language emitters.
+//! * [`docs_render`]: the docs site.
 
-pub(super) mod helpers;
-pub(super) mod model;
-pub(super) mod parser;
-pub(super) mod proto_parser;
-
-// Dead-code allowance mirrors the bin-side mod declarations: when
-// `generate_sdk_surfaces` is compiled with the `__internal` feature in
-// the same invocation as `generate_docs_site`, this module is present
-// in a compile unit that never calls it.
-#[cfg(feature = "__internal")]
-#[allow(dead_code)]
 mod docs_render;
 mod enum_projection;
-mod fixture_validation;
+mod helpers;
 mod modes;
 mod sdk_helpers;
 mod sdk_render;
+mod table;
 mod test_fixtures;
 
 use std::path::Path;
 
-#[cfg(feature = "__internal")]
 pub use docs_render::{check_docs_site_files, write_docs_site_files};
 
 /// Renders every per-language SDK surface file and writes it to disk
@@ -64,11 +52,9 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 /// no plain-list snapshot returns from landing as a dead-code function.
 pub fn snapshot_return_types()
 -> Result<std::collections::HashSet<String>, Box<dyn std::error::Error>> {
-    let endpoints = parser::load_endpoint_specs()?;
-    Ok(endpoints
-        .endpoints
+    Ok(table::endpoints()
         .iter()
         .filter(|e| sdk_helpers::snapshot_returns_plain_pylist(e))
-        .map(|e| e.return_type.clone())
+        .map(|e| e.return_type.to_string())
         .collect())
 }
