@@ -374,7 +374,7 @@ macro_rules! ts_with_columns {
             }
         }
     };
-    ($($tick:ident)*) => {
+    ($($(#[$attr:ident])* $tick:ident $body:tt)*) => {
         $( thetadatadx::__paste! { ts_with_columns! { @struct $tick [<$tick WithColumns>] [<$tick:lower_camel>] } } )*
     };
 }

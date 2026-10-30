@@ -11,9 +11,8 @@
 //! generated parsers, and the hand-written v3 parsers
 //! (`super::dual_type_columns`) call them per cell.
 //!
-//! The macro-generated `decode_generated` module (assembled by `build.rs` from
-//! `tick_schema.toml`) is included from this module; its emitted parser
-//! functions reference `crate::decode::*` for the cross-cutting helpers.
+//! The tick parsers are expanded here from the tick table
+//! (`crate::__ticks!`), next to the single-cell decoders they drive.
 
 use super::dual_type_columns::parse_iso_date;
 use super::error::DecodeError;
@@ -557,35 +556,159 @@ pub(crate) fn row_contract_right(
     }
 }
 
-// Generated code -- parser functions from tick_schema.toml by build.rs.
+// The tick decoders, expanded from the tick table: one two-phase parser per
+// type, plus its wire-column presence and chain sort key.
 //
-// The emitted parser bodies reference:
-//   * `crate::proto::*` for wire types
-//   * the `row_*` single-cell decoders in this module (in scope via
-//     `use super::*`)
-//   * `crate::decode::column::{extract_column, BLOCK_ROWS}` for the
-//     bulk column extraction
+// An empty response (a holiday, a symbol with no activity) decodes to no rows.
+// Otherwise phase 1 resolves the column layout once, and a required header
+// missing from it is schema drift that fails the decode rather than yielding
+// zero-seeded ticks. Phase 2 seeds the output, then extracts
+// column by column in cache-resident row blocks; a column the response
+// omitted keeps its seed, and a nullable column's presence flag stays false.
+// A wildcard response carries the contract columns under their exact wire
+// names.
 //
-// `CalendarDay` and `OptionContract` are hand-parsed in `dual_type_columns`; the generator does not emit them.
-#[allow(clippy::pedantic)] // Reason: auto-generated parser code, not under our control.
-mod decode_generated {
-    use super::*;
-    include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));
+// `CalendarDay` and `OptionContract` are decoded by hand in
+// `dual_type_columns`.
+macro_rules! tick_decoders {
+    ($($(#[$attr:ident])* $name:ident $body:tt)*) => {
+        $(crate::__tick! { [$(#[$attr])* $name $body] => tick_decoder {} })*
+    };
 }
 
-// Full glob for workspace bindings that use every generated parser.
-#[cfg(feature = "__internal")]
-pub use decode_generated::*;
-// Explicit subset for default builds: exactly the functions the market-data
-// endpoint builders (`parsed_endpoint!`) call via `decode::parse_*`.
-#[cfg(not(feature = "__internal"))]
-pub use decode_generated::{
-    parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_eod_ticks,
-    parse_greeks_first_order_ticks, parse_greeks_second_order_ticks,
-    parse_greeks_third_order_ticks, parse_index_price_at_time_ticks, parse_interest_rate_ticks,
-    parse_interval_quote_ticks, parse_iv_ticks, parse_market_value_ticks, parse_ohlc_ticks,
-    parse_open_interest_ticks, parse_price_ticks, parse_quote_ticks, parse_trade_greeks_all_ticks,
-    parse_trade_greeks_first_order_ticks, parse_trade_greeks_implied_volatility_ticks,
-    parse_trade_greeks_second_order_ticks, parse_trade_greeks_third_order_ticks,
-    parse_trade_quote_ticks, parse_trade_ticks,
-};
+macro_rules! tick_decoder {
+    ($name:ident $kind:ident contract $contract:tt doc $doc:tt summary $summary:tt more $more:tt
+        required $required:tt columns [$({ $f:ident $w:ident $ty:ident $has:tt $d:tt })*]
+        timestamps $timestamps:tt flags $flags:tt) => {
+        tick_decoder! { @parse $name $required $contract [$({ $f $w $ty $has })*] }
+
+        impl crate::columns::WireColumns for crate::tdbe::types::tick::$name {
+            fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {
+                tick_decoder!(@present $name headers $contract [$(($w, $f))*])
+            }
+
+            fn all_columns() -> crate::columns::ColumnPresence {
+                tick_decoder!(@all $contract [$($f)*])
+            }
+        }
+
+        tick_decoder! { @chain $name $contract }
+    };
+    (@parse CalendarDay $($rest:tt)*) => {};
+    (@parse OptionContract $($rest:tt)*) => {};
+    (@parse $name:ident [$($req:ident)*] [$($exp:ident $strike:ident $right:ident)?]
+        [$({ $f:ident $w:ident $ty:ident [$($has:ident)?] })*]) => {
+        crate::__paste! {
+            pub fn [<parse_ $name:snake s>](table: &crate::proto::DataTable) -> Result<Vec<$name>, DecodeError> {
+                let rows = table.data_table.as_slice();
+                if rows.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let h: Vec<&str> = table.headers.iter().map(|s| s.as_str()).collect();
+                $(let [<$w _idx>] = find_header(&h, stringify!($w));)*
+                $(if [<$req _idx>].is_none() {
+                    return Err(DecodeError::MissingRequiredHeader {
+                        header: stringify!($req),
+                        rows: rows.len(),
+                        available: h.join(","),
+                    });
+                })*
+                $(
+                    let [<$exp _idx>] = h.iter().position(|c| *c == stringify!($exp));
+                    let [<$strike _idx>] = h.iter().position(|c| *c == stringify!($strike));
+                    let [<$right _idx>] = h.iter().position(|c| *c == stringify!($right));
+                )?
+
+                let mut ticks = vec![
+                    $name {
+                        $($f: tick_decoder!(@seed $ty), $($has: false,)?)*
+                        $($exp: 0, $strike: 0.0, $right: '\0',)?
+                    };
+                    rows.len()
+                ];
+                let mut row_base = 0_usize;
+                for (rows, ticks) in rows
+                    .chunks(crate::decode::column::BLOCK_ROWS)
+                    .zip(ticks.chunks_mut(crate::decode::column::BLOCK_ROWS))
+                {
+                    $(if let Some(idx) = [<$w _idx>] {
+                        tick_decoder!(@extract rows ticks row_base idx $w $f [$($has)?] tick_decoder!(@seed $ty), tick_decoder!(@decoder $f $ty));
+                    })*
+                    $(
+                        if let Some(idx) = [<$exp _idx>] {
+                            crate::decode::column::extract_column(rows, ticks, row_base, idx, stringify!($exp), 0, row_contract_expiration, |t, v| t.$exp = v)?;
+                        }
+                        if let Some(idx) = [<$strike _idx>] {
+                            crate::decode::column::extract_column(rows, ticks, row_base, idx, stringify!($strike), 0.0, row_price_f64, |t, v| t.$strike = v)?;
+                        }
+                        if let Some(idx) = [<$right _idx>] {
+                            crate::decode::column::extract_column(rows, ticks, row_base, idx, stringify!($right), '\0', row_contract_right, |t, v| t.$right = v)?;
+                        }
+                    )?
+                    row_base += rows.len();
+                }
+                Ok(ticks)
+            }
+        }
+    };
+    (@extract $rows:ident $ticks:ident $base:ident $idx:ident $w:ident $f:ident [] $seed:expr, $decoder:expr) => {
+        crate::decode::column::extract_column($rows, $ticks, $base, $idx, stringify!($w), $seed, $decoder, |t, v| t.$f = v)?
+    };
+    (@extract $rows:ident $ticks:ident $base:ident $idx:ident $w:ident $f:ident [$has:ident] $seed:expr, $decoder:expr) => {
+        crate::decode::column::extract_nullable_column($rows, $ticks, $base, $idx, stringify!($w), $seed, $decoder, |t, v, present| {
+            t.$f = v;
+            t.$has = present;
+        })?
+    };
+    // The calendar parser renames its wire columns, so its presence has its
+    // own table.
+    (@present CalendarDay $headers:ident $($rest:tt)*) => {
+        crate::columns::present_calendar_day_columns($headers)
+    };
+    (@present $name:ident $headers:ident [$($cid:ident)*] [$(($w:ident, $f:ident))*]) => {
+        crate::columns::present_columns_from(
+            $headers,
+            &[$((stringify!($w), stringify!($f))),*],
+            tick_decoder!(@contract $($cid)*),
+        )
+    };
+    (@contract) => { false };
+    (@contract $exp:ident $strike:ident $right:ident) => { true };
+    (@all [$($cid:ident)*] [$($f:ident)*]) => {
+        crate::columns::ColumnPresence::from_names([$(stringify!($f),)* $(stringify!($cid)),*])
+    };
+    (@chain $name:ident [$exp:ident $strike:ident $right:ident]) => {
+        impl crate::mdds::shard::ChainSortKey for $name {
+            fn chain_sort_key(&self) -> Option<crate::mdds::shard::ChainKey> {
+                Some(crate::mdds::shard::ChainKey::new(self.$exp, self.$strike, self.$right))
+            }
+        }
+    };
+    (@chain $name:ident []) => {
+        impl crate::mdds::shard::ChainSortKey for $name {
+            fn chain_sort_key(&self) -> Option<crate::mdds::shard::ChainKey> {
+                None
+            }
+        }
+    };
+    (@seed String) => { String::new() };
+    (@seed right) => { '\0' };
+    (@seed f64) => { 0.0 };
+    (@seed price) => { 0.0 };
+    (@seed eod_price) => { 0.0 };
+    (@seed $ty:ident) => { 0 };
+    (@decoder date i32) => { row_date };
+    (@decoder underlying_date i32) => { row_date };
+    (@decoder $f:ident i32) => { row_number };
+    (@decoder $f:ident i64) => { row_number_i64 };
+    (@decoder $f:ident f64) => { row_price_f64 };
+    (@decoder $f:ident price) => { row_price_f64 };
+    (@decoder $f:ident String) => { row_text };
+    (@decoder $f:ident right) => { row_contract_right };
+    (@decoder $f:ident eod_num) => { row_eod_number };
+    (@decoder $f:ident eod_num64) => { row_eod_number_i64 };
+    (@decoder $f:ident eod_date) => { row_eod_date };
+    (@decoder $f:ident eod_price) => { row_price_f64 };
+}
+
+crate::__ticks! { tick_decoders {} }

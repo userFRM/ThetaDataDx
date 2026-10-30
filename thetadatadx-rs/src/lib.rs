@@ -165,6 +165,9 @@ mod surface;
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
 pub use pastey::paste as __paste;
+// The tick resolver pastes through `$crate`, in this crate's own expansions too.
+#[cfg(not(feature = "__internal"))]
+pub(crate) use pastey::paste as __paste;
 
 // `mdds/` holds the macros, registry, validate, wire_semantics, and the
 // shared endpoint runtime (`endpoint_args`).

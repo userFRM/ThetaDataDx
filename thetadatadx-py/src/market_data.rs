@@ -754,13 +754,6 @@ fn decode_chunks_into_table(chunks: &[&[u8]]) -> PyResult<thetadatadx::wire::Dat
     })
 }
 
-/// Decoder of a response item.
-macro_rules! parse_fn {
-    (CalendarDay) => { thetadatadx::decode::parse_calendar_days_v3 };
-    (OptionContract) => { thetadatadx::decode::parse_option_contracts_v3 };
-    ($item:ident) => { thetadatadx::__paste!(thetadatadx::decode::[<parse_ $item:snake s>]) };
-}
-
 /// Expands `decode_response_bytes` over every tick endpoint. A list endpoint
 /// has no typed decoder, so the sort pass drops it before the one `match` is
 /// emitted.
@@ -791,7 +784,7 @@ macro_rules! py_decode {
             match endpoint {
                 $(stringify!($name) => {
                     let table = decode_chunks_into_table(&refs)?;
-                    let rows = parse_fn!($item)(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+                    let rows = thetadatadx::__parse_fn!($item)(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
                     let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
                     let columns = <tick::$item as thetadatadx::WireColumns>::present_columns(&header_refs);
                     // Carry the response's `symbol` (root) as the leading column, as the
