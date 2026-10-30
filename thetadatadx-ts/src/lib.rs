@@ -1083,13 +1083,13 @@ impl MarketDataView {
 /// User-facing real-time-streaming sub-namespace returned by the
 /// `client.stream` getter.
 ///
-/// Shares the parent client's connection and its registered streaming
+/// Shares the parent client's streaming service and its registered streaming
 /// callback, so `startStreaming`, `stopStreaming`, `reconnect`, and the
 /// subscription methods observe the same registration the unified client
 /// does.
 #[napi]
 pub struct StreamView {
-    client: Arc<thetadatadx::Client>,
+    stream: Arc<thetadatadx::StreamService>,
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
     /// The Node main thread the `stream` getter ran on, which drains the
     /// callback queue. See `fpss_client::abort_hook_expect_closing`.
@@ -1118,7 +1118,7 @@ impl Client {
     #[napi(getter)]
     pub fn stream(&self) -> napi::Result<StreamView> {
         Ok(StreamView {
-            client: self.client_handle()?,
+            stream: Arc::clone(self.client_handle()?.stream_service()),
             callback: Arc::clone(&self.callback),
             js_thread: std::thread::current().id(),
         })
@@ -1295,7 +1295,7 @@ impl StreamView {
     /// matches every other binding (C ABI, Python, C++).
     #[napi(js_name = "isAuthenticated")]
     pub fn is_authenticated(&self) -> bool {
-        self.client.stream().is_authenticated()
+        self.stream.stream().is_authenticated()
     }
 
     /// Cumulative count of streaming events that were dropped because the
@@ -1310,7 +1310,7 @@ impl StreamView {
     /// (Number would top out at 2^53).
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.client.stream().dropped_event_count())
+        napi::bindgen_prelude::BigInt::from(self.stream.stream().dropped_event_count())
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1329,7 +1329,7 @@ impl StreamView {
     /// streaming counters.
     #[napi(js_name = "ringOccupancy")]
     pub fn ring_occupancy(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.client.stream().ring_occupancy() as u64)
+        napi::bindgen_prelude::BigInt::from(self.stream.stream().ring_occupancy() as u64)
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1343,7 +1343,7 @@ impl StreamView {
     /// shape-consistency with the other streaming counters.
     #[napi(js_name = "ringCapacity")]
     pub fn ring_capacity(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.client.stream().ring_capacity() as u64)
+        napi::bindgen_prelude::BigInt::from(self.stream.stream().ring_capacity() as u64)
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1356,7 +1356,7 @@ impl StreamView {
     /// earliest external signal of a dead or wedged connection.
     #[napi(js_name = "millisSinceLastEvent")]
     pub fn millis_since_last_event(&self) -> Option<napi::bindgen_prelude::BigInt> {
-        self.client
+        self.stream
             .stream()
             .millis_since_last_event()
             .map(napi::bindgen_prelude::BigInt::from)
@@ -1370,7 +1370,7 @@ impl StreamView {
     #[napi(js_name = "lastEventReceivedAtUnixNanos")]
     pub fn last_event_received_at_unix_nanos(&self) -> napi::bindgen_prelude::BigInt {
         napi::bindgen_prelude::BigInt::from(
-            self.client.stream().last_event_received_at_unix_nanos(),
+            self.stream.stream().last_event_received_at_unix_nanos(),
         )
     }
 
@@ -1379,7 +1379,7 @@ impl StreamView {
     /// auto-reconnects. `null` when streaming has not started.
     #[napi(js_name = "lastConnectedAddr")]
     pub fn last_connected_addr(&self) -> Option<String> {
-        self.client.stream().last_connected_addr()
+        self.stream.stream().last_connected_addr()
     }
 
     /// Cumulative count of user-callback panics caught at the per-event
@@ -1393,7 +1393,7 @@ impl StreamView {
     /// (Number would top out at 2^53).
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
-        napi::bindgen_prelude::BigInt::from(self.client.stream().panic_count())
+        napi::bindgen_prelude::BigInt::from(self.stream.stream().panic_count())
     }
 
     /// Snapshot of full-stream subscriptions (e.g. `OPTION` /
@@ -1405,10 +1405,10 @@ impl StreamView {
     /// the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
     /// Quote is never a valid full-stream kind on the streaming wire, so
     /// any such row from the core is dropped from the projection.
-    /// Empty array when streaming has not started.
+    /// Throws when streaming has not started.
     #[napi(js_name = "activeFullSubscriptions")]
     pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
-        self.client
+        self.stream
             .stream()
             .active_full_subscriptions()
             .map(project_full_subscriptions)
@@ -1649,7 +1649,7 @@ impl StreamView {
         // The dispatcher closure and the `Arc<thetadatadx::Client>` are
         // both `Send + 'static`, so the closure satisfies the
         // `spawn_blocking` bound.
-        let client = Arc::clone(&self.client);
+        let client = Arc::clone(&self.stream);
         let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
         let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
         let delivery_failed_for_scope = Arc::clone(&delivery_failed);
@@ -1739,7 +1739,7 @@ impl StreamView {
     /// Whether the streaming connection is active.
     #[napi(js_name = "isStreaming")]
     pub fn is_streaming(&self) -> bool {
-        self.client.stream().is_streaming()
+        self.stream.stream().is_streaming()
     }
 
     /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
@@ -1764,7 +1764,7 @@ impl StreamView {
     ) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
         let options = options.unwrap_or_default();
         crate::streaming_batches::open_handle(
-            std::sync::Arc::clone(&self.client),
+            std::sync::Arc::clone(&self.stream),
             options.batch_size,
             options.linger_ms,
             options.backpressure,
@@ -1776,7 +1776,7 @@ impl StreamView {
     /// Get a snapshot of currently active subscriptions.
     #[napi(js_name = "activeSubscriptions")]
     pub fn active_subscriptions(&self) -> napi::Result<serde_json::Value> {
-        self.client
+        self.stream
             .stream()
             .active_subscriptions()
             .map(|subs| {
@@ -1854,7 +1854,7 @@ impl StreamView {
         // free for timers, IO, and queued promises. The stored callback
         // handle stays in place; `reconnect_streaming` re-uses the same
         // `ThreadsafeFunction`, so there is no state shape change.
-        let client = Arc::clone(&self.client);
+        let client = Arc::clone(&self.stream);
         let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
         let callback_closing_expected_for_result = Arc::clone(&callback_closing_expected);
         let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
@@ -1906,7 +1906,7 @@ impl StreamView {
             let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().map(Arc::clone)
         };
-        self.client.stream().stop_streaming();
+        self.stream.stream().stop_streaming();
         if let Some(previous_callback) = previous_callback {
             let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             if guard
@@ -1927,7 +1927,7 @@ impl StreamView {
             let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().map(Arc::clone)
         };
-        self.client.stream().stop_streaming();
+        self.stream.stream().stop_streaming();
         if let Some(previous_callback) = previous_callback {
             let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             if guard
@@ -1943,7 +1943,7 @@ impl StreamView {
     #[napi(js_name = "awaitDrain")]
     pub async fn await_drain(&self, timeout_ms: f64) -> napi::Result<bool> {
         let timeout_ms = crate::validate_u32_arg("timeoutMs", timeout_ms)?;
-        let client = self.client.clone();
+        let client = self.stream.clone();
         let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));
         tokio::task::spawn_blocking(move || client.stream().await_drain(timeout))
             .await
@@ -1996,7 +1996,7 @@ impl StreamView {
     /// `SecType.option().fullOpenInterest()` (full-stream scope).
     #[napi]
     pub fn subscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.client
+        self.stream
             .stream()
             .subscribe(sub.snapshot())
             .map_err(to_napi_err)
@@ -2008,7 +2008,7 @@ impl StreamView {
     #[napi(js_name = "subscribeMany")]
     pub fn subscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.client
+        self.stream
             .stream()
             .subscribe_many(snaps)
             .map_err(to_napi_err)
@@ -2017,7 +2017,7 @@ impl StreamView {
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     #[napi]
     pub fn unsubscribe(&self, sub: &fluent::Subscription) -> napi::Result<()> {
-        self.client
+        self.stream
             .stream()
             .unsubscribe(sub.snapshot())
             .map_err(to_napi_err)
@@ -2027,7 +2027,7 @@ impl StreamView {
     #[napi(js_name = "unsubscribeMany")]
     pub fn unsubscribe_many(&self, subs: Vec<&fluent::Subscription>) -> napi::Result<()> {
         let snaps: Vec<_> = subs.iter().map(|s| s.snapshot()).collect();
-        self.client
+        self.stream
             .stream()
             .unsubscribe_many(snaps)
             .map_err(to_napi_err)

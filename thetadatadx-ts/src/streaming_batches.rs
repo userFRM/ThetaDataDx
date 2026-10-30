@@ -116,7 +116,7 @@ pub struct BatchesOptions {
 /// Called by the generated `StreamView.batches(..)` entry. The connect runs
 /// on a blocking worker so the Node event loop is never frozen.
 pub(crate) async fn open_handle(
-    client: Arc<thetadatadx::Client>,
+    client: Arc<thetadatadx::StreamService>,
     batch_size: Option<f64>,
     linger_ms: Option<f64>,
     backpressure: Option<String>,
