@@ -77,7 +77,8 @@ cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces
 ```
 
 Edit the schema, run that, commit both the schema and the regenerated files. The parity gate then
-confirms every binding agrees.
+holds the published TypeScript and C++ declarations to the endpoint and config tables, and
+`thetadatadx-py/tests/test_table_surface.py` holds the built Python module to them.
 
 **Never hand-edit a file whose header says `@generated`.** They live under `*/src/_generated/`, in
 `thetadatadx-ffi/src/`, and as `thetadatadx-cpp/include/*.inc`.
