@@ -794,8 +794,9 @@ unsafe fn coerce_subscription(
                 && right_ptr.is_null()
             {
                 // No option legs: a stock or index underlier. `sec_type`
-                // selects which; a null or empty sec_type defaults to stock
-                // for ABI backward-compatibility (callers predating the field).
+                // selects which; a null or empty sec_type is a stock, as the
+                // header documents, so a zero-initialised request subscribes
+                // to the stock.
                 if sec_type_ptr.is_null() {
                     Contract::stock(symbol)
                 } else {
@@ -3164,8 +3165,8 @@ mod null_callback_guard_tests {
 
     #[test]
     fn coerce_subscription_null_sec_type_defaults_to_stock() {
-        // Backward-compat: a null sec_type (callers predating the field) still
-        // resolves to a stock subscription.
+        // A null sec_type, as a zero-initialised request carries, resolves to
+        // a stock subscription, as the header documents.
         let symbol = std::ffi::CString::new("AAPL").unwrap();
         let req = super::ThetaDataDxSubscriptionRequest {
             scope: super::THETADATADX_SUB_SCOPE_CONTRACT,
