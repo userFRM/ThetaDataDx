@@ -11,9 +11,6 @@ surface by checking a few high-signal invariants:
   server treats as optional, nor hide the value an omitted one takes)
 - each option route's documented `expiration` pattern accepting the `*`
   wildcard exactly where the pinned vendor spec accepts it
-- every route's `x-code-examples` being the call the registry's signature
-  actually takes, rendered from the registry rather than kept by hand
-  (`--write-examples` rewrites them)
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
@@ -22,8 +19,9 @@ surface by checking a few high-signal invariants:
   (the docs-site build re-publishes whatever is on `main`, so any drift
   is a release-note bug the moment it lands)
 
-The generated reference tree itself is byte-verified by
-`cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site -- --check`
+The generated reference tree, `llms.txt` and the OpenAPI `x-code-examples`
+are byte-verified by
+`cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces -- --check`
 in CI; the structural checks here are the cargo-free fast path the docs
 deploy workflow runs.
 
@@ -185,15 +183,26 @@ OPENAPI_REST_ONLY_PARAMS = {"format"}
 # the same code with the same parameters, so the parameter check holds them to
 # the same registry row as their sibling. The `{request_type}` forms move that
 # one parameter from the query string into the path, which the check reads as
-# the required, default-less parameter the registry declares.
-OPENAPI_ALIAS_ENDPOINTS = {
-    "/v3/stock/list/dates/{request_type}": "stock_list_dates",
-    "/v3/option/list/dates/{request_type}": "option_list_dates",
-    "/v3/option/list/contracts/{request_type}": "option_list_contracts",
-    "/v3/calendar/today": "calendar_open_today",
-    "/v3/calendar/year_holidays": "calendar_year",
-    "/v3/interest_rate/history/eod": "interest_rate_history_eod",
-}
+# the required, default-less parameter the registry declares. The docs
+# generator renders each alias's `x-code-examples` from the same endpoint, so
+# the table is `ROUTE_ALIASES` beside it and is read from there.
+OPENAPI_ALIASES_RS = ROOT / "thetadatadx-rs/build_support_bin/endpoints/docs_render/openapi.rs"
+
+
+def openapi_alias_endpoints() -> dict[str, str]:
+    """`{alias path: endpoint name}` from the docs generator's `ROUTE_ALIASES`."""
+    text = OPENAPI_ALIASES_RS.read_text()
+    body = re.search(r"const ROUTE_ALIASES: [^=]*= &\[(.*?)\];", text, re.DOTALL)
+    entries = body.group(1) if body else ""
+    pairs = re.findall(r'\(\s*"(/v3/[^"]+)",\s*"(\w+)",?\s*\)', entries)
+    listed = entries.count('"/v3/')
+    if not pairs or len(pairs) != listed:
+        fail(
+            f"{rel(OPENAPI_ALIASES_RS)} ROUTE_ALIASES parsed to {len(pairs)} of {listed} "
+            f"entries (the table's layout changed: the gate would skip the routes it cannot read)"
+        )
+    return dict(pairs)
+
 
 # Builder-bound params (the optional fluent setters that materialize as fields
 # on the `*EndpointRequestOptions` structs) come from two places in the surface:
@@ -975,10 +984,10 @@ def registry_routes(value: Callable[[dict], object]) -> dict:
     """
     by_name = {ep["name"]: value(ep) for ep in REGISTRY_ENDPOINTS}
     routes = {ep["rest_path"]: by_name[ep["name"]] for ep in REGISTRY_ENDPOINTS}
-    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
+    for alias, endpoint_name in openapi_alias_endpoints().items():
         if endpoint_name not in by_name:
             fail(
-                f"OPENAPI_ALIAS_ENDPOINTS maps {alias} to {endpoint_name!r}, which is "
+                f"ROUTE_ALIASES maps {alias} to {endpoint_name!r}, which is "
                 f"not a registry endpoint"
             )
         routes[alias] = by_name[endpoint_name]
@@ -1251,248 +1260,6 @@ def check_openapi_expiration_wildcard() -> None:
             f"parameters (the spec's layout changed: the gate would be blind to "
             f"a wrong wildcard rule)"
         )
-
-
-# The optional parameters the published examples pin. Pinning `strike` and
-# `right` turns an option route's wildcard default into the single-contract
-# request a reader is usually after, and `interval` is the one tuning knob most
-# intraday requests set. Mirrors `showcased_builder_params` in the docs
-# generator (`build_support_bin/endpoints/docs_render/lang.rs`), which seeds the
-# reference pages' request builder from the same three.
-OPENAPI_EXAMPLE_OPTIONALS = ("strike", "right", "interval")
-
-# One example per language, in the order the document carries them, with the
-# label the renderer prints beside the snippet.
-OPENAPI_EXAMPLE_LANGS = (("rust", "Rust"), ("python", "Python"), ("cpp", "C++"))
-
-
-def _example_value(endpoint: dict, param: dict) -> str:
-    """The literal an example passes for `param`, from `[test_fixtures]`.
-
-    The same table the generated live validators draw from, so a published
-    example passes the values those validators send. A param the table cannot
-    answer for fails the gate rather than being handed an invented literal.
-
-    The values are not on their own a promise that the vendor answers the
-    request: that also needs every parameter the vendor requires to be set,
-    which is `_example_optionals`' business.
-    """
-    fixtures = SURFACE["test_fixtures"]
-    name, param_type = param["name"], param["param_type"]
-    override = fixtures.get("concrete_overrides", {}).get(name)
-    if override is not None:
-        return override
-    if param_type in ("Symbol", "Symbols"):
-        category = endpoint_attr(endpoint, "category")
-        symbol = fixtures.get("category_symbol", {}).get(category)
-        if symbol is None:
-            fail(
-                f"[test_fixtures.category_symbol] has no symbol for category "
-                f"{category!r} ({endpoint['name']}), so no example value exists"
-            )
-        return symbol
-    # A flat file keeps only the vendor's most recent days, so a fixed date
-    # goes stale; its examples show the form instead.
-    if param_type == "Date" and endpoint_attr(endpoint, "subcategory") == "flat_file":
-        return "YYYYMMDD"
-    value = fixtures.get("concrete_by_type", {}).get(param_type)
-    if value is None:
-        fail(
-            f"[test_fixtures.concrete_by_type] has no value for param type "
-            f"{param_type!r} ({endpoint['name']}.{name}), so no example value exists"
-        )
-    return value
-
-
-def _example_variable(endpoint: dict) -> str:
-    """The variable an example binds its result to, derived from the endpoint.
-
-    A list route is named for the rows it lists (`symbols`, `dates`); any other
-    is named for its return type with the `Ticks` suffix dropped
-    (`QuoteTicks` -> `quote`, `TradeGreeksAllTicks` -> `trade_greeks_all`).
-    """
-    list_column = endpoint.get("list_column")
-    if list_column is not None:
-        return f"{list_column}s"
-    returns = endpoint_attr(endpoint, "returns")
-    if returns is None:
-        fail(f"endpoint {endpoint['name']} declares no return type to name a variable after")
-    out: list[str] = []
-    for i, ch in enumerate(returns.removesuffix("Ticks")):
-        if ch.isupper() and i > 0:
-            out.append("_")
-        out.append(ch.lower())
-    return "".join(out)
-
-
-def _example_literal(param: dict, value: str, lang: str) -> str:
-    """`value` as a literal of `param`'s type in `lang`."""
-    param_type = param["param_type"]
-    if param_type == "Bool":
-        return value.capitalize() if lang == "python" else value
-    if param_type in ("Int", "Float"):
-        return value
-    if param_type == "Symbols":
-        # The C++ method is overloaded on `const std::string&` and
-        # `const std::vector<std::string>&`, and a braced list converts to
-        # either through a user-defined conversion, so a bare `{"AAPL"}` is an
-        # ambiguous call that does not compile. Name the vector, as the
-        # generated C++ validator does.
-        return {
-            "rust": f'&["{value}"]',
-            "python": f'["{value}"]',
-            "cpp": f'std::vector<std::string>{{"{value}"}}',
-        }[lang]
-    return f'"{value}"'
-
-
-def _example_optionals(params: list[dict]) -> list[dict]:
-    """The optional parameters an example sets, in the registry's own order.
-
-    Two sources. `OPENAPI_EXAMPLE_OPTIONALS` are the knobs a reader wants to
-    see set. The rest is a date: the vendor marks `date`, `start_date` and
-    `end_date` optional on the history routes and then refuses a request that
-    carries none of them, so an example that sets no date is a call that can
-    only fail. The validator generator anchors every cell the same way and for
-    the same reason (`anchor_dates` in
-    `build_support_bin/endpoints/modes.rs`): a single `date` where the route
-    takes one, both ends of the range where it takes a range instead.
-    """
-    builder = [p for p in params if p.get("binding") == "builder"]
-    names = {p["name"] for p in builder}
-    shown = names & set(OPENAPI_EXAMPLE_OPTIONALS)
-    if "date" in names:
-        shown.add("date")
-    elif {"start_date", "end_date"} <= names:
-        shown |= {"start_date", "end_date"}
-    return [p for p in builder if p["name"] in shown]
-
-
-def render_openapi_examples() -> dict[str, str]:
-    """`{documented path: x-code-examples block}` rendered from the registry.
-
-    The registry already records which parameters a call takes positionally
-    (`binding = "method"`) and which are optional (`binding = "builder"`), so
-    the snippets are derived from it rather than written by hand, where they
-    came to pass optional parameters positionally into signatures that have no
-    such positions. Each language gets the shape its binding exposes: a Rust
-    builder chain, Python keyword arguments, and a C++ `EndpointRequestOptions`
-    with fluent setters.
-    """
-    return registry_routes(_render_example_block)
-
-
-def _render_example_block(endpoint: dict) -> str:
-    """One route's `x-code-examples` block, one snippet per language."""
-    params = endpoint_params(endpoint)
-    required = [p for p in params if p.get("binding") == "method"]
-    optional = _example_optionals(params)
-    name = endpoint["name"]
-    variable = _example_variable(endpoint)
-    lines = ["      x-code-examples:"]
-    for lang, label in OPENAPI_EXAMPLE_LANGS:
-        args = ", ".join(
-            _example_literal(p, _example_value(endpoint, p), lang) for p in required
-        )
-        if lang == "rust":
-            chain = "".join(
-                f'.{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
-                for p in optional
-            )
-            call = f"let {variable} = client.market_data().{name}({args}){chain}.await?;"
-        elif lang == "python":
-            kwargs = "".join(
-                f', {p["name"]}={_example_literal(p, _example_value(endpoint, p), lang)}'
-                for p in optional
-            )
-            call = f"{variable} = client.market_data.{name}({args}{kwargs})"
-        else:
-            setters = "".join(
-                f'.with_{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
-                for p in optional
-            )
-            options = (
-                f", thetadatadx::EndpointRequestOptions{{}}{setters}" if setters else ""
-            )
-            call = f"auto {variable} = client.market_data().{name}({args}{options});"
-        lines += [
-            f"        - lang: {lang}",
-            f"          label: {label}",
-            "          source: |",
-            f"            {call}",
-        ]
-    return "\n".join(lines) + "\n"
-
-
-def _openapi_example_blocks(text: str) -> dict[str, tuple[str, int, int]]:
-    """`{path: (block, start, end)}` for each route's `x-code-examples`.
-
-    `start` and `end` are offsets into `text`, so `--write-examples` can
-    replace a block in place without reflowing the rest of the document.
-
-    A blank line separates one route from the next and belongs to neither, but
-    an indentation scan cannot see where an indented block ends and the blank
-    run begins, so trailing blank lines are left outside the span. Replacing a
-    block that swallowed them would delete the separator.
-    """
-    found: dict[str, tuple[str, int, int]] = {}
-    for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
-        path = match.group(1)
-        path_block, path_end = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
-        offset = path_end - len(path_block)
-        inner, inner_end = _yaml_block(path_block, r"^      x-code-examples:\s*$")
-        if not inner:
-            continue
-        end = offset + inner_end
-        trailing = len(inner) - len(inner.rstrip("\n"))
-        # Keep the one newline that ends the block's last line.
-        if trailing > 1:
-            inner = inner[: -(trailing - 1)]
-            end -= trailing - 1
-        found[path] = (inner, end - len(inner), end)
-    return found
-
-
-def check_openapi_examples(write: bool = False) -> None:
-    """Each route's `x-code-examples` must be the block the registry renders.
-
-    Kept by hand, the snippets drifted from the signatures they claim to show:
-    most passed the optional `strike` and `right` positionally, which no
-    binding accepts, so a reader who copied one got a call that does not
-    compile. Rendering them from the registry and comparing byte for byte means
-    a signature change moves the examples with it. `write` rewrites the
-    document instead of comparing, which is how the snippets are regenerated.
-    """
-    text = OPENAPI_YAML.read_text()
-    expected = render_openapi_examples()
-    documented = _openapi_example_blocks(text)
-    if write:
-        # Rewrite from the back so each replacement leaves the earlier offsets
-        # untouched.
-        for path, (block, start, end) in sorted(
-            documented.items(), key=lambda item: item[1][1], reverse=True
-        ):
-            want = expected.get(path)
-            if want is not None and want != block:
-                text = text[:start] + want + text[end:]
-        OPENAPI_YAML.write_text(text)
-        print(f"openapi examples: rewrote {rel(OPENAPI_YAML)}")
-        return
-    for path, want in sorted(expected.items()):
-        entry = documented.get(path)
-        if entry is None:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} carries no `x-code-examples`, so the "
-                f"route publishes no runnable call. Add the key to the route; "
-                f"--write-examples fills in a block that is there and wrong, not "
-                f"one that is missing."
-            )
-        if entry[0] != want:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} `x-code-examples` is not what the "
-                f"registry renders. Run with --write-examples.\n"
-                f"--- documented ---\n{entry[0]}--- registry ---\n{want}"
-            )
 
 
 def _rust_str_array_items(text: str, const_name: str, path: Path) -> list[str]:
@@ -2078,7 +1845,6 @@ def main() -> None:
     check_openapi()
     check_openapi_parameters()
     check_openapi_expiration_wildcard()
-    check_openapi_examples()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
     check_tier_badges()
@@ -2094,18 +1860,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the embedded self-test and exit.",
     )
-    parser.add_argument(
-        "--write-examples",
-        action="store_true",
-        help=(
-            "Rewrite the OpenAPI document's x-code-examples from the endpoint "
-            "registry instead of checking them, then exit."
-        ),
-    )
     args = parser.parse_args()
     if args.selftest:
         sys.exit(_selftest())
-    if args.write_examples:
-        check_openapi_examples(write=True)
-        raise SystemExit(0)
     main()
