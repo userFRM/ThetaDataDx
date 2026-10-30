@@ -252,13 +252,11 @@ _TICK_ENTRY_RE = re.compile(r"((?:#\[\w+\]\s*)*)\b([A-Z]\w*)\s*\{\s*doc:")
 _TICK_SECTIONS_RE = re.compile(
     r"columns:\s*\[(.*?)\],\s*timestamps:\s*\[(.*?)\],\s*flags:\s*\[(.*?)\]", re.S
 )
-_TICK_COLUMN_RE = re.compile(r'(#\[nullable\]\s*)?(\w+)(?:\((\w+)\))?:\s*(\w+)\s*""')
 
 
 def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
-    """Every `__ticks!` entry keyed by tick name: whether it carries the
-    contract triple, its columns as `(field, type, nullable)` and the names
-    of its timestamp and its flag accessors. Raises when the table cannot be
+    """Every `__ticks!` entry keyed by tick name: the names of its timestamp
+    and its flag accessors. Raises when the table cannot be
     read, so a reshaped table fails the gate instead of emptying the tick
     surface."""
     text = table_rs.read_text(encoding="utf-8")
@@ -273,13 +271,8 @@ def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
         sections = _TICK_SECTIONS_RE.search(body, head.end(), nxt.start() if nxt else len(body))
         if sections is None:
             raise ValueError(f"{table_rs}: `{head.group(2)}` has no columns, timestamps and flags")
-        columns, timestamps, flags = sections.groups()
+        _, timestamps, flags = sections.groups()
         entries[head.group(2)] = {
-            "contract": "#[contract_id]" in head.group(1),
-            "columns": [
-                (c.group(3) or c.group(2), c.group(4), bool(c.group(1)))
-                for c in _TICK_COLUMN_RE.finditer(columns)
-            ],
             "timestamps": re.findall(r"(\w+)\(", timestamps),
             "flags": re.findall(r"(\w+):", flags),
         }
@@ -288,28 +281,8 @@ def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
     return entries
 
 
-# How `thetadatadx-py/src/ticks.rs` expands a tick table entry: the row class
-# with one field per column (`lambda` spelled `lambda_`) typed as below,
-# `Option` when nullable, plus the contract triple; the `<Tick>List` wrapper;
-# and the wrapper's iterator.
-_PY_TICK_COLUMN_TYPES = {
-    "i32": "i32",
-    "eod_num": "i32",
-    "eod_date": "i32",
-    "i64": "i64",
-    "eod_num64": "i64",
-    "f64": "f64",
-    "price": "f64",
-    "eod_price": "f64",
-    "String": "String",
-    "right": "String",
-    "calendar_status": "String",
-}
-_PY_TICK_CONTRACT_FIELDS = {
-    "expiration": "Option<i32>",
-    "strike": "Option<f64>",
-    "right": "Option<String>",
-}
+# How `thetadatadx-py/src/ticks.rs` expands a tick table entry: the row class,
+# the `<Tick>List` wrapper and the wrapper's iterator.
 _PY_TICK_LIST_METHODS = (
     "__bool__",
     "__getitem__",
@@ -323,77 +296,24 @@ _PY_TICK_LIST_METHODS = (
 )
 
 
-def _python_tick_surface(
-    py_src: pathlib.Path,
-) -> tuple[set[str], dict[str, set[str]], dict[str, dict[str, str]]]:
-    """The classes, the methods per class (dunder lifecycle and `new`
-    excluded, as `_collect_python_class_methods` reports them) and the field
-    types per row class that the crate at `py_src` expands from the tick
-    table. Empty for a tree without the expanding `ticks.rs`."""
+def _python_tick_surface(py_src: pathlib.Path) -> tuple[set[str], dict[str, set[str]]]:
+    """The classes and the methods per class (dunder lifecycle and `new`
+    excluded, as `_collect_python_class_methods` reports them) that the crate
+    at `py_src` expands from the tick table. Empty for a tree without the
+    expanding `ticks.rs`."""
     classes: set[str] = set()
     methods: dict[str, set[str]] = {}
-    fields: dict[str, dict[str, str]] = {}
     if not (py_src / "ticks.rs").is_file():
-        return classes, methods, fields
+        return classes, methods
     for name, entry in _tick_table_entries(TICK_TABLE_RS).items():
         classes |= {name, f"{name}List", f"{name}ListIter"}
         if entry["timestamps"] or entry["flags"]:
             methods[name] = set(entry["timestamps"] + entry["flags"])
         methods[f"{name}List"] = set(_PY_TICK_LIST_METHODS)
         methods[f"{name}ListIter"] = {"__iter__", "__next__"}
-        row = {}
-        for field, ty, nullable in entry["columns"]:
-            py_ty = _PY_TICK_COLUMN_TYPES[ty]
-            row["lambda_" if field == "lambda" else field] = f"Option<{py_ty}>" if nullable else py_ty
-        if entry["contract"]:
-            row.update(_PY_TICK_CONTRACT_FIELDS)
-        fields[name] = row
-    return classes, methods, fields
+    return classes, methods
 
 
-# How `thetadatadx-ts/src/ticks.rs` expands a tick table entry: the row object
-# with one field per column typed as below, `Option<f64>` when nullable, then
-# the contract triple, a `bool` per flag and an `Option<BigInt>` per timestamp.
-_TS_TICK_COLUMN_TYPES = {
-    "i32": "f64",
-    "eod_num": "f64",
-    "eod_date": "f64",
-    "i64": "BigInt",
-    "eod_num64": "BigInt",
-    "f64": "f64",
-    "price": "f64",
-    "eod_price": "f64",
-    "String": "String",
-    "right": "String",
-    "calendar_status": "String",
-}
-_TS_TICK_CONTRACT_FIELDS = {
-    "expiration": "Option<f64>",
-    "strike": "Option<f64>",
-    "right": "Option<String>",
-}
-
-
-def _tick_fields(src_dir: pathlib.Path) -> dict[str, dict[str, str]]:
-    """The field types per row struct that the binding crate at `src_dir`
-    expands from the tick table, by that binding's rule. Empty for a tree
-    without the expanding `ticks.rs`."""
-    if src_dir.parent.name != "thetadatadx-ts":
-        return _python_tick_surface(src_dir)[2]
-    fields: dict[str, dict[str, str]] = {}
-    if not (src_dir / "ticks.rs").is_file():
-        return fields
-    for name, entry in _tick_table_entries(TICK_TABLE_RS).items():
-        row = {
-            field: "Option<f64>" if nullable else _TS_TICK_COLUMN_TYPES[ty]
-            for field, ty, nullable in entry["columns"]
-        }
-        if entry["contract"]:
-            row.update(_TS_TICK_CONTRACT_FIELDS)
-        row.update(dict.fromkeys(entry["flags"], "bool"))
-        row.update(dict.fromkeys(entry["timestamps"], "Option<BigInt>"))
-        fields[name] = row
-    return fields
 
 
 # `export class X` / `export declare class X` (the `declare` keyword is
@@ -5037,9 +4957,6 @@ def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | 
     is absent. Generated and hand-written sources are treated alike —
     the declared type IS the binding surface either way.
     """
-    expanded = _tick_fields(src_dir)
-    if struct in expanded:
-        return expanded[struct].get(field)
     struct_re = re.compile(
         r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
         re.S,
@@ -5186,45 +5103,21 @@ def _check_value_field_rows(rows: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
-# ─── Value-field exhaustiveness (reverse-direction roster) ────────────
+# ─── Value-field exhaustiveness (reverse-direction vocabulary scan) ───
 #
 # The per-row `_check_value_field_rows` gate verifies each DECLARED field
 # resolves to the right type. It does not gate the reverse direction: a
-# unit- or identity-bearing field that lands on a binding value struct
-# without a `[[value_field]]` row trips nothing, because the row simply
-# does not exist (the exact `strike_thousandths` defect — the wire integer
-# shipped on the streaming payloads with zero matrix rows). Two
-# complementary scans close that blind spot without pinning every trivial
-# column:
-#
-#  1. A roster check: the load-bearing value classes each carry a fixed
-#     set of unit/identity-bearing fields that MUST be pinned. A missing
-#     entry trips, so dropping a row for one of these protected surfaces
-#     fails the gate.
-#  2. A vocabulary scan: any binding struct field whose NAME matches the
-#     unit/identity grammar (`strike` / `strike_thousandths` / `right` /
-#     `*_timestamp_ms`) on a class already in the matrix, but which has no
-#     `[[value_field]]` row under that name on ANY class, trips. A brand-new
-#     unit-bearing field name (a future `settlement_timestamp_ms`, a
-#     re-typed `strike_micros`) cannot ship untracked.
-#
-# Both scans are intentionally scoped to the unit/identity-bearing surface
-# the matrix exists to protect — the flat data columns (`price`, `size`,
-# the Greeks scalars) are projected from one schema source and stay in
-# lockstep by construction, so they are out of scope here.
-
-# Load-bearing value classes → the unit/identity-bearing fields that must
-# carry a `[[value_field]]` row. Keyed by the cross-binding class name the
-# matrix uses (`ContractRef` is the Python streaming payload, `Contract`
-# the TypeScript one). Each listed `(class, field)` must appear in the
-# matrix or the roster check trips.
-VALUE_FIELD_ROSTER: dict[str, tuple[str, ...]] = {
-    "ContractRef": ("strike", "strike_thousandths", "right"),
-    "Contract": ("strike", "strike_thousandths", "right"),
-    "OptionContract": ("right",),
-    "TradeTick": ("strike", "right"),
-    "EodTick": ("created_ms_of_day", "last_trade_ms_of_day"),
-}
+# unit- or identity-bearing field that lands on a hand-written binding value
+# struct without a `[[value_field]]` row trips nothing, because the row
+# simply does not exist (the exact `strike_thousandths` defect: the wire
+# integer shipped on the streaming payloads with zero matrix rows). The
+# vocabulary scan closes that blind spot: any binding struct field whose NAME
+# matches the unit/identity grammar (`strike` / `strike_thousandths` /
+# `right` / `*_timestamp_ms`) on a class already in the matrix, but which has
+# no `[[value_field]]` row under that name on ANY class, trips. A brand-new
+# unit-bearing field name (a future `settlement_timestamp_ms`, a re-typed
+# `strike_micros`) cannot ship untracked. The tick rows are out of scope: the
+# tick table types them once for every binding.
 
 # The unit/identity-bearing field-name grammar the vocabulary scan
 # protects. A field whose name matches this — and which has no
@@ -5254,9 +5147,6 @@ def _collect_value_struct_fields(
     out: set[str] = set()
     if not src_dir.is_dir():
         return out
-    expanded = _tick_fields(src_dir)
-    if struct in expanded:
-        return set(expanded[struct])
     struct_re = re.compile(
         r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
         re.S,
@@ -5270,37 +5160,15 @@ def _collect_value_struct_fields(
     return out
 
 
-def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
-    """Reverse-direction exhaustiveness for the `[[value_field]]` matrix.
-
-    Two scans (see the section header):
-
-      * roster — every `(class, field)` in `VALUE_FIELD_ROSTER` must have a
-        matrix row;
-      * vocabulary — every binding struct field matching the unit/identity
-        grammar on a matrix class must have a row under that name somewhere.
+def _check_value_field_vocabulary(rows: list[dict[str, Any]]) -> list[str]:
+    """Reverse-direction exhaustiveness for the `[[value_field]]` matrix:
+    every binding struct field matching the unit/identity grammar on a matrix
+    class must have a row under that name somewhere (see the section header).
 
     Returns human-readable error strings (empty when complete).
     """
     errors: list[str] = []
-    present_pairs: set[tuple[str, str]] = {
-        (row["class"], row["name"]) for row in rows
-    }
     present_names: set[str] = {row["name"] for row in rows}
-
-    for cls, fields in VALUE_FIELD_ROSTER.items():
-        for field in fields:
-            if (cls, field) not in present_pairs:
-                errors.append(
-                    f"  {cls}.{field}: load-bearing unit/identity field has "
-                    f"no `[[value_field]]` row. Add one pinning its type on "
-                    f"the bindings that carry it (the matrix exists to keep "
-                    f"this surface honest)."
-                )
-
-    # Vocabulary scan: every class already in the matrix, every binding
-    # struct field whose name matches the unit grammar, must have a row
-    # under that name on some class.
     matrix_classes = sorted({row["class"] for row in rows})
     flagged: set[tuple[str, str]] = set()
     for cls in matrix_classes:
@@ -7350,10 +7218,10 @@ def main(argv: list[str] | None = None) -> int:
     value_field_errors = _check_value_field_rows(value_field_rows)
 
     # Value-field exhaustiveness: the reverse direction of the per-row type
-    # check. A load-bearing class missing a pinned unit/identity field, or a
-    # new unit-bearing field name shipped on a binding value struct without
-    # any enrolling row, trips here — the `strike_thousandths` defect class.
-    value_field_roster_errors = _check_value_field_roster(value_field_rows)
+    # check. A new unit-bearing field name shipped on a binding value struct
+    # without any enrolling row trips here (the `strike_thousandths` defect
+    # class).
+    value_field_vocabulary_errors = _check_value_field_vocabulary(value_field_rows)
 
     # Free-function (utility) parity ([[utility]] rows) — the standalone
     # condition / exchange / calendar / sequence lookups and converters are
@@ -7651,13 +7519,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {e}")
         print()
 
-    if value_field_roster_errors:
+    if value_field_vocabulary_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(value_field_roster_errors)} "
-            f"value-field roster gap(s) (unit/identity field unpinned):"
+            f"check_binding_parity: {len(value_field_vocabulary_errors)} "
+            f"unit/identity field(s) with no `[[value_field]]` row:"
         )
-        for e in value_field_roster_errors:
+        for e in value_field_vocabulary_errors:
             print(e)
         print()
 
@@ -9835,35 +9703,7 @@ def _run_selftest() -> int:
                 _c_abi_struct_field_type(inc, "ThetaDataDxContract", "strike") == "double"
             )
 
-    def _case_value_field_roster_missing_trips() -> None:
-        """A load-bearing class missing its pinned field trips the roster."""
-        # `OptionContract.right` is in VALUE_FIELD_ROSTER; an empty matrix
-        # must surface it (plus the other roster entries) as a gap.
-        errors = _check_value_field_roster([])
-        assert any("OptionContract.right" in e for e in errors), (
-            f"roster gap must surface the unpinned field; got {errors!r}"
-        )
-
-    def _case_value_field_roster_complete_silent_on_roster() -> None:
-        """With every roster pair present, the roster scan adds nothing
-        for those pairs (vocabulary scan reads the live tree, so only the
-        roster half is asserted here against a synthetic matrix)."""
-        rows = [
-            {"class": cls, "name": field}
-            for cls, fields in VALUE_FIELD_ROSTER.items()
-            for field in fields
-        ]
-        errors = _check_value_field_roster(rows)
-        # No roster-half error should mention a roster pair.
-        for cls, fields in VALUE_FIELD_ROSTER.items():
-            for field in fields:
-                assert not any(
-                    f"{cls}.{field}: load-bearing" in e for e in errors
-                ), f"roster pair {cls}.{field} must not be flagged; got {errors!r}"
-
     _case("value_field — C-ABI typedef-struct reader", _case_c_abi_struct_reader_reads_typedef_struct)
-    _case("value_field — roster gap trips on missing pin", _case_value_field_roster_missing_trips)
-    _case("value_field — roster silent when complete", _case_value_field_roster_complete_silent_on_roster)
 
     # ── StreamingSession exemption selftests ───────────────────────
 

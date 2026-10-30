@@ -68,7 +68,7 @@ so a consumer never needs the generator.
 | `thetadatadx-rs/src/surface/events.rs` | The streaming event table: every event's Python class, TypeScript object and C ABI struct with their conversions, and through `generate_sdk_surfaces` the C event header, the C++ layout asserts and the docs site's event field tables. |
 | `thetadatadx-rs/src/surface/config.rs` | The config accessor table: every `Config` accessor that reads or writes one value, in the C ABI, Python and TypeScript, and through `generate_sdk_surfaces` the C++ `Config` methods. |
 | `thetadatadx-rs/proto/mdds.proto` | The vendor's gRPC service. |
-| `parity.toml` | The declared cross-binding surface the parity gate enforces. |
+| `parity.toml` | The declared cross-binding surface the parity gate enforces. Endpoint methods, table-written config accessors and tick fields have no rows: the gate reads the tables. |
 
 Regenerate with:
 
