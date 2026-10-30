@@ -98,6 +98,15 @@ async fn golden_responses() {
             (case, endpoint, fields.next().unwrap_or(""))
         })
         .collect();
+    let uncovered: Vec<&str> = thetadatadx::ENDPOINTS
+        .iter()
+        .map(|ep| ep.name)
+        .filter(|name| !recorded.iter().any(|&(_, endpoint, _)| endpoint == *name))
+        .collect();
+    assert!(
+        uncovered.is_empty(),
+        "routes with no case in corpus.txt: {uncovered:?}"
+    );
 
     let mut cases = Vec::new();
     for &(case, endpoint, query) in &recorded {
