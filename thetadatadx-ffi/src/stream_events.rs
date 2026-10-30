@@ -38,7 +38,7 @@ pub struct ThetaDataDxContract {
 
 /// The C contract and the C string that backs its `symbol`.
 fn ffi_contract(contract: &thetadatadx::fpss::protocol::Contract) -> (ThetaDataDxContract, Option<CString>) {
-    let symbol = (!contract.symbol.is_empty()).then(|| cstring_for_ffi(contract.symbol.to_string()));
+    let symbol = (!contract.symbol.is_empty()).then(|| cstring_for_ffi(&*contract.symbol));
     let ffi = ThetaDataDxContract {
         symbol: symbol.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         sec_type: contract.sec_type as i32,
@@ -53,8 +53,10 @@ fn ffi_contract(contract: &thetadatadx::fpss::protocol::Contract) -> (ThetaDataD
     (ffi, symbol)
 }
 
-/// A C string of `value`, with any interior NUL replaced by `?`.
-fn cstring_for_ffi(value: String) -> CString {
+/// A C string of `value`, with any interior NUL replaced by `?`. A borrowed
+/// `&str` is copied once into a buffer sized for the NUL; an owned `String`
+/// is moved in.
+fn cstring_for_ffi(value: impl Into<Vec<u8>>) -> CString {
     CString::new(value).unwrap_or_else(|nul| {
         let mut bytes = nul.into_vec();
         for b in bytes.iter_mut().filter(|b| **b == 0) {
