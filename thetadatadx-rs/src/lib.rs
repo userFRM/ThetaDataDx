@@ -219,7 +219,7 @@ pub(crate) mod proto {
     // `proto/beta_endpoints.snapshot.rs`, so a normal build needs no
     // `protoc`. The `refresh_grpc_snapshot` binary regenerates it from
     // `proto/mdds.proto` under the `grpc-codegen` feature; see
-    // `proto/MAINTENANCE.md`.
+    // `CONTRIBUTING.md`.
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/proto/beta_endpoints.snapshot.rs"
@@ -494,7 +494,7 @@ pub use crate::tdbe::time;
 #[doc(hidden)]
 pub use crate::util::ring::check_ring_size;
 
-/// Canonical JSON helper (`finite_or_null`) for the CLI / server / MCP
+/// Canonical JSON helper (`finite_or_null`) for the server and MCP
 /// renderers.
 ///
 /// Only available when the `__internal` feature is enabled. NOT a stable

@@ -1,7 +1,7 @@
 //! Endpoint registry -- single source of truth for all `MarketDataClient` endpoints.
 //!
-//! Used by the CLI and MCP server to auto-generate commands and tool
-//! definitions. `ENDPOINTS` expands from the endpoint table, so an endpoint
+//! The server derives its routes and the MCP server its tool definitions
+//! from it. `ENDPOINTS` expands from the endpoint table, so an endpoint
 //! added there is registered with the same parameters and descriptions the
 //! client methods carry.
 //!
