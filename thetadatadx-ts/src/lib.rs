@@ -2,6 +2,10 @@
 //! crosses the napi-rs boundary into the same Rust code path used by the CLI
 //! and FFI.
 
+// The endpoint table expands through recursive macros whose depth grows with
+// an endpoint's parameter count; the default limit of 128 is too shallow.
+#![recursion_limit = "256"]
+
 #[macro_use]
 extern crate napi_derive;
 
@@ -1360,12 +1364,11 @@ impl MarketDataClient {
     }
 }
 
-// Generated market-data endpoint methods. The codegen projects the same
-// per-endpoint method bodies onto both `Client` and
-// `MarketDataClient` (see `MARKET_DATA_IMPL_CLASSES` in the TypeScript SDK
-// emitter); both classes expose an `Arc<thetadatadx::Client>`
-// field named `client`, so the shared bodies compile against either.
-include!("_generated/market_data_methods.rs");
+// Market-data endpoint methods, expanded from the core endpoint table onto
+// both `MarketDataView` and `MarketDataClient`; each class resolves its
+// `Arc<thetadatadx::Client>` through `client_handle()`, so the shared
+// bodies compile against either.
+mod market_data;
 
 // Generated streaming methods.
 include!("_generated/streaming_methods.rs");
