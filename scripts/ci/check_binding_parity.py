@@ -4086,10 +4086,12 @@ def _balanced_body(text: str, body_start: int) -> str:
 # (rendered by `generate_sdk_surfaces`) each expand the endpoint table by a
 # rule of their own. TypeScript gives every entry a buffered `<endpoint>`
 # method, every entry but a flat `list` a `<endpoint>WithColumns` variant
-# carrying the response's present columns, and a `chunked` entry an
-# `<endpoint>Stream` method. C++ gives every entry a buffered member and an
-# `_async` twin, and a `chunked` entry whose rows are flat ticks (every one but
-# `OptionContract`) an `_stream` member. Nothing else holds the published
+# carrying the response's present columns, a `chunked` entry an
+# `<endpoint>Stream` method, and a flat file (an entry grouped under
+# `flat_file`) an `<endpoint>ToPath` method. C++ gives every entry a buffered
+# member and an `_async` twin, a `chunked` entry whose rows are flat ticks
+# (every one but `OptionContract`) an `_stream` member, and a flat file a
+# `_to_path` member. Nothing else holds the published
 # `index.d.ts` or the C++ header to the table, so a rule that drops a method
 # for one shape would ship with every other gate green. The C ABI is held to
 # its header by `check_c_abi_completeness`, the Python view methods to the stub
@@ -4113,18 +4115,18 @@ def _endpoint_method_to_snake(name: str) -> str:
     return s.lower()
 
 
-def _table_endpoints(table_rs: pathlib.Path) -> dict[str, tuple[str, str]]:
-    """`(shape, returns)` of every `__endpoints!` entry, keyed by endpoint
-    name. The raw streams in `__stream_endpoints!` have no binding method and
+def _table_endpoints(table_rs: pathlib.Path) -> dict[str, tuple[str, str, str]]:
+    """`(shape, returns, subgroup)` of every `__endpoints!` entry, keyed by
+    endpoint name. The raw streams in `__stream_endpoints!` have no binding method and
     are not read. Raises when no entry can be read, so a reshaped table fails
     the gate instead of emptying the expected surface."""
     text = table_rs.read_text(encoding="utf-8")
     start = text.find("macro_rules! __endpoints")
     end = text.find("macro_rules! __stream_endpoints", start)
     entries = {
-        name: (shape, returns)
-        for shape, name, returns in re.findall(
-            r"^\s*(list|buffered|chunked)\s+(\w+)\s*\{\s*group:[^\n]*\n\s*rest:[^\n]*\n\s*returns:\s*(\w+)",
+        name: (shape, returns, subgroup)
+        for shape, name, subgroup, returns in re.findall(
+            r"^\s*(list|buffered|chunked)\s+(\w+)\s*\{\s*group:\s*\w+\s*/\s*(\w+)[^\n]*\n\s*rest:[^\n]*\n\s*returns:\s*(\w+)",
             text[start:end] if 0 <= start < end else "",
             re.MULTILINE,
         )
@@ -4135,7 +4137,7 @@ def _table_endpoints(table_rs: pathlib.Path) -> dict[str, tuple[str, str]]:
 
 
 def _check_market_data_surfaces(
-    endpoints: dict[str, tuple[str, str]],
+    endpoints: dict[str, tuple[str, str, str]],
     ts_methods: dict[str, set[str]],
     cpp_methods: dict[str, set[str]],
 ) -> list[str]:
@@ -4150,15 +4152,17 @@ def _check_market_data_surfaces(
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
     ts_view = ts_methods.get("MarketDataView", set()) - lifecycle
     ts_stream = stems(ts_view, "Stream")
-    ts_buffered = ts_view - {f"{s}Stream" for s in ts_stream}
+    ts_to_path = stems(ts_view, "ToPath")
+    ts_buffered = ts_view - {f"{s}Stream" for s in ts_stream} - {f"{s}ToPath" for s in ts_to_path}
     ts_buffered -= {f"{s}WithColumns" for s in stems(ts_view, "WithColumns")}
     # The variant is expanded onto the standalone `MarketDataClient` as well.
     ts_with_columns = stems(ts_view | ts_methods.get("MarketDataClient", set()), "WithColumns")
     cpp_view = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
 
     names = set(endpoints)
-    chunked = {name for name, (shape, _) in endpoints.items() if shape == "chunked"}
-    columnar = {name for name, (shape, _) in endpoints.items() if shape != "list"}
+    chunked = {name for name, (shape, _, _) in endpoints.items() if shape == "chunked"}
+    columnar = {name for name, (shape, _, _) in endpoints.items() if shape != "list"}
+    flat_files = {name for name, (_, _, subgroup) in endpoints.items() if subgroup == "flat_file"}
     cpp_streamed = {name for name in chunked if endpoints[name][1] != "OptionContract"}
     errors: list[str] = []
     for surface, expected, actual in (
@@ -4169,9 +4173,11 @@ def _check_market_data_surfaces(
             columnar,
             {_endpoint_method_to_snake(m) for m in ts_with_columns},
         ),
+        ("TypeScript `<endpoint>ToPath`", flat_files, {_endpoint_method_to_snake(m) for m in ts_to_path}),
         ("C++ `<endpoint>`", names, cpp_view & names),
         ("C++ `<endpoint>_async`", names, stems(cpp_view, "_async")),
         ("C++ `<endpoint>_stream`", cpp_streamed, stems(cpp_view, "_stream")),
+        ("C++ `<endpoint>_to_path`", flat_files, stems(cpp_view, "_to_path")),
     ):
         errors += [f"  {name}: {surface} is missing" for name in sorted(expected - actual)]
         errors += [
@@ -9847,15 +9853,20 @@ def _run_selftest() -> int:
         """The methods the endpoint table implies pass; a method missing from
         one surface, or present without the shape that implies it, trips."""
         endpoints = {
-            "stock_history_eod": ("chunked", "EodTick"),
-            "option_list_contracts": ("chunked", "OptionContract"),
-            "stock_list_symbols": ("list", "StringList"),
+            "stock_history_eod": ("chunked", "EodTick", "history"),
+            "stock_flat_file_eod": ("chunked", "EodTick", "flat_file"),
+            "option_list_contracts": ("chunked", "OptionContract", "list"),
+            "stock_list_symbols": ("list", "StringList", "list"),
         }
         ts = {
             "MarketDataView": {
                 "stockHistoryEOD",
                 "stockHistoryEODStream",
                 "stockHistoryEODWithColumns",
+                "stockFlatFileEOD",
+                "stockFlatFileEODStream",
+                "stockFlatFileEODWithColumns",
+                "stockFlatFileEODToPath",
                 "optionListContracts",
                 "optionListContractsStream",
                 "optionListContractsWithColumns",
@@ -9868,6 +9879,10 @@ def _run_selftest() -> int:
                 "stock_history_eod",
                 "stock_history_eod_async",
                 "stock_history_eod_stream",
+                "stock_flat_file_eod",
+                "stock_flat_file_eod_async",
+                "stock_flat_file_eod_stream",
+                "stock_flat_file_eod_to_path",
                 "option_list_contracts",
                 "option_list_contracts_async",
                 "stock_list_symbols",
@@ -9877,13 +9892,17 @@ def _run_selftest() -> int:
         }
         errors = _check_market_data_surfaces(endpoints, ts, cpp)
         assert errors == [], f"the implied surface must be silent; got {errors!r}"
-        ts["MarketDataView"] = ts["MarketDataView"] - {"stockHistoryEODStream"} | {"stockListSymbolsStream"}
-        cpp["MarketData"].discard("stock_history_eod_async")
+        ts["MarketDataView"] = ts["MarketDataView"] - {"stockHistoryEODStream", "stockFlatFileEODToPath"} | {
+            "stockListSymbolsStream"
+        }
+        cpp["MarketData"] -= {"stock_history_eod_async", "stock_flat_file_eod_to_path"}
         errors = _check_market_data_surfaces(endpoints, ts, cpp)
         assert errors == [
             "  stock_history_eod: TypeScript `<endpoint>Stream` is missing",
             "  stock_list_symbols: TypeScript `<endpoint>Stream` is present, but the endpoint table does not imply it",
+            "  stock_flat_file_eod: TypeScript `<endpoint>ToPath` is missing",
             "  stock_history_eod: C++ `<endpoint>_async` is missing",
+            "  stock_flat_file_eod: C++ `<endpoint>_to_path` is missing",
         ], f"each drift must trip on its own surface; got {errors!r}"
 
     _case("market-data: table-implied methods pass, drift trips", _case_market_data_surfaces)

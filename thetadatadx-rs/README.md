@@ -204,6 +204,17 @@ client
     .await?;
 ```
 
+Each file also writes straight to disk, exactly as the terminal writes it, through its `<endpoint>_to_path` companion; the file streams to disk chunk by chunk and takes its name only once complete:
+
+```rust
+use thetadatadx::flatfiles::FlatFileFormat;
+
+let path = client
+    .market_data()
+    .option_flat_file_trade_quote_to_path("20260428", "trade_quotes.csv", FlatFileFormat::Csv)
+    .await?;
+```
+
 The `flatfile_*` functions and the `flat_files()` view read the vendor's older flat-file service, which serves five of those datasets.
 
 ## DataFrames

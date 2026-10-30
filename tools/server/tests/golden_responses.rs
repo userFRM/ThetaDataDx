@@ -12,6 +12,10 @@
 //! sorted by key, as the expected files store them; every other byte, and
 //! every other body, is compared as written.
 //!
+//! A flat file's `<endpoint>_to_path` call in the SDK must write exactly the
+//! body its route serves, in every format, and leave nothing behind when the
+//! download fails.
+//!
 //! `GOLDEN_UPDATE=1 cargo test golden` rewrites the expected files.
 
 use std::fmt::Write as _;
@@ -207,7 +211,58 @@ async fn answers(ep: &'static EndpointMeta, query: &str, recording: &Recording) 
     for format in FORMATS {
         answers.push(answer(&client, ep, query, format).await);
     }
+    if ep.subcategory == "flat_file" {
+        for (format, answer) in FORMATS.into_iter().zip(&answers) {
+            let served = answer
+                .starts_with("200 OK\n")
+                .then(|| answer.split_once("\n\n").expect("headers end").1);
+            assert_eq!(
+                written(&client, ep, query, format).await.as_deref(),
+                served,
+                "{} {format}: the file written is not the file served",
+                ep.name
+            );
+        }
+    }
     answers
+}
+
+/// The file the SDK writes for a flat file in `format`, or `None` when the
+/// call fails. Either way the call leaves nothing else behind.
+async fn written(
+    client: &MarketDataClient,
+    ep: &EndpointMeta,
+    query: &str,
+    format: &str,
+) -> Option<String> {
+    let dir = std::env::temp_dir().join(format!(
+        "golden-{}-{}-{format}",
+        std::process::id(),
+        ep.name
+    ));
+    std::fs::create_dir_all(&dir).expect("create scratch directory");
+    let date = query
+        .strip_prefix("date=")
+        .expect("a flat file takes a date");
+    let format = format.parse().expect("a flat-file format");
+    let file = match client
+        .flat_file_to_path(ep.name, date, &dir.join("file"), format)
+        .await
+    {
+        Ok(path) => Some(std::fs::read_to_string(path).expect("read the written file")),
+        Err(_) => None,
+    };
+    let left = std::fs::read_dir(&dir)
+        .expect("list scratch directory")
+        .count();
+    std::fs::remove_dir_all(&dir).expect("remove scratch directory");
+    assert_eq!(
+        left,
+        usize::from(file.is_some()),
+        "{}: a call leaves its file and nothing else",
+        ep.name
+    );
+    file
 }
 
 async fn answer(

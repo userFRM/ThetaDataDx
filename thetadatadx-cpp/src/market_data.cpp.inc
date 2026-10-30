@@ -140,6 +140,13 @@ std::vector<EodTick> MarketDataClient::stock_flat_file_eod(const std::string& da
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
+void MarketDataClient::stock_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<TradeQuoteTick> MarketDataClient::stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -149,6 +156,13 @@ std::vector<TradeQuoteTick> MarketDataClient::stock_flat_file_trade_quote(const 
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
 
+void MarketDataClient::stock_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_trade_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<IntervalQuoteTick> MarketDataClient::stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -156,6 +170,13 @@ std::vector<IntervalQuoteTick> MarketDataClient::stock_flat_file_quote(const std
     auto arr = thetadatadx_stock_flat_file_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IntervalQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interval_quote_tick_array_free);
+}
+
+void MarketDataClient::stock_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<std::string> MarketDataClient::option_list_symbols(const EndpointRequestOptions& options) const {
@@ -597,6 +618,13 @@ std::vector<EodTick> MarketDataClient::option_flat_file_eod(const std::string& d
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
+void MarketDataClient::option_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<TradeQuoteTick> MarketDataClient::option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -604,6 +632,13 @@ std::vector<TradeQuoteTick> MarketDataClient::option_flat_file_trade_quote(const
     auto arr = thetadatadx_option_flat_file_trade_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
+}
+
+void MarketDataClient::option_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_trade_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<OpenInterestTick> MarketDataClient::option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
@@ -615,6 +650,13 @@ std::vector<OpenInterestTick> MarketDataClient::option_flat_file_open_interest(c
     return detail::check_tick_array<OpenInterestTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_open_interest_tick_array_free);
 }
 
+void MarketDataClient::option_flat_file_open_interest_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_open_interest_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<IntervalQuoteTick> MarketDataClient::option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -622,6 +664,13 @@ std::vector<IntervalQuoteTick> MarketDataClient::option_flat_file_quote(const st
     auto arr = thetadatadx_option_flat_file_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IntervalQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interval_quote_tick_array_free);
+}
+
+void MarketDataClient::option_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<std::string> MarketDataClient::index_list_symbols(const EndpointRequestOptions& options) const {
@@ -721,6 +770,13 @@ std::vector<EodTick> MarketDataClient::index_flat_file_eod(const std::string& da
     auto arr = thetadatadx_index_flat_file_eod_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
+}
+
+void MarketDataClient::index_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_index_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<CalendarDay> MarketDataClient::calendar_open_today(const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
@@ -899,6 +955,13 @@ std::vector<EodTick> MarketData::stock_flat_file_eod(const std::string& date, co
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
+void MarketData::stock_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<TradeQuoteTick> MarketData::stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -908,6 +971,13 @@ std::vector<TradeQuoteTick> MarketData::stock_flat_file_trade_quote(const std::s
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
 
+void MarketData::stock_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_trade_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<IntervalQuoteTick> MarketData::stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -915,6 +985,13 @@ std::vector<IntervalQuoteTick> MarketData::stock_flat_file_quote(const std::stri
     auto arr = thetadatadx_stock_flat_file_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IntervalQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interval_quote_tick_array_free);
+}
+
+void MarketData::stock_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_stock_flat_file_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<std::string> MarketData::option_list_symbols(const EndpointRequestOptions& options) const {
@@ -1356,6 +1433,13 @@ std::vector<EodTick> MarketData::option_flat_file_eod(const std::string& date, c
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
+void MarketData::option_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<TradeQuoteTick> MarketData::option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -1363,6 +1447,13 @@ std::vector<TradeQuoteTick> MarketData::option_flat_file_trade_quote(const std::
     auto arr = thetadatadx_option_flat_file_trade_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
+}
+
+void MarketData::option_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_trade_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<OpenInterestTick> MarketData::option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
@@ -1374,6 +1465,13 @@ std::vector<OpenInterestTick> MarketData::option_flat_file_open_interest(const s
     return detail::check_tick_array<OpenInterestTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_open_interest_tick_array_free);
 }
 
+void MarketData::option_flat_file_open_interest_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_open_interest_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 std::vector<IntervalQuoteTick> MarketData::option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -1381,6 +1479,13 @@ std::vector<IntervalQuoteTick> MarketData::option_flat_file_quote(const std::str
     auto arr = thetadatadx_option_flat_file_quote_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IntervalQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interval_quote_tick_array_free);
+}
+
+void MarketData::option_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_option_flat_file_quote_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<std::string> MarketData::index_list_symbols(const EndpointRequestOptions& options) const {
@@ -1480,6 +1585,13 @@ std::vector<EodTick> MarketData::index_flat_file_eod(const std::string& date, co
     auto arr = thetadatadx_index_flat_file_eod_with_options(market_data_handle(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
+}
+
+void MarketData::index_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format) const {
+    thetadatadx_clear_error();
+    if (thetadatadx_index_flat_file_eod_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {
+        detail::throw_last_ffi_error();
+    }
 }
 
 std::vector<CalendarDay> MarketData::calendar_open_today(const EndpointRequestOptions& options, ColumnPresence* out_columns) const {

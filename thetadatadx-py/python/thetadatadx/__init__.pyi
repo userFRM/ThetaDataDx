@@ -29,6 +29,7 @@ Type checkers discover these annotations through the ``py.typed`` marker
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from os import PathLike
 from typing import (
     Any,
     Awaitable,
@@ -2193,6 +2194,32 @@ class MarketDataView:
         """Fluent builder for `stock_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def stock_flat_file_eod_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def stock_flat_file_eod_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `stock_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
     def stock_flat_file_trade_quote(
         self,
         date: Union[str, date, datetime],
@@ -2221,6 +2248,32 @@ class MarketDataView:
         """Fluent builder for `stock_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def stock_flat_file_trade_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def stock_flat_file_trade_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `stock_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
     def stock_flat_file_quote(
         self,
         date: Union[str, date, datetime],
@@ -2247,6 +2300,32 @@ class MarketDataView:
         date: Union[str, date, datetime],
     ) -> StockFlatFileQuoteBuilder:
         """Fluent builder for `stock_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def stock_flat_file_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `stock_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
         ...
 
     def option_list_symbols(
@@ -5942,6 +6021,32 @@ class MarketDataView:
         """Fluent builder for `option_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_flat_file_eod_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `option_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def option_flat_file_eod_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
     def option_flat_file_trade_quote(
         self,
         date: Union[str, date, datetime],
@@ -5968,6 +6073,32 @@ class MarketDataView:
         date: Union[str, date, datetime],
     ) -> OptionFlatFileTradeQuoteBuilder:
         """Fluent builder for `option_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_flat_file_trade_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `option_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def option_flat_file_trade_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
         ...
 
     def option_flat_file_open_interest(
@@ -5998,6 +6129,32 @@ class MarketDataView:
         """Fluent builder for `option_flat_file_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_flat_file_open_interest_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `option_flat_file_open_interest` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def option_flat_file_open_interest_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_open_interest` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
     def option_flat_file_quote(
         self,
         date: Union[str, date, datetime],
@@ -6024,6 +6181,32 @@ class MarketDataView:
         date: Union[str, date, datetime],
     ) -> OptionFlatFileQuoteBuilder:
         """Fluent builder for `option_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_flat_file_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `option_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def option_flat_file_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
         ...
 
     def index_list_symbols(
@@ -6460,6 +6643,32 @@ class MarketDataView:
         date: Union[str, date, datetime],
     ) -> IndexFlatFileEodBuilder:
         """Fluent builder for `index_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def index_flat_file_eod_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `index_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def index_flat_file_eod_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `index_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
         ...
 
     def calendar_open_today(

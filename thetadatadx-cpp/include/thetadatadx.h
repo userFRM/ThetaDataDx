@@ -2373,6 +2373,15 @@ typedef int32_t (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, co
 /* Generated server-stream endpoint declarations. */
 #include "market_data_stream.h.inc"
 
+/** Each flat file's thetadatadx_<endpoint>_to_path writes the file for `date`
+ *  to `path` as the terminal writes it. `format` is "csv" (also when NULL),
+ *  "json", "json_legacy", "ndjson" (or "jsonl") or "html"; any other name
+ *  fails with THETADATADX_ERR_INVALID_PARAMETER. The file streams to disk
+ *  chunk by chunk and takes its name only once complete; a path without an
+ *  extension gets the format's. Returns 0 on success, -1 on error (inspect
+ *  thetadatadx_last_error()). */
+#include "market_data_to_path.h.inc"
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Cross-language utility helpers — conditions / exchange / sequences   */
 /* ═══════════════════════════════════════════════════════════════════════ */

@@ -3,14 +3,18 @@
 //! `endpoint_table.rs` expands the core endpoint table into
 //! `ThetaDataDxEndpointRequestOptions`, its private helper
 //! `apply_endpoint_request_options`, one `thetadatadx_<endpoint>_with_options`
-//! entry point per endpoint and the `thetadatadx_<endpoint>_stream`
-//! server-stream entry points. It is `include!`'d here so the shared helpers
-//! and the callback ABI are in scope where the entry points expand.
+//! entry point per endpoint, the `thetadatadx_<endpoint>_stream`
+//! server-stream entry points and the flat files'
+//! `thetadatadx_<endpoint>_to_path` entry points. It is `include!`'d here so
+//! the shared helpers and the callback ABI are in scope where the entry points
+//! expand.
 
 use std::os::raw::c_char;
 use std::os::raw::c_void;
 
-use crate::error::{set_error, set_error_from};
+use crate::error::{
+    THETADATADX_ERR_INVALID_PARAMETER, cstr_to_str, set_error, set_error_from, set_error_with_code,
+};
 use crate::runtime;
 use crate::types::{
     ThetaDataDxCalendarDayArray, ThetaDataDxColumnPresence, ThetaDataDxEodTickArray,

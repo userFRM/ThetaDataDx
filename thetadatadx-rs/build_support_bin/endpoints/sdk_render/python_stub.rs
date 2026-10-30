@@ -83,6 +83,10 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
         out.push_str(&render_stub_async(endpoint));
         out.push('\n');
         out.push_str(&render_stub_builder(endpoint));
+        if endpoint.subcategory == "flat_file" {
+            out.push('\n');
+            out.push_str(&render_stub_to_path(endpoint));
+        }
     }
 
     out.push('\n');
@@ -179,6 +183,37 @@ fn render_stub_builder(endpoint: &GeneratedEndpoint) -> String {
         SignatureKind::Builder,
     );
     write_docstring(&mut out, &doc);
+    out
+}
+
+/// A flat file's `<endpoint>_to_path` method and its `_async` companion.
+fn render_stub_to_path(endpoint: &GeneratedEndpoint) -> String {
+    let mut out = String::new();
+    let doc = format!(
+        "Write the `{}` file for `date` to `path` as the terminal writes it, \
+         and return the path written.\n\n``format`` is ``\"csv\"`` (the default), \
+         ``\"json\"``, ``\"json_legacy\"``, ``\"ndjson\"`` (or ``\"jsonl\"``) or \
+         ``\"html\"``. The file streams to disk chunk by chunk and takes its name \
+         only once complete; a path without an extension gets the format's.",
+        endpoint.name
+    );
+    let async_doc = format!(
+        "{doc}\n\nAwaitable companion of the sync variant. The returned object \
+         resolves to the path written, so a running event loop keeps servicing \
+         other coroutines while the file streams to disk."
+    );
+    for (suffix, return_type, doc) in [("", "str", doc), ("_async", "Awaitable[str]", async_doc)] {
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        writeln!(out, "    def {}_to_path{suffix}(", endpoint.name).unwrap();
+        out.push_str(
+            "        self,\n        date: Union[str, date, datetime],\n        \
+             path: Union[str, PathLike[str]],\n        format: Optional[str] = None,\n",
+        );
+        writeln!(out, "    ) -> {return_type}:").unwrap();
+        write_docstring(&mut out, &doc);
+    }
     out
 }
 

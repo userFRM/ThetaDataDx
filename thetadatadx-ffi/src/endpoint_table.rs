@@ -289,6 +289,56 @@ macro_rules! ffi_endpoint {
     };
 }
 
+/// A flat file's `thetadatadx_<endpoint>_to_path` entry point, which writes
+/// the file to disk.
+macro_rules! ffi_to_path {
+    (flat_file $name:ident) => {
+        thetadatadx::__paste! {
+            #[doc = "Write the `" $name "` file for `date` to `path` as the terminal writes it."]
+            #[doc = ""]
+            #[doc = "`format` is `csv` (also when NULL), `json`, `json_legacy`, `ndjson` (or"]
+            #[doc = "`jsonl`) or `html`; any other name fails with"]
+            #[doc = "`THETADATADX_ERR_INVALID_PARAMETER`. The file streams to disk chunk by"]
+            #[doc = "chunk and takes its name only once complete; a path without an extension"]
+            #[doc = "gets the format's. Returns 0 on success, -1 on error (inspect"]
+            #[doc = "`thetadatadx_last_error`)."]
+            #[unsafe(no_mangle)]
+            pub unsafe extern "C" fn [<thetadatadx_ $name _to_path>](
+                client: *const ThetaDataDxMarketDataClient,
+                date: *const c_char,
+                path: *const c_char,
+                format: *const c_char,
+            ) -> i32 {
+                ffi_boundary!(-1, {
+                    let client = require_client!(client, -1);
+                    let date = require_cstr!(date, -1);
+                    let path = require_cstr!(path, -1);
+                    // SAFETY: `format` is NULL or a caller-pinned NUL-terminated C string; `cstr_to_str` checks for NULL and validates UTF-8 before reading.
+                    let format = match unsafe { cstr_to_str(format) } {
+                        Ok(name) => name.unwrap_or("csv").parse::<thetadatadx::flatfiles::FlatFileFormat>(),
+                        Err(e) => Err(format!("format is not valid UTF-8: {e}")),
+                    };
+                    let format = match format {
+                        Ok(format) => format,
+                        Err(e) => {
+                            set_error_with_code(&e, THETADATADX_ERR_INVALID_PARAMETER);
+                            return -1;
+                        }
+                    };
+                    match runtime().block_on(client.inner.[<$name _to_path>](date, path, format)) {
+                        Ok(_) => 0,
+                        Err(error) => {
+                            set_error_from(&error);
+                            -1
+                        }
+                    }
+                })
+            }
+        }
+    };
+    ($sub:ident $name:ident) => {};
+}
+
 macro_rules! ffi_market_data {
     ($( $(#[$attr:ident])* $shape:ident $name:ident {
         group: $cat:ident / $sub:ident,
@@ -297,7 +347,10 @@ macro_rules! ffi_market_data {
         params: [$($key:tt)*],
         doc: [$($doc:literal),* $(,)?],
     } )*) => {
-        $( thetadatadx::__resolve! { [$($key)*] => ffi_endpoint { {} [$($attr)*] $shape $name $ret $(($col))? [$($doc)*] } } )*
+        $(
+            thetadatadx::__resolve! { [$($key)*] => ffi_endpoint { {} [$($attr)*] $shape $name $ret $(($col))? [$($doc)*] } }
+            ffi_to_path! { $sub $name }
+        )*
     };
 }
 

@@ -99,7 +99,8 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
 /// a `std::future` of the rows (with the `ColumnPresence` the blocking call
 /// fills through `out_columns`, for an endpoint that returns ticks) so
 /// callers can run the request off the calling thread without managing
-/// their own threads.
+/// their own threads. A flat file also gets its `<endpoint>_to_path` member,
+/// which writes the file to disk.
 pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -166,9 +167,27 @@ pub(super) fn render_cpp_market_data_decls(endpoints: &[GeneratedEndpoint]) -> S
         // blocking members declared just above, so they live with the
         // declarations rather than in the out-of-line `.cpp` fragment.
         out.push_str(&render_cpp_async_method(endpoint, has_symbols));
+        if endpoint.subcategory == "flat_file" {
+            writeln!(
+                out,
+                "    /// Write the `{}` file for `date` to `path` as the terminal writes it.",
+                endpoint.name
+            )
+            .unwrap();
+            out.push_str(TO_PATH_DOC);
+            writeln!(
+                out,
+                "    void {}_to_path(const std::string& date, const std::string& path, const std::string& format = \"csv\") const;\n",
+                endpoint.name
+            )
+            .unwrap();
+        }
     }
     out
 }
+
+/// The documentation every flat file's `<endpoint>_to_path` member shares.
+const TO_PATH_DOC: &str = "    ///\n    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or\n    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its\n    /// name only once complete; a path without an extension gets the format's.\n    /// Throws on failure.\n";
 
 /// Renders the inline `<endpoint>_async` companion(s) for one buffered
 /// endpoint. Each returns a `std::future` that runs the matching blocking
@@ -506,7 +525,7 @@ const MARKET_DATA_IMPL_CLASSES: &[&str] = &["MarketDataClient", "MarketData"];
 
 /// Renders the buffered market-data query member-function definitions for
 /// every non-streaming endpoint onto each market-data class, bridging each
-/// into its `_with_options` FFI call.
+/// into its `_with_options` FFI call, and each flat file's `_to_path` member.
 pub(super) fn render_cpp_market_data_defs(endpoints: &[GeneratedEndpoint]) -> String {
     let mut out = String::new();
     out.push_str(
@@ -519,6 +538,14 @@ pub(super) fn render_cpp_market_data_defs(endpoints: &[GeneratedEndpoint]) -> St
         {
             out.push_str(&render_cpp_endpoint_def(endpoint, class_name));
             out.push('\n');
+            if endpoint.subcategory == "flat_file" {
+                writeln!(
+                    out,
+                    "void {class_name}::{name}_to_path(const std::string& date, const std::string& path, const std::string& format) const {{\n    thetadatadx_clear_error();\n    if (thetadatadx_{name}_to_path(market_data_handle(), date.c_str(), path.c_str(), format.c_str()) != 0) {{\n        detail::throw_last_ffi_error();\n    }}\n}}\n",
+                    name = endpoint.name
+                )
+                .unwrap();
+            }
         }
     }
     out

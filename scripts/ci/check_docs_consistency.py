@@ -44,9 +44,9 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[2]
 ENDPOINT_TABLE_RS = ROOT / "thetadatadx-rs/src/surface/endpoints.rs"
 # Every entry of `__endpoints!` and `__stream_endpoints!` in table order: its
-# shape, name and REST path.
+# shape, name, subcategory and REST path.
 TABLE_ENTRIES = re.findall(
-    r'^\s*(list|buffered|chunked|stream)\s+(\w+)\s*\{\s*group:\s*\w+\s*/\s*\w+,\s*rest:\s*"([^"]+)"',
+    r'^\s*(list|buffered|chunked|stream)\s+(\w+)\s*\{\s*group:\s*\w+\s*/\s*(\w+),\s*rest:\s*"([^"]+)"',
     ENDPOINT_TABLE_RS.read_text(),
     re.MULTILINE,
 )
@@ -56,7 +56,7 @@ if not TABLE_ENTRIES:
 # (`http://localhost:25503`), so each documented path must carry the full
 # served route (the registry `rest_path` verbatim, `/v3/...`) for a
 # generated client to resolve it. Compare the registry paths as-is.
-REST_PATHS = {rest for _, _, rest in TABLE_ENTRIES}
+REST_PATHS = {rest for _, _, _, rest in TABLE_ENTRIES}
 
 # The single server a generated client targets: the local HTTP server root.
 # `tools/server` listens on this port by default (`tools/server/src/main.rs`),
@@ -215,7 +215,9 @@ def openapi_alias_endpoints() -> dict[str, str]:
 # The registry endpoints: every table entry but the raw streams, which share
 # the route of the endpoint they stream and have no page of their own.
 REGISTRY_ENDPOINTS = [
-    {"name": name, "rest_path": rest} for shape, name, rest in TABLE_ENTRIES if shape != "stream"
+    {"name": name, "rest_path": rest, "subcategory": sub}
+    for shape, name, sub, rest in TABLE_ENTRIES
+    if shape != "stream"
 ]
 
 
@@ -1278,8 +1280,9 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
       surface), named after the endpoint.
     - ``offline``: the always-available utilities, read from
       ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
-    - ``flatfile``: the flat-file tools advertised by
-      ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
+    - ``flatfile``: the ``<endpoint>_to_path`` tools
+      ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs`` advertises,
+      one per flat-file endpoint of the table.
     - ``utility``: the utility tools ``tool_definitions`` in ``main.rs``
       advertises, which include the offline ones; the offline set is
       subtracted so a tool is reported under one origin only.
@@ -1307,23 +1310,26 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
         if name not in offline
     ]
 
+    flatfile_text = MCP_FLATFILE_TOOLS_RS.read_text()
     flatfile_body = _rust_fn_body(
-        MCP_FLATFILE_TOOLS_RS.read_text(),
+        flatfile_text,
         r"fn push_flatfile_tool_definitions\b",
         MCP_FLATFILE_TOOLS_RS,
     )
-    flatfile_text = MCP_FLATFILE_TOOLS_RS.read_text()
-    flatfile = set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body))
-    # A name the function pushes through a const is still a tool it advertises.
-    # Reading only the literals in the body missed the generic dispatcher, which
-    # is named by `FLATFILE_DISPATCHER_TOOL`, so it was never compared with the
-    # docs at all.
-    for const_name, value in re.findall(
-        r'const ([A-Z_]+): &str = "(thetadatadx_flatfile_[a-z_]+)"', flatfile_text
-    ):
-        if re.search(rf"\b{const_name}\b", flatfile_body):
-            flatfile.add(value)
-    flatfile = sorted(flatfile)
+    # The tools are named in code, not by literals: read the suffix and the
+    # endpoint subcategory they are built from, and apply them to the table.
+    suffix = re.search(r'const TO_PATH_SUFFIX: &str = "(\w+)";', flatfile_text)
+    subcategory = re.search(r'ep\.subcategory == "(\w+)"', flatfile_body)
+    if not suffix or not subcategory:
+        fail(
+            f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "
+            f"no longer names its tools from TO_PATH_SUFFIX and an endpoint subcategory"
+        )
+    flatfile = sorted(
+        ep["name"] + suffix.group(1)
+        for ep in REGISTRY_ENDPOINTS
+        if ep["subcategory"] == subcategory.group(1)
+    )
     if not flatfile:
         fail(
             f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "

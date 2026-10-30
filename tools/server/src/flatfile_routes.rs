@@ -2,13 +2,10 @@
 //!
 //! A flat file is the whole universe for one date. These routes answer the way
 //! the terminal answers them: the file streams from the market-data service
-//! chunk by chunk, and each chunk is written out as soon as it arrives, under
-//! the column names the service sends and with each cell as the service sent
-//! it: text (the root, the right, and every price, which the service sends as
-//! decimal text) quoted, integers bare. Only the chunks in flight are held,
-//! whatever the size of the file, except in `json_legacy`: its shape is one
-//! array per column, so no column can close before the last row arrives, and
-//! the file is held until then, as the terminal holds it.
+//! chunk by chunk, and each chunk is written out in the terminal's layout as
+//! soon as it arrives, by the same renderer the SDK's `<endpoint>_to_path`
+//! calls write files with. Only the chunks in flight are held, whatever the
+//! size of the file, except in `json_legacy`, which the terminal holds whole.
 //!
 //! The status line waits for the first chunk, so a refusal that arrives before
 //! any data (no file for the date, a date outside the account's entitlement)
@@ -17,7 +14,6 @@
 //! cannot mistake a truncated file for a complete one.
 
 use std::collections::HashMap;
-use std::fmt::Write as _;
 use std::ops::ControlFlow;
 
 use axum::body::{Body, Bytes};
@@ -25,7 +21,8 @@ use axum::extract::State;
 use axum::http::{StatusCode, header};
 use axum::response::Response;
 use thetadatadx::endpoint::EndpointError;
-use thetadatadx::wire::{DataValue, DataValueList, data_value::DataType};
+use thetadatadx::flatfiles::{FileRenderer, FlatFileFormat};
+use thetadatadx::wire::DataValueList;
 use thetadatadx::{EndpointMeta, MarketDataClient};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
@@ -146,12 +143,8 @@ async fn stream_file(
 
 /// Writes one file's chunks in the requested format.
 struct FileWriter {
-    format: ResponseFormat,
-    wrote_header: bool,
-    wrote_rows: bool,
+    renderer: FileRenderer,
     failed: bool,
-    /// `json_legacy` only: each column so far, from its key to its last cell.
-    columns: Vec<String>,
     chunks: mpsc::Sender<Chunk>,
     started: Option<oneshot::Sender<Result<(), EndpointError>>>,
 }
@@ -162,12 +155,16 @@ impl FileWriter {
         chunks: mpsc::Sender<Chunk>,
         started: oneshot::Sender<Result<(), EndpointError>>,
     ) -> Self {
+        let format = match format {
+            ResponseFormat::Csv => FlatFileFormat::Csv,
+            ResponseFormat::Json => FlatFileFormat::Json,
+            ResponseFormat::JsonLegacy => FlatFileFormat::JsonLegacy,
+            ResponseFormat::Ndjson => FlatFileFormat::Jsonl,
+            ResponseFormat::Html => FlatFileFormat::Html,
+        };
         Self {
-            format,
-            wrote_header: false,
-            wrote_rows: false,
+            renderer: FileRenderer::new(format),
             failed: false,
-            columns: Vec::new(),
             chunks,
             started: Some(started),
         }
@@ -181,7 +178,7 @@ impl FileWriter {
         rows: &[DataValueList],
     ) -> impl std::future::Future<Output = ControlFlow<()>> + Send + 'static + use<> {
         let started = self.started.take();
-        let rendered = match self.render(headers, rows) {
+        let rendered = match self.renderer.chunk(headers, rows) {
             Ok(rendered) => {
                 if let Some(started) = started {
                     let _ = started.send(Ok(()));
@@ -194,12 +191,10 @@ impl FileWriter {
                 match started {
                     // Nothing has been sent: the response carries the failure.
                     Some(started) => {
-                        let _ = started.send(Err(EndpointError::Server(
-                            thetadatadx::Error::config_internal(error.to_string()),
-                        )));
+                        let _ = started.send(Err(EndpointError::Server(error)));
                         None
                     }
-                    None => Some(Err(error)),
+                    None => Some(Err(std::io::Error::other(error.to_string()))),
                 }
             }
         };
@@ -218,54 +213,6 @@ impl FileWriter {
         }
     }
 
-    fn render(
-        &mut self,
-        headers: &[String],
-        rows: &[DataValueList],
-    ) -> Result<String, std::io::Error> {
-        if self.format == ResponseFormat::JsonLegacy {
-            if !self.wrote_header {
-                self.columns = headers
-                    .iter()
-                    .enumerate()
-                    .map(|(i, header)| {
-                        let mut column = String::from(if i == 0 { "{" } else { "," });
-                        push_json_string(&mut column, header);
-                        column.push_str(":[");
-                        column
-                    })
-                    .collect();
-                self.wrote_header = true;
-            }
-            for cells in rows {
-                for (i, column) in self.columns.iter_mut().enumerate() {
-                    if self.wrote_rows {
-                        column.push(',');
-                    }
-                    push_json_cell(column, cells.values.get(i))?;
-                }
-                self.wrote_rows = true;
-            }
-            return Ok(String::new());
-        }
-        let mut out = String::with_capacity(rows.len() * 160);
-        if !self.wrote_header {
-            prefix(&mut out, self.format, headers);
-            self.wrote_header = true;
-        }
-        for cells in rows {
-            row(
-                &mut out,
-                self.format,
-                !self.wrote_rows,
-                headers,
-                &cells.values,
-            )?;
-            self.wrote_rows = true;
-        }
-        Ok(out)
-    }
-
     /// Close the file once the download ends: write what remains of it, or
     /// report the failure the way the response can still carry it.
     async fn finish(mut self, outcome: Result<(), thetadatadx::Error>) {
@@ -275,27 +222,9 @@ impl FileWriter {
         }
         match outcome {
             Ok(()) => {
-                let mut tail = Vec::new();
-                if self.format == ResponseFormat::JsonLegacy {
-                    // Each column goes out as its own body chunk, so the file
-                    // is never copied whole.
-                    tail = std::mem::take(&mut self.columns);
-                    for column in &mut tail {
-                        column.push(']');
-                    }
-                    match tail.last_mut() {
-                        Some(last) => last.push('}'),
-                        None => tail.push("{}".to_owned()),
-                    }
-                } else {
-                    let mut out = String::new();
-                    if self.started.is_some() {
-                        // No chunk arrived: the file is empty.
-                        prefix(&mut out, self.format, &[]);
-                    }
-                    suffix(&mut out, self.format);
-                    tail.push(out);
-                }
+                // Each piece goes out as its own body chunk, so a
+                // `json_legacy` file is never copied whole.
+                let tail = self.renderer.finish();
                 for piece in tail.into_iter().filter(|piece| !piece.is_empty()) {
                     if self.chunks.send(Ok(Bytes::from(piece))).await.is_err() {
                         break;
@@ -321,150 +250,10 @@ impl FileWriter {
     }
 }
 
-fn prefix(out: &mut String, format: ResponseFormat, headers: &[String]) {
-    match format {
-        ResponseFormat::Csv => {
-            out.push_str(&headers.join(","));
-            out.push('\n');
-        }
-        ResponseFormat::Json => out.push_str("{\"response\":["),
-        ResponseFormat::Ndjson | ResponseFormat::JsonLegacy => {}
-        ResponseFormat::Html => {
-            out.push_str(crate::format::HTML_START);
-            out.push_str("<thead><tr>");
-            for header in headers {
-                let _ = write!(out, "<th>{}</th>", crate::format::escape_html(header));
-            }
-            out.push_str("</tr></thead>\n<tbody>");
-        }
-    }
-}
-
-/// The terminal ends a CSV file with one blank line.
-fn suffix(out: &mut String, format: ResponseFormat) {
-    match format {
-        ResponseFormat::Csv => out.push('\n'),
-        ResponseFormat::Ndjson | ResponseFormat::JsonLegacy => {}
-        ResponseFormat::Json => out.push_str("]}"),
-        ResponseFormat::Html => out.push_str(crate::format::HTML_END),
-    }
-}
-
-/// One cell as the service sent it. The flat files carry text and integers;
-/// any other cell type ends the file in an error rather than being written in
-/// a form the terminal never writes.
-fn cell(value: &DataValue) -> Result<Option<Cell<'_>>, std::io::Error> {
-    match value.data_type.as_ref() {
-        Some(DataType::Text(text)) => Ok(Some(Cell::Text(text))),
-        Some(DataType::Number(n)) => Ok(Some(Cell::Int(*n))),
-        Some(DataType::NullValue(_)) => Ok(None),
-        other => Err(std::io::Error::other(format!(
-            "flat-file cell of an unexpected type: {other:?}"
-        ))),
-    }
-}
-
-enum Cell<'a> {
-    Text(&'a str),
-    Int(i64),
-}
-
-fn row(
-    out: &mut String,
-    format: ResponseFormat,
-    first: bool,
-    headers: &[String],
-    values: &[DataValue],
-) -> Result<(), std::io::Error> {
-    match format {
-        ResponseFormat::Csv => {
-            for (i, value) in values.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                match cell(value)? {
-                    Some(Cell::Text(text)) => {
-                        out.push('"');
-                        out.push_str(&text.replace('"', "\"\""));
-                        out.push('"');
-                    }
-                    Some(Cell::Int(n)) => {
-                        let _ = write!(out, "{n}");
-                    }
-                    None => {}
-                }
-            }
-            out.push('\n');
-        }
-        ResponseFormat::Json | ResponseFormat::Ndjson => {
-            if format == ResponseFormat::Json && !first {
-                out.push(',');
-            }
-            out.push('{');
-            for (i, (header, value)) in headers.iter().zip(values).enumerate() {
-                if i > 0 {
-                    out.push(',');
-                }
-                push_json_string(out, header);
-                out.push(':');
-                push_json_cell(out, Some(value))?;
-            }
-            out.push('}');
-            if format == ResponseFormat::Ndjson {
-                out.push('\n');
-            }
-        }
-        ResponseFormat::Html => {
-            out.push_str("<tr>");
-            for value in values {
-                out.push_str("<td>");
-                match cell(value)? {
-                    Some(Cell::Text(text)) => out.push_str(&crate::format::escape_html(text)),
-                    Some(Cell::Int(n)) => {
-                        let _ = write!(out, "{n}");
-                    }
-                    None => out.push_str("null"),
-                }
-                out.push_str("</td>");
-            }
-            out.push_str("</tr>\n");
-        }
-        // Written column by column in `FileWriter::render`.
-        ResponseFormat::JsonLegacy => {}
-    }
-    Ok(())
-}
-
-/// One cell as JSON: text as a string, an integer as a number, and a missing
-/// or null cell as `null`.
-fn push_json_cell(out: &mut String, value: Option<&DataValue>) -> Result<(), std::io::Error> {
-    match value.map(cell).transpose()?.flatten() {
-        Some(Cell::Text(text)) => push_json_string(out, text),
-        Some(Cell::Int(n)) => {
-            let _ = write!(out, "{n}");
-        }
-        None => out.push_str("null"),
-    }
-    Ok(())
-}
-
-fn push_json_string(out: &mut String, text: &str) {
-    out.push('"');
-    for c in text.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            c if c.is_control() => {
-                let _ = write!(out, "\\u{:04x}", u32::from(c));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-}
-
 #[cfg(test)]
 mod tests {
+    use thetadatadx::wire::{DataValue, data_value::DataType};
+
     use super::*;
 
     /// A chunk shaped like the service's: the header line, then rows whose
@@ -492,77 +281,6 @@ mod tests {
             })
             .collect();
         (headers, rows)
-    }
-
-    async fn written(format: ResponseFormat, file: &str) -> String {
-        let (chunks, mut body) = mpsc::channel(64);
-        let (started, _start) = oneshot::channel();
-        let mut writer = FileWriter::new(format, chunks, started);
-        let (headers, rows) = chunk(file);
-        assert!(writer.chunk(&headers, &rows).await.is_continue());
-        writer.finish(Ok(())).await;
-        let mut out = Vec::new();
-        while let Some(piece) = body.recv().await {
-            out.extend_from_slice(&piece.expect("the file is written whole"));
-        }
-        String::from_utf8(out).expect("the file is UTF-8")
-    }
-
-    /// A flat file is written as the terminal writes it: the terminal's own
-    /// rows for 2026-10-21, sent through as the service's cells, come back
-    /// byte for byte, the sub-penny `"0.00010"` and the closing blank line
-    /// included.
-    #[tokio::test]
-    async fn flat_files_are_written_as_the_terminal_writes_them() {
-        let stock_eod = "root,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
-            \"HCMA\",62128177,57600350,\"10.3\",\"10.3\",\"10.3\",\"10.3\",112241,101,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021\n\
-            \"HCMC\",62128177,57577936,\"0.00010\",\"0.00010\",\"0.0\",\"0.00010\",42627531,109,0,0,\"0.0\",0,0,0,\"0.0\",0,20261021\n";
-        assert_eq!(
-            written(ResponseFormat::Csv, stock_eod).await,
-            format!("{stock_eod}\n")
-        );
-
-        let option_quote = "root,expiration,strike,right,interval_ms_of_day,quote_ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
-            \"ABG\",20270115,\"115.0\",\"C\",34260000,34259636,1,11,\"61.0\",50,1,11,\"65.0\",50,20261021\n";
-        assert_eq!(
-            written(ResponseFormat::Csv, option_quote).await,
-            format!("{option_quote}\n")
-        );
-
-        // The JSON form carries the same cells: text as strings, integers as
-        // numbers, in the `response` envelope.
-        assert_eq!(
-            written(
-                ResponseFormat::Json,
-                "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
-            )
-            .await,
-            "{\"response\":[{\"root\":\"HCMC\",\"bid\":\"0.00010\",\"date\":20261021}]}"
-        );
-
-        // The legacy JSON form is one array per column, the same cells in
-        // the same order, row `i` at index `i` of every array.
-        assert_eq!(
-            written(
-                ResponseFormat::JsonLegacy,
-                "root,bid,date\n\"HCMA\",\"10.26\",20261021\n\"HCMC\",\"0.00010\",20261021\n"
-            )
-            .await,
-            "{\"root\":[\"HCMA\",\"HCMC\"],\"bid\":[\"10.26\",\"0.00010\"],\"date\":[20261021,20261021]}"
-        );
-
-        // The HTML form is the terminal's page, as the regular routes write it.
-        assert_eq!(
-            written(
-                ResponseFormat::Html,
-                "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
-            )
-            .await,
-            "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n\
-             <table style=\"width:100%; text-align: center;\"><thead><tr><th>root</th><th>bid</th><th>date</th></tr></thead>\n\
-             <tbody><tr><td>HCMC</td><td>0.00010</td><td>20261021</td></tr>\n\
-             </tbody></table></body></html>\n"
-        );
     }
 
     /// A download that fails before any data answers with the failure's own

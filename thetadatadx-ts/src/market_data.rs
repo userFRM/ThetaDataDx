@@ -8,7 +8,8 @@
 //! built, and `__paste!` joins the pieces of a doc line into one literal. Per
 //! endpoint, in table order, each class gets the method, then its `Stream`
 //! companion when the endpoint is chunked, then its `WithColumns` variant
-//! when it returns ticks: the member order of the published declarations.
+//! when it returns ticks, then its `ToPath` method when it is a flat file:
+//! the member order of the published declarations.
 
 use std::ops::ControlFlow;
 use std::time::Duration;
@@ -331,6 +332,45 @@ macro_rules! ts_endpoint {
     (@refs $t:ident $a:ident) => {};
 }
 
+/// A flat file's `<method>ToPath` method on a class, which writes the file
+/// to disk.
+macro_rules! ts_to_path {
+    (options $sub:ident $name:ident) => {};
+    ($class:ident flat_file $name:ident) => {
+        thetadatadx::__paste! {
+            ts_to_path! { @emit $class $name [<$name:lower_camel:replace("Eod", "EOD"):replace("Ohlc", "OHLC")>] }
+        }
+    };
+    ($class:ident $sub:ident $name:ident) => {};
+    (@emit $class:ident $name:ident $js:ident) => {
+        thetadatadx::__paste! {
+            #[napi]
+            impl $class {
+                #[doc = "Write the `" $js "` flat file for `date` to `path` as the terminal writes it, and resolve to the path written. `format` is `\"csv\"` (the default), `\"json\"`, `\"json_legacy\"`, `\"ndjson\"` (or `\"jsonl\"`) or `\"html\"`. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's."]
+                #[napi(js_name = $js "ToPath")]
+                pub async fn [<$name _to_path>](
+                    &self,
+                    date: String,
+                    path: String,
+                    format: Option<String>,
+                ) -> napi::Result<String> {
+                    let format = format
+                        .as_deref()
+                        .map_or(Ok(thetadatadx::flatfiles::FlatFileFormat::Csv), str::parse)
+                        .map_err(invalid_parameter_err)?;
+                    let client = self.client_handle()?;
+                    ts_req!(Date date);
+                    let written = spawn_endpoint_task(async move {
+                        client.market_data().[<$name _to_path>](&date, &path, format).await
+                    })
+                    .await?;
+                    Ok(written.to_string_lossy().into_owned())
+                }
+            }
+        }
+    };
+}
+
 /// Expands every endpoint of the table in one context.
 macro_rules! ts_market_data {
     ($ctx:ident $( $(#[$attr:ident])* $shape:ident $name:ident {
@@ -340,7 +380,10 @@ macro_rules! ts_market_data {
         params: [$($key:tt)*],
         doc: [$($doc:tt),* $(,)?],
     } )*) => {
-        $( thetadatadx::__resolve! { [$($key)*] => ts_endpoint { { $ctx } [$($attr)*] $shape $name $ret [$($doc)*] } } )*
+        $(
+            thetadatadx::__resolve! { [$($key)*] => ts_endpoint { { $ctx } [$($attr)*] $shape $name $ret [$($doc)*] } }
+            ts_to_path! { $ctx $sub $name }
+        )*
     };
 }
 

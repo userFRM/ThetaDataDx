@@ -457,9 +457,35 @@ macro_rules! market_data_endpoint {
     (@emit $($other:tt)*) => {};
 }
 
+/// A flat file's `<endpoint>_to_path` method, which writes the file to disk.
+macro_rules! flat_file_to_path {
+    (flat_file $name:ident) => {
+        pastey::paste! {
+            #[doc = concat!("Write the `", stringify!($name), "` file for `date` to `output_path` as the terminal writes it, in `format`, and return the path written.")]
+            #[doc = ""]
+            #[doc = "The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's. See [`crate::flatfiles`] for the layout."]
+            #[doc = ""]
+            #[doc = "# Errors"]
+            #[doc = ""]
+            #[doc = "Returns an error for a malformed date, on network, authentication or decode failure, and when the file cannot be written."]
+            pub async fn [<$name _to_path>](
+                &self,
+                date: &str,
+                output_path: impl AsRef<std::path::Path>,
+                format: crate::flatfiles::FlatFileFormat,
+            ) -> Result<std::path::PathBuf, Error> {
+                self.flat_file_to_path(stringify!($name), date, output_path.as_ref(), format)
+                    .await
+            }
+        }
+    };
+    ($sub:ident $name:ident) => {};
+}
+
 /// Expands the endpoint table into the client's methods and builders, in two
-/// passes: the plain list methods share one `impl MarketDataClient`, then
-/// every other endpoint gets its builder.
+/// passes: the plain list methods and the flat files' `_to_path` methods
+/// share one `impl MarketDataClient`, then every other endpoint gets its
+/// builder.
 macro_rules! market_data_endpoints {
     ($( $(#[$attr:meta])* $shape:ident $name:ident {
         group: $cat:ident / $sub:ident,
@@ -469,7 +495,10 @@ macro_rules! market_data_endpoints {
         doc: [$($doc:literal),* $(,)?],
     } )*) => {
         impl MarketDataClient {
-            $( market_data_endpoint! { @method $shape $name $ret $(($col))? [$($doc)*] [$($key)*] } )*
+            $(
+                market_data_endpoint! { @method $shape $name $ret $(($col))? [$($doc)*] [$($key)*] }
+                flat_file_to_path! { $sub $name }
+            )*
         }
         $( crate::__resolve! { [$($key)*] => market_data_endpoint { builder $shape $name $ret $(($col))? [$($doc)*] } } )*
     };
