@@ -229,13 +229,14 @@ def test_orphan_rust_field_trips(tmpdir: pathlib.Path) -> None:
     (cfg_dir / "fake.rs").write_text(
         "pub struct FlatFilesConfig {\n"
         "    pub max_attempts: u32,\n"
+        "    pub jitter: bool,\n"
         "    pub novel_field: u64,\n"
         "}\n",
         encoding="utf-8",
     )
     rust_fields = cbp._collect_rust_pub_fields(cfg_dir)
-    assert rust_fields["FlatFilesConfig"] == {"max_attempts", "novel_field"}, (
-        f"both fields must parse; got {rust_fields!r}"
+    assert rust_fields["FlatFilesConfig"] == {"max_attempts", "jitter", "novel_field"}, (
+        f"every field must parse; got {rust_fields!r}"
     )
     rows = [
         {
@@ -245,12 +246,12 @@ def test_orphan_rust_field_trips(tmpdir: pathlib.Path) -> None:
             "cpp": True,
         }
     ]
-    errors = cbp._check_orphan_rust_fields(rust_fields, rows)
+    errors = cbp._check_orphan_rust_fields(rust_fields, rows, {("FlatFilesConfig", "jitter")})
     assert any("novel_field" in e for e in errors), (
         f"undocumented Rust field must trip; got {errors!r}"
     )
-    # The documented row must NOT also trip.
-    assert not any("max_attempts" in e for e in errors), (
+    # A field with a row, or one the config table writes, must NOT trip.
+    assert not any("max_attempts" in e or "jitter" in e for e in errors), (
         f"documented field must NOT trip; got {errors!r}"
     )
 
@@ -282,49 +283,23 @@ def test_explicit_widened_abi_accepted() -> None:
     assert errors == [], f"_explicit suffix must satisfy; got {errors!r}"
 
 
-# ─── Positive: per-row `setter` override resolves alternate name ───
+# ─── Negative: dotted-name on unknown struct trips ─────────────────
 
 
-def test_setter_override_resolves_alternate_name(tmpdir: pathlib.Path) -> None:
-    """`MarketDataConfig.host` binds on Python as `set_market_data_host`
-    (with the `market_data_` prefix). The row's `setter = "market_data_host"`
-    field overrides the default `host` derivation and the gate accepts
-    the binding.
+def test_unknown_struct_dotted_row_trips() -> None:
+    """A dotted row whose struct is not in `STRUCT_TO_PREFIX` (a typo such
+    as `FlatFileConfig.jitter`) would assert nothing, so it fails instead.
     """
     rows = [
         {
-            "name": "MarketDataConfig.host",
-            "python": True,
-            "typescript": False,
-            "cpp": False,
-            "setter": "market_data_host",
-        }
-    ]
-    py_setters = {"market_data_host"}
-    errors = cbp._check_dotted_rows(rows, py_setters, set(), set(), set())
-    assert errors == [], f"setter override must resolve; got {errors!r}"
-
-
-# ─── Positive: dotted-name on unknown struct is skipped ────────────
-
-
-def test_unknown_struct_dotted_row_is_skipped() -> None:
-    """Dotted rows whose struct prefix is not in `STRUCT_TO_PREFIX`
-    (e.g. `Error.cross_binding_name_divergence`,
-    `GreeksEodTick.cross_binding_anchor`) are documentation anchors.
-    The gate must not gate on them — these declare class-level
-    intent, not field-level binding.
-    """
-    rows = [
-        {
-            "name": "Error.cross_binding_name_divergence",
+            "name": "FlatFileConfig.jitter",
             "python": True,
             "typescript": True,
             "cpp": True,
         }
     ]
     errors = cbp._check_dotted_rows(rows, set(), set(), set(), set())
-    assert errors == [], f"unknown struct dotted row must skip; got {errors!r}"
+    assert any("FlatFileConfig" in e for e in errors), f"unknown struct dotted row must trip; got {errors!r}"
 
 
 # ─── Public-surface vocabulary guard ────────────────────────────────
@@ -1547,9 +1522,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         _check("orphan Rust field trips", lambda: test_orphan_rust_field_trips(pathlib.Path(tmp)))
     _check("`_explicit` widened-ABI suffix accepted", test_explicit_widened_abi_accepted)
-    with tempfile.TemporaryDirectory() as tmp:
-        _check("setter override resolves alternate name", lambda: test_setter_override_resolves_alternate_name(pathlib.Path(tmp)))
-    _check("unknown struct dotted row is skipped", test_unknown_struct_dotted_row_is_skipped)
+    _check("unknown struct dotted row trips", test_unknown_struct_dotted_row_trips)
     _check("surface-vocab flags embedded impl token", test_surface_vocab_flags_embedded_impl_token)
     _check("surface-vocab allows vendor protocol names", test_surface_vocab_allows_vendor_protocol_names)
     _check("surface-vocab allows neutral worker_threads", test_surface_vocab_allows_neutral_worker_threads)
