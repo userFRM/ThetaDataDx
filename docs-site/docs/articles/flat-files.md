@@ -115,7 +115,7 @@ A streamed chunk carries the root of each of its rows, as a whole result does: i
 
 ## Write a file to disk
 
-Each flat file has a companion call that writes it to disk exactly as the terminal writes it: `<endpoint>_to_path`, such as `option_flat_file_trade_quote_to_path`. It takes the file's `date`, the path to write and a format, and returns the path written. The file streams to disk chunk by chunk, so memory stays flat whatever its size, `json_legacy` aside: its one array per column cannot close before the last row, so the file is held until then, as the terminal holds it. It is written under a temporary name beside the path and takes the path's name only once complete, so a failed or cancelled download never leaves a partial file under that name. A path without an extension gets the format's.
+Each flat file has a companion call that writes it to disk exactly as the terminal writes it: `<endpoint>_to_path`, such as `option_flat_file_trade_quote_to_path`. It takes the file's `date`, the path to write and a format. In Rust, Python and TypeScript it returns the path written; in C it returns 0 on success, and in C++ it returns nothing and throws on failure. The file streams to disk chunk by chunk, so memory stays flat whatever its size, `json_legacy` aside: its one array per column cannot close before the last row, so the file is held until then, as the terminal holds it. It is written under a temporary name beside the path and takes the path's name only once complete, so a failed or cancelled download never leaves a partial file under that name. A path without an extension gets the format's, so a C or C++ caller that passes `out` for a CSV file finds it at `out.csv`.
 
 | Format | Layout |
 |---|---|
