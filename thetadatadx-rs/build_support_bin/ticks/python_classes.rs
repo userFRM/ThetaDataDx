@@ -73,8 +73,8 @@ pub(super) fn render_python_tick_classes(
     // the `<TickName>List` wrapper allocation — snapshots return <=10
     // small rows and callers never chain `.to_polars()` on a 1-row
     // calendar-day result, so the wrapper cost is pure overhead on the
-    // latency-sensitive path. Only the snapshot / calendar generator
-    // branch in `endpoints/render/python.rs` emits calls to these.
+    // latency-sensitive path. Only the snapshot and calendar endpoint
+    // methods in `thetadatadx-py/src/market_data.rs` call these.
     //
     // Emission is gated on `snapshot_return_types` (derived from
     // `endpoint_surface.toml` by `endpoints::snapshot_return_types`) so
@@ -1220,8 +1220,8 @@ fn tick_collection_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
     render_for_type(schema, type_name).collection.as_str()
 }
 
-/// Snapshot-kind converter name. See [`python_vec_to_pylist_fn_name`]
-/// caller in `endpoints/render/python.rs`.
+/// Snapshot-kind converter name, called by the snapshot and calendar
+/// endpoint methods in `thetadatadx-py/src/market_data.rs`.
 fn python_vec_to_pylist_fn_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
     render_for_type(schema, type_name)
         .python_vec_to_pylist

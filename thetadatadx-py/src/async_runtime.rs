@@ -1,13 +1,11 @@
 //! Async bridge helpers mirroring [`run_blocking`] for the sync path.
 //!
-//! Called by every generator-emitted `*_async` method in
-//! [`market_data_methods.rs`] and every `*_async` builder terminal. The
-//! module is utility code (hand-written, same category as `run_blocking`
-//! at the top of [`lib.rs`]) — it is explicitly NOT generator output, so
-//! edits here do not cross the SSOT boundary at `endpoint_surface.toml`.
+//! Called by every `*_async` endpoint method in [`market_data`] and every
+//! `*_async` builder terminal. The module is utility code, in the same
+//! category as `run_blocking` at the top of [`lib.rs`].
 //!
 //! [`run_blocking`]: crate::run_blocking
-//! [`market_data_methods.rs`]: ../../../../thetadatadx-py/src/_generated/market_data_methods.rs
+//! [`market_data`]: crate::market_data
 //! [`lib.rs`]: ../../../../thetadatadx-py/src/lib.rs
 
 use std::future::Future;
@@ -21,11 +19,10 @@ use crate::errors::to_py_err;
 /// `convert`, and return a `pyo3`-awaitable that yields the converted
 /// Python object.
 ///
-/// Every generator-emitted `*_async` endpoint method in
-/// `market_data_methods.rs` calls this. The shape mirrors the sync
-/// `run_blocking(py, fut)` helper so generator output stays symmetric
-/// across the sync + async paths — one `*_async` = one call to this
-/// helper, exactly as one sync = one call to `run_blocking`.
+/// Every `*_async` endpoint method in `market_data.rs` calls this. The
+/// shape mirrors the sync `run_blocking(py, fut)` helper so the sync and
+/// async paths stay symmetric: one `*_async` is one call to this helper,
+/// exactly as one sync call is one call to `run_blocking`.
 ///
 /// # Error propagation
 ///
@@ -63,12 +60,10 @@ use crate::errors::to_py_err;
 /// `trade_ticks_to_pyclass_list`, `quote_ticks_to_pyclass_list`, …)
 /// produce typed pyclass wrappers via functions that need the GIL —
 /// they aren't plain `IntoPyObject` impls on `Vec<T>`. Refactoring
-/// every helper plus the 122 generator-emitted callsites in
-/// `market_data_methods.rs` and the matching generator templates in
-/// `thetadatadx-rs/build_support/endpoints/render/python.rs` is a
-/// much larger change with the same final scheduling outcome.
+/// every helper and every call site in `market_data.rs` is a much
+/// larger change with the same final scheduling outcome.
 /// `spawn_blocking` resolves the contention with zero ripple to the
-/// helper surface and zero generator-template churn.
+/// helper surface.
 pub(crate) fn spawn_awaitable<'py, F, T, C>(
     py: Python<'py>,
     fut: F,

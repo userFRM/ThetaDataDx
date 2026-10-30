@@ -1,95 +1,15 @@
 //! Cross-cutting helpers shared by every renderer.
 //!
-//! Holds param classification (`is_*` filters), docstring composition, and
-//! the TOML-driven tick parser map (`render_for`). Per-language SDK
-//! projection helpers (arg/literal renderers, FFI option mappers, CLI command
-//! derivations, etc.) live in `sdk_helpers.rs`.
+//! Holds param classification (`is_*` filters) and docstring composition.
+//! Per-language SDK projection helpers (arg/literal renderers, FFI option
+//! mappers, CLI command derivations, etc.) live in `sdk_helpers.rs`.
 //!
 //! Anything that emits a multi-line chunk of target-language code belongs
 //! in `sdk_render/` or `docs_render/`, not here.
-//!
-//! ## Per-tick render map (TOML-driven)
-//!
-//! The 19 hand-coded match arms that previously lived here for each renderer
-//! call (e.g. `direct_return_type`, `python_pyclass_list_class`) collapsed
-//! into single-key lookups against `tick_schema.toml::[types.X.render]`.
-//! Adding a tick type now means adding one TOML row -- no helper edits at
-//! all. See [`render_for`].
-
-use std::collections::HashMap;
-use std::sync::OnceLock;
 
 use heck::ToUpperCamelCase;
 
 use super::model::{GeneratedEndpoint, GeneratedParam};
-
-// ─────────────────────────── Render-map loader ─────────────────────────────
-
-/// Per-tick decoder-name map keyed by wire-collection plural (e.g.
-/// `"GreeksAllTicks"`), read for the Python decode-bench dispatch arms.
-/// Per-language type names (`ffi_*`, `cpp_*`, `python_*`, `ts_*`) live in
-/// the render map in `sdk_helpers.rs`.
-#[derive(Debug, Clone)]
-pub(super) struct TickRender {
-    pub(super) parser: String,
-}
-
-#[derive(serde::Deserialize)]
-struct SchemaToml {
-    types: HashMap<String, TickTypeToml>,
-}
-
-#[derive(serde::Deserialize)]
-struct TickTypeToml {
-    render: TickRenderToml,
-}
-
-#[derive(serde::Deserialize)]
-struct TickRenderToml {
-    collection: String,
-    parser: String,
-}
-
-static RENDER_MAP: OnceLock<HashMap<String, TickRender>> = OnceLock::new();
-
-fn load_render_map() -> HashMap<String, TickRender> {
-    let schema_path = "tick_schema.toml";
-    let raw = std::fs::read_to_string(schema_path)
-        .unwrap_or_else(|e| panic!("failed to read {schema_path}: {e}"));
-    let parsed: SchemaToml =
-        toml::from_str(&raw).unwrap_or_else(|e| panic!("failed to parse {schema_path}: {e}"));
-    let mut map = HashMap::new();
-    let mut tick_to_collection: HashMap<String, String> = HashMap::new();
-    for (tick_name, def) in parsed.types {
-        let render = def.render;
-        let collection = render.collection.clone();
-        if let Some(prev) = tick_to_collection.insert(tick_name.clone(), collection.clone()) {
-            panic!("tick type '{tick_name}' duplicates collection '{prev}' / '{collection}'");
-        }
-        let entry = TickRender {
-            parser: render.parser,
-        };
-        if map.insert(collection.clone(), entry).is_some() {
-            panic!("duplicate render collection '{collection}' in tick_schema.toml");
-        }
-    }
-    map
-}
-
-/// Look up the per-tick decoder name for a wire-collection plural (e.g.
-/// `"GreeksTicks"`). Panics with the available keys when the collection
-/// is missing — a missing TOML row is a build-time bug.
-pub(super) fn render_for(collection: &str) -> &'static TickRender {
-    let map = RENDER_MAP.get_or_init(load_render_map);
-    map.get(collection).unwrap_or_else(|| {
-        let mut keys: Vec<&str> = map.keys().map(String::as_str).collect();
-        keys.sort();
-        panic!(
-            "no render entry for collection '{collection}' in tick_schema.toml; available: {}",
-            keys.join(", ")
-        )
-    })
-}
 
 // ───────────────────────── Param classification ────────────────────────────
 
@@ -229,15 +149,6 @@ fn render_param_defaults_block(endpoint: &GeneratedEndpoint) -> String {
 /// Converts a `snake_case` identifier to `PascalCase`.
 pub(super) fn to_pascal_case(value: &str) -> String {
     value.to_upper_camel_case()
-}
-
-// ───────────────────────── Direct (Rust) client tick map lookup ───────────
-
-/// Map a wire-collection plural to the generated `parse_*_ticks` function
-/// name. The Python wrapper emitter needs the fully-qualified parser path
-/// to forward decoded chunks.
-pub(super) fn direct_parser_name(return_type: &str) -> String {
-    format!("decode::{}", render_for(return_type).parser)
 }
 
 // ───────────────────────── Per-language type tables ─────────────────────────

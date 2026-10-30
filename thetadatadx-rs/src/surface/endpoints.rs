@@ -2,9 +2,10 @@
 //!
 //! Every endpoint is written once, in `__endpoints!`. The engine expands the
 //! tables into the `MarketDataClient` methods and builders, the endpoint
-//! registry, the dispatch behind it and the shard fan-out allowlist; the C
-//! ABI expands them into its entry points and `__request_options!` into its
-//! options struct. `endpoint_surface.toml` still drives the other binding and
+//! registry, the dispatch behind it and the shard fan-out allowlist; the
+//! Python binding expands them into its endpoint methods and builders, and
+//! the C ABI into its entry points and `__request_options!` into its options
+//! struct. `endpoint_surface.toml` still drives the other binding and
 //! documentation generators and the C header, so an endpoint change lands in
 //! both until that file is retired.
 //!
