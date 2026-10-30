@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn normalize_date_passes_non_date_shapes_through() {
-        // Pass-through setters (`opt_str` builder fields) keep their
+        // Pass-through setters (optional string builder fields) keep their
         // let-the-server-decide contract for anything that is not the
         // exact ISO shape; validated paths never reach here with
         // malformed input.
