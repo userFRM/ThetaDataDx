@@ -502,8 +502,9 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
 // ── Reconnect policy selector readback ─────────────────────────────
 //
 // The policy-variant selector. The per-class `Auto` attempt budgets are
-// the generated `policy_limit` accessors (config_surface.toml); this
-// reads the variant discriminant itself, which stays hand-written.
+// the `limits` accessors of the config table (`src/surface/config.rs` in
+// the core); this reads the variant discriminant itself, which stays
+// hand-written.
 
 /// Read the configured reconnect policy selector.
 ///
@@ -757,27 +758,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
     })
 }
 
-// `DirectConfig.retry` field accessors (`initial_delay` / `max_delay` ms,
-// `max_attempts`, `jitter`) are the generated scalar / `ms` accessors in
-// config_surface.toml; `delay_for_attempt` / `capped_backoff` /
-// `disabled()` stay Rust-only method-shape helpers.
-
-// `DirectConfig.auth` string fields (`nexus_url` / `client_type`) are the
-// generated `string` accessors in config_surface.toml: the setter takes a
-// validated `*const c_char`, the getter returns an owned `*mut c_char` the
-// caller frees with `thetadatadx_string_free`.
-
-// `DirectConfig` market-data endpoint overrides (`market_data_host` string
-// via `set_market_data_host`, `market_data_port` `u16`) are the generated
-// `string` / scalar accessors in config_surface.toml.
-
-// The uniform static config accessors — scalar / duration setters and
-// getters, plus the `policy_limit` (reconnect `Auto`-limit), `string`,
-// `enum` (int code ↔ core variant), and `option` (`(has_value, value)` ↔
-// `Option<T>`) carve-outs — are generated from `config_surface.toml`.
-// The genuinely divergent accessors above (validated `ring_size`,
-// `consumer_cpu` sentinel, the `(has_value, n)` worker-thread setting,
-// and the reconnect-policy callback) stay hand-written.
+// Every accessor that reads or writes one `DirectConfig` value is expanded
+// from the core config table (`src/surface/config.rs`). The accessors above
+// (the validated `ring_size`, the `consumer_cpu` sentinel, the worker
+// threads, the reconnect policy and its callback) have their own logic.
 include!("config_accessors.rs");
 
 // ── MarketDataClient ──

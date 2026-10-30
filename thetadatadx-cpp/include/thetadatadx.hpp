@@ -920,7 +920,7 @@ public:
 
     // `retry.initial_delay` / `retry.max_delay` (ms) getters and the
     // `auth.nexus_url` / `auth.client_type` string accessors are generated
-    // into config_accessors.hpp.inc from config_surface.toml.
+    // into config_accessors.hpp.inc from the core config table.
 
     /** Target market-data environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"STAGE"` for staging. The

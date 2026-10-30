@@ -2021,10 +2021,14 @@ name = "reconnectJitter"
 python = true
 typescript = true
 cpp = true
+# The accessor is expanded from the config table, so no Rust `fn` names it
+# for the `python` and `ts_napi` lanes to read; the shipped `.pyi` and
+# `index.d.ts` lanes pin its type.
 [method.signature]
 returns = "String"
 cpp_returns = "i32"
 python_pyi_returns = 'Literal["full", "none"]'
+skip_langs = ["python", "ts_napi"]
 
 # The streaming wait-mode readback. A value-constrained enum getter on
 # every binding (Python `Config.wait_mode`, TypeScript `get waitMode()`,
@@ -2036,10 +2040,14 @@ name = "waitMode"
 python = true
 typescript = true
 cpp = true
+# The accessor is expanded from the config table, so no Rust `fn` names it
+# for the `python` and `ts_napi` lanes to read; the shipped `.pyi` and
+# `index.d.ts` lanes pin its type.
 [method.signature]
 returns = "String"
 cpp_returns = "i32"
 python_pyi_returns = 'Literal["spin", "busyspin", "park", "backoff"]'
+skip_langs = ["python", "ts_napi"]
 
 # The streaming park/backoff interval readback. Pins the readback TYPE on
 # the `.pyi` lane the way `streamingRingSize` does, so a stub drift to a
@@ -2051,8 +2059,12 @@ name = "parkIntervalUs"
 python = true
 typescript = true
 cpp = true
+# The accessor is expanded from the config table, so no Rust `fn` names it
+# for the `python` and `ts_napi` lanes to read; the shipped `.pyi` and
+# `index.d.ts` lanes pin its type.
 [method.signature]
 returns = "u64"
+skip_langs = ["python", "ts_napi"]
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a
@@ -2427,8 +2439,12 @@ python = true
 typescript = true
 cpp = true
 # usize element count: napi widens to BigInt, C++ to size_t, the stub to int.
+# The accessor is expanded from the config table, so no Rust `fn` names it
+# for the `python` and `ts_napi` lanes to read; the shipped `.pyi` and
+# `index.d.ts` lanes pin its type.
 [method.signature]
 returns = "usize"
+skip_langs = ["python", "ts_napi"]
 
 [[method]]
 class = "Config"
