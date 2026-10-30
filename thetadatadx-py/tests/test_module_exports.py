@@ -26,10 +26,9 @@ import pytest
 SRC_DIR = pathlib.Path(__file__).resolve().parents[1] / "src"
 
 
-# `#[pyclass(...)] <attrs> pub(crate)? struct <Name>` — matches the
-# same pyo3 sugar the no-collision regression test uses (file:
-# `test_no_pyclass_name_collisions.py`), kept in lockstep so the same
-# scanner powers both gates.
+# `#[pyclass(...)] <attrs> pub(crate)? struct <Name>`. Classes the macro
+# tables expand are declared and registered by the same expansion, so only
+# the hand-written ones need this scan.
 PYCLASS_RE = re.compile(
     r"#\[pyclass(?:\(([^)]*)\))?\][^{]*?"
     r"(?:pub(?:\(crate\))?\s+)?struct\s+(\w+)",
