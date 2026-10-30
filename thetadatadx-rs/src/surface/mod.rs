@@ -2,4 +2,5 @@
 
 mod endpoints;
 mod enums;
+mod events;
 mod ticks;

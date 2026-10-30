@@ -247,6 +247,10 @@ def collect_python_classes(py_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         for m in PYCLASS_RE.finditer(text):
             out.add(_python_name(m.group(1), m.group(2)))
+        # The streaming event classes are expanded from the event table, so
+        # the crate that expands `__events!` defines one class per event.
+        if "__events!" in text:
+            out |= _fpss_event_class_names()
     errors_rs = py_src / "errors.rs"
     if errors_rs.is_file():
         for m in re.finditer(r'm\.add\(\s*"(\w+)"\s*,', _read_source(errors_rs)):
@@ -1095,11 +1099,11 @@ def _is_implicitly_tracked(name: str, lang: str) -> bool:
             "SubscriptionRef",
         }:
             return True
-    # Streaming event payload classes are generated one-per-variant from
-    # `fpss_event_schema.toml`, so the set is read from that schema rather
-    # than restated here: a literal list silently stops covering the surface
-    # the moment a variant is added, which is the drift this scan exists to
-    # catch. The names below are the ones no schema declares.
+    # Streaming event payload classes are expanded one per event from the
+    # streaming event table, so the set is read from that table rather than
+    # restated here: a literal list silently stops covering the surface the
+    # moment an event is added, which is the drift this scan exists to catch.
+    # The names below are the ones the table does not declare.
     if name in _fpss_event_class_names() | {
         "Error",
         "UnknownControl",
@@ -1111,14 +1115,16 @@ def _is_implicitly_tracked(name: str, lang: str) -> bool:
 
 @functools.lru_cache(maxsize=1)
 def _fpss_event_class_names() -> frozenset[str]:
-    """Every `[events.<Variant>]` name in the FPSS event schema.
+    """Every event name in the streaming event table.
 
-    Each one is generated into a payload class on Python, TypeScript and C++,
-    so each is enrolled by construction rather than by a parity row.
+    Each one is expanded into a payload class on Python, TypeScript and C++,
+    so each is enrolled by construction rather than by a parity row. An entry
+    opens with its kind and name, `data Quote {` or `control Connected {`.
     """
-    schema = REPO_ROOT / "thetadatadx-rs/fpss_event_schema.toml"
-    data = tomllib.loads(schema.read_text(encoding="utf-8"))
-    return frozenset(data.get("events", {}))
+    table = REPO_ROOT / "thetadatadx-rs/src/surface/events.rs"
+    return frozenset(
+        re.findall(r"^\s*(?:data|control) ([A-Z]\w*) \{", table.read_text(encoding="utf-8"), re.M)
+    )
 
 
 def _declared_class_names_for_binding(rows: list[dict[str, Any]], lang: str) -> set[str]:
@@ -8004,7 +8010,7 @@ def _sig_check_method_signatures(
 def _check_fpss_event_surfaces() -> list[str]:
     """Every streaming event must reach the two hand-maintained surfaces.
 
-    `fpss_event_schema.toml` drives the generated structs for every binding,
+    The streaming event table drives the event structs for every binding,
     but two surfaces are written by hand and neither generator nor any other
     gate reads them: the `using Stream<Name> = ThetaDataDx...` aliases in
     `thetadatadx.hpp`, which are how a C++ caller names an event idiomatically,
@@ -8014,16 +8020,16 @@ def _check_fpss_event_surfaces() -> list[str]:
     and the Python class had no declared type, in the release that introduced
     the event.
     """
-    schema = REPO_ROOT / "thetadatadx-rs" / "fpss_event_schema.toml"
+    table = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "events.rs"
     cpp_hpp = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
     py_stub = REPO_ROOT / "thetadatadx-py" / "python" / "thetadatadx" / "__init__.pyi"
-    for path in (schema, cpp_hpp, py_stub):
+    for path in (table, cpp_hpp, py_stub):
         if not path.is_file():
             return [f"  missing {path.relative_to(REPO_ROOT)}; cannot check event surfaces"]
 
-    events = tomllib.loads(schema.read_text(encoding="utf-8")).get("events", {})
+    events = _fpss_event_class_names()
     if not events:
-        return ["  fpss_event_schema.toml declares no events; the schema or this check moved"]
+        return ["  thetadatadx-rs/src/surface/events.rs declares no events; the table or this check moved"]
 
     cpp_text = cpp_hpp.read_text(encoding="utf-8")
     py_text = py_stub.read_text(encoding="utf-8")
