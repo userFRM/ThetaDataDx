@@ -786,8 +786,6 @@ module.exports.ContractRef = nativeBinding.ContractRef
 // `require('thetadatadx-ts').Contract.stock(...)` resolves.
 module.exports.Contract = nativeBinding.ContractRef;
 module.exports.Credentials = nativeBinding.Credentials
-module.exports.FlatFileRowList = nativeBinding.FlatFileRowList
-module.exports.FlatFilesNamespace = nativeBinding.FlatFilesNamespace
 module.exports.MarketDataClient = nativeBinding.MarketDataClient
 module.exports.MarketDataView = nativeBinding.MarketDataView
 module.exports.RecordBatchStreamHandle = nativeBinding.RecordBatchStreamHandle

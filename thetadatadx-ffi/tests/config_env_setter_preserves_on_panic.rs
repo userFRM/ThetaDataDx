@@ -20,8 +20,8 @@ use std::ffi::{CStr, CString};
 
 use thetadatadx_ffi::{
     thetadatadx_config_free, thetadatadx_config_get_market_data_host,
-    thetadatadx_config_production, thetadatadx_config_set_flatfiles_connect_timeout_secs,
-    thetadatadx_config_set_market_data_host, thetadatadx_config_with_market_data_environment,
+    thetadatadx_config_production, thetadatadx_config_set_market_data_host,
+    thetadatadx_config_set_retry_max_attempts, thetadatadx_config_with_market_data_environment,
     thetadatadx_config_with_streaming_environment, thetadatadx_string_free,
 };
 
@@ -53,11 +53,11 @@ fn market_data_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     assert_eq!(rc, 0, "setting the custom host should succeed");
     assert_eq!(read_market_data_host(config), "custom.example.test");
 
-    // Raw-set a flat-file connect timeout of 0, which the consuming builder's
-    // `validate()` rejects (CONNECT_TIMEOUT_SECS range) -> `with_*` panics.
-    // SAFETY: `config` is still the live handle; this setter raw-writes a u64
+    // Raw-set a retry budget of 0, which the consuming builder's `validate()`
+    // rejects (at least one attempt) -> `with_*` panics.
+    // SAFETY: `config` is still the live handle; this setter raw-writes a u32
     // field through it and reads no pointer argument.
-    unsafe { thetadatadx_config_set_flatfiles_connect_timeout_secs(config, 0) };
+    unsafe { thetadatadx_config_set_retry_max_attempts(config, 0) };
 
     // The setter must catch the panic and return -1...
     // SAFETY: `config` is live; the i32 selector (1 == STAGE) is the only other
@@ -92,9 +92,9 @@ fn streaming_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     let rc = unsafe { thetadatadx_config_set_market_data_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0);
 
-    // SAFETY: `config` is still the live handle; this setter raw-writes a u64
+    // SAFETY: `config` is still the live handle; this setter raw-writes a u32
     // field through it and reads no pointer argument.
-    unsafe { thetadatadx_config_set_flatfiles_connect_timeout_secs(config, 0) };
+    unsafe { thetadatadx_config_set_retry_max_attempts(config, 0) };
 
     // SAFETY: `config` is live; the i32 selector (1 == DEV) is the only other
     // argument and carries no pointer.

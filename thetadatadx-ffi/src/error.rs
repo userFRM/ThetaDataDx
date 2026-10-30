@@ -183,9 +183,7 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
             }
             _ => THETADATADX_ERR_STREAM,
         },
-        Error::FlatFilesUnavailable(_)
-        | Error::PartialReconnect { .. }
-        | Error::PartialShardFetch { .. } => THETADATADX_ERR_STREAM,
+        Error::PartialReconnect { .. } | Error::PartialShardFetch { .. } => THETADATADX_ERR_STREAM,
         _ => THETADATADX_ERR_OTHER,
     }
 }
@@ -461,17 +459,6 @@ mod tests {
             error_code_for(&thetadatadx::Error::config_missing("ffi")),
             THETADATADX_ERR_INVALID_PARAMETER
         );
-        // The flat-file dataset gate rejects an unserved (security,
-        // request) pair with a `config_invalid` error, so the C-ABI
-        // surfaces it as the dedicated invalid-parameter discriminant —
-        // the same code C++ maps onto its invalid-argument exception.
-        assert_eq!(
-            error_code_for(&thetadatadx::Error::config_invalid(
-                "flatfiles.dataset",
-                "flat-file service does not serve stock open_interest"
-            )),
-            THETADATADX_ERR_INVALID_PARAMETER
-        );
         // Environmental config faults stay on the generic config code.
         assert_eq!(
             error_code_for(&thetadatadx::Error::config_io("file not found")),
@@ -524,18 +511,6 @@ mod tests {
         assert_eq!(
             thetadatadx_last_error_retry_after_ms(),
             THETADATADX_RETRY_AFTER_NONE
-        );
-    }
-
-    #[test]
-    fn flatfiles_unavailable_routes_to_stream() {
-        assert_eq!(
-            error_code_for(&thetadatadx::Error::FlatFilesUnavailable(
-                thetadatadx::flatfiles::FlatFilesUnavailableReason::RequestRejected {
-                    server_message: "no subscription".into(),
-                },
-            )),
-            THETADATADX_ERR_STREAM
         );
     }
 

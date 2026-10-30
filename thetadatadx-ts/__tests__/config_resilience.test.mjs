@@ -2,8 +2,7 @@
 // with Python / C++ / FFI. Pins defaults and setter/getter round-trips
 // for the reconnect cadence ladder, jitter, budgets + wall-clock
 // envelope, replay pacing, the streaming transport knobs, the market-data
-// retry envelope, the flatfile jitter toggle, and the custom reconnect
-// callback registration.
+// retry envelope, and the custom reconnect callback registration.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Config } from "../index.js";
@@ -99,11 +98,3 @@ test("retry envelope defaults and round-trip", () => {
   assert.equal(cfg.retryMaxElapsedSecs, 0n);
 });
 
-test("flatfiles budget defaults and jitter round-trip", () => {
-  const cfg = Config.production();
-  assert.equal(cfg.flatfilesMaxAttempts, 10);
-  assert.equal(cfg.flatfilesMaxBackoffSecs, 30n);
-  assert.equal(cfg.flatfilesJitter, true);
-  cfg.setFlatfilesJitter(false);
-  assert.equal(cfg.flatfilesJitter, false);
-});

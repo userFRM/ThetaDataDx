@@ -25,7 +25,7 @@
 //! # Surface
 //!
 //! Internally this pyclass wraps an `Arc<thetadatadx::Client>`
-//! and forwards historical / list / snapshot / at-time / FLATFILES
+//! and forwards historical / list / snapshot / at-time / flat-file
 //! endpoint calls through PyO3 attribute lookup against an internally
 //! held [`crate::Client`] pyclass instance. The bundled
 //! client opens the market-data channel + Nexus at construction time and never
@@ -40,7 +40,6 @@
 use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
 
-use crate::flatfile_methods::FlatFilesNamespace;
 use crate::{Client, Config, Credentials};
 
 /// Methods on the `client.stream` [`crate::StreamView`] surface (plus
@@ -50,11 +49,11 @@ use crate::{Client, Config, Credentials};
 /// streaming connection that would conflict with a parallel streaming process.
 ///
 /// The block-list approach (vs. the inverted `AsyncClient`
-/// allowlist) keeps the market-data / FLATFILES surface — which is
-/// 50+ generated `*_builder` factories plus per-endpoint sync and
-/// async terminals — accessible without listing each one. Adding a
-/// new market-data endpoint to `Client` is automatically
-/// available on `MarketDataClient` with zero edit here.
+/// allowlist) keeps the market-data surface (50+ generated `*_builder`
+/// factories plus per-endpoint sync and async terminals) accessible
+/// without listing each one. Adding a new market-data endpoint to
+/// `Client` is automatically available on `MarketDataClient` with zero
+/// edit here.
 ///
 /// Drift guard: the streaming methods are covered by the offline coverage
 /// test in
@@ -100,7 +99,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
 /// Opens ONLY the market-data channel, no streaming TLS connection.
 /// Authenticates once against Nexus at construction time. Use when a
 /// parallel streaming process is already running in the same environment
-/// and you need to test market-data / FLATFILES endpoints without the
+/// and you need to test market-data endpoints without the
 /// bundled [`crate::Client`] also opening a streaming slot.
 ///
 /// ```python
@@ -174,8 +173,8 @@ impl MarketDataClient {
     /// Block-list applied first: every streaming-touching method raises
     /// `AttributeError` so a market-data-only handle cannot accidentally
     /// race a parallel streaming process. Everything else (market-data
-    /// endpoints, FLATFILES, snapshot / list / at-time builders,
-    /// `flat_files` namespace) reaches the unified client transparently.
+    /// endpoints, flat files, snapshot / list / at-time builders) reaches the
+    /// unified client transparently.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if FPSS_TOUCHING_METHODS.contains(&name) {
             return Err(PyAttributeError::new_err(format!(
@@ -188,9 +187,8 @@ impl MarketDataClient {
         // Market-data endpoints (sync, `*_async`, `*_builder`) live on the
         // `client.market_data` `MarketDataView` surface; resolve there first
         // so `mdds.stock_history_eod(...)` keeps its flat call shape. The
-        // FLATFILES surface (`flat_files`, `dump_*`) and the remaining
-        // market-data-session accessors stay on `Client` and resolve through
-        // the fallback.
+        // remaining market-data-session accessors stay on `Client` and resolve
+        // through the fallback.
         let market_data = bound.getattr("market_data")?;
         if let Ok(attr) = market_data.getattr(name) {
             return Ok(attr.unbind());
@@ -205,17 +203,6 @@ impl MarketDataClient {
         // is always connected by construction (the constructor errored
         // out otherwise).
         "MarketDataClient(connected)".to_string()
-    }
-
-    /// Flat-file namespace handle. Flat files are account-authenticated
-    /// market data with no streaming leg, so the market-data-only client
-    /// reaches the identical surface as the unified client. An explicit
-    /// accessor (rather than the `__getattr__` forward) so the cross-binding
-    /// parity contract can pin it statically. Forwards to the wrapped unified
-    /// client's `flat_files` namespace.
-    #[getter]
-    fn flat_files(&self, py: Python<'_>) -> PyResult<FlatFilesNamespace> {
-        self.inner.borrow(py).flat_files()
     }
 
     /// Deterministically close the market-data client.

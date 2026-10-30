@@ -23,13 +23,12 @@
 //!
 //! # Layout
 //!
-//! [`DirectConfig`] is composed of eight nested sub-configs:
+//! [`DirectConfig`] is composed of seven nested sub-configs:
 //!
 //! | Field           | Type                                                |
 //! |-----------------|-----------------------------------------------------|
 //! | `market_data`  | [`MarketDataConfig`] — gRPC host/port/TLS/keepalive       |
 //! | `streaming`     | [`StreamingConfig`] — TCP hosts, queue/ring  |
-//! | `flatfiles`     | [`FlatFilesConfig`] — FLATFILES retry budget        |
 //! | `reconnect`     | [`ReconnectConfig`] — wait cadence + policy         |
 //! | `retry`         | [`RetryPolicy`] — exponential backoff for market-data |
 //! | `auth`          | [`AuthConfig`] — Nexus URL + `client_type`          |
@@ -39,7 +38,6 @@
 mod auth;
 mod env;
 mod environment;
-mod flatfiles;
 mod fpss;
 mod mdds;
 mod metrics;
@@ -55,7 +53,6 @@ pub use env::{
     ENV_NEXUS_URL, ENV_STREAMING_HOST, ENV_STREAMING_PORT, ENV_STREAMING_TYPE,
 };
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
-pub use flatfiles::{FlatFilesConfig, bounds as flatfiles_bounds};
 pub use fpss::{StreamingConfig, WaitMode, bounds as streaming_bounds};
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use mdds::{BulkFetchPolicy, MarketDataConfig};
@@ -75,9 +72,9 @@ pub use crate::backoff::JitterMode;
 ///
 /// # Layout
 ///
-/// Fields are grouped into eight nested sub-configs ([`MarketDataConfig`],
-/// [`StreamingConfig`], [`FlatFilesConfig`], [`ReconnectConfig`], [`RetryPolicy`],
-/// [`AuthConfig`], [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
+/// Fields are grouped into seven nested sub-configs ([`MarketDataConfig`],
+/// [`StreamingConfig`], [`ReconnectConfig`], [`RetryPolicy`], [`AuthConfig`],
+/// [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
 /// preserve the field-style naming used by older callers; writes go through
 /// the nested struct (e.g. `cfg.streaming.ring_size = N`).
 ///
@@ -162,8 +159,6 @@ pub struct DirectConfig {
     pub market_data: MarketDataConfig,
     /// Streaming tuning.
     pub streaming: StreamingConfig,
-    /// FLATFILES retry tuning.
-    pub flatfiles: FlatFilesConfig,
     /// Reconnection cadence + policy.
     pub reconnect: ReconnectConfig,
     /// Market-data retry policy.
@@ -278,7 +273,6 @@ impl DirectConfig {
         Self {
             market_data: MarketDataConfig::production_defaults(),
             streaming: StreamingConfig::production_defaults(),
-            flatfiles: FlatFilesConfig::production_defaults(),
             reconnect: ReconnectConfig::production_defaults(),
             retry: RetryPolicy::default(),
             auth: AuthConfig::production_defaults(),
@@ -916,8 +910,7 @@ impl DirectConfig {
         }
         // A retry policy runs at least one attempt: `0` is never a meaningful
         // budget (the request path floors it to 1 deep inside the loop). Reject
-        // it here so every binding fails fast and identically, the same way the
-        // `flatfiles.max_attempts` budget is floor-checked below.
+        // it here so every binding fails fast and identically.
         if self.retry.max_attempts == 0 {
             return Err(Error::config_invalid(
                 "retry.max_attempts",
@@ -925,8 +918,8 @@ impl DirectConfig {
             ));
         }
         // Market-data retry policy: the backoff ceiling cannot sit below the
-        // initial delay (mirrors the flatfiles `max_backoff >= initial_backoff`
-        // invariant), or the exponential ladder would start above its own cap.
+        // initial delay, or the exponential ladder would start above its own
+        // cap.
         if self.retry.max_delay < self.retry.initial_delay {
             return Err(Error::config_invalid(
                 "retry.max_delay",
@@ -1009,15 +1002,14 @@ impl DirectConfig {
             self.market_data.host = trimmed_host.to_string();
         }
         // Market-data TCP+TLS connect timeout must be positive: a `0` makes
-        // every channel-pool connect time out on its first poll. Band-checked
-        // against the same range as the flat-file connect timeout it mirrors.
-        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.market_data.connect_timeout_secs)
+        // every channel-pool connect time out on its first poll.
+        if !MarketDataConfig::CONNECT_TIMEOUT_SECS.contains(&self.market_data.connect_timeout_secs)
         {
             return Err(Error::config_out_of_range(
                 "market_data.connect_timeout_secs",
                 to_i64(self.market_data.connect_timeout_secs),
-                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.start()),
-                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.end()),
+                to_i64(*MarketDataConfig::CONNECT_TIMEOUT_SECS.start()),
+                to_i64(*MarketDataConfig::CONNECT_TIMEOUT_SECS.end()),
             ));
         }
         // Inbound gRPC message size is a pre-allocated decode budget: a `0`
@@ -1040,48 +1032,6 @@ impl DirectConfig {
         // holds even for callers who never run `validate` — the connect paths
         // and the SDK bindings pass unvalidated config snapshots. Flooring only
         // here would leave those paths exposed.
-        if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
-            return Err(Error::config_out_of_range(
-                "flatfiles.max_attempts",
-                i64::from(self.flatfiles.max_attempts),
-                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.start()),
-                i64::from(*flatfiles_bounds::MAX_ATTEMPTS.end()),
-            ));
-        }
-        if self.flatfiles.max_attempts > 1 && self.flatfiles.initial_backoff.is_zero() {
-            return Err(Error::config_invalid(
-                "flatfiles.initial_backoff",
-                "initial_backoff must be non-zero when max_attempts > 1".to_string(),
-            ));
-        }
-        if self.flatfiles.max_backoff < self.flatfiles.initial_backoff {
-            return Err(Error::config_invalid(
-                "flatfiles.max_backoff",
-                format!(
-                    "max_backoff ({:?}) must be >= initial_backoff ({:?})",
-                    self.flatfiles.max_backoff, self.flatfiles.initial_backoff
-                ),
-            ));
-        }
-        // Flat-file HTTP timeouts must be positive: a `0` connect or read
-        // timeout aborts every request instantly. Band-checked up front like
-        // the streaming timeouts.
-        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.flatfiles.connect_timeout_secs) {
-            return Err(Error::config_out_of_range(
-                "flatfiles.connect_timeout_secs",
-                to_i64(self.flatfiles.connect_timeout_secs),
-                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.start()),
-                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.end()),
-            ));
-        }
-        if !flatfiles_bounds::READ_TIMEOUT_SECS.contains(&self.flatfiles.read_timeout_secs) {
-            return Err(Error::config_out_of_range(
-                "flatfiles.read_timeout_secs",
-                to_i64(self.flatfiles.read_timeout_secs),
-                to_i64(*flatfiles_bounds::READ_TIMEOUT_SECS.start()),
-                to_i64(*flatfiles_bounds::READ_TIMEOUT_SECS.end()),
-            ));
-        }
         Ok(self)
     }
 
@@ -2376,16 +2326,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_zero_flatfiles_connect_timeout() {
-        let mut config = DirectConfig::production_defaults();
-        config.flatfiles.connect_timeout_secs = 0;
-        let err = config
-            .validate()
-            .expect_err("must reject zero connect timeout");
-        assert!(err.to_string().contains("connect_timeout_secs"));
-    }
-
-    #[test]
     fn validate_rejects_zero_market_data_connect_timeout() {
         let mut config = DirectConfig::production_defaults();
         config.market_data.connect_timeout_secs = 0;
@@ -2440,16 +2380,6 @@ mod tests {
                 .expect_err("zero initial delay with retries enabled bursts")
                 .to_string()
                 .contains("retry.initial_delay")
-        );
-
-        let mut ff = DirectConfig::production_defaults();
-        ff.flatfiles.initial_backoff = std::time::Duration::ZERO;
-        ff.flatfiles.max_attempts = 5;
-        assert!(
-            ff.validate()
-                .expect_err("zero initial backoff with retries enabled bursts")
-                .to_string()
-                .contains("flatfiles.initial_backoff")
         );
     }
 

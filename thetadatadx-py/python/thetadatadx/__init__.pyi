@@ -256,18 +256,6 @@ class Config:
     """Wall-clock envelope, in seconds, bounding the market-data-request retry loop (default 300; ``0`` disables the envelope)."""
     retry_jitter: bool
     """Whether jitter is applied to market-data-request retry delays (default ``True``)."""
-    flatfiles_max_attempts: int
-    """Maximum retry attempts for the flat-file driver (default 10, validated ``1..=100``)."""
-    flatfiles_initial_backoff_secs: int
-    """Initial back-off, in seconds, of the flat-file driver retry loop (default 1)."""
-    flatfiles_max_backoff_secs: int
-    """Ceiling back-off, in seconds, of the flat-file driver retry loop (default 30)."""
-    flatfiles_jitter: bool
-    """Whether jitter is applied to flat-file driver retry delays (default ``True``)."""
-    flatfiles_connect_timeout_secs: int
-    """TCP + TLS connect timeout, in seconds, for one flat-file host attempt (default 10)."""
-    flatfiles_read_timeout_secs: int
-    """Read timeout, in seconds, for a single flat-file response frame (default 60)."""
     nexus_url: str
     """Authentication endpoint URL (defaults to the production endpoint)."""
     client_type: str
@@ -7298,44 +7286,6 @@ class Client:
         traceback: Optional[object] = None,
     ) -> bool: ...
 
-    # FLATFILES namespace getter + direct-to-disk helper.
-    @property
-    def flat_files(self) -> FlatFilesNamespace:
-        """The flat-files namespace for bulk per-day file requests."""
-        ...
-    def flatfile_to_path(
-        self,
-        sec_type: str,
-        req_type: str,
-        date: str,
-        path: str,
-        format: Optional[str] = None,
-    ) -> str:
-        """Pull a flat-file blob and write it to ``path`` without decoding
-        rows.
-
-        ``sec_type`` / ``req_type`` accept the same strings as
-        ``flat_files.request(...)``; ``format`` is ``"csv"`` (default) or
-        ``"jsonl"``. Returns the final on-disk path (extension
-        auto-appended if absent).
-        """
-        ...
-    def flatfile_to_path_async(
-        self,
-        sec_type: str,
-        req_type: str,
-        date: str,
-        path: str,
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Awaitable twin of :py:meth:`flatfile_to_path`.
-
-        Resolves the blob download off the calling thread so a running
-        event loop keeps servicing other coroutines while the file streams
-        to disk. Yields the final on-disk path.
-        """
-        ...
-
     def __repr__(self) -> str:
         """Return a representation including market-data and streaming state."""
         ...
@@ -7885,121 +7835,6 @@ class StreamingSession:
             AttributeError: If ``name`` is not available on the bound
                 client.
         """
-        ...
-
-
-@final
-class FlatFileRowList:
-    """Typed list of flat-file rows. One row per `(symbol, date, ...)`."""
-
-    def __len__(self) -> int:
-        """Return the number of rows."""
-        ...
-
-    def __bool__(self) -> bool:
-        """Return whether the list holds at least one row."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation (e.g. ``"FlatFileRowList(128 rows)"``)."""
-        ...
-
-    def to_list(self) -> List[Any]:
-        """Return the rows as a list of dicts, one dict per row."""
-        ...
-
-    def to_arrow(self) -> Any:
-        """Return the rows as a ``pyarrow.Table``."""
-        ...
-
-    def to_pandas(self) -> Any:
-        """Return the rows as a ``pandas.DataFrame``. Requires pandas and pyarrow."""
-        ...
-
-    def to_polars(self) -> Any:
-        """Return the rows as a ``polars.DataFrame``. Requires polars and pyarrow."""
-        ...
-
-
-@final
-class FlatFilesNamespace:
-    """Namespace accessor returned by :py:attr:`Client.flat_files`.
-
-    Each method maps one ``(SecType, ReqType)`` pair to a
-    :class:`FlatFileRowList`. The wildcard :py:meth:`request` dispatches
-    dynamically by string identifiers.
-
-    Every fetch carries an ``*_async`` twin returning an awaitable. A
-    flat-file pull is a full-day blob download that takes seconds; the
-    plain methods run that to completion on the calling thread, which is
-    right for a :class:`Client` call but would stall a running event loop
-    when reached through :py:attr:`AsyncClient.flat_files`. Inside a
-    coroutine, ``await flat_files.option_eod_async(date)`` resolves the
-    download without blocking the loop and yields the same
-    :class:`FlatFileRowList`.
-    """
-
-    def option_trade_quote(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_open_interest(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-open-interest flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_eod(self, date: str) -> FlatFileRowList:
-        """Return the decoded option-EOD flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_trade_quote(self, date: str) -> FlatFileRowList:
-        """Return the decoded stock-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_eod(self, date: str) -> FlatFileRowList:
-        """Return the decoded stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def request(self, sec_type: str, req_type: str, date: str) -> FlatFileRowList:
-        """Return a decoded flat file selected by string identifiers.
-
-        Args:
-            sec_type: Security type, e.g. ``"OPTION"`` / ``"STOCK"``.
-            req_type: Request type, e.g. ``"TRADE_QUOTE"`` / ``"EOD"``.
-            date: The trading day as a ``YYYYMMDD`` string.
-
-        Returns:
-            The decoded :class:`FlatFileRowList`.
-
-        Raises:
-            InvalidParameterError: If the ``(sec_type, req_type)`` pair is
-                not one the flat-file distribution serves.
-        """
-        ...
-
-    def option_trade_quote_async(self, date: str) -> Awaitable[FlatFileRowList]:
-        """Awaitable option-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_open_interest_async(self, date: str) -> Awaitable[FlatFileRowList]:
-        """Awaitable option-open-interest flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def option_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
-        """Awaitable option-EOD flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_trade_quote_async(self, date: str) -> Awaitable[FlatFileRowList]:
-        """Awaitable stock-trade-quote flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def stock_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
-        """Awaitable stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
-        ...
-
-    def request_async(
-        self, sec_type: str, req_type: str, date: str
-    ) -> Awaitable[FlatFileRowList]:
-        """Awaitable twin of :py:meth:`request`, resolved off the event loop."""
         ...
 
 

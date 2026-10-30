@@ -12,52 +12,8 @@
 //! complete, so a failed or cancelled download never leaves a partial file under
 //! that name. A path without an extension gets the format's.
 
-pub(crate) mod datatype;
-pub(crate) mod decode;
-pub(crate) mod decoded;
-pub(crate) mod decoded_row;
-pub(crate) mod format;
-pub(crate) mod framing;
-pub(crate) mod index;
-pub(crate) mod mdds_spki;
+mod format;
 mod render;
-pub(crate) mod request;
-pub(crate) mod session;
-pub(crate) mod types;
-pub(crate) mod writer;
-
-/// Dynamic-schema Arrow conversion for [`FlatFileRow`] collections.
-///
-/// Gated behind the `arrow` feature. Exposed as `pub` (not `pub(crate)`) so
-/// the language bindings (Python, TypeScript, C++ FFI) can route their
-/// `to_arrow` terminals through one SSOT implementation rather than
-/// re-deriving the schema on each surface.
-#[cfg(feature = "arrow")]
-pub mod arrow;
-
-pub use decoded::{
-    flatfile_request, flatfile_request_decoded, flatfile_request_decoded_with_config,
-    flatfile_request_with_config,
-};
-pub use decoded_row::{FlatFileRow, FlatFileValue};
-pub use request::{flatfile_request_raw, flatfile_request_raw_with_config};
-pub use types::{FlatFilesUnavailableReason, ReqType, SERVED_DATASETS, SecType, flat_file_serves};
-
-/// Decode an already-saved raw FLATFILES blob into a typed output file.
-///
-/// Test-facing helper used by the byte-match integration suite to share
-/// one live capture across CSV / JSONL smoke tests without hitting the
-/// wire twice. Compiled only with the private `__test-helpers` feature.
-#[cfg(feature = "__test-helpers")]
-#[doc(hidden)]
-pub fn decoded_decode_to_file_for_test(
-    raw_path: &std::path::Path,
-    sec: SecType,
-    output_path: &std::path::Path,
-    format: FlatFileFormat,
-) -> Result<(), crate::error::Error> {
-    decoded::decode_to_file(raw_path, sec, output_path, format)
-}
 
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -82,13 +38,13 @@ use crate::util::random_id::random_id_hex;
 /// or a dropped, cancelled future) where a single post-await cleanup line
 /// would be skipped on cancellation. Cleanup is best-effort and ignores a
 /// missing file; the unlink is one synchronous syscall, so `Drop` can do it.
-pub(crate) struct ScratchGuard {
+struct ScratchGuard {
     path: PathBuf,
     armed: bool,
 }
 
 impl ScratchGuard {
-    pub(crate) fn new(path: impl Into<PathBuf>) -> Self {
+    fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
             armed: true,
@@ -96,7 +52,7 @@ impl ScratchGuard {
     }
 
     /// Cancel removal: the file has been renamed onto its final name.
-    pub(crate) fn disarm(&mut self) {
+    fn disarm(&mut self) {
         self.armed = false;
     }
 }

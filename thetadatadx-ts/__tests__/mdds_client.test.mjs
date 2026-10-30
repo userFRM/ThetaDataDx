@@ -101,16 +101,12 @@ describe('MarketDataClient carries the market-data surface', () => {
     // The `connect` / `connectFromFile` static factories are lifecycle
     // constructors that live only on the standalone client; the
     // `MarketDataView` is reached through `client.marketData` and has no
-    // constructor of its own. The flat-files surface is a hand-written
-    // client-level member that lives on the unified `Client` itself, not on
-    // its `client.marketData` view, so it is mirrored onto `MarketDataClient`
-    // directly and pinned against the unified `Client` in its own block
-    // above. `close` is a client-lifecycle method (deterministic teardown)
-    // that lives on the standalone `MarketDataClient` but not on the
-    // `client.marketData` sub-view — you close the owning `Client`, not its
-    // view — so it is likewise excluded. Exclude all so this comparison pins
-    // the generated data-fetch surface.
-    const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath', 'close']);
+    // constructor of its own. `close` is a client-lifecycle method
+    // (deterministic teardown) that lives on the standalone
+    // `MarketDataClient` but not on the `client.marketData` sub-view (you
+    // close the owning `Client`, not its view), so it is likewise excluded.
+    // Exclude all so this comparison pins the generated data-fetch surface.
+    const LIFECYCLE = new Set(['connect', 'connectFromFile', 'close']);
     // Every data-fetch method the MDDS-only client exposes must also exist
     // on the unified client's `client.marketData` view — the market-data
     // surface is generated identically onto both, so the MDDS set is a
@@ -122,61 +118,6 @@ describe('MarketDataClient carries the market-data surface', () => {
         `MarketDataClient method ${name} is missing from MarketDataView — the two market-data surfaces have drifted`
       );
     }
-  });
-});
-
-describe('MarketDataClient exposes the flat-files surface its contract promises', () => {
-  // The class docstring states the historical / list / snapshot / at-time /
-  // flat-files surface is identical to the unified client. The flat-file
-  // entry points must therefore be reachable here, matching the unified
-  // `Client` and the Python `MarketDataClient`, which delegates to its
-  // wrapped client. A market-data-only handle opens the same data channel,
-  // so the namespace and the to-path writer are client-agnostic.
-  const FLATFILE_GETTER = 'flatFiles';
-  const FLATFILE_METHOD = 'flatFileToPath';
-
-  it('declares the flatFiles getter in index.d.ts', () => {
-    assert.match(
-      mddsBlock[0],
-      /get flatFiles\(\): FlatFilesNamespace/,
-      'MarketDataClient must declare the flatFiles getter in index.d.ts'
-    );
-  });
-
-  it('declares the flatFileToPath method in index.d.ts', () => {
-    const methods = methodNames(mddsBlock[0]);
-    assert.ok(
-      methods.has(FLATFILE_METHOD),
-      'MarketDataClient must declare flatFileToPath in index.d.ts'
-    );
-  });
-
-  it('exposes both flat-file members on the loaded addon prototype', () => {
-    const proto = mod.MarketDataClient.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, FLATFILE_GETTER);
-    assert.equal(
-      typeof descriptor?.get,
-      'function',
-      'MarketDataClient.flatFiles must be an accessor on the prototype'
-    );
-    assert.equal(
-      typeof proto[FLATFILE_METHOD],
-      'function',
-      'MarketDataClient.flatFileToPath must be a method on the prototype'
-    );
-  });
-
-  it('matches the unified Client flat-file surface (control)', () => {
-    const clientBlock = dts.match(/export declare class Client \{[\s\S]*?\n\}/);
-    assert.match(
-      clientBlock[0],
-      /get flatFiles\(\): FlatFilesNamespace/,
-      'the unified Client must retain the flatFiles getter'
-    );
-    assert.ok(
-      methodNames(clientBlock[0]).has(FLATFILE_METHOD),
-      'the unified Client must retain flatFileToPath'
-    );
   });
 });
 

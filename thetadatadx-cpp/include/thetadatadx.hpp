@@ -981,8 +981,6 @@ private:
 /// (`ThetaDataDxMarketDataClient*`), freed automatically on destruction. The recommended
 /// entry point for pure-market-data access; the generated market-data query
 /// methods are mixed in from `market_data.hpp.inc`.
-class FlatFiles;
-
 class MarketDataClient {
 public:
     /** Connect a market-data client to ThetaData servers.
@@ -1014,17 +1012,6 @@ public:
      *  `Client` lifecycle. Idempotent: a second call is a no-op and the
      *  destructor after `close` frees nothing. */
     void close() { handle_.reset(); }
-
-    /** Flat-file namespace view for this market-data client.
-     *
-     *  Flat files are account-authenticated market data, so the standalone
-     *  market-data client reaches the identical surface as the unified
-     *  `Client::flat_files()`. The returned `FlatFiles` value co-owns this
-     *  client's handle (`shared_ptr`), so it stays valid even if this client is
-     *  closed or destroyed while the view (or an in-flight call on it) is still
-     *  alive — hence plain `const`, safe on a temporary. Defined out-of-line
-     *  below once `FlatFiles` is complete. */
-    FlatFiles flat_files() const;
 
     #include "market_data.hpp.inc"
 
@@ -1405,168 +1392,6 @@ private:
     std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
     std::unique_ptr<ThetaDataDxStreamHandle, StreamingHandleDeleter> handle_;
 };
-
-// ── FLATFILES surface ────────────────────────────────────────────────
-//
-// Thin RAII wrappers over the C ABI in `thetadatadx.h`. The dynamic schema
-// (one column set per (sec_type, req_type)) is opaque on the C++ side
-// — typed access is via the Arrow IPC bytes returned by
-// `FlatFileRowList::to_arrow_ipc()`. Pair with arrow-cpp on the
-// consumer side to materialise an `arrow::Table`.
-
-/// `unique_ptr` deleter that releases a `ThetaDataDxFlatFileRowList*` via
-/// `thetadatadx_flatfile_rowlist_free`.
-struct FlatFileRowListDeleter {
-    void operator()(ThetaDataDxFlatFileRowList* p) const {
-        if (p) thetadatadx_flatfile_rowlist_free(p);
-    }
-};
-
-/// RAII wrapper around an opaque `ThetaDataDxFlatFileRowList*`. Move-only.
-/// Built by `FlatFiles::request(...)`; expose either Arrow IPC bytes
-/// via `to_arrow_ipc()` or use the free `to_path` variant on the
-/// owning `Client`.
-class FlatFileRowList {
-public:
-    FlatFileRowList(FlatFileRowList&&) = default;
-    FlatFileRowList& operator=(FlatFileRowList&&) = default;
-    FlatFileRowList(const FlatFileRowList&) = delete;
-    FlatFileRowList& operator=(const FlatFileRowList&) = delete;
-
-    /// Number of decoded rows. 0 on a moved-from / null handle.
-    size_t size() const noexcept {
-        return handle_ ? thetadatadx_flatfile_rows_count(handle_.get()) : 0;
-    }
-
-    /// Serialise the rows as Arrow IPC stream bytes. Throws on
-    /// schema-inference / serialisation failure. The returned vector
-    /// owns its memory; the underlying FFI buffer is freed before
-    /// return so the caller never has to invoke `thetadatadx_flatfile_bytes_free`.
-    std::vector<uint8_t> to_arrow_ipc() const {
-        if (!handle_) {
-            throw std::runtime_error("thetadatadx: FlatFileRowList moved-from");
-        }
-        ThetaDataDxFlatFileBytes raw = thetadatadx_flatfile_rows_to_arrow_ipc(handle_.get());
-        if (raw.data == nullptr) {
-            detail::throw_last_ffi_error();
-        }
-        std::vector<uint8_t> out(raw.data, raw.data + raw.len);
-        thetadatadx_flatfile_bytes_free(raw);
-        return out;
-    }
-
-    /// Raw handle accessor for advanced consumers that want to call
-    /// the C ABI directly (e.g. zero-copy bridges into custom Arrow
-    /// converters). Ownership remains with this object.
-    const ThetaDataDxFlatFileRowList* get() const noexcept { return handle_.get(); }
-
-private:
-    friend class FlatFiles;
-    explicit FlatFileRowList(ThetaDataDxFlatFileRowList* h) : handle_(h) {}
-    std::unique_ptr<ThetaDataDxFlatFileRowList, FlatFileRowListDeleter> handle_;
-};
-
-/// Namespace handle exposing the FLATFILES surface for a connected client
-/// (unified or standalone market-data). Cheap to construct — it shares
-/// ownership of the parent's handle via `shared_ptr`, so the view stays valid
-/// even if the originating client is closed or destroyed while the view (or an
-/// in-flight call on it) is still alive. The handle is freed only once the last
-/// owner — the client or any live `FlatFiles` — drops.
-class FlatFiles {
-public:
-    /// Generic dispatcher. `sec_type` is "OPTION" / "STOCK" / "INDEX";
-    /// `req_type` is "EOD" / "QUOTE" / "OPEN_INTEREST" / "OHLC" /
-    /// "TRADE" / "TRADE_QUOTE"; `date` is "YYYYMMDD". A `(sec_type,
-    /// req_type)` pair the flat-file distribution does not serve throws
-    /// a typed invalid-parameter error before any network round-trip.
-    FlatFileRowList request(const std::string& sec_type,
-                            const std::string& req_type,
-                            const std::string& date) const {
-        // One view type serves both clients: the market-data handle takes the
-        // `thetadatadx_market_data_*` entry, the unified handle the plain one.
-        ThetaDataDxFlatFileRowList* h =
-            md_handle_ != nullptr
-                ? thetadatadx_market_data_flatfile_request_decoded(
-                      md_handle_.get(), sec_type.c_str(), req_type.c_str(), date.c_str())
-                : thetadatadx_flatfile_request_decoded(
-                      handle_.get(), sec_type.c_str(), req_type.c_str(), date.c_str());
-        if (h == nullptr) {
-            detail::throw_last_ffi_error();
-        }
-        return FlatFileRowList(h);
-    }
-
-    // Convenience accessors cover exactly the datasets the flat-file
-    // distribution serves — option trade_quote / open_interest / eod,
-    // stock trade_quote / eod. Other request types are
-    // reachable via the market-data surface, not as flat files.
-    FlatFileRowList option_trade_quote(const std::string& date) const {
-        return request("OPTION", "TRADE_QUOTE", date);
-    }
-    FlatFileRowList option_open_interest(const std::string& date) const {
-        return request("OPTION", "OPEN_INTEREST", date);
-    }
-    FlatFileRowList option_eod(const std::string& date) const {
-        return request("OPTION", "EOD", date);
-    }
-    FlatFileRowList stock_trade_quote(const std::string& date) const {
-        return request("STOCK", "TRADE_QUOTE", date);
-    }
-    FlatFileRowList stock_eod(const std::string& date) const {
-        return request("STOCK", "EOD", date);
-    }
-
-    /// Pull a flat-file blob and write the requested vendor format
-    /// (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to
-    /// `path`. Throws on FFI failure.
-    void to_path(const std::string& sec_type,
-                 const std::string& req_type,
-                 const std::string& date,
-                 const std::string& path,
-                 const std::string& format = "csv") const {
-        int rc =
-            md_handle_ != nullptr
-                ? thetadatadx_market_data_flatfile_request_to_path(
-                      md_handle_.get(), sec_type.c_str(), req_type.c_str(),
-                      date.c_str(), path.c_str(), format.c_str())
-                : thetadatadx_flatfile_request_to_path(
-                      handle_.get(), sec_type.c_str(), req_type.c_str(),
-                      date.c_str(), path.c_str(), format.c_str());
-        if (rc != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-private:
-    friend class Client;
-    friend class MarketDataClient;
-    // Exactly one handle is non-null: the unified client sets `handle_`, the
-    // standalone market-data client sets `md_handle_`. Both reach the same
-    // account-authenticated flat-file distribution. The view co-owns the
-    // handle (`shared_ptr`), so closing or destroying the originating client
-    // cannot free a handle a live view still dispatches through.
-    //
-    // Unlike the streaming views, `FlatFiles` co-owns ONLY the handle, not the
-    // client's callback state. That is sound: the "last-handle-holder must also
-    // pin the callback" rule exists so a holder that keeps the event consumer
-    // firing past `close()` cannot outlive the callback storage. A flat-file
-    // call completes synchronously before it returns and starts no background
-    // delivery, so a `FlatFiles` outliving a streaming client only defers the
-    // handle release to a point already past `close()`'s consumer drain,
-    // touching no freed callback state. The market-data handle has no callback.
-    explicit FlatFiles(std::shared_ptr<const ThetaDataDxClient> h)
-        : handle_(std::move(h)) {}
-    explicit FlatFiles(std::shared_ptr<const ThetaDataDxMarketDataClient> h)
-        : md_handle_(std::move(h)) {}
-    std::shared_ptr<const ThetaDataDxClient> handle_;
-    std::shared_ptr<const ThetaDataDxMarketDataClient> md_handle_;
-};
-
-/// Out-of-line: `FlatFiles` is now a complete type, so the market-data
-/// client's accessor can return it by value co-owning the client's handle.
-inline FlatFiles MarketDataClient::flat_files() const {
-    return FlatFiles(handle_);
-}
 
 /// `unique_ptr` deleter that releases a `ThetaDataDxClient*` via `thetadatadx_client_free`.
 struct UnifiedDeleter {
@@ -2281,8 +2106,7 @@ class ClientBuilder;
 /// The unified handle owns both the market-data (gRPC) and
 /// streaming sub-clients. Market-data queries are reached through
 /// `client.market_data()` (the `MarketData` view) and the real-time
-/// streaming surface through `client.stream()` (the `Stream` view); the
-/// FLATFILES surface stays on the client directly via `flat_files()`. For
+/// streaming surface through `client.stream()` (the `Stream` view). For
 /// pure-market-data gRPC use, `MarketDataClient` remains the recommended
 /// entry point.
 class Client {
@@ -2406,16 +2230,6 @@ public:
         }
         return *this;
     }
-
-    /// Namespace handle for the FLATFILES surface. Cheap — the returned
-    /// `FlatFiles` value co-owns the underlying C ABI handle (`shared_ptr`),
-    /// so it stays valid even if this client is closed or destroyed while the
-    /// view (or an in-flight call on it) is still alive.
-    ///
-    /// Plain `const` (not ref-qualified): safe on a temporary, since the view
-    /// keeps the handle alive on its own — the same ownership contract as
-    /// `market_data()`.
-    FlatFiles flat_files() const { return FlatFiles(handle_); }
 
     /// Market-data sub-namespace: `client.market_data().stock_history_eod(...)`.
     ///
@@ -3530,8 +3344,8 @@ inline void StreamingClient::unsubscribe_many(
 // Generated Arrow-IPC terminals on the history result vectors
 // (`thetadatadx::eod_ticks_to_arrow_ipc(...)`, ...). Placed after the `detail`
 // namespace and the tick-type aliases so the wrappers can throw through
-// `detail::throw_last_ffi_error` on a serialisation failure. Mirrors
-// `FlatFileRowList::to_arrow_ipc()` and the Python columnar exit.
+// `detail::throw_last_ffi_error` on a serialisation failure. Mirrors the
+// Python columnar exit.
 #include "tick_arrow_ipc.hpp.inc"
 
 // ── Cross-language utility helpers ──────────────────────────────────────

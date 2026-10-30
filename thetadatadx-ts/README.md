@@ -230,8 +230,6 @@ Each file also writes straight to disk, exactly as the terminal writes it, throu
 const path = await client.marketData.optionFlatFileTradeQuoteToPath('20260428', 'trade_quotes.csv');
 ```
 
-The `flatFiles` view (`optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, `request(...)`) and `flatFileToPath(...)` read the vendor's older flat-file service, which serves five of those datasets and rejects an unserved `(security, request)` pair with a typed invalid-parameter error.
-
 ## Endpoint coverage
 
 81 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.

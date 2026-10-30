@@ -31,7 +31,7 @@ use crate::auth::Credentials;
 use crate::backoff::JitterMode;
 use crate::config::ReconnectPolicy;
 
-use super::pinning::{ALLOWED_FPSS_HOSTS, PinnedVerifier};
+use super::pinning::PinnedVerifier;
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
@@ -232,7 +232,7 @@ fn tls_client_config() -> Result<Arc<ClientConfig>, crate::error::Error> {
         ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
             .with_safe_default_protocol_versions()?
             .dangerous()
-            .with_custom_certificate_verifier(PinnedVerifier::new(ALLOWED_FPSS_HOSTS))
+            .with_custom_certificate_verifier(PinnedVerifier::new())
             .with_no_client_auth();
     Ok(Arc::new(config))
 }

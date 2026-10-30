@@ -50,9 +50,6 @@ PUBLIC_CLASSES = [
     "Connected",
     "Disconnected",
     "LoginSuccess",
-    # FlatFiles namespace
-    "FlatFilesNamespace",
-    "FlatFileRowList",
     # Typed exceptions — names mirror `thetadatadx-py/src/errors.rs`
     "ThetaDataError",
     "AuthenticationError",

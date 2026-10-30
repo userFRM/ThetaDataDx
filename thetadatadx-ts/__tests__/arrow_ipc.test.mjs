@@ -1,8 +1,7 @@
 // Arrow-IPC terminal on the history result rows (M.2).
 //
-// Mirrors the FlatFiles `FlatFileRowList.toArrowIpc()` exit for the typed
-// history rows: `<tick>ToArrowIpc(rows)` serialises an `Array<Tick>` to an
-// Arrow IPC stream so a TypeScript caller can hand the bytes to
+// The typed history rows' columnar exit: `<tick>ToArrowIpc(rows)`
+// serialises an `Array<Tick>` to an Arrow IPC stream so a TypeScript caller can hand the bytes to
 // `apache-arrow` — the same columnar exit Python exposes via
 // `<TickName>List.to_arrow()`. Offline: builds tick arrays in-process and
 // checks the serialiser returns a well-formed IPC stream (schema header)

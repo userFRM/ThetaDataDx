@@ -119,8 +119,8 @@ export declare const StreamingSession: {
  * Context-managed streaming session over a standalone {@link StreamingClient}.
  * Unlike {@link StreamingSession} (returned by the unified `Client.streaming`),
  * this wraps a `StreamingClient`, so it exposes the standalone streaming
- * surface only: it is NOT a `Client` and has no `marketData` / `flatFiles` /
- * `close` members. Returned by {@link StreamingClient.streaming}.
+ * surface only: it is NOT a `Client` and has no `marketData` / `close`
+ * members. Returned by {@link StreamingClient.streaming}.
  */
 export interface StandaloneStreamingSession extends StreamingClient {
   /** See {@link StreamingSession}'s async dispose. */

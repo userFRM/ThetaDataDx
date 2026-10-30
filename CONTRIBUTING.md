@@ -3,10 +3,10 @@
 Thank you for your interest in contributing. This guide covers everything
 you need to get started.
 
-The SDK speaks three independent ThetaData surfaces: MDDS (gRPC), FPSS
-(streaming), and FLATFILES (whole-universe daily blobs). When opening
-an issue or PR that touches any of them, name the surface in the title
-prefix: `feat(mdds): ...`, `feat(fpss): ...`, `feat(flatfiles): ...`.
+The SDK speaks two independent ThetaData services: MDDS (gRPC market
+data, the whole-universe flat files included) and FPSS (streaming). When
+opening an issue or PR, name the area in the title prefix:
+`feat(mdds): ...`, `feat(fpss): ...`, `feat(flatfiles): ...`.
 Cross-language binding parity is tracked under separate per-binding
 issues.
 

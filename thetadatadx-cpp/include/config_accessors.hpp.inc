@@ -226,19 +226,6 @@
         return out;
     }
 
-    /// Toggle AWS-style full jitter on the flatfile retry ladder.
-    /// Default true.
-    void set_flatfiles_jitter(bool jitter) {
-        thetadatadx_config_set_flatfiles_jitter(handle_.get(), jitter);
-    }
-
-    /// Current flatfiles jitter setting (default true).
-    bool get_flatfiles_jitter() const {
-        bool out{};
-        thetadatadx_config_get_flatfiles_jitter(handle_.get(), &out);
-        return out;
-    }
-
     /// Initial backoff delay (ms) for the market-data retry policy. Default 250.
     void set_retry_initial_delay_ms(std::uint64_t ms) {
         thetadatadx_config_set_retry_initial_delay_ms(handle_.get(), ms);
@@ -270,73 +257,6 @@
     bool get_retry_jitter() const {
         bool out{};
         thetadatadx_config_get_retry_jitter(handle_.get(), &out);
-        return out;
-    }
-
-    /// Total attempt budget for the flatfile driver retry loop.
-    /// 1 disables retry. Default 10. Validated to [1, 100].
-    void set_flatfiles_max_attempts(std::uint32_t n) {
-        thetadatadx_config_set_flatfiles_max_attempts(handle_.get(), n);
-    }
-
-    ///
-    std::uint32_t get_flatfiles_max_attempts() const {
-        std::uint32_t out{};
-        thetadatadx_config_get_flatfiles_max_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /// Initial backoff delay (seconds). Doubles per attempt up to
-    /// max_backoff_secs. Default 1.
-    void set_flatfiles_initial_backoff_secs(std::uint64_t secs) {
-        thetadatadx_config_set_flatfiles_initial_backoff_secs(handle_.get(), secs);
-    }
-
-    ///
-    std::uint64_t get_flatfiles_initial_backoff_secs() const {
-        std::uint64_t out{};
-        thetadatadx_config_get_flatfiles_initial_backoff_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /// Upper-bound backoff delay (seconds). Default 30. Must be >=
-    /// initial_backoff_secs (rejected at connect-time validate).
-    void set_flatfiles_max_backoff_secs(std::uint64_t secs) {
-        thetadatadx_config_set_flatfiles_max_backoff_secs(handle_.get(), secs);
-    }
-
-    ///
-    std::uint64_t get_flatfiles_max_backoff_secs() const {
-        std::uint64_t out{};
-        thetadatadx_config_get_flatfiles_max_backoff_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /// TCP + TLS connect timeout (seconds) for one flatfile-host attempt.
-    /// Bounds the connect/auth handshake before the next host (or the
-    /// retry ladder) takes over. Default 10.
-    void set_flatfiles_connect_timeout_secs(std::uint64_t secs) {
-        thetadatadx_config_set_flatfiles_connect_timeout_secs(handle_.get(), secs);
-    }
-
-    ///
-    std::uint64_t get_flatfiles_connect_timeout_secs() const {
-        std::uint64_t out{};
-        thetadatadx_config_get_flatfiles_connect_timeout_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /// Read timeout (seconds) for a single flatfile response frame. Bounds
-    /// the wait for the next chunk so a mid-stream stall fails over
-    /// instead of blocking forever. Default 60.
-    void set_flatfiles_read_timeout_secs(std::uint64_t secs) {
-        thetadatadx_config_set_flatfiles_read_timeout_secs(handle_.get(), secs);
-    }
-
-    ///
-    std::uint64_t get_flatfiles_read_timeout_secs() const {
-        std::uint64_t out{};
-        thetadatadx_config_get_flatfiles_read_timeout_secs(handle_.get(), &out);
         return out;
     }
 

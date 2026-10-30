@@ -257,6 +257,10 @@ impl MarketDataConfig {
     /// [`crate::config::DirectConfig::validate`] check enforces.
     pub(crate) const MAX_MESSAGE_SIZE_MB: usize = 64;
 
+    /// Allowed range (secs) for [`Self::connect_timeout_secs`]: a `0`
+    /// timeout fails every connect instantly; capped at five minutes.
+    pub(crate) const CONNECT_TIMEOUT_SECS: std::ops::RangeInclusive<u64> = 1..=300;
+
     /// Market-data hostname.
     ///
     /// Read accessor for the crate-private [`Self::host`] field. The host is

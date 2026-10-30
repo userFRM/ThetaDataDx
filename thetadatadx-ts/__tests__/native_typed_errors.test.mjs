@@ -18,18 +18,13 @@
 // variant (the prior `unwrap_or(Weekend)` / `chars().next()` truncation
 // corrupted data instead of failing loudly).
 //
-// And they pin the user-input validation parity on the `Config` setters
-// and the FLATFILES enum parsers: an invalid enum / out-of-range value
-// rejected by a hand-written guard before the call reaches the core
-// client must surface as `InvalidParameterError`, the same class the
-// Python binding raises (`ValueError`) for the identical bad input — so
-// a caller's `catch (e) { if (e instanceof InvalidParameterError) }`
-// branch ports across bindings. The `Config` cases are reachable
-// without a connection; the FLATFILES parsers sit on a connected
-// namespace, so that block builds a client from a credentials file and
-// skips when none is available (set `THETADATADX_TEST_CREDS` to point at
-// one), exercising only the synchronous enum parse that runs before any
-// network round-trip.
+// And they pin the user-input validation parity on the `Config` setters:
+// an invalid enum / out-of-range value rejected by a hand-written guard
+// before the call reaches the core client must surface as
+// `InvalidParameterError`, the same class the Python binding raises
+// (`ValueError`) for the identical bad input, so a caller's
+// `catch (e) { if (e instanceof InvalidParameterError) }` branch ports
+// across bindings. The `Config` cases are reachable without a connection.
 //
 // Loads the wrapped surface (`../streaming-session.js`), the package
 // `main`, so the assertions observe exactly what a consumer sees. When
@@ -44,12 +39,10 @@ import { fileURLToPath } from 'node:url';
 
 const wrapperImportPath = '../streaming-session.js';
 
-// Optional credentials file for the FLATFILES enum-parse block. The
-// parsers live on `client.flat_files` / `client.flatFileToPath`, which require
-// a built client; the enum parse itself is synchronous and runs before
-// any network I/O, so a connected client is enough to exercise it. When
-// no credentials file is present the block skips, keeping the suite
-// runnable offline and on CI.
+// Optional credentials file for the blocks that need a built client. Each
+// exercises only validation that runs synchronously before any network
+// I/O, so a connected client is enough. When no credentials file is
+// present those blocks skip, keeping the suite runnable offline and on CI.
 // `THETADATADX_TEST_CREDS` first, otherwise `creds.txt` at the repository
 // root. The fallback was an absolute path into one machine's home directory,
 // so this block skipped on every other checkout and on CI without saying why.
@@ -295,40 +288,6 @@ describe('Sequence-util wire-range input-validation parity (native)', () => {
   });
 });
 
-describe('FLATFILES enum-parse input-validation parity (native)', () => {
-  it('flatFiles.request with an unknown sec_type throws InvalidParameterError', async (t) => {
-    const mod = await loadWrapped();
-    if (!mod) return;
-    const client = await tryConnect(mod);
-    if (!client) {
-      t.skip('no credentials available to build a client for the FLATFILES surface');
-      return;
-    }
-
-    await assert.rejects(
-      () => client.flatFiles.request('BOGUS', 'QUOTE', '20260102'),
-      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
-      'an unknown flat-file sec_type must reclassify to InvalidParameterError, matching the Python ValueError',
-    );
-  });
-
-  it('flatFileToPath with an unknown req_type throws InvalidParameterError', async (t) => {
-    const mod = await loadWrapped();
-    if (!mod) return;
-    const client = await tryConnect(mod);
-    if (!client) {
-      t.skip('no credentials available to build a client for the FLATFILES surface');
-      return;
-    }
-
-    await assert.rejects(
-      () => client.flatFileToPath('OPTION', 'BOGUS', '20260102', '/tmp/thetadatadx-test.csv'),
-      (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
-      'an unknown flat-file req_type must reclassify to InvalidParameterError',
-    );
-  });
-});
-
 describe('timeoutMs input-validation parity (native)', () => {
   // `timeoutMs` rides in the per-endpoint options object as a JS `number`
   // (an IEEE-754 double). The integer-typed bindings (Python / C++ / C
@@ -507,7 +466,6 @@ describe('Config u32 setter input-validation parity (native)', () => {
   const zeroRefusedAtConnect = {
     setReconnectReplayBurstSize: 'reconnect.replay_burst_size',
     setRetryMaxAttempts: 'retry.max_attempts',
-    setFlatfilesMaxAttempts: 'flatfiles.max_attempts',
     setReconnectMaxAttempts: 'reconnect.max_attempts',
     setReconnectMaxRateLimitedAttempts: 'reconnect.max_rate_limited_attempts',
     setReconnectMaxServerRestartAttempts: 'reconnect.max_server_restart_attempts',

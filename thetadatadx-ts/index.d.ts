@@ -93,7 +93,7 @@ export declare class Client {
    * handle, and releases the registered callback back to V8. Taking the
    * handle out of its slot and dropping it frees the market-data gRPC channel
    * pool once no vended surface still co-owns it, and makes the client
-   * UNUSABLE — every subsequent `marketData` / `stream` / `flatFiles` access
+   * UNUSABLE: every subsequent `marketData` / `stream` access
    * rejects with "client is closed". Safe to call more than once (a second
    * close finds an empty slot and is a no-op) and safe on a client that only
    * ran market-data queries.
@@ -115,14 +115,6 @@ export declare class Client {
    * non-blocking release let the handle drop instead of calling `close()`.
    */
   close(): void
-  /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
-  get flatFiles(): FlatFilesNamespace
-  /**
-   * Pull a flat-file blob and write the requested format to `path`.
-   * Returns the final on-disk path with the format extension
-   * auto-appended if missing.
-   */
-  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): Promise<string>
 }
 
 /**
@@ -380,14 +372,6 @@ export declare class Config {
    */
   get retryMaxElapsedSecs(): bigint
   /**
-   * Toggle AWS-style full jitter on the flatfile retry ladder.
-   * Default `true`; `false` gives the deterministic schedule,
-   * useful for tests that assert exact timings.
-   */
-  setFlatfilesJitter(jitter: boolean): void
-  /** Current `flatfiles.jitter` value (default `true`). */
-  get flatfilesJitter(): boolean
-  /**
    * Set the initial backoff delay (ms) for the market-data-channel retry policy.
    * Default `250n`. Subsequent retries double from here, capped at
    * `retryMaxDelayMs`.
@@ -415,63 +399,6 @@ export declare class Config {
   setRetryJitter(jitter: boolean): void
   /** Current `retry.jitter` value. */
   get retryJitter(): boolean
-  /**
-   * Set the total attempt budget for the flatfile driver retry
-   * loop. `1` disables retry (single call only); higher values
-   * permit retries up to `maxAttempts - 1` after the initial call.
-   * Default `10`. Validated to the range `[1, 100]` at connect time.
-   */
-  setFlatfilesMaxAttempts(n: number): void
-  /** Current `flatfiles.max_attempts` value. */
-  get flatfilesMaxAttempts(): number
-  /**
-   * Set the initial backoff delay (seconds) for the flatfile
-   * driver retry loop. Doubles per attempt up to
-   * `flatfilesMaxBackoffSecs`. Default `1n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesInitialBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
-  get flatfilesInitialBackoffSecs(): bigint
-  /**
-   * Set the upper-bound backoff delay (seconds) for the flatfile
-   * driver retry loop. The doubling schedule never exceeds this
-   * value regardless of attempt number. Default `30n`. Must be
-   * greater than or equal to `flatfilesInitialBackoffSecs`
-   * (rejected at connect-time validate otherwise).
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesMaxBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
-  get flatfilesMaxBackoffSecs(): bigint
-  /**
-   * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
-   * attempt. Bounds the connect/auth handshake before the attempt is
-   * abandoned and the next host (or the retry ladder) takes over.
-   * Default `10n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesConnectTimeoutSecs(secs: bigint): void
-  /** Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt). */
-  get flatfilesConnectTimeoutSecs(): bigint
-  /**
-   * Set the read timeout (seconds) for a single flatfile response
-   * frame. Bounds the wait for the next chunk once streaming has begun
-   * so a mid-stream stall fails over instead of blocking forever.
-   * Default `60n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesReadTimeoutSecs(secs: bigint): void
-  /** Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt). */
-  get flatfilesReadTimeoutSecs(): bigint
   /**
    * Override the market-data gRPC port. Companion to `setMarketDataHost`:
    * same test-only rationale. Rejects values outside the `0..=65535`
@@ -799,60 +726,6 @@ export declare class Credentials {
   static fromDotenv(path: string): Credentials
   /** Redacted string form — never exposes the email or password. */
   toString(): string
-}
-
-/**
- * JS class wrapping a decoded flat-file row vector. Created by every
- * method on `FlatFilesNamespace`; carries the typed
- * rows until the user picks a terminal.
- */
-export declare class FlatFileRowList {
-  /**
-   * Number of decoded rows. Same value as `.length` on the JSON
-   * representation, exposed as a method so the API stays stable if
-   * the list later gains first-class iterator support.
-   */
-  len(): number
-  /** Whether the decoded row vector is empty. */
-  isEmpty(): boolean
-  /**
-   * Serialise the typed rows as Arrow IPC stream bytes. The dynamic
-   * schema is inferred from the first row. Deserialise on
-   * the JS side with `apache-arrow`'s `tableFromIPC`.
-   */
-  toArrowIpc(): Buffer
-  /**
-   * Return a JSON array of objects, one per row. Useful for quick
-   * inspection, structured logging, or wiring into JS-side
-   * dataframes that don't read Arrow IPC.
-   *
-   * Keys keep the row's column order: `symbol`, `expiration`, `strike`,
-   * `right`, then the vendor's columns in file order, as Python's
-   * `to_list` does.
-   */
-  toJson(): string
-}
-
-/**
- * JS class returned from `client.flatFiles`. Each method maps to one
- * (security type, request type) pair and returns a `FlatFileRowList`.
- */
-export declare class FlatFilesNamespace {
-  /** Option trade-with-quote flat file for the given `YYYYMMDD` date. */
-  optionTradeQuote(date: string): Promise<FlatFileRowList>
-  /** Option open-interest flat file for the given `YYYYMMDD` date. */
-  optionOpenInterest(date: string): Promise<FlatFileRowList>
-  /** Option end-of-day flat file for the given `YYYYMMDD` date. */
-  optionEod(date: string): Promise<FlatFileRowList>
-  /** Stock trade-with-quote flat file for the given `YYYYMMDD` date. */
-  stockTradeQuote(date: string): Promise<FlatFileRowList>
-  /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
-  stockEod(date: string): Promise<FlatFileRowList>
-  /**
-   * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
-   * `"QUOTE"` style strings.
-   */
-  request(secType: string, reqType: string, date: string): Promise<FlatFileRowList>
 }
 
 /**
@@ -2190,18 +2063,6 @@ export declare class MarketDataClient {
   interestRateHistoryEODStream(symbol: string, startDate: string, endDate: string, options: InterestRateHistoryEodOptions | undefined | null, callback: (rows: Array<InterestRateTick>, columns: ColumnPresence) => void): Promise<void>
   /** Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   interestRateHistoryEODWithColumns(symbol: string, startDate: string, endDate: string, options?: InterestRateHistoryEodOptions | undefined | null): Promise<InterestRateTickWithColumns>
-  /**
-   * FLATFILES namespace handle. Cheap — shares the underlying client connection.
-   * The market-data-only client opens the same data channel as the unified
-   * client, so the full flat-file surface is reachable here unchanged.
-   */
-  get flatFiles(): FlatFilesNamespace
-  /**
-   * Pull a flat-file blob and write the requested format to `path`.
-   * Returns the final on-disk path with the format extension
-   * auto-appended if missing.
-   */
-  flatFileToPath(secType: string, reqType: string, date: string, path: string, format?: string | undefined | null): Promise<string>
 }
 
 /**

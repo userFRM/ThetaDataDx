@@ -6,16 +6,16 @@
 //! # thetadatadx
 //!
 //! Native Rust SDK for [ThetaData](https://thetadata.us) market data.
-//! Historical data via ThetaData's MDDS service, real-time streaming via
-//! ThetaData's FPSS service, and bulk flat-file pulls — all through a single
-//! authenticated client, without a JVM, subprocess, or local proxy.
+//! Historical data and the whole-universe flat files via ThetaData's MDDS
+//! service and real-time streaming via ThetaData's FPSS service, all through
+//! a single authenticated client, without a JVM, subprocess, or local proxy.
 //!
 //! Requires a valid ThetaData subscription.
 //!
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use thetadatadx::{Client, Credentials, DirectConfig};
+//! use thetadatadx::{Client, Credentials, DirectConfig, FlatFileFormat};
 //! use thetadatadx::streaming::{StreamEvent, StreamData};
 //! use thetadatadx::streaming::Contract;
 //!
@@ -34,9 +34,12 @@
 //! })?;
 //! client.stream().subscribe(Contract::stock("AAPL").quote())?;
 //!
-//! // Bulk flat files — on the `flat_files` surface, decoded in memory
-//! let rows = client.flat_files().option_trade_quote("20240115").await?;
-//! # let _ = rows;
+//! // A whole-universe flat file, written to disk as the terminal writes it
+//! let path = client
+//!     .market_data()
+//!     .option_flat_file_eod_to_path("20240115", "option_eod.csv", FlatFileFormat::Csv)
+//!     .await?;
+//! # let _ = path;
 //! # Ok(()) }
 //! ```
 //!
@@ -284,10 +287,10 @@ pub use mdds::registry::{
 
 pub use auth::Credentials;
 pub use backoff::JitterMode;
-pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
+pub use client::{Client, ConnectionStatus, StreamSurface, SubscriptionInfo};
 pub use client_builder::ClientBuilder;
 pub use config::{
-    BulkFetchPolicy, DirectConfig, FlatFilesConfig, MarketDataEnvironment, ReconnectAttemptClass,
+    BulkFetchPolicy, DirectConfig, MarketDataEnvironment, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingEnvironment,
     WaitMode,
 };
@@ -393,25 +396,9 @@ pub mod market_data {
     pub use crate::mdds::{MarketDataClient, SubscriptionTier};
 }
 
-// ─── Flat-file bulk pulls ─────────────────────────────────────────────────────
+// ─── Flat files ───────────────────────────────────────────────────────────────
 
-/// Bulk flat-file downloads from ThetaData's flat-file distribution.
-///
-/// For the accessor shape that matches the Python, TypeScript, and C++
-/// bindings, use [`Client::flat_files`] to reach the same surface through
-/// a [`FlatFiles`] view (`client.flat_files().option_trade_quote(date)`).
-/// The free functions below are the lower-level API: use
-/// [`flatfile_request`] to write directly to disk, or
-/// [`flatfile_request_decoded`] to materialise rows in memory.
-pub mod flatfiles_api {
-    pub use crate::client::FlatFiles;
-    pub use crate::flatfiles::{
-        FlatFileFormat, FlatFileRow, FlatFileValue, FlatFilesUnavailableReason,
-        ReqType as FlatFileReqType, SecType as FlatFileSecType, flatfile_request,
-        flatfile_request_decoded, flatfile_request_raw,
-    };
-}
-pub use flatfiles_api::*;
+pub use flatfiles::FlatFileFormat;
 
 // ─── Tick types ───────────────────────────────────────────────────────────────
 

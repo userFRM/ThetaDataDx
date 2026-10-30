@@ -938,8 +938,7 @@ void thetadatadx_subscription_array_free(ThetaDataDxSubscriptionArray* arr);
 /* ── Arrow IPC terminal for history tick rows ── */
 
 /* Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
- * thetadatadx_*_to_arrow_ipc terminals. Caller MUST free with thetadatadx_arrow_bytes_free.
- * Layout-identical to ThetaDataDxFlatFileBytes. */
+ * thetadatadx_*_to_arrow_ipc terminals. Caller MUST free with thetadatadx_arrow_bytes_free. */
 typedef struct ThetaDataDxArrowBytes {
     const uint8_t* data;
     size_t len;
@@ -1799,22 +1798,6 @@ void thetadatadx_config_set_retry_max_elapsed_secs(ThetaDataDxConfig* config, ui
 int32_t thetadatadx_config_get_retry_max_elapsed_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
 /**
- * Toggle AWS-style full jitter on the flatfile retry ladder. Default
- * true; false gives the deterministic schedule, useful for tests.
- * @param config Config handle to mutate; no-op when NULL.
- * @param jitter true enables full jitter, false uses the deterministic schedule.
- */
-void thetadatadx_config_set_flatfiles_jitter(ThetaDataDxConfig* config, bool jitter);
-
-/**
- * Read the current flatfiles jitter setting (default true).
- * @param config Config handle to read.
- * @param out_jitter Receives the jitter flag on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_jitter(const ThetaDataDxConfig* config, bool* out_jitter);
-
-/**
  * Set the async worker-thread count for embedded runtimes, using the
  * widened (has_value, n) shape so an unset value is distinct from any
  * explicit count across the Python / TypeScript / C++ bindings.
@@ -1913,95 +1896,6 @@ void thetadatadx_config_set_retry_jitter(ThetaDataDxConfig* config, bool jitter)
  * @return 0 on success, -1 if either pointer is null.
  */
 int32_t thetadatadx_config_get_retry_jitter(const ThetaDataDxConfig* config, bool* out_jitter);
-
-/* ── FlatFilesConfig field setters/getters ── */
-
-/**
- * Set the total attempt budget for the flatfile retry loop.
- * 1 disables retry (single call only); higher values permit retries
- * up to max_attempts - 1 after the initial call. Default 10.
- * Validated to the range [1, 100] at connect time.
- * @param config Config handle to mutate; no-op when NULL.
- * @param n Total attempt budget.
- */
-void thetadatadx_config_set_flatfiles_max_attempts(ThetaDataDxConfig* config, uint32_t n);
-
-/**
- * Read the flatfile retry max-attempts setting.
- * @param config Config handle to read.
- * @param out_n Receives the attempt budget on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_max_attempts(const ThetaDataDxConfig* config, uint32_t* out_n);
-
-/**
- * Set the initial backoff delay (seconds) for the flatfile retry loop.
- * Doubles per attempt up to max_backoff_secs. Default 1.
- * @param config Config handle to mutate; no-op when NULL.
- * @param secs Initial backoff delay in seconds.
- */
-void thetadatadx_config_set_flatfiles_initial_backoff_secs(ThetaDataDxConfig* config, uint64_t secs);
-
-/**
- * Read the flatfile retry initial-backoff setting (seconds).
- * @param config Config handle to read.
- * @param out_secs Receives the initial backoff in seconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_initial_backoff_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
-
-/**
- * Set the upper-bound backoff delay (seconds) for the flatfile retry
- * loop. The doubling schedule never exceeds this value regardless of
- * attempt number. Default 30. Must be >= initial_backoff (rejected at
- * connect-time validation otherwise).
- * @param config Config handle to mutate; no-op when NULL.
- * @param secs Upper-bound backoff delay in seconds.
- */
-void thetadatadx_config_set_flatfiles_max_backoff_secs(ThetaDataDxConfig* config, uint64_t secs);
-
-/**
- * Read the flatfile retry max-backoff setting (seconds).
- * @param config Config handle to read.
- * @param out_secs Receives the max backoff in seconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_max_backoff_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
-
-/**
- * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
- * attempt. Bounds the connect/auth handshake before the attempt is
- * abandoned and the next host (or the retry ladder) takes over.
- * Default 10.
- * @param config Config handle to mutate; no-op when NULL.
- * @param secs Connect timeout in seconds.
- */
-void thetadatadx_config_set_flatfiles_connect_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
-
-/**
- * Read the flatfile connect-timeout setting (seconds).
- * @param config Config handle to read.
- * @param out_secs Receives the connect timeout in seconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_connect_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
-
-/**
- * Set the read timeout (seconds) for a single flatfile response frame.
- * Bounds the wait for the next chunk once streaming has begun so a
- * mid-stream stall fails over instead of blocking forever. Default 60.
- * @param config Config handle to mutate; no-op when NULL.
- * @param secs Read timeout in seconds.
- */
-void thetadatadx_config_set_flatfiles_read_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
-
-/**
- * Read the flatfile read-timeout setting (seconds).
- * @param config Config handle to read.
- * @param out_secs Receives the read timeout in seconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flatfiles_read_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out_secs);
 
 /* ── AuthConfig field setters/getters ── */
 
@@ -2996,121 +2890,6 @@ uint64_t thetadatadx_client_panic_count(const ThetaDataDxClient* handle);
  *           returns, or free from the owning thread once streaming is done.
  *  @param handle The unified handle; no-op when NULL. Call exactly once. */
 void thetadatadx_client_free(ThetaDataDxClient* handle);
-
-
-/* ── FLATFILES surface ────────────────────────────────────────────────
- *
- * Whole-universe daily snapshots over the legacy market-data-channel
- * port. The schema is determined at runtime by (sec_type, req_type),
- * so the typed decoder returns an opaque row-list handle that you
- * serialise to Arrow IPC bytes when you want columnar output.
- */
-
-/** Opaque handle wrapping a decoded set of flat-file rows. Created by
- *  thetadatadx_flatfile_request_decoded; freed by thetadatadx_flatfile_rowlist_free. */
-typedef struct ThetaDataDxFlatFileRowList ThetaDataDxFlatFileRowList;
-
-/** Heap-owned byte buffer (Arrow IPC stream) returned by
- *  thetadatadx_flatfile_rows_to_arrow_ipc. Caller MUST free with
- *  thetadatadx_flatfile_bytes_free. */
-typedef struct ThetaDataDxFlatFileBytes {
-    const uint8_t* data;
-    size_t len;
-} ThetaDataDxFlatFileBytes;
-
-/** Pull a decoded flat-file blob for (sec_type, req_type, date) and
- *  return an opaque row-list handle.
- *  @param handle The unified handle.
- *  @param sec_type "OPTION", "STOCK", or "INDEX".
- *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
- *                  "TRADE_QUOTE".
- *  @param date The snapshot date as "YYYYMMDD".
- *  @return A row-list handle the caller MUST free with
- *          thetadatadx_flatfile_rowlist_free, or NULL on error (check
- *          thetadatadx_last_error()). */
-ThetaDataDxFlatFileRowList* thetadatadx_flatfile_request_decoded(
-    const ThetaDataDxClient* handle,
-    const char* sec_type,
-    const char* req_type,
-    const char* date);
-
-/** Number of rows in a row-list handle.
- *  @param rowlist The row-list handle.
- *  @return The row count, or 0 if rowlist is NULL. */
-size_t thetadatadx_flatfile_rows_count(const ThetaDataDxFlatFileRowList* rowlist);
-
-/** Serialise the row list as Arrow IPC stream bytes. The schema is inferred
- *  from the first row.
- *  @param rowlist The row-list handle.
- *  @return An Arrow IPC byte buffer the caller MUST free with
- *          thetadatadx_flatfile_bytes_free, or (data=NULL, len=0) on error (check
- *          thetadatadx_last_error()). */
-ThetaDataDxFlatFileBytes thetadatadx_flatfile_rows_to_arrow_ipc(
-    const ThetaDataDxFlatFileRowList* rowlist);
-
-/** Free a byte buffer returned by thetadatadx_flatfile_rows_to_arrow_ipc.
- *  @param bytes Buffer from thetadatadx_flatfile_rows_to_arrow_ipc; a (data=NULL,
- *               len=0) buffer is a no-op. Call exactly once. */
-void thetadatadx_flatfile_bytes_free(ThetaDataDxFlatFileBytes bytes);
-
-/** Free a row-list handle returned by thetadatadx_flatfile_request_decoded.
- *  @param rowlist Handle from thetadatadx_flatfile_request_decoded; no-op when NULL.
- *                 Call exactly once. */
-void thetadatadx_flatfile_rowlist_free(ThetaDataDxFlatFileRowList* rowlist);
-
-/** Pull a flat-file blob and write the requested vendor format directly to
- *  a file. The format extension is appended to path automatically if missing.
- *  @param handle The unified handle.
- *  @param sec_type "OPTION", "STOCK", or "INDEX".
- *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
- *                  "TRADE_QUOTE".
- *  @param date The snapshot date as "YYYYMMDD".
- *  @param path Output file path; the format extension is appended if missing.
- *  @param format Output format: "csv", "json", "jsonl"/"ndjson", or "html".
- *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
-int thetadatadx_flatfile_request_to_path(
-    const ThetaDataDxClient* handle,
-    const char* sec_type,
-    const char* req_type,
-    const char* date,
-    const char* path,
-    const char* format);
-
-/** Pull a decoded flat-file blob from a standalone market-data client.
- *  Flat files are account-authenticated market data, so the market-data
- *  handle exposes the identical surface as the unified client.
- *  @param handle The market-data handle.
- *  @param sec_type "OPTION", "STOCK", or "INDEX".
- *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
- *                  "TRADE_QUOTE".
- *  @param date The snapshot date as "YYYYMMDD".
- *  @return A row-list handle the caller MUST free with
- *          thetadatadx_flatfile_rowlist_free, or NULL on error (check
- *          thetadatadx_last_error()). */
-ThetaDataDxFlatFileRowList* thetadatadx_market_data_flatfile_request_decoded(
-    const ThetaDataDxMarketDataClient* handle,
-    const char* sec_type,
-    const char* req_type,
-    const char* date);
-
-/** Pull a flat-file blob from a standalone market-data client and write the
- *  requested vendor format directly to a file. The format extension is
- *  appended to path automatically if missing.
- *  @param handle The market-data handle.
- *  @param sec_type "OPTION", "STOCK", or "INDEX".
- *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
- *                  "TRADE_QUOTE".
- *  @param date The snapshot date as "YYYYMMDD".
- *  @param path Output file path; the format extension is appended if missing.
- *  @param format Output format: "csv", "json", "jsonl"/"ndjson", or "html".
- *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
-int thetadatadx_market_data_flatfile_request_to_path(
-    const ThetaDataDxMarketDataClient* handle,
-    const char* sec_type,
-    const char* req_type,
-    const char* date,
-    const char* path,
-    const char* format);
 
 #ifdef __cplusplus
 }

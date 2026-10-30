@@ -71,13 +71,6 @@ impl<'a> FitReader<'a> {
         }
     }
 
-    /// Returns `true` when the cursor has reached or passed the end of the buffer.
-    #[inline]
-    #[must_use]
-    pub fn is_exhausted(&self) -> bool {
-        self.pos >= self.buf.len()
-    }
-
     /// Decode one row of FIT-encoded changes into `alloc`.
     ///
     /// Returns the number of fields written (i.e. `idx + 1` after the END nibble),
@@ -677,16 +670,6 @@ mod tests {
     }
 
     #[test]
-    fn exhausted_after_single_row() {
-        let data = [pack(1, END)];
-        let mut alloc = [0i32; 4];
-        let mut reader = FitReader::new(&data);
-        assert!(!reader.is_exhausted());
-        reader.read_changes(&mut alloc);
-        assert!(reader.is_exhausted());
-    }
-
-    #[test]
     fn zero_value_end() {
         // Just END immediately — should produce one field with value 0.
         let data = [pack(END, 0)];
@@ -844,7 +827,6 @@ mod tests {
         let data: [u8; 0] = [];
         let mut alloc = [0i32; 4];
         let mut reader = FitReader::new(&data);
-        assert!(reader.is_exhausted());
         let n = reader.read_changes(&mut alloc);
         assert_eq!(n, 0);
     }

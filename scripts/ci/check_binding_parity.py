@@ -871,7 +871,6 @@ def collect_cpp_classes(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 CPP_ALIASES: dict[str, str] = {
-    "FlatFilesNamespace": "FlatFiles",
     "Contract": "FluentContract",
     "Subscription": "FluentSubscription",
     "SecType": "FluentSecType",
@@ -1000,7 +999,6 @@ def _is_implicitly_tracked(name: str, lang: str) -> bool:
             "CallbackState",
             "FfiArrayGuard",
             "FfiString",
-            "FlatFileRowListDeleter",
             "FullSubscription",
             "OptionLeg",
             "Span",
@@ -1040,7 +1038,7 @@ def _declared_class_names_for_binding(rows: list[dict[str, Any]], lang: str) -> 
 
     `parity.toml` rows use canonical class names. Some bindings publish an
     idiomatic alias for that canonical row (`PyContract`, `ContractRef`,
-    `FlatFiles`), so the reverse-orphan scan must compare each binding against
+    `FluentContract`), so the reverse-orphan scan must compare each binding against
     both the canonical row names and the binding-specific names the forward
     class check resolves.
     """
@@ -1098,7 +1096,6 @@ def _check_binding_class_orphans(
 STRUCT_TO_PREFIX: dict[str, str] = {
     "MarketDataConfig": "",
     "StreamingConfig": "",
-    "FlatFilesConfig": "flatfiles_",
     "ReconnectConfig": "reconnect_",
     "RuntimeConfig": "",
     "RetryPolicy": "retry_",
@@ -1158,30 +1155,6 @@ def _collect_python_setters(py_src: pathlib.Path) -> set[str]:
     return setters | _config_table_accessors(py_src, "set")
 
 
-# TypeScript camelCase compound-word aliases. Multi-word terms that
-# the cross-binding contract names as a single snake_case token (e.g.
-# `flatfiles` in Python / C++ / FFI) get camelCased as a multi-word
-# `FlatFiles` in the napi `js_name`. The alias table records the
-# canonical snake form so the parity gate accepts both conventions.
-TS_CAMEL_COMPOUNDS: dict[str, str] = {
-    "flat_files": "flatfiles",
-}
-
-
-def _camel_to_snake_with_aliases(camel: str) -> set[str]:
-    """`FlatFilesMaxAttempts` → both `flat_files_max_attempts` and
-    `flatfiles_max_attempts`. Returns every plausible snake-case
-    rendering so the parity gate accepts the cross-binding
-    convention regardless of which form is canonical.
-    """
-    base = re.sub(r"(?<!^)([A-Z])", r"_\1", camel).lower()
-    renderings = {base}
-    for source, target in TS_CAMEL_COMPOUNDS.items():
-        if source in base:
-            renderings.add(base.replace(source, target))
-    return renderings
-
-
 def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
     """napi `set<CamelName>` setter declarations on the napi `Config`
     impl block. Returns a set of canonical snake_case names. Getter
@@ -1216,7 +1189,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
     # accepts a match against any rendering.
     setters_snake = _config_table_accessors(ts_src, "set")
     for name in setters_camel:
-        setters_snake.update(_camel_to_snake_with_aliases(name))
+        setters_snake.add(_camel_to_snake(name))
     return setters_snake
 
 
@@ -1353,7 +1326,7 @@ def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
                     getters_camel.add(m.group(1))
     getters_snake = _config_table_accessors(ts_src, "get")
     for name in getters_camel:
-        getters_snake.update(_camel_to_snake_with_aliases(name))
+        getters_snake.add(_camel_to_snake(name))
     return getters_snake
 
 
@@ -1406,10 +1379,6 @@ def _collect_ffi_getters(ffi_src: pathlib.Path) -> set[str]:
 #     emits for an `Option<usize>` field (`worker_threads_explicit` on
 #     the C ABI / C++ / napi vs the bare `worker_threads` on Python).
 #     Same knob, transport-only suffix.
-#   * `flat_files` → `flatfiles` — napi auto-camelCases `setFlatFiles*`
-#     to a multi-word `FlatFiles`, which lifts back to BOTH
-#     `flat_files_*` and `flatfiles_*`; the cross-binding canonical
-#     form is the single-token `flatfiles_*`.
 def _normalize_setter(name: str) -> str:
     """Collapse a per-binding setter spelling to its cross-binding
     canonical form so the four setter sets compare for equality.
@@ -1418,7 +1387,6 @@ def _normalize_setter(name: str) -> str:
         if name.endswith(suffix):
             name = name[: -len(suffix)]
             break
-    name = name.replace("flat_files", "flatfiles")
     return name
 
 
@@ -1457,8 +1425,8 @@ def _check_accessor_set_parity(
     `noun` is the accessor kind for diagnostics (`"setter"` / `"getter"`);
     `exempt_const_name` names the carve-out constant in the diagnostic.
     Genuine per-language idioms are folded by `_normalize_setter` (the
-    `_explicit` widened-ABI suffix and the `flat_files`↔`flatfiles`
-    camelCase split apply identically to setters and getters). Anything
+    `_explicit` widened-ABI suffix applies identically to setters and
+    getters). Anything
     still divergent must be listed in `exempt` with a reason or it fails
     the gate. A stale exemption (now uniformly bound everywhere) is itself
     flagged so the carve-out list never rots.
@@ -1814,7 +1782,6 @@ def _check_public_surface_vocab(
 SCOPED_STRUCTS: tuple[str, ...] = (
     "MarketDataConfig",
     "StreamingConfig",
-    "FlatFilesConfig",
     "ReconnectConfig",
     "RuntimeConfig",
     "RetryPolicy",
@@ -2245,8 +2212,8 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     # then the method `name(`. `prev` is captured so a control keyword that
     # can front a CALL (`return foo(`) is rejected — a real return type is
     # never one of those keywords. The leading return-type token is what
-    # separates `FlatFileRowList request(` (declaration) from
-    # `return request(` and the statement-leading `request(` (calls).
+    # separates `Stream stream(` (declaration) from `return stream(` and the
+    # statement-leading `stream(` (calls).
     decl_re = re.compile(
         r"(?P<prev>[A-Za-z_]\w*|[>*&\]])\s+(?P<name>[a-z_][a-z0-9_]*)\s*\(",
     )
@@ -2290,9 +2257,9 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
             prev = fm.group("prev")
             name = fm.group("name")
             # The preceding token must be a return type, not a call-context
-            # keyword. `request` declared as `FlatFileRowList request(`
-            # passes (`prev == "FlatFileRowList"`); the `return request(`
-            # call is rejected (`prev == "return"`).
+            # keyword. `stream` declared as `Stream stream(` passes
+            # (`prev == "Stream"`); the `return stream(` call is rejected
+            # (`prev == "return"`).
             if prev in _CALL_PREV_KEYWORDS:
                 continue
             if name in _NAME_KEYWORDS:
@@ -2310,13 +2277,10 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
 # the `[[connect]]` and `[[from_file]]` families rather than Client
 # `[[method]]` rows.
 #
-# Names are the canonical camelCase spelling the scan derives. The blob-to-
-# disk helper (`flatFileToPath` / `flatfile_to_path`) is enrolled through
-# `METHOD_BINDING_OVERRIDES` against a `FlatFilesNamespace` row, so it is
-# resolved as enrolled by the scan (not listed here) and never double-counts.
-# The Python-only auth-time readbacks (`sessionUuid` / `subscriptionInfo`)
-# are now enrolled as explicit Python-only Client `[[method]]` rows, so they
-# resolve as enrolled too and are no longer exempted here.
+# Names are the canonical camelCase spelling the scan derives. The
+# Python-only auth-time readbacks (`sessionUuid` / `subscriptionInfo`) are
+# enrolled as explicit Python-only Client `[[method]]` rows, so they resolve
+# as enrolled and are not exempted here.
 CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
     {
         "connect",
@@ -2341,91 +2305,22 @@ CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
 )
 
 
-# The flat-file fetch surface lives on the namespace returned by
-# `Client.flatFiles`. The forward `[[method]]` rows gate each declared fetch
-# method against the bindings; this roster anchors the reverse-direction scan
-# that catches a NEW fetch method added on a binding's namespace class without
-# an enrolling row. Names are the canonical camelCase row spelling (the scan
-# derives the per-binding form exactly as the forward check does). `request` is
-# the generic dispatcher; the five named methods are the served-dataset
-# conveniences. The blob-to-disk helper (`flatFileToPath`) is NOT a namespace
-# method — it lives on the unified client (or, on C++, on the namespace under a
-# different name) and is enrolled by its own row routed through
-# `METHOD_BINDING_OVERRIDES`, so it is intentionally absent from this roster.
-FLATFILES_NAMESPACE_METHODS: frozenset[str] = frozenset(
-    {
-        "optionTradeQuote",
-        "optionOpenInterest",
-        "optionEod",
-        "stockTradeQuote",
-        "stockEod",
-        "request",
-    }
-)
-
-
-# Names the per-binding method collectors harvest from the flat-file namespace
-# class body that are NOT cross-binding fetch methods and so carry no
-# `[[method]]` row of their own: the C++ collector picks up the `handle_` data
-# member and the FFI extern declarations called inside the inline method bodies,
-# and the Python collector picks up the module-private `pull_decoded` free fn.
-# `to_path` is the C++ spelling of the blob-to-disk helper — a real public
-# method, but enrolled by the `flatFileToPath` row routed through
-# `METHOD_BINDING_OVERRIDES`, not by a namespace row — so it is exempt from the
-# namespace reverse-orphan scan to avoid a double-count.
-FLATFILES_NAMESPACE_EXEMPT_MEMBERS: frozenset[str] = frozenset(
-    {
-        "handle_",
-        "pull_decoded",
-        "pull_decoded_async",
-        "thetadatadx_flatfile_request_decoded",
-        "thetadatadx_flatfile_request_to_path",
-        "to_path",
-    }
-)
-
-
-# A few cross-binding methods do not share a single home class or a single
-# name-derivation rule across bindings; the forward `[[method]]` check resolves
-# one `(class, name)` per binding from the row, so those methods need an explicit
-# per-binding target. The blob-to-disk flat-file helper is the load-bearing case:
-# it is `Client.flatfile_to_path` (one word) on the Python pyclass,
-# `Client.flatFileToPath` on the TypeScript napi class, and `FlatFiles::to_path`
-# on the C++ class. Keyed by the canonical `(row_class, row_name)`, each entry
-# gives the binding-specific `(collector_class, member_name)` the forward check
-# must look up instead of deriving from the row. `collector_class` is the key the
-# per-binding collector uses (the C++ entry already names the resolved C++ class,
-# so it bypasses the alias table); `member_name` is the exact harvested spelling.
+# A few cross-binding methods do not share a single name-derivation rule
+# across bindings; the forward `[[method]]` check resolves one `(class, name)`
+# per binding from the row, so those methods need an explicit per-binding
+# target. Keyed by the canonical `(row_class, row_name)`, each entry gives the
+# binding-specific `(collector_class, member_name)` the forward check must look
+# up instead of deriving from the row. `collector_class` is the key the
+# per-binding collector uses (the C++ entry already names the resolved C++
+# class, so it bypasses the alias table); `member_name` is the exact harvested
+# spelling.
 METHOD_BINDING_OVERRIDES: dict[tuple[str, str], dict[str, tuple[str, str]]] = {
-    ("FlatFilesNamespace", "flatFileToPath"): {
-        "python": ("Client", "flatfile_to_path"),
-        "typescript": ("Client", "flatFileToPath"),
-        "cpp": ("FlatFiles", "to_path"),
-        # Rust exposes the blob-to-disk helper as `FlatFiles::to_path` on
-        # the view returned by `Client::flat_files()` — the same `to_path`
-        # spelling and home class as C++.
-        "rust": ("FlatFiles", "to_path"),
-    },
     # The Subscription wire-string accessor is `kind` on Python / TypeScript
     # but `kind_string` on C++ (where the bare `kind()` returns the typed
     # enum); only the C++ member name diverges, so just that binding is
     # overridden — Python / TypeScript derive `kind` from the row as usual.
     ("Subscription", "kind"): {
         "cpp": ("FluentSubscription", "kind_string"),
-    },
-    # FlatFileRowList's row-count and Arrow-IPC methods are spelled per the
-    # idiom of each binding: row count is Python `__len__` / TypeScript `len`
-    # / C++ `size`; the Arrow-IPC serializer is Python `to_arrow` /
-    # TypeScript `toArrowIpc` / C++ `to_arrow_ipc`.
-    ("FlatFileRowList", "count"): {
-        "python": ("FlatFileRowList", "__len__"),
-        "typescript": ("FlatFileRowList", "len"),
-        "cpp": ("FlatFileRowList", "size"),
-    },
-    ("FlatFileRowList", "toArrowIpc"): {
-        "python": ("FlatFileRowList", "to_arrow"),
-        "typescript": ("FlatFileRowList", "toArrowIpc"),
-        "cpp": ("FlatFileRowList", "to_arrow_ipc"),
     },
 }
 
@@ -2483,19 +2378,17 @@ PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
 
 
 # Parity-toml `class` field → the Rust struct the Rust method collector
-# keys on. The flat-file namespace is the borrowed `FlatFiles` view
-# returned by `Client::flat_files()`; the unified entry-point client is
-# `Client`. Those two live in `thetadatadx-rs/src/client.rs`; the standalone
-# `MarketDataClient` below lives in `mdds/client.rs`. A row class
-# absent from this table is not gated on the Rust column (Python /
-# TypeScript / C++ only), so the Rust column is opt-in per row — exactly
-# the surfaces where Rust must mirror the other bindings.
+# keys on. The unified entry-point client is `Client`, in
+# `thetadatadx-rs/src/client.rs`; the standalone `MarketDataClient` below
+# lives in `mdds/client.rs`. A row class absent from this table is not gated
+# on the Rust column (Python / TypeScript / C++ only), so the Rust column is
+# opt-in per row: exactly the surfaces where Rust must mirror the other
+# bindings.
 RUST_METHOD_CLASS: dict[str, str] = {
-    "FlatFilesNamespace": "FlatFiles",
     "Client": "Client",
     # The standalone market-data client is a distinct Rust struct (not a view
-    # borrowing `Client`); its cross-binding surface (`close`, `flat_files`)
-    # lives in `impl MarketDataClient` in `mdds/client.rs`, which the collector
+    # borrowing `Client`); its cross-binding surface (`close`) lives in
+    # `impl MarketDataClient` in `mdds/client.rs`, which the collector
     # harvests alongside `client.rs` so the Rust column of those rows is
     # genuinely enforced, not decorative.
     "MarketDataClient": "MarketDataClient",
@@ -2514,13 +2407,13 @@ def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
     """Return `{rust_class: {method, ...}}` for the public methods on the
     Rust view / client structs that mirror the cross-binding surface.
 
-    Parses every `impl FlatFiles<...> { ... }` and `impl Client { ... }`
-    block in `client.rs`, plus every `impl MarketDataClient { ... }` block in
+    Parses every `impl Client { ... }` block in `client.rs`, plus every
+    `impl MarketDataClient { ... }` block in
     the sibling `mdds/client.rs`, and collects each `pub fn <name>` /
     `pub async fn <name>` (snake_case). `#[cfg(...)]` / `#[doc(hidden)]`
     gated methods are skipped — they are not part of the published surface
     a binding must mirror. The harvested set is keyed by the bare Rust
-    struct name (`FlatFiles`, `Client`, `MarketDataClient`), which the forward
+    struct name (`Client`, `MarketDataClient`), which the forward
     check resolves a parity row's class to via `RUST_METHOD_CLASS`.
     """
     out: dict[str, set[str]] = {}
@@ -2535,7 +2428,7 @@ def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
             return
         text = _read_source(path)
         for struct in structs:
-            # `impl FlatFiles<'_> {` / `impl Client {` / `impl MarketDataClient {`
+            # `impl Client {` / `impl MarketDataClient {`
             # — tolerate an optional generic / lifetime parameter list before the
             # brace, and walk every matching impl block (there are several).
             impl_re = re.compile(rf"impl\s+{struct}\b[^{{]*\{{")
@@ -2548,10 +2441,10 @@ def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
                         continue
                     out.setdefault(struct, set()).add(name)
 
-    _harvest(client_rs, ("FlatFiles", "Client"))
-    # `mdds/client.rs` only carries the session/transport impl + the flat-file
-    # surface; the generated endpoint methods live in other files and are tracked
-    # by the market-data-base rows, not this view-method forward check.
+    _harvest(client_rs, ("Client",))
+    # `mdds/client.rs` only carries the session/transport impl; the generated
+    # endpoint methods live in other files and are tracked by the
+    # market-data-base rows, not this view-method forward check.
     _harvest(client_rs.parent / "mdds" / "client.rs", ("MarketDataClient",))
     return out
 
@@ -2696,12 +2589,12 @@ def _check_method_rows(
             continue
         snake = _camel_to_snake(camel)
 
-        # A handful of methods do not share a home class or a single
-        # name-derivation rule across bindings (the flat-file blob-to-disk
-        # helper is the load-bearing case). `METHOD_BINDING_OVERRIDES` supplies
-        # the binding-specific `(collector_class, member_name)` for those rows;
-        # absent an entry, every binding resolves from the row's `class` / `name`
-        # exactly as before.
+        # A handful of methods do not share a single name-derivation rule
+        # across bindings (the Subscription wire-string accessor is
+        # `kind_string` on C++). `METHOD_BINDING_OVERRIDES` supplies the
+        # binding-specific `(collector_class, member_name)` for those rows;
+        # absent an entry, every binding resolves from the row's `class` /
+        # `name` exactly as before.
         override = METHOD_BINDING_OVERRIDES.get((class_name, camel))
 
         # Python: snake_case method declared on the pyclass. A `#[getter]`
@@ -2779,8 +2672,8 @@ def _check_method_rows(
         # matching `impl <Struct>` block in `client.rs`. Only rows whose
         # class maps through `RUST_METHOD_CLASS` are gated on the Rust
         # column — the surfaces where the Rust core must mirror the other
-        # bindings (the unified `Client` view accessors and the `FlatFiles`
-        # view fetch + path methods). An override entry already names the
+        # bindings (the unified `Client` view accessors and the standalone
+        # `MarketDataClient` lifecycle). An override entry already names the
         # resolved Rust `(struct, member)`; otherwise the row's class is
         # mapped to its Rust struct and the member is the snake_case name.
         # The column is opt-in: a row that omits `rust` and whose class is
@@ -2830,26 +2723,15 @@ def _check_method_rows(
         }
 
     # Binding-specific member spellings a row resolves to through
-    # `METHOD_BINDING_OVERRIDES`, collected per the class that HOSTS the
-    # member. Two cases both land here: a member enrolled under a row on a
-    # DIFFERENT class (the blob-to-disk helper lives on `Client` per binding
-    # but is enrolled under a `FlatFilesNamespace` row) and a member whose
-    # per-binding spelling diverges from the row name on the SAME class
-    # (FlatFileRowList `count` -> C++ `size`; Subscription `kind` -> C++
-    # `kind_string`). In both cases the member is already enrolled via its
-    # row, so each reverse scan must treat it as enrolled (skip it) rather
-    # than flag the idiomatic spelling as an orphan.
+    # `METHOD_BINDING_OVERRIDES`, collected per row class: a member whose
+    # per-binding spelling diverges from the row name (Subscription `kind` ->
+    # C++ `kind_string`) is already enrolled via its row, so the reverse scan
+    # must treat it as enrolled (skip it) rather than flag the idiomatic
+    # spelling as an orphan.
     override_home_members: dict[str, set[str]] = {}
     for (row_class, _row_name), binding_targets in METHOD_BINDING_OVERRIDES.items():
-        for _binding, (target_class, target_member) in binding_targets.items():
-            # The member is enrolled via this row, so register it both under
-            # the canonical row class (the key a same-class divergent-spelling
-            # scan uses, e.g. Subscription/FlatFileRowList) and under the
-            # per-binding collector class the member actually lives on (the key
-            # a cross-class scan uses, e.g. the unified Client for the
-            # blob-to-disk helper).
+        for _binding, (_target_class, target_member) in binding_targets.items():
             override_home_members.setdefault(row_class, set()).add(target_member)
-            override_home_members.setdefault(target_class, set()).add(target_member)
 
     # Each reverse scan is the same shape — harvest the class members per
     # binding, flag any not enrolled / enrolled-elsewhere / exempt — so they
@@ -2859,8 +2741,8 @@ def _check_method_rows(
     # excludes C++ from discovery (its heuristic scan over-harvests FFI-extern
     # calls and data members that are not public methods, and the C++ column
     # is validated by the forward row check instead). Subscription /
-    # RecordBatchStream / FlatFileRowList / FlatFilesNamespace DO discover from
-    # C++: the collector genuinely harvests those classes' methods, and the
+    # RecordBatchStream DO discover from C++: the collector genuinely
+    # harvests those classes' methods, and the
     # per-class exempt rosters absorb the handful of heuristic over-harvests
     # (the C++ private builders / decoders and inline-body locals named in
     # each `*_EXEMPT_*` set) so real unenrolled C++ methods still trip.
@@ -2875,21 +2757,7 @@ def _check_method_rows(
         CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS,
         discover_langs=frozenset({"python", "typescript"}),
         strip_async=True,
-        override_members=frozenset(override_home_members.get("Client", set())),
         report_camel=True,
-    )
-    errors += _check_class_reverse_orphans(
-        "FlatFilesNamespace",
-        {
-            "python": py_methods.get("FlatFilesNamespace", set()),
-            "typescript": ts_methods.get("FlatFilesNamespace", set()),
-            "cpp": cpp_methods.get(_cpp_class_for("FlatFilesNamespace"), set()),
-        },
-        _enrolled_for("FlatFilesNamespace"),
-        FLATFILES_NAMESPACE_EXEMPT_MEMBERS,
-        discover_langs=frozenset({"python", "typescript", "cpp"}),
-        strip_async=True,
-        report_camel=False,
     )
     errors += _check_class_reverse_orphans(
         "StreamingSession",
@@ -2900,11 +2768,10 @@ def _check_method_rows(
         strip_async=False,
         report_camel=False,
     )
-    # The same scan now also covers the fluent subscription handle, the
-    # columnar reader, and the flat-file row list — each enrolled above with a
-    # per-binding-meaningful method set plus a documented exempt roster for the
-    # per-language iterator / enum / materializer idioms that carry no
-    # cross-binding contract.
+    # The same scan now also covers the fluent subscription handle and the
+    # columnar reader, each enrolled above with a per-binding-meaningful
+    # method set plus a documented exempt roster for the per-language
+    # iterator / enum idioms that carry no cross-binding contract.
     errors += _check_class_reverse_orphans(
         "Subscription",
         {
@@ -2930,22 +2797,6 @@ def _check_method_rows(
         RECORD_BATCH_STREAM_EXEMPT_METHODS,
         discover_langs=frozenset({"python", "typescript", "cpp"}),
         strip_async=False,
-        report_camel=False,
-    )
-    errors += _check_class_reverse_orphans(
-        "FlatFileRowList",
-        {
-            "python": py_methods.get("FlatFileRowList", set()),
-            "typescript": ts_methods.get("FlatFileRowList", set()),
-            "cpp": cpp_methods.get("FlatFileRowList", set()),
-        },
-        _enrolled_for("FlatFileRowList"),
-        FLATFILE_ROWLIST_EXEMPT_METHODS,
-        discover_langs=frozenset({"python", "typescript", "cpp"}),
-        strip_async=False,
-        override_members=frozenset(
-            override_home_members.get("FlatFileRowList", set())
-        ),
         report_camel=False,
     )
 
@@ -3012,21 +2863,6 @@ RECORD_BATCH_STREAM_EXEMPT_METHODS: frozenset[str] = frozenset(
         "decode_one",
         "decode_schema",
         "open_ipc",
-    }
-)
-
-
-# FlatFileRowList members that are the per-language emptiness idiom
-# (`__bool__` on Python, `isEmpty` on TypeScript) — the inverse-of-count
-# convenience with no cross-binding contract — plus the C++ local variable
-# `out` the declaration-shaped scan picks up inside the inline
-# `to_arrow_ipc()` body. The row-count / Arrow-IPC methods themselves are
-# enrolled via `METHOD_BINDING_OVERRIDES`, not exempted here.
-FLATFILE_ROWLIST_EXEMPT_METHODS: frozenset[str] = frozenset(
-    {
-        "__bool__",
-        "isEmpty",
-        "out",
     }
 )
 
@@ -3783,8 +3619,8 @@ def _check_subscription_kind_parity(
 # `leaf_class_for`, the C++ `throw_for_code`, and the C ABI `error_code_for`
 # all hand-write the same mapping; these collectors harvest each binding's
 # leaf-class roster (and the C ABI code roster) so the sets can be asserted
-# identical — the `FlatFilesUnavailable` / `PartialReconnect` (invisible on
-# Py / TS) and `ConfigError` (missing leaf) defect class.
+# identical, which catches the `PartialReconnect` (invisible on Py / TS) and
+# `ConfigError` (missing leaf) defect class.
 
 
 # The canonical leaf-class roster. Every binding's error dispatch must
@@ -3977,9 +3813,9 @@ def _check_error_leaf_parity(
     Four invariants:
 
     1. The Python / TypeScript / C++ leaf-class rosters each equal the
-       canonical leaf set (so a variant invisible on one binding — the
-       `FlatFilesUnavailable` / `PartialReconnect` defect — is caught, as
-       is a missing `ConfigError` leaf).
+       canonical leaf set (so a variant invisible on one binding, the
+       `PartialReconnect` defect, is caught, as is a missing `ConfigError`
+       leaf).
     2. The FFI `THETADATADX_ERR_*` constants equal the canonical code table
        (name → value), so a renumbered or renamed code trips.
     3. The C ABI header `#define`s match the FFI Rust constants exactly,
@@ -5186,11 +5022,11 @@ def _check_value_field_vocabulary(rows: list[dict[str, Any]]) -> list[str]:
 
 # ─── Hand-written C-ABI signatures ([[ffi_symbol]]) ───────────────────
 #
-# The streaming-batch reader, the market-data sub-handle and the flat-file
-# Arrow bridge are written by hand in `thetadatadx-ffi/src` and declared by
-# hand in `thetadatadx.h`. `check_c_abi_completeness` holds their names to the
-# header, but nothing else compares a parameter list, so each `[[ffi_symbol]]`
-# row pins one of them by its C signature.
+# The streaming-batch reader and the market-data sub-handle are written by
+# hand in `thetadatadx-ffi/src` and declared by hand in `thetadatadx.h`.
+# `check_c_abi_completeness` holds their names to the header, but nothing else
+# compares a parameter list, so each `[[ffi_symbol]]` row pins one of them by
+# its C signature.
 
 
 def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
@@ -5670,27 +5506,6 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "ts_napi": ("SecType",),
         "ts_dts": ("SecType",),
     },
-    # The flat-file request dispatcher's typed enum params on the Rust core
-    # only: `FlatFiles::request(SecType, ReqType, &str)`. The managed bindings
-    # pass plain Strings (no typed-enum twin), so these carry a `rust` cell
-    # alone — used by the `rust_params` override on the `request` row.
-    "FlatFileSecType": {
-        "rust": ("crate::flatfiles::SecType", "SecType"),
-    },
-    "FlatFileReqType": {
-        "rust": ("crate::flatfiles::ReqType", "ReqType"),
-    },
-    # The wire-format selector on `flatFileToPath`'s last param: a String on the
-    # managed bindings (the format name, optional on Python / TypeScript), the
-    # typed `FlatFileFormat` enum on the Rust core. Per-lang param override only.
-    "FlatFileFormat": {
-        "rust": ("crate::flatfiles::FlatFileFormat", "FlatFileFormat"),
-    },
-    # The destination-path param on `flatFileToPath` (the Rust core takes an
-    # `impl AsRef<Path>`; the managed / C++ bindings take their String spelling).
-    "DestPath": {
-        "rust": ("impl AsRef<std::path::Path>", "impl AsRef<Path>"),
-    },
     # C++-only typed enums on `FluentSubscription`: the full/per-contract
     # `scope()` discriminant the managed bindings model as the `isFull` bool
     # instead. No managed cell — a row pinning `Scope` for Python / TypeScript
@@ -5785,8 +5600,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # Arrow IPC stream bytes (the columnar exit). Each binding hands back its
     # idiomatic owned-bytes container: a Python object (`bytes` / `memoryview`,
     # typed as the opaque `Py<PyAny>`), a Node `Buffer`, a C++ byte vector, the
-    # C-ABI owned-bytes struct (`ThetaDataDxArrowBytes` for the streaming
-    # reader, `ThetaDataDxFlatFileBytes` for the flat-file rows).
+    # C-ABI owned-bytes struct `ThetaDataDxArrowBytes`.
     "Bytes": {
         "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
         # The stub types the opaque owned-bytes object as `Any` (the runtime
@@ -5796,7 +5610,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "ts_napi": ("napi::Result<Buffer>", "Buffer"),
         "ts_dts": ("Buffer", "Uint8Array"),
         "cpp": ("std::vector<uint8_t>", "std::vector<std::uint8_t>"),
-        "ffi": ("ThetaDataDxArrowBytes", "ThetaDataDxFlatFileBytes"),
+        "ffi": ("ThetaDataDxArrowBytes",),
     },
     # The fixed Arrow schema a record-batch reader yields. The managed bindings
     # expose an Arrow schema object (an opaque `Py<PyAny>` on Python, the
@@ -5906,32 +5720,12 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "cpp": ("Stream",),
         "rust": ("StreamSurface<>",),
     },
-    "FlatFilesNamespace": {
-        "python": ("FlatFilesNamespace",),
-        "python_pyi": ("FlatFilesNamespace",),
-        "ts_napi": ("FlatFilesNamespace",),
-        "ts_dts": ("FlatFilesNamespace",),
-        "cpp": ("FlatFiles",),
-        "rust": ("FlatFiles<>",),
-    },
     # The fluent client builder returned by `Client::builder()`. C++ + Rust
     # only (the managed bindings reach the same surface through the inline
     # constructor / options-object factory, not a builder), so no managed cell.
     "ClientBuilder": {
         "cpp": ("ClientBuilder",),
         "rust": ("crate::client_builder::ClientBuilder", "ClientBuilder"),
-    },
-    # The decoded flat-file row collection returned by the `FlatFilesNamespace`
-    # fetch methods. The managed bindings return the `FlatFileRowList` value
-    # object (wrapped in the binding's fallible result, unwrapped before the
-    # compare); the Rust core returns the owned `Vec<FlatFileRow>`.
-    "FlatFileRowList": {
-        "python": ("FlatFileRowList",),
-        "python_pyi": ("FlatFileRowList",),
-        "ts_napi": ("FlatFileRowList",),
-        "ts_dts": ("FlatFileRowList",),
-        "cpp": ("FlatFileRowList",),
-        "rust": ("Vec<crate::flatfiles::FlatFileRow>", "Vec<FlatFileRow>"),
     },
     # The built fluent subscription returned by the per-contract / full-stream
     # builders (`Contract.quote()`, `SecType.fullTrades()`). Each binding hands
@@ -5946,17 +5740,6 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "ts_napi": ("Subscription",),
         "ts_dts": ("Subscription",),
         "cpp": ("FluentSubscription",),
-    },
-    # The `flatFileToPath` blob-to-disk return. The managed bindings hand back
-    # the written path as a String; C++ writes in place and returns `void`; the
-    # Rust core returns the owned `PathBuf`.
-    "WrittenPath": {
-        "python": ("String",),
-        "python_pyi": ("str",),
-        "ts_napi": ("String",),
-        "ts_dts": ("string",),
-        "cpp": ("void",),
-        "rust": ("std::path::PathBuf", "PathBuf"),
     },
     # The context-managed streaming session returned by `Client.streaming`.
     # Python hands back the `StreamingSession` pyclass (`Py<StreamingSession>`,
@@ -6139,13 +5922,13 @@ def _sig_type_agrees(canonical: str, actual: str, lang: str) -> bool:
         # A raw C-ABI handle has no higher-level canonical to translate from —
         # the C type IS the canonical. The `ffi` lang's opaque pointers
         # (`*const ThetaDataDxClient`) and owned-struct returns
-        # (`ThetaDataDxArrowBytes`), and the C++ raw-handle escape hatch
-        # (`const ThetaDataDxFlatFileRowList*` from `FlatFileRowList::get`),
-        # therefore compare by exact whitespace-folded spelling. This fires
-        # ONLY for the C ABI (always) and for a C++ canonical that is itself a
-        # raw pointer / `ThetaDataDx*` struct spelling — a managed scalar
-        # divergence still fails closed everywhere else, so the escape can
-        # never silently pass an unmapped `usize`/`bool`/etc.
+        # (`ThetaDataDxArrowBytes`), and the C++ raw-pointer params (the
+        # `uint64_t*` out-param of `millis_since_last_event`), therefore
+        # compare by exact whitespace-folded spelling. This fires ONLY for the
+        # C ABI (always) and for a C++ canonical that is itself a raw pointer /
+        # `ThetaDataDx*` struct spelling; a managed scalar divergence still
+        # fails closed everywhere else, so the escape can never silently pass
+        # an unmapped `usize`/`bool`/etc.
         if lang == "ffi" or (
             lang == "cpp"
             and ("*" in canonical or _sig_canon_type(canonical).startswith("ThetaDataDx"))
@@ -6735,9 +6518,9 @@ def _sig_extract_rust(client_rs: pathlib.Path, struct: str, method: str) -> tupl
     the `-> T` (defaulting to `()`).
 
     Searches `client.rs` first, then the sibling `mdds/client.rs` — the
-    standalone `MarketDataClient`'s cross-binding surface (`close`,
-    `flat_files`) lives in the latter, so its signatures are pinned too rather
-    than degrading to unchecked."""
+    standalone `MarketDataClient`'s cross-binding surface (`close`) lives in
+    the latter, so its signatures are pinned too rather than degrading to
+    unchecked."""
     impl_re = re.compile(r"impl\s+" + re.escape(struct) + r"\b[^{]*\{")
     for path in (client_rs, client_rs.parent / "mdds" / "client.rs"):
         if not path.is_file():
@@ -6938,9 +6721,8 @@ def _sig_check_method_signatures(
             # The PEP 561 stub lane. The stub uses the PUBLIC Python class
             # names (`Contract`, not the pyo3 pyclass `PyContract`), so resolve
             # against the parity-toml class directly; a `python` override
-            # already targets the public stub class + member (e.g.
-            # `flatFileToPath` → `Client.flatfile_to_path`,
-            # `count` → `FlatFileRowList.__len__`), so reuse it when present.
+            # already targets the public stub class + member, so reuse it when
+            # present.
             # DIVISION OF LABOUR: stubtest checks the stub against the
             # RUNTIME (params + arity); this lane checks it against the
             # cross-binding SPEC (params + RETURN) — the return is the coverage
@@ -7333,8 +7115,8 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Client-facing setter-SET equality across Python / TS / C++ / the
-    # C ABI after normalization (`_explicit` widened-ABI suffix and the
-    # `flat_files`↔`flatfiles` camelCase split folded away). Catches a
+    # C ABI after normalization (the `_explicit` widened-ABI suffix folded
+    # away). Catches a
     # knob bound on some bindings but silently absent from the matrix on
     # the others. Genuine per-language idioms are exempted in
     # `SETTER_PARITY_EXEMPT` with a written reason.
@@ -7374,9 +7156,8 @@ def main(argv: list[str] | None = None) -> int:
     # Error-leaf mapping parity: every core `Error` variant must map to
     # the same leaf class in Python / TypeScript / C++ and the same
     # `THETADATADX_ERR_*` code in the C ABI. Asserts the full leaf roster + code
-    # table — the seam where `FlatFilesUnavailable` / `PartialReconnect`
-    # were invisible on Python / TypeScript, and where the `ConfigError`
-    # leaf was missing.
+    # table: the seam where `PartialReconnect` was invisible on Python /
+    # TypeScript, and where the `ConfigError` leaf was missing.
     py_leaves = _collect_python_error_leaves(PY_ERRORS_RS)
     ts_leaves = _collect_typescript_error_leaves(TS_LIB_RS)
     cpp_leaves = _collect_cpp_error_leaves(CPP_HPP)
@@ -7773,16 +7554,16 @@ def _run_selftest() -> int:
         """All four bindings expose the field — gate is silent."""
         rows = [
             {
-                "name": "FlatFilesConfig.max_attempts",
+                "name": "RetryPolicy.max_attempts",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_setters = {"flatfiles_max_attempts"}
-        ts_setters = {"flatfiles_max_attempts"}
-        cpp_setters = {"flatfiles_max_attempts"}
-        ffi_setters = {"flatfiles_max_attempts"}
+        py_setters = {"retry_max_attempts"}
+        ts_setters = {"retry_max_attempts"}
+        cpp_setters = {"retry_max_attempts"}
+        ffi_setters = {"retry_max_attempts"}
         errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
         assert errors == [], f"positive case must be silent; got {errors!r}"
 
@@ -7790,16 +7571,16 @@ def _run_selftest() -> int:
         """Python+C++ bound, TS missing — gate trips."""
         rows = [
             {
-                "name": "FlatFilesConfig.max_attempts",
+                "name": "RetryPolicy.max_attempts",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_setters = {"flatfiles_max_attempts"}
+        py_setters = {"retry_max_attempts"}
         ts_setters: set[str] = set()
-        cpp_setters = {"flatfiles_max_attempts"}
-        ffi_setters = {"flatfiles_max_attempts"}
+        cpp_setters = {"retry_max_attempts"}
+        ffi_setters = {"retry_max_attempts"}
         errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
         assert any("typescript" in e and "missing" in e for e in errors), (
             f"negative TS case must surface missing setter; got {errors!r}"
@@ -7808,16 +7589,16 @@ def _run_selftest() -> int:
     def _case_negative_missing_on_cpp() -> None:
         rows = [
             {
-                "name": "FlatFilesConfig.max_attempts",
+                "name": "RetryPolicy.max_attempts",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
             }
         ]
-        py_setters = {"flatfiles_max_attempts"}
-        ts_setters = {"flatfiles_max_attempts"}
+        py_setters = {"retry_max_attempts"}
+        ts_setters = {"retry_max_attempts"}
         cpp_setters: set[str] = set()
-        ffi_setters = {"flatfiles_max_attempts"}
+        ffi_setters = {"retry_max_attempts"}
         errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
         assert any("cpp" in e and "missing" in e for e in errors), (
             f"negative C++ case must surface missing setter; got {errors!r}"
@@ -7827,7 +7608,7 @@ def _run_selftest() -> int:
         """C++ claims bound but no FFI symbol — gate trips."""
         rows = [
             {
-                "name": "FlatFilesConfig.max_attempts",
+                "name": "RetryPolicy.max_attempts",
                 "python": False,
                 "typescript": False,
                 "cpp": True,
@@ -7835,7 +7616,7 @@ def _run_selftest() -> int:
         ]
         py_setters: set[str] = set()
         ts_setters: set[str] = set()
-        cpp_setters = {"flatfiles_max_attempts"}
+        cpp_setters = {"retry_max_attempts"}
         ffi_setters: set[str] = set()
         errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
         assert any("ffi" in e for e in errors), (
@@ -7865,7 +7646,7 @@ def _run_selftest() -> int:
         """Row declares not-bound but binding setter exists — trips."""
         rows = [
             {
-                "name": "FlatFilesConfig.max_attempts",
+                "name": "RetryPolicy.max_attempts",
                 "python": False,
                 "typescript": False,
                 "cpp": False,
@@ -7873,7 +7654,7 @@ def _run_selftest() -> int:
                 "issue": "#999",
             }
         ]
-        py_setters = {"flatfiles_max_attempts"}  # unexpectedly bound
+        py_setters = {"retry_max_attempts"}  # unexpectedly bound
         # Rust-only path skips the per-language setter check; instead
         # the contract is: row is fully `false`. We fold this into the
         # `rust_only` consistency check by setting a column `true`
@@ -7938,7 +7719,7 @@ def _run_selftest() -> int:
             cfg_dir = pathlib.Path(tmp) / "config"
             cfg_dir.mkdir()
             (cfg_dir / "fake.rs").write_text(
-                "pub struct FlatFilesConfig {\n"
+                "pub struct RetryPolicy {\n"
                 "    pub max_attempts: u32,\n"
                 "    pub jitter: bool,\n"
                 "    pub novel_field: u64,\n"
@@ -7946,21 +7727,21 @@ def _run_selftest() -> int:
                 encoding="utf-8",
             )
             rust_fields = _collect_rust_pub_fields(cfg_dir)
-            assert "max_attempts" in rust_fields["FlatFilesConfig"], (
+            assert "max_attempts" in rust_fields["RetryPolicy"], (
                 f"max_attempts must parse; got {rust_fields!r}"
             )
-            assert "novel_field" in rust_fields["FlatFilesConfig"], (
+            assert "novel_field" in rust_fields["RetryPolicy"], (
                 f"novel_field must parse; got {rust_fields!r}"
             )
             rows = [
                 {
-                    "name": "FlatFilesConfig.max_attempts",
+                    "name": "RetryPolicy.max_attempts",
                     "python": True,
                     "typescript": True,
                     "cpp": True,
                 }
             ]
-            errors = _check_orphan_rust_fields(rust_fields, rows, {("FlatFilesConfig", "jitter")})
+            errors = _check_orphan_rust_fields(rust_fields, rows, {("RetryPolicy", "jitter")})
             assert any("novel_field" in e for e in errors), (
                 f"undocumented pub field must trip; got {errors!r}"
             )
@@ -7991,10 +7772,10 @@ def _run_selftest() -> int:
 
     def _case_unknown_struct_dotted_row_trips() -> None:
         """A dotted row naming a struct outside `STRUCT_TO_PREFIX` (the typo
-        `FlatFileConfig`) would assert nothing, so it fails instead."""
-        rows = [{"name": "FlatFileConfig.jitter", "python": True, "typescript": True, "cpp": True}]
+        `RetryConfig`) would assert nothing, so it fails instead."""
+        rows = [{"name": "RetryConfig.jitter", "python": True, "typescript": True, "cpp": True}]
         errors = _check_dotted_rows(rows, set(), set(), set(), set())
-        assert any("FlatFileConfig" in e for e in errors), (
+        assert any("RetryConfig" in e for e in errors), (
             f"unknown struct dotted row must trip; got {errors!r}"
         )
 
@@ -8397,32 +8178,9 @@ def _run_selftest() -> int:
             f"exempt + enrolled Client members must not trip; got {errors!r}"
         )
 
-    def _case_client_reverse_orphan_override_home_silent() -> None:
-        """The blob-to-disk helper lives on the Client class per binding but is
-        enrolled against a `FlatFilesNamespace` row through
-        `METHOD_BINDING_OVERRIDES`; neither it nor its Python `_async` twin
-        trips the Client reverse-orphan scan."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "flatFileToPath",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        py_methods = {"Client": {"flatfile_to_path", "flatfile_to_path_async"}}
-        ts_methods = {"Client": {"flatFileToPath"}}
-        cpp_methods = {"FlatFiles": {"to_path"}}
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert errors == [], (
-            f"override-home Client member must not trip; got {errors!r}"
-        )
-
-    _case("client reverse-orphan - new helper trips (beyond the triple)", _case_client_reverse_orphan_generalized_trips)
+    _case("client reverse-orphan - new helper trips (beyond the view accessors)", _case_client_reverse_orphan_generalized_trips)
     _case("client reverse-orphan - enrolled helper silent", _case_client_reverse_orphan_enrolled_silent)
     _case("client reverse-orphan - exempt members silent", _case_client_reverse_orphan_exempt_silent)
-    _case("client reverse-orphan - override-home member silent", _case_client_reverse_orphan_override_home_silent)
 
     # ── Universal class-reverse-orphan scan (the unified helper) ──
 
@@ -8467,20 +8225,18 @@ def _run_selftest() -> int:
 
     def _case_class_reverse_orphan_override_spelling_silent() -> None:
         """The idiomatic per-binding spelling of an override-enrolled method
-        (FlatFileRowList `count` -> C++ `size`, Python `__len__`,
-        TypeScript `len`) is resolved as enrolled, not flagged as an orphan."""
+        (Subscription `kind` -> C++ `kind_string`) is resolved as enrolled,
+        not flagged as an orphan."""
         rows = [
-            {"class": "FlatFileRowList", "name": "count", "python": True,
-             "typescript": True, "cpp": True},
-            {"class": "FlatFileRowList", "name": "toArrowIpc", "python": True,
+            {"class": "Subscription", "name": "kind", "python": True,
              "typescript": True, "cpp": True},
         ]
-        py_methods = {"FlatFileRowList": {"__len__", "to_arrow", "__bool__"}}
-        ts_methods = {"FlatFileRowList": {"len", "toArrowIpc", "isEmpty"}}
-        cpp_methods = {"FlatFileRowList": {"size", "to_arrow_ipc", "out"}}
+        py_methods = {"PySubscription": {"kind"}}
+        ts_methods = {"Subscription": {"kind"}}
+        cpp_methods = {"FluentSubscription": {"kind", "kind_string"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
-            f"override-spelled + idiom members must be silent; got {errors!r}"
+            f"override-spelled members must be silent; got {errors!r}"
         )
 
     def _case_class_reverse_orphan_camel_source_member_trips() -> None:
@@ -8821,14 +8577,14 @@ def _run_selftest() -> int:
         """Binding-specific class aliases are satisfied by the canonical row."""
         rows = [
             {"name": "Contract", "python": True, "typescript": True, "cpp": True},
-            {"name": "FlatFilesNamespace", "python": True, "typescript": True, "cpp": True},
+            {"name": "MarketDataView", "python": True, "typescript": True, "cpp": True},
         ]
         errors = _check_binding_class_orphans(
             rows,
-            {"PyContract", "FlatFilesNamespace"},
-            {"ContractRef", "FlatFilesNamespace"},
+            {"PyContract", "MarketDataView"},
+            {"ContractRef", "MarketDataView"},
             set(),
-            {"FluentContract", "FlatFiles"},
+            {"FluentContract", "MarketData"},
         )
         assert errors == [], f"declared aliases must stay silent; got {errors!r}"
 
@@ -9234,183 +8990,47 @@ def _run_selftest() -> int:
     _case("ts runtime - real bound-name re-export chain still collected", _case_ts_runtime_real_reexport_chain_collected)
     _case("ts runtime - require bound as property value is not wholesale", _case_ts_runtime_require_value_not_wholesale)
 
-    def _case_flatfiles_namespace_fetch_resolves() -> None:
-        """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the
-        `FlatFiles` class and against the snake/camel per-binding spellings."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "optionTradeQuote",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
-        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
-        # The row says `FlatFilesNamespace`; the C++ class is `FlatFiles`.
-        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert errors == [], (
-            f"flat-file fetch row must resolve across bindings; got {errors!r}"
-        )
-
-    def _case_flatfiles_to_path_override_resolves() -> None:
-        """The blob-to-disk helper resolves through `METHOD_BINDING_OVERRIDES`:
-        Python `Client.flatfile_to_path`, TS `Client.flatFileToPath`, C++
-        `FlatFiles::to_path` — three divergent home classes / names, one row."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "flatFileToPath",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        py_methods = {"Client": {"flatfile_to_path"}}
-        ts_methods = {"Client": {"flatFileToPath"}}
-        cpp_methods = {"FlatFiles": {"to_path"}}
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert errors == [], (
-            f"to-path override must resolve each binding's home class; got {errors!r}"
-        )
-
-    def _case_flatfiles_to_path_override_drop_trips() -> None:
-        """Dropping the C++ `to_path` member trips the overridden row — the
-        override must still gate, not silently pass."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "flatFileToPath",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        py_methods = {"Client": {"flatfile_to_path"}}
-        ts_methods = {"Client": {"flatFileToPath"}}
-        cpp_methods = {"FlatFiles": set()}  # `to_path` dropped on C++
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert any("flatFileToPath" in e and ".cpp" in e for e in errors), (
-            f"dropped C++ to_path must trip the overridden row; got {errors!r}"
-        )
-
-    def _case_flatfiles_namespace_orphan_trips() -> None:
-        """A fetch method present on the namespace class with no enrolling row
-        trips the reverse-orphan scan."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "optionTradeQuote",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        # `indexEod` is present on the namespace but carries no row.
-        py_methods = {"FlatFilesNamespace": {"option_trade_quote", "index_eod"}}
-        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote", "indexEod"}}
-        cpp_methods = {"FlatFiles": {"option_trade_quote", "index_eod"}}
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert any("index_eod" in e and "no `[[method]]` row" in e for e in errors), (
-            f"unenrolled namespace fetch method must trip the gate; got {errors!r}"
-        )
-
-    def _case_flatfiles_namespace_artifacts_exempt() -> None:
-        """Collector artifacts on the namespace class (C++ `handle_` / the FFI
-        externs, Python `pull_decoded`, the override-enrolled C++ `to_path`) do
-        NOT trip the reverse-orphan scan."""
-        rows = [
-            {"class": "FlatFilesNamespace", "name": n, "python": True, "typescript": True, "cpp": True}
-            for n in sorted(FLATFILES_NAMESPACE_METHODS)
-        ] + [
-            {"class": "FlatFilesNamespace", "name": "flatFileToPath", "python": True, "typescript": True, "cpp": True}
-        ]
-        py_methods = {
-            "FlatFilesNamespace": {_camel_to_snake(n) for n in FLATFILES_NAMESPACE_METHODS} | {"pull_decoded"},
-            "Client": {"flatfile_to_path"},
-        }
-        ts_methods = {"FlatFilesNamespace": set(FLATFILES_NAMESPACE_METHODS), "Client": {"flatFileToPath"}}
-        cpp_methods = {
-            "FlatFiles": {_camel_to_snake(n) for n in FLATFILES_NAMESPACE_METHODS}
-            | {"handle_", "to_path", "thetadatadx_flatfile_request_decoded", "thetadatadx_flatfile_request_to_path"},
-        }
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-        assert errors == [], (
-            f"namespace collector artifacts must stay exempt; got {errors!r}"
-        )
-
-    _case("flatfiles positive — namespace fetch row resolves via C++ alias", _case_flatfiles_namespace_fetch_resolves)
-    _case("flatfiles positive — to-path override resolves divergent homes", _case_flatfiles_to_path_override_resolves)
-    _case("flatfiles negative — dropped C++ to_path trips overridden row", _case_flatfiles_to_path_override_drop_trips)
-    _case("flatfiles negative — unenrolled namespace fetch method trips", _case_flatfiles_namespace_orphan_trips)
-    _case("flatfiles positive — namespace collector artifacts exempt", _case_flatfiles_namespace_artifacts_exempt)
-
     def _case_method_rust_column_resolves() -> None:
-        """A `FlatFilesNamespace` fetch row with `rust = true` resolves to the
-        Rust `FlatFiles` view via `RUST_METHOD_CLASS` and the snake_case name."""
+        """A `MarketDataClient` row with `rust = true` resolves to the Rust
+        struct via `RUST_METHOD_CLASS` and the snake_case name."""
         rows = [
             {
-                "class": "FlatFilesNamespace",
-                "name": "optionTradeQuote",
+                "class": "MarketDataClient",
+                "name": "close",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
                 "rust": True,
             }
         ]
-        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
-        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
-        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
-        rust_methods = {"FlatFiles": {"option_trade_quote"}}
+        py_methods = {"MarketDataClient": {"close"}}
+        ts_methods = {"MarketDataClient": {"close"}}
+        cpp_methods = {"MarketDataClient": {"close"}}
+        rust_methods = {"MarketDataClient": {"close"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
         assert errors == [], (
-            f"rust-column fetch row must resolve to the FlatFiles view; got {errors!r}"
+            f"rust-column row must resolve to the MarketDataClient struct; got {errors!r}"
         )
 
     def _case_method_rust_column_missing_trips() -> None:
-        """`rust = true` but the method is absent on the Rust view — trips."""
+        """`rust = true` with the method absent on the Rust struct trips."""
         rows = [
             {
-                "class": "FlatFilesNamespace",
-                "name": "optionTradeQuote",
+                "class": "MarketDataClient",
+                "name": "close",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
                 "rust": True,
             }
         ]
-        py_methods = {"FlatFilesNamespace": {"option_trade_quote"}}
-        ts_methods = {"FlatFilesNamespace": {"optionTradeQuote"}}
-        cpp_methods = {"FlatFiles": {"option_trade_quote"}}
-        rust_methods: dict[str, set[str]] = {"FlatFiles": set()}
+        py_methods = {"MarketDataClient": {"close"}}
+        ts_methods = {"MarketDataClient": {"close"}}
+        cpp_methods = {"MarketDataClient": {"close"}}
+        rust_methods: dict[str, set[str]] = {"MarketDataClient": set()}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
-        assert any("optionTradeQuote" in e and ".rust" in e and "missing" in e for e in errors), (
-            f"missing Rust view method must trip the rust column; got {errors!r}"
-        )
-
-    def _case_method_rust_to_path_override_resolves() -> None:
-        """The blob-to-disk row resolves its Rust target through
-        `METHOD_BINDING_OVERRIDES` to `FlatFiles::to_path`, alongside the
-        divergent Python / TS / C++ homes."""
-        rows = [
-            {
-                "class": "FlatFilesNamespace",
-                "name": "flatFileToPath",
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "rust": True,
-            }
-        ]
-        py_methods = {"Client": {"flatfile_to_path"}}
-        ts_methods = {"Client": {"flatFileToPath"}}
-        cpp_methods = {"FlatFiles": {"to_path"}}
-        rust_methods = {"FlatFiles": {"to_path"}}
-        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods, rust_methods)
-        assert errors == [], (
-            f"rust to_path override must resolve to FlatFiles::to_path; got {errors!r}"
+        assert any("close" in e and ".rust" in e and "missing" in e for e in errors), (
+            f"missing Rust method must trip the rust column; got {errors!r}"
         )
 
     def _case_method_rust_column_opt_in() -> None:
@@ -9435,9 +9055,8 @@ def _run_selftest() -> int:
             f"unmapped class without rust column must not be Rust-gated; got {errors!r}"
         )
 
-    _case("method positive — rust column resolves to the FlatFiles view", _case_method_rust_column_resolves)
-    _case("method negative — rust column missing on view trips", _case_method_rust_column_missing_trips)
-    _case("method positive — rust to_path override resolves", _case_method_rust_to_path_override_resolves)
+    _case("method positive: rust column resolves to the Rust struct", _case_method_rust_column_resolves)
+    _case("method negative: rust column missing on the Rust struct trips", _case_method_rust_column_missing_trips)
     _case("method positive — rust column is opt-in for unmapped classes", _case_method_rust_column_opt_in)
 
     def _case_value_field_positive_matches() -> None:
@@ -10217,24 +9836,20 @@ def _run_selftest() -> int:
 
     # ── Setter normalizer + set-parity selftests ───────────────────
 
-    def _case_normalizer_folds_explicit_and_flatfiles() -> None:
-        """`_normalize_setter` folds the `_explicit` widened-ABI suffix
-        and the `flat_files`→`flatfiles` camelCase split.
-        """
+    def _case_normalizer_folds_explicit() -> None:
+        """`_normalize_setter` folds the `_explicit` widened-ABI suffix."""
         assert _normalize_setter("worker_threads_explicit") == "worker_threads"
         assert _normalize_setter("worker_threads") == "worker_threads"
-        assert _normalize_setter("flat_files_max_attempts") == "flatfiles_max_attempts"
-        assert _normalize_setter("flatfiles_max_attempts") == "flatfiles_max_attempts"
         assert _normalize_setter("streaming_host_shuffle_seed_explicit") == "streaming_host_shuffle_seed"
 
     def _case_setter_set_parity_positive_after_normalize() -> None:
         """The four sets, spelled in their per-binding idioms, compare
         equal after normalization — the gate is silent.
         """
-        py = {"worker_threads", "flatfiles_jitter", "flush_mode"}
-        ts = {"worker_threads_explicit", "flat_files_jitter", "flatfiles_jitter", "flush_mode"}
-        cpp = {"worker_threads_explicit", "flatfiles_jitter", "flush_mode"}
-        ffi = {"worker_threads_explicit", "flatfiles_jitter", "flush_mode"}
+        py = {"worker_threads", "retry_jitter", "flush_mode"}
+        ts = {"worker_threads_explicit", "retry_jitter", "flush_mode"}
+        cpp = {"worker_threads_explicit", "retry_jitter", "flush_mode"}
+        ffi = {"worker_threads_explicit", "retry_jitter", "flush_mode"}
         errors = _check_setter_set_parity(py, ts, cpp, ffi, exempt={})
         assert errors == [], (
             f"normalized-equal sets must be silent; got {errors!r}"
@@ -10299,7 +9914,7 @@ def _run_selftest() -> int:
             f"live setter-set parity must be clean; got {errors!r}"
         )
 
-    _case("normalizer — folds _explicit + flat_files", _case_normalizer_folds_explicit_and_flatfiles)
+    _case("normalizer: folds _explicit", _case_normalizer_folds_explicit)
     _case("setter-set — normalized-equal sets are silent", _case_setter_set_parity_positive_after_normalize)
     _case("setter-set — missing-on-TS knob trips", _case_setter_set_parity_missing_on_one_binding_trips)
     _case("setter-set — Python-only exemption honoured", _case_setter_set_parity_honours_exemption)
@@ -10398,14 +10013,14 @@ def _run_selftest() -> int:
         with tempfile.TemporaryDirectory() as tmp:
             hpp = pathlib.Path(tmp) / "thetadatadx.hpp"
             hpp.write_text(
-                "class FlatFiles {\npublic:\n"
-                "    FlatFileRowList option_eod(const std::string& d) const {\n"
+                "class Feed {\npublic:\n"
+                "    RowList option_eod(const std::string& d) const {\n"
                 '        return request("OPTION");\n'
                 "    }\nprivate:\n"
                 "    Handle* handle_;\n};\n",
                 encoding="utf-8",
             )
-            methods = _collect_cpp_class_methods(hpp).get("FlatFiles", set())
+            methods = _collect_cpp_class_methods(hpp).get("Feed", set())
             assert methods == {"option_eod"}, (
                 f"only the declared method may be collected; got {sorted(methods)!r}"
             )
@@ -10548,9 +10163,8 @@ def _run_selftest() -> int:
         assert errors == [], f"symmetric error mapping must be silent; got {errors!r}"
 
     def _case_error_leaf_missing_on_py_trips() -> None:
-        """A leaf invisible on Python (the `FlatFilesUnavailable` /
-        `PartialReconnect` → no `StreamError`, or a missing `ConfigError`
-        defect) trips.
+        """A leaf invisible on Python (the `PartialReconnect` → no
+        `StreamError`, or a missing `ConfigError` defect) trips.
         """
         leaves = set(CANONICAL_ERROR_LEAVES)
         py_short = leaves - {"ConfigError"}
@@ -10906,8 +10520,8 @@ def _run_selftest() -> int:
         """A Rust `Result<T, E>` return unwraps to the ok type `T` (the error
         arm is a per-binding surface property), depth-aware so a comma inside
         `T`'s generics is not split. Single-arg `Result<T>` / `Promise<T>` also
-        unwrap. The flat-file `Result<Vec<FlatFileRow>, Error>` surfaced this."""
-        assert _sig_unwrap_result("Result<Vec<crate::flatfiles::FlatFileRow>, Error>") == "Vec<crate::flatfiles::FlatFileRow>"
+        unwrap."""
+        assert _sig_unwrap_result("Result<Vec<crate::TradeTick>, Error>") == "Vec<crate::TradeTick>"
         assert _sig_unwrap_result("Result<std::path::PathBuf, Error>") == "std::path::PathBuf"
         assert _sig_unwrap_result("PyResult<()>") == "()"
         assert _sig_unwrap_result("Promise<boolean>") == "boolean"
@@ -11557,8 +11171,8 @@ def _run_selftest() -> int:
     def _case_sig_extract_cpp_in_body_call_shadow() -> None:
         """A member-access CALL inside an earlier inline body (`handle_.get()`
         inside `size()`) must NOT shadow the real `get()` declaration: the
-        method is matched in DECLARATION position only (the `FlatFileRowList::get`
-        raw-handle accessor that returned a parsed method body as its type)."""
+        method is matched in DECLARATION position only (a raw-handle accessor
+        once returned a parsed method body as its type)."""
         with tempfile.TemporaryDirectory() as tmp:
             hpp = pathlib.Path(tmp) / "h.hpp"
             hpp.write_text(
@@ -11599,7 +11213,7 @@ def _run_selftest() -> int:
             "*const ThetaDataDxClient", "*const ThetaDataDxClient", "ffi"
         )
         assert _sig_type_agrees(
-            "ThetaDataDxFlatFileBytes", "ThetaDataDxFlatFileBytes", "ffi"
+            "ThetaDataDxArrowBytes", "ThetaDataDxArrowBytes", "ffi"
         )
         assert not _sig_type_agrees(
             "*const ThetaDataDxClient", "*const ThetaDataDxConfig", "ffi"
@@ -11609,12 +11223,10 @@ def _run_selftest() -> int:
         ), "a managed lang must still fail closed on an unmapped raw type"
 
     def _case_sig_cpp_raw_handle_exact() -> None:
-        """A C++ canonical that is itself a raw `ThetaDataDx*` handle pointer
-        compares by exact spelling (the `FlatFileRowList::get` escape hatch),
-        while a plain unmapped C++ scalar still fails closed."""
-        assert _sig_type_agrees(
-            "const ThetaDataDxFlatFileRowList*", "const ThetaDataDxFlatFileRowList*", "cpp"
-        )
+        """A C++ canonical that is itself a raw pointer compares by exact
+        spelling (the `uint64_t*` out-param), while a plain unmapped C++
+        scalar still fails closed."""
+        assert _sig_type_agrees("uint64_t*", "uint64_t*", "cpp")
         assert not _sig_type_agrees("SomeRandomScalar", "SomeRandomScalar", "cpp"), (
             "a non-pointer unmapped C++ type must fail closed"
         )
@@ -11654,7 +11266,7 @@ def _run_selftest() -> int:
         """The opaque cross-binding payload return canonicals (`Bytes` / `Schema`
         / `PyObject` / `Credentials`) accept each binding's idiomatic spelling —
         the Arrow-IPC / schema / materialiser / auth-handle returns the
-        FlatFileRowList / RecordBatchStream / Credentials surfaces carry."""
+        RecordBatchStream / Credentials surfaces carry."""
         assert _sig_type_agrees("Bytes", "napi::Result<Buffer>", "ts_napi") or \
             _sig_type_agrees("Bytes", _sig_unwrap_result("napi::Result<Buffer>"), "ts_napi")
         assert _sig_type_agrees("Bytes", "std::vector<uint8_t>", "cpp")
@@ -11978,7 +11590,7 @@ def _run_selftest() -> int:
     _case("sig extractor — C++ in-body call shadow rejected", _case_sig_extract_cpp_in_body_call_shadow)
     _case("sig extractor — C++ #ifdef-guarded return stripped", _case_sig_extract_cpp_preprocessor_guarded_return)
     _case("sig type-map — FFI opaque pointer exact match", _case_sig_ffi_opaque_pointer_exact)
-    _case("sig type-map — C++ raw handle exact match", _case_sig_cpp_raw_handle_exact)
+    _case("sig type-map: C++ raw pointer exact match", _case_sig_cpp_raw_handle_exact)
     _case("sig type-map — return result-unwrap + lifetime/napi-path fold", _case_sig_return_result_unwrap_and_lifetime)
     _case("sig type-map — opaque payload returns (Bytes/Schema/PyObject/Credentials)", _case_sig_opaque_payload_returns)
     _case("sig orchestrator — all axes clean (sanction + override)", _case_sig_positive_all_axes_clean)

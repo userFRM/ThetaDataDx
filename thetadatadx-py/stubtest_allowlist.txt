@@ -3,8 +3,8 @@
 # The hand-written `__init__.pyi` covers the load-bearing public
 # surface — clients, credentials, the fluent `Contract` /
 # `Subscription` / `SecType` types, the typed FPSS event payload
-# classes, streaming context managers, the FlatFiles namespace, the
-# typed exception hierarchy. Generator-emitted classes (100+
+# classes, streaming context managers, the typed exception
+# hierarchy. Generator-emitted classes (100+
 # market-data builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
 # wrappers, every enum produced by
 # `coerce::register_string_enums`, etc.) are exposed via the

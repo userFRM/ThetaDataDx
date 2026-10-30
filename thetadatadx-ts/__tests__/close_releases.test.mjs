@@ -2,7 +2,7 @@
 //
 // Pins the contract that `close()` RELEASES the core client handle (not just
 // stops streaming), so a closed client is unusable: every surface getter
-// (`marketData` / `stream` / `flatFiles`) throws a clear "client is closed"
+// (`marketData` / `stream`) throws a clear "client is closed"
 // error, and a second close is a no-op. Also pins that the explicit-resource
 // disposers (`Symbol.dispose` / `Symbol.asyncDispose`) route through the real
 // `close()` and tolerate an already-closed client.
@@ -78,7 +78,6 @@ describe('close() releases the handle and makes the client unusable', () => {
     client.close();
     assert.throws(() => client.marketData, /closed/, 'marketData must throw after close');
     assert.throws(() => client.stream, /closed/, 'stream must throw after close');
-    assert.throws(() => client.flatFiles, /closed/, 'flatFiles must throw after close');
     // Idempotent.
     assert.doesNotThrow(() => client.close());
   });

@@ -42,9 +42,6 @@ set(THETADATADX_CPP_TEST_SOURCES
     config_reconnect.cpp
     # MDDS two-stage decode pipeline setters on thetadatadx::Config
     # (Phase 3 of 3, follow-up to PR #587 / #588).
-    # FlatFilesConfig setters on thetadatadx::Config — cross-binding parity
-    # with Python / TypeScript / FFI (issue #594).
-    flatfiles_config.cpp
     # InterestRateTick is a 2-field shape (date/rate); guards against a
     # regression to a fictitious 3-field ms_of_day layout.
     interest_rate.cpp

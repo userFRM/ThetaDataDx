@@ -61,8 +61,8 @@ fn render_sdk_generated_files() -> Vec<GeneratedSourceFile> {
         GeneratedSourceFile {
             // C++ Arrow-IPC terminals on the history result vectors
             // (`thetadatadx::eod_ticks_to_arrow_ipc(...)`). Included from
-            // `thetadatadx.hpp`; mirrors `FlatFileRowList::to_arrow_ipc()` and
-            // the Python `<TickName>List.to_arrow()` columnar exit.
+            // `thetadatadx.hpp`; mirrors the Python `<TickName>List.to_arrow()`
+            // columnar exit.
             relative_path: "thetadatadx-cpp/include/tick_arrow_ipc.hpp.inc",
             contents: cpp::render_cpp_tick_arrow_ipc(),
         },

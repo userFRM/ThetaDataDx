@@ -52,8 +52,8 @@ pub(super) fn render_cpp_tick_layout_asserts() -> String {
 }
 
 /// Emit `thetadatadx-cpp/include/tick_arrow_ipc.hpp.inc` — the C++ free functions
-/// that serialise a `std::vector<Tick>` history result to Arrow IPC bytes,
-/// mirroring the `FlatFileRowList::to_arrow_ipc()` terminal. Each wraps the
+/// that serialise a `std::vector<Tick>` history result to Arrow IPC bytes.
+/// Each wraps the
 /// matching `thetadatadx_<collection>_to_arrow_ipc` C ABI function; the vector's
 /// element type is the layout-pinned C tick struct, so `data()` / `size()`
 /// pass straight through with no copy. This gives the C++ history results
