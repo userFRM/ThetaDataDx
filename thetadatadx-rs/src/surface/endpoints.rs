@@ -2,10 +2,11 @@
 //!
 //! Every endpoint is written once, in `__endpoints!`. The engine expands the
 //! tables into the `MarketDataClient` methods and builders, the endpoint
-//! registry, the dispatch behind it and the shard fan-out allowlist.
-//! `endpoint_surface.toml` still drives the binding and documentation
-//! generators, so an endpoint change lands in both until that file is
-//! retired.
+//! registry, the dispatch behind it and the shard fan-out allowlist; the C
+//! ABI expands them into its entry points and `__request_options!` into its
+//! options struct. `endpoint_surface.toml` still drives the other binding and
+//! documentation generators and the C header, so an endpoint change lands in
+//! both until that file is retired.
 //!
 //! A consumer passes the name of one of its own macros and receives every
 //! entry, in table order, after the tokens it passed:
@@ -143,6 +144,10 @@ macro_rules! __param {
     (multi_symbol $($s:tt)*) => { $crate::__resolve! { @def {
         symbol(symbols) req Symbols []
         "Comma-separated ticker symbols (e.g. AAPL,MSFT)"
+    } $($s)* } };
+    (contract_symbol_filter $($s:tt)*) => { $crate::__resolve! { @def {
+        symbol opt Symbol []
+        "Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date."
     } $($s)* } };
     (expiration_param $($s:tt)*) => { $crate::__resolve! { @def {
         expiration req Expiration []
@@ -293,6 +298,25 @@ macro_rules! __param {
     (option_at_time $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity date_range_required time_of_day max_dte_filter strike_range_filter] $($s)* } };
     (option_flat_file $($s:tt)*) => { $crate::__resolve! { @keys [required_date] $($s)* } };
     (index_snapshot $($s:tt)*) => { $crate::__resolve! { @keys [multi_symbol min_time_filter current_day_only_flag] $($s)* } };
+}
+
+/// The optional parameters of the C ABI options struct, in field order.
+///
+/// Append only: a field's position is ABI. `__request_options! { consumer {
+/// ctx.. } }` resolves the keys and calls back like `__resolve!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __request_options {
+    ($m:ident { $($ctx:tt)* }) => {
+        $crate::__resolve! { [
+            stock_venue_filter min_time_filter current_day_only_flag optional_date interval
+            start_time_filter end_time_filter start_date_optional end_date_optional exclusive_flag
+            use_time_based_trade_quote_flag strike_param right_param contract_symbol_filter
+            max_dte_filter strike_range_filter annual_dividend_input annual_dividend_amount_input
+            rate_type_input rate_value_input stock_price_input version_input use_market_value_flag
+            binomial_steps_input underlyer_use_nbbo_flag option_use_nbbo_flag perf_boost_intraday_flag
+        ] => $m { $($ctx)* } }
+    };
 }
 
 /// Every market-data endpoint, in registry order.
@@ -557,15 +581,7 @@ macro_rules! __endpoints {
                 group: option / list,
                 rest: "/v3/option/list/contracts",
                 returns: OptionContract,
-                params: [
-                    request_type
-                    {
-                        symbol opt Symbol []
-                        "Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date."
-                    }
-                    required_date
-                    max_dte_filter
-                ],
+                params: [request_type contract_symbol_filter required_date max_dte_filter],
                 doc: [
                     "List all option contracts traded or quoted on a given date, optionally filtered to a symbol.",
                     "",
