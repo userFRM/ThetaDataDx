@@ -291,8 +291,8 @@ pub(crate) fn present_calendar_day_columns(headers: &[&str]) -> ColumnPresence {
 /// A tick type that knows which of its schema columns a response's wire
 /// header list actually carried.
 ///
-/// Implemented (generated) for every decoded tick type from the same
-/// `tick_schema.toml` column list the parser uses, so
+/// Implemented for every decoded tick type from the same column list the
+/// parser uses, so
 /// [`present_columns`](Self::present_columns) and the parser resolve the
 /// wire against identical alias-aware lookups. The direct-client seam calls
 /// it once per response — with `table.headers` in scope — and carries the

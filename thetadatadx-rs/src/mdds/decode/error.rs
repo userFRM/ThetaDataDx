@@ -31,7 +31,7 @@ pub enum DecodeError {
     /// frame locatable from the error alone.
     #[error("column `{header}` (index {column}, row {row}): expected {expected}, got {observed}")]
     ColumnTypeMismatch {
-        /// Schema-side column name (as declared in `tick_schema.toml`).
+        /// Schema-side column name (as the tick type declares it).
         header: &'static str,
         /// Resolved wire column index.
         column: usize,
@@ -45,8 +45,8 @@ pub enum DecodeError {
     /// Row has fewer cells than the requested column index.
     #[error("column {column}: missing cell")]
     MissingCell { column: usize },
-    /// A required header (declared in `tick_schema.toml` under
-    /// `required = [...]`) is absent from a non-empty `DataTable`. Emitted by
+    /// A header the tick type requires is absent from a non-empty
+    /// `DataTable`. Emitted by
     /// the generated parsers when the server has added or renamed the column —
     /// surfacing this as an error is the only way to prevent silent data loss
     /// when the upstream schema drifts (see `HEADER_ALIASES` for known

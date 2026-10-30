@@ -21,8 +21,7 @@
 /// Convert a slice of tick rows into a [`polars::prelude::DataFrame`].
 ///
 /// Feature-gated on the `polars` Cargo feature. Implemented for every
-/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...); the per-type impls live in the
-/// generator-emitted `frames/generated.rs`.
+/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...).
 #[cfg(feature = "polars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 pub trait TicksPolarsExt {
@@ -65,14 +64,13 @@ pub trait TicksPolarsExt {
 /// Convert a slice of tick rows into an [`arrow_array::RecordBatch`].
 ///
 /// Feature-gated on the `arrow` Cargo feature. Implemented for every
-/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...); the per-type impls live in the
-/// generator-emitted `frames/generated.rs`.
+/// tick type the crate exports (`thetadatadx::TradeTick`, `thetadatadx::QuoteTick`, ...).
 #[cfg(feature = "arrow")]
 #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
 pub trait TicksArrowExt {
-    /// Materialise `self` as an Arrow `RecordBatch`. Column order,
-    /// names, and dtypes match the schema emitted by the Python
-    /// slice_arrow path in `thetadatadx-py/src/tick_arrow.rs`.
+    /// Materialise `self` as an Arrow `RecordBatch`. The Python,
+    /// TypeScript and C++ Arrow outputs are built through this trait, so
+    /// their column order, names, and dtypes match it.
     ///
     /// Emits the full schema — every column the tick type defines. This is
     /// the hand-built-slice path: a slice a caller assembled itself never
