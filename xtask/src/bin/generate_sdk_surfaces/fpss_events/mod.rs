@@ -6,9 +6,10 @@
 //!
 //! - `thetadatadx-cpp/include/fpss_event_structs.h.inc`: the C mirror of the
 //!   FFI event structs, `#include`'d from `thetadatadx.h`;
-//! - `thetadatadx-cpp/include/fpss_layout_asserts.hpp.inc`: the C++
-//!   `static_assert`s pinning every size and offset of that mirror. The FFI
-//!   crate checks its Rust layout against the same lines.
+//! - `thetadatadx-cpp/include/fpss_layout_asserts.hpp.inc`: the C++ alias of
+//!   every event type and the `static_assert`s pinning every size and offset
+//!   of that mirror. The FFI crate checks its Rust layout against the same
+//!   lines.
 
 use std::path::Path;
 

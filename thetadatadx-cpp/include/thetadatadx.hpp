@@ -100,35 +100,10 @@ private:
 };
 #endif
 
-// ── Tick types (re-exported from thetadatadx.h for C++ convenience) ──
-// These are typedef aliases to the C types defined in thetadatadx.h.
-// They are fixed-layout and ABI-compatible with those C structs.
-
-using EodTick = ThetaDataDxEodTick;
-using OhlcTick = ThetaDataDxOhlcTick;
-using TradeTick = ThetaDataDxTradeTick;
-using QuoteTick = ThetaDataDxQuoteTick;
-using GreeksAllTick = ThetaDataDxGreeksAllTick;
-using GreeksEodTick = ThetaDataDxGreeksEodTick;
-using GreeksFirstOrderTick = ThetaDataDxGreeksFirstOrderTick;
-using GreeksSecondOrderTick = ThetaDataDxGreeksSecondOrderTick;
-using GreeksThirdOrderTick = ThetaDataDxGreeksThirdOrderTick;
-using TradeGreeksAllTick = ThetaDataDxTradeGreeksAllTick;
-using TradeGreeksFirstOrderTick = ThetaDataDxTradeGreeksFirstOrderTick;
-using TradeGreeksSecondOrderTick = ThetaDataDxTradeGreeksSecondOrderTick;
-using TradeGreeksThirdOrderTick = ThetaDataDxTradeGreeksThirdOrderTick;
-using TradeGreeksImpliedVolatilityTick = ThetaDataDxTradeGreeksImpliedVolatilityTick;
-using IvTick = ThetaDataDxIvTick;
-using PriceTick = ThetaDataDxPriceTick;
-using IndexPriceAtTimeTick = ThetaDataDxIndexPriceAtTimeTick;
-using OpenInterestTick = ThetaDataDxOpenInterestTick;
-using MarketValueTick = ThetaDataDxMarketValueTick;
-using CalendarDay = ThetaDataDxCalendarDay;
-using InterestRateTick = ThetaDataDxInterestRateTick;
-using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
-using IntervalQuoteTick = ThetaDataDxIntervalQuoteTick;
-
-// Generated layout guards for the C mirror tick structs.
+// ── Tick types ──
+// `using EodTick = ThetaDataDxEodTick;` and so on for every tick type: aliases
+// of the fixed-layout C structs in thetadatadx.h, followed by the guards that
+// pin each one to the layout of its Rust row.
 #include "tick_layout_asserts.hpp.inc"
 
 // Generated boolean flag-word accessors (`thetadatadx::is_cancelled(...)`, ...)
@@ -138,7 +113,7 @@ using IntervalQuoteTick = ThetaDataDxIntervalQuoteTick;
 // precomputed fields from the same schema rows.
 #include "tick_flag_accessors.hpp.inc"
 
-// ── streaming event struct layout guards ──
+// ── streaming event types and their layout guards ──
 //
 // Field-level offsetof guards. The `ThetaDataDxStreamEvent` data-variant field
 // order is generated from the streaming event table, the same table
@@ -166,7 +141,10 @@ using IntervalQuoteTick = ThetaDataDxIntervalQuoteTick;
 // struct layout under `-O2` with the generated `fpss_event_structs.h.inc`
 // types on an LP64 host; CI re-validates the asserts on every build.
 
-// Generated layout guards for the streaming event C mirror structs.
+// Generated `thetadatadx::` aliases of the streaming event types
+// (`StreamEventKind`, `StreamQuote`, ..., `StreamEvent`; dispatch on
+// `event.kind`, then read the matching `event.<variant>` payload) and the
+// layout guards for their C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
 
 // Layout guards for the hand-written ABI structs (option contract,
@@ -1034,42 +1012,6 @@ private:
 
     std::shared_ptr<ThetaDataDxMarketDataClient> handle_;
 };
-
-// ── streaming event types (re-exported from thetadatadx.h) ──
-//
-// Each control variant has its own typed C struct rather than a single
-// flat `{ kind, id, detail }` envelope. Consumers dispatch via
-// `event.kind` and read the matching `event.<variant>` payload
-// (`event.login_success.permissions`, `event.disconnected.reason`,
-// etc.). The aliases below mirror every generated type so C++ users can
-// stay in the `thetadatadx::` namespace.
-
-using StreamEventKind = ThetaDataDxStreamEventKind;
-using StreamQuote = ThetaDataDxStreamQuote;
-using StreamTrade = ThetaDataDxStreamTrade;
-using StreamOpenInterest = ThetaDataDxStreamOpenInterest;
-using StreamOhlcvc = ThetaDataDxStreamOhlcvc;
-using StreamMarketValue = ThetaDataDxStreamMarketValue;
-using StreamIndexMarketValue = ThetaDataDxStreamIndexMarketValue;
-// Typed control variants — one alias per control event type.
-using StreamConnected = ThetaDataDxStreamConnected;
-using StreamContractAssigned = ThetaDataDxStreamContractAssigned;
-using StreamDisconnected = ThetaDataDxStreamDisconnected;
-using StreamParseError = ThetaDataDxStreamParseError;
-using StreamLoginSuccess = ThetaDataDxStreamLoginSuccess;
-using StreamMarketClose = ThetaDataDxStreamMarketClose;
-using StreamMarketOpen = ThetaDataDxStreamMarketOpen;
-using StreamPing = ThetaDataDxStreamPing;
-using StreamReconnected = ThetaDataDxStreamReconnected;
-using StreamReconnectedServer = ThetaDataDxStreamReconnectedServer;
-using StreamReconnecting = ThetaDataDxStreamReconnecting;
-using StreamReconnectsExhausted = ThetaDataDxStreamReconnectsExhausted;
-using StreamReqResponse = ThetaDataDxStreamReqResponse;
-using StreamRestart = ThetaDataDxStreamRestart;
-using StreamServerError = ThetaDataDxStreamServerError;
-using StreamUnknownControl = ThetaDataDxStreamUnknownControl;
-using StreamUnknownFrame = ThetaDataDxStreamUnknownFrame;
-using StreamEvent = ThetaDataDxStreamEvent;
 
 // ── Real-time streaming client ──
 //
