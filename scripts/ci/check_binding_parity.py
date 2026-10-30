@@ -43,20 +43,13 @@ Rust-only rows: a dotted row with `rust_only = true` MUST cite an
 `rust_only` flag with no issue or an `issue` flag with no `rust_only`
 fails the gate.
 
-Market-data endpoint families (`[[market_data_base]]` /
-`[[market_data_async]]` / `[[market_data_streaming]]`): the buffered,
-async-query, and server-stream surfaces per endpoint. Each carries a
-`rust` column read from the endpoint table,
-`thetadatadx-rs/src/surface/endpoints.rs`, which the core expands into its
-market-data methods. The Rust buffered surface is every `__endpoints!`
-entry; the Rust streaming subset is its `chunked` entries (list /
-snapshot / calendar endpoints get no server-stream terminal).
-`[[market_data_base]]` additionally pins
-the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
-SHIPPED header (`thetadatadx-cpp/include/endpoint_with_options.h.inc`) and
-cross-checks the shipped header, the `thetadatadx-ffi/src` source, and the registry
-for agreement so a stale regenerated header is caught. This is the core
-"every endpoint exists on all five surfaces" guarantee.
+Market-data methods and config accessors have no rows: every binding
+expands them from the endpoint and config tables in
+`thetadatadx-rs/src/surface/`. The gate derives from those tables the methods
+each entry implies and holds the published TypeScript declaration and the C++
+header to them. The Python module is held to the same tables by
+`thetadatadx-py/tests/test_table_surface.py`, and the C ABI to its header by
+`check_c_abi_completeness`.
 
 Exits non-zero on any mismatch. Run from the repo root.
 
@@ -138,10 +131,8 @@ RUST_CLIENT_BUILDER_RS = (
 # surface is the `StreamingClient` FPSS client.
 CORE_CLIENT_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "client.rs"
 CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
-# The endpoint table. The core's market-data methods and the Python endpoint
-# methods and builders are expanded from it at compile time
-# (`thetadatadx-py/src/market_data.rs`), so no source file names them and the
-# gate reads the table instead.
+# The endpoint table. Every binding's market-data methods are expanded or
+# rendered from it, so the gate derives the methods it implies from the table.
 ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
 # The tick table. The Python tick classes are expanded from it at compile time
 # (`thetadatadx-py/src/ticks.rs`), so no source file spells their structs or
@@ -151,14 +142,6 @@ TICK_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "ticks.rs"
 # accessors that read or write one value are expanded from it at compile
 # time, so no source file names them and the gate reads the table instead.
 CONFIG_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "config.rs"
-# The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
-# declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
-# buffered endpoint. Reading the SHIPPED header (not just the `thetadatadx-ffi/src`
-# source) catches a stale regenerated header that drifted from the Rust
-# source of truth.
-ENDPOINT_WITH_OPTIONS_INC = (
-    REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_with_options.h.inc"
-)
 # The two generated consumers of the request-options SSOT: the C++ fluent
 # `with_*` setters and the C `ThetaDataDxEndpointRequestOptions` struct they
 # fill. Both are emitted from the endpoint table's `__request_options!` list
@@ -4190,17 +4173,20 @@ def _balanced_body(text: str, body_start: int) -> str:
     return text[body_start : i - 1]
 
 
-# ─── Market-data server-stream surface discovery ─────────────────────
+# ─── Market-data surface (the endpoint table against the declarations) ──
 #
-# The endpoint codegen casts an endpoint's snake_case name to PascalCase
-# / camelCase with INITIALISM awareness: the segments `eod` / `ohlc` /
-# `iv` / `dte` / `nbbo` render as all-caps (`EOD`, `OHLC`, ...) in the
-# TypeScript `js_name` (`stockHistoryEODStream`) but as title-case in the
-# Python builder struct (`StockHistoryEodBuilder`). A naive
-# `camelCase → snake_case` inverse would split `EOD` into `e_o_d`. The
-# helper below collapses any run of consecutive uppercase letters into a
-# single segment, so both `stockHistoryEOD` and `StockHistoryEod` invert
-# to the canonical `stock_history_eod` row name.
+# The napi crate (`thetadatadx-ts/src/market_data.rs`) and the C++ wrapper
+# (rendered by `generate_sdk_surfaces`) each expand the endpoint table by a
+# rule of their own. TypeScript gives every entry a buffered `<endpoint>`
+# method, every entry but a flat `list` a `<endpoint>WithColumns` variant
+# carrying the response's present columns, and a `chunked` entry an
+# `<endpoint>Stream` method. C++ gives every entry a buffered member and an
+# `_async` twin, and a `chunked` entry whose rows are flat ticks (every one but
+# `OptionContract`) an `_stream` member. Nothing else holds the published
+# `index.d.ts` or the C++ header to the table, so a rule that drops a method
+# for one shape would ship with every other gate green. The C ABI is held to
+# its header by `check_c_abi_completeness`, the Python view methods to the stub
+# by stubtest, and the Python builders by `thetadatadx-py/tests/test_table_surface.py`.
 
 
 def _endpoint_method_to_snake(name: str) -> str:
@@ -4219,619 +4205,104 @@ def _endpoint_method_to_snake(name: str) -> str:
     s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", s)
     return s.lower()
 
-#
-# The buffered market-data endpoints have a server-stream companion on
-# every binding — the `.stream(handler)` core primitive surfaced as a
-# per-binding terminal:
-#
-#   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
-#     pyclass (expanded from the endpoint table in
-#     `thetadatadx-py/src/market_data.rs`).
-#   * TypeScript: a `<endpoint>Stream` method on the `MarketDataView`
-#     napi class (expanded from the endpoint table in
-#     `thetadatadx-ts/src/market_data.rs`).
-#   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `thetadatadx-ffi/src/`.
-#   * C++: an `<endpoint>_stream` member on the `Client` wrapper
-#     (`thetadatadx.hpp` + its `.inc` fragments).
-#
-# These methods live on per-endpoint builders / as endpoint-named
-# methods, NOT on a class the `[[method]]` rows already cover, so without
-# this dedicated family a binding could ship streaming on some endpoints
-# and silently omit it on others (or on a whole binding) with no checker
-# noticing — the exact gap the cross-binding contract exists to close.
-# Each `[[market_data_streaming]]` row pins one endpoint's streaming
-# presence across the four bindings.
 
-
-def _table_endpoint_shapes(table_rs: pathlib.Path) -> dict[str, str]:
-    """Shape (`list`, `buffered` or `chunked`) of every `__endpoints!` entry,
-    keyed by endpoint name. The raw streams in `__stream_endpoints!` have no
-    Python surface and are not read."""
-    if not table_rs.is_file():
-        return {}
-    text = _read_source(table_rs)
+def _table_endpoints(table_rs: pathlib.Path) -> dict[str, tuple[str, str]]:
+    """`(shape, returns)` of every `__endpoints!` entry, keyed by endpoint
+    name. The raw streams in `__stream_endpoints!` have no binding method and
+    are not read. Raises when no entry can be read, so a reshaped table fails
+    the gate instead of emptying the expected surface."""
+    text = table_rs.read_text(encoding="utf-8")
     start = text.find("macro_rules! __endpoints")
     end = text.find("macro_rules! __stream_endpoints", start)
-    if start < 0 or end < 0:
-        return {}
-    return {
-        name: shape
-        for shape, name in re.findall(
-            r"^\s*(list|buffered|chunked)\s+(\w+)\s*\{", text[start:end], re.MULTILINE
+    entries = {
+        name: (shape, returns)
+        for shape, name, returns in re.findall(
+            r"^\s*(list|buffered|chunked)\s+(\w+)\s*\{\s*group:[^\n]*\n\s*rest:[^\n]*\n\s*returns:\s*(\w+)",
+            text[start:end] if 0 <= start < end else "",
+            re.MULTILINE,
         )
     }
+    if not entries:
+        raise ValueError(f"{table_rs}: no `__endpoints!` entries")
+    return entries
 
 
-def _collect_python_streaming_endpoints(table_rs: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
-    exposes `stream` and `stream_async`: the `chunked` entries of the
-    endpoint table, which `thetadatadx-py/src/market_data.rs` expands with
-    the streaming terminals.
-    """
-    return {
-        name for name, shape in _table_endpoint_shapes(table_rs).items() if shape == "chunked"
-    }
-
-
-def _collect_typescript_streaming_endpoints(
+def _check_market_data_surfaces(
+    endpoints: dict[str, tuple[str, str]],
     ts_methods: dict[str, set[str]],
-) -> set[str]:
-    """Snake_case endpoint names whose `MarketDataView` napi class
-    exposes a `<endpoint>Stream` method.
+    cpp_methods: dict[str, set[str]],
+) -> list[str]:
+    """Hold the TypeScript market-data methods in `index.d.ts` and the C++
+    `MarketData` view to the methods the endpoint table implies, both ways.
+    The C++ view also carries wrapper members that name no endpoint, so its
+    buffered members are checked for presence only."""
 
-    The server-stream companions live on the `client.market_data`
-    `MarketDataView` view alongside the buffered market-data queries.
-    Reuses the already-collected `{class: {method, ...}}` map. A method
-    whose camelCase name ends in `Stream` is a market-data server-stream
-    terminal; strip the suffix and lower to snake_case to recover the
-    endpoint name. The FPSS lifecycle methods (`startStreaming` /
-    `stopStreaming` / `isStreaming`) do NOT end in the bare `Stream`
-    token preceded by an endpoint stem — they are excluded because
-    stripping `Stream` would leave `starting` / `stopping` / `is`, none
-    of which name an endpoint (and they are tracked by their own
-    `[[method]]` rows regardless).
-    """
-    out: set[str] = set()
-    methods = ts_methods.get("MarketDataView", set())
+    def stems(methods: set[str], suffix: str) -> set[str]:
+        return {m[: -len(suffix)] for m in methods if m.endswith(suffix) and m != suffix}
+
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
-    for method in methods:
-        if method in lifecycle:
-            continue
-        if method.endswith("Stream") and len(method) > len("Stream"):
-            stem = method[: -len("Stream")]
-            out.add(_endpoint_method_to_snake(stem))
-    return out
+    ts_view = ts_methods.get("MarketDataView", set()) - lifecycle
+    ts_stream = stems(ts_view, "Stream")
+    ts_buffered = ts_view - {f"{s}Stream" for s in ts_stream}
+    ts_buffered -= {f"{s}WithColumns" for s in stems(ts_view, "WithColumns")}
+    # The variant is expanded onto the standalone `MarketDataClient` as well.
+    ts_with_columns = stems(ts_view | ts_methods.get("MarketDataClient", set()), "WithColumns")
+    cpp_view = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
 
-
-# The endpoint table the core and the C ABI expand their endpoint surfaces from.
-ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
-
-
-def _ffi_table_symbols(ffi_src: pathlib.Path) -> set[str]:
-    """The endpoint C-ABI symbols a crate under `ffi_src` expands from the
-    endpoint table, as bare names (`thetadatadx_` stripped).
-
-    `thetadatadx-ffi/src/endpoint_table.rs` pastes these names, so no source
-    spells them. It gives every table entry `<name>_with_options`, and a
-    chunked entry whose rows are flat ticks (every one but `OptionContract`)
-    `<name>_stream` as well; this mirrors that rule over the table entries.
-    """
-    if not any("__endpoints!" in _read_source(rs) for rs in ffi_src.rglob("*.rs")):
-        return set()
-    out: set[str] = set()
-    for shape, name, ret in re.findall(
-        r"(?m)^\s*(list|buffered|chunked)\s+(\w+)\s*\{\s*group:[^\n]*\n\s*rest:[^\n]*\n\s*returns:\s*(\w+)",
-        _read_source(ENDPOINT_TABLE_RS),
+    names = set(endpoints)
+    chunked = {name for name, (shape, _) in endpoints.items() if shape == "chunked"}
+    columnar = {name for name, (shape, _) in endpoints.items() if shape != "list"}
+    cpp_streamed = {name for name in chunked if endpoints[name][1] != "OptionContract"}
+    errors: list[str] = []
+    for surface, expected, actual in (
+        ("TypeScript `<endpoint>`", names, {_endpoint_method_to_snake(m) for m in ts_buffered}),
+        ("TypeScript `<endpoint>Stream`", chunked, {_endpoint_method_to_snake(m) for m in ts_stream}),
+        (
+            "TypeScript `<endpoint>WithColumns`",
+            columnar,
+            {_endpoint_method_to_snake(m) for m in ts_with_columns},
+        ),
+        ("C++ `<endpoint>`", names, cpp_view & names),
+        ("C++ `<endpoint>_async`", names, stems(cpp_view, "_async")),
+        ("C++ `<endpoint>_stream`", cpp_streamed, stems(cpp_view, "_stream")),
     ):
-        out.add(f"{name}_with_options")
-        if shape == "chunked" and ret != "OptionContract":
-            out.add(f"{name}_stream")
-    return out
-
-
-def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose `thetadatadx_<endpoint>_stream` extern "C"
-    symbol exists in `thetadatadx-ffi/src/`.
-
-    The `thetadatadx_client_*` / `thetadatadx_streaming_*` callback symbols never match
-    the `thetadatadx_<name>_stream` shape (their stems are `client` / `streaming`
-    and they end in `set_callback` / `reconnect` / `shutdown`, not
-    `_stream`), so they are not mistaken for a market-data endpoint.
-    """
-    out: set[str] = set()
-    if not ffi_src.is_dir():
-        return out
-    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_stream\s*\(")
-    for rs in ffi_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for m in fn_re.finditer(text):
-            out.add(m.group(1))
-    out |= {s.removesuffix("_stream") for s in _ffi_table_symbols(ffi_src) if s.endswith("_stream")}
-    return out
-
-
-def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `MarketData` view exposes an
-    `<endpoint>_stream` member.
-
-    Reuses the already-collected C++ `{class: {method, ...}}` map. The
-    server-stream companions live on the `client.market_data()`
-    `MarketData` view body in `thetadatadx.hpp`. A member whose snake_case
-    name ends in `_stream` is a server-stream terminal; strip the suffix
-    to recover the endpoint name.
-    """
-    out: set[str] = set()
-    methods = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
-    for method in methods:
-        if method.endswith("_stream") and len(method) > len("_stream"):
-            out.add(method[: -len("_stream")])
-    return out
-
-
-def _check_market_data_streaming_rows(
-    rows: list[dict[str, Any]],
-    rust_stream: set[str],
-    py_stream: set[str],
-    ts_stream: set[str],
-    cpp_stream: set[str],
-    ffi_stream: set[str],
-) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[market_data_streaming]]` rows.
-
-    Each row declares a snake_case endpoint `name` plus the expected
-    server-stream presence on Rust / Python / TypeScript / C++ / the C ABI.
-    The checker compares the declared state against the actual surface state
-    and returns a list of mismatch strings (empty when every row matches).
-    The Rust column is the source of truth — the `<Endpoint>Builder::stream`
-    terminal the registry generates and every binding mirrors; a dropped or
-    renamed Rust streaming endpoint trips here even if a binding still
-    declares it.
-
-    Beyond the per-row check, the collected sets are reconciled against
-    the union of declared row names: an endpoint that streams on ANY
-    surface but has no row at all trips the gate, so a newly-streamed
-    endpoint cannot slip in untracked.
-    """
-    errors: list[str] = []
-    declared_names = {row.get("name") for row in rows if row.get("name")}
-    for row in rows:
-        name = row.get("name")
-        if not name:
-            errors.append(f"  [[market_data_streaming]] row missing `name`: {row!r}")
-            continue
-        camel = _snake_to_camel(name)
-        pascal = camel[:1].upper() + camel[1:] if camel else camel
-        for lang, actual_set, hint in (
-            ("rust", rust_stream, f"`{pascal}Builder::stream` terminal (registry of record)"),
-            ("python", py_stream, f"`fn stream` on the `{pascal}Builder` pyclass"),
-            ("typescript", ts_stream, f"`{camel}Stream` on the `Client` napi class"),
-            ("cpp", cpp_stream, f"`{name}_stream(` on the C++ `Client` body"),
-            ("ffi", ffi_stream, f"`thetadatadx_{name}_stream` extern \"C\" symbol"),
-        ):
-            declared = row.get(lang, False)
-            actual = name in actual_set
-            if declared != actual:
-                verb = "missing" if declared and not actual else "unexpected"
-                errors.append(
-                    f"  {name}.{lang}: declared={declared}, actual={actual} "
-                    f"({verb} -- expected {hint})"
-                )
-    # Reverse-direction orphan check: any endpoint that streams on a
-    # surface but has no row is undocumented drift.
-    seen = rust_stream | py_stream | ts_stream | cpp_stream | ffi_stream
-    for endpoint in sorted(seen - declared_names):
-        on = sorted(
-            lang
-            for lang, s in (
-                ("rust", rust_stream),
-                ("python", py_stream),
-                ("typescript", ts_stream),
-                ("cpp", cpp_stream),
-                ("ffi", ffi_stream),
-            )
-            if endpoint in s
-        )
-        errors.append(
-            f"  {endpoint}: streams on {on} but has no "
-            f"[[market_data_streaming]] row. Add one declaring its "
-            f"per-binding presence so the surface stays tracked."
-        )
+        errors += [f"  {name}: {surface} is missing" for name in sorted(expected - actual)]
+        errors += [
+            f"  {name}: {surface} is present, but the endpoint table does not imply it"
+            for name in sorted(actual - expected)
+        ]
     return errors
 
 
-# ─── Market-data async query surface ([[market_data_async]]) ────────────
+# ─── Config surface (the config table against the TypeScript declaration) ─
 #
-# Every buffered market-data endpoint carries a non-blocking query
-# companion so callers can run a request off the calling thread without
-# managing their own threads. The shape is per-binding idiom:
-#
-#   * Python: an `<endpoint>_async` method on the market-data surface,
-#     returning an awaitable (expanded from the endpoint table in
-#     `thetadatadx-py/src/market_data.rs`).
-#   * TypeScript: the buffered `<endpoint>` method is itself `async` and
-#     returns a `Promise`, so there is no separate `_async` name — the
-#     presence of the buffered endpoint method on `MarketDataView` IS the
-#     async surface.
-#   * C++: an inline `<endpoint>_async` member on the `MarketData` view
-#     returning `std::future<std::vector<Row>>` over the blocking member.
-#
-# There is no C ABI row: the async surface is a binding-layer concern
-# layered over the existing blocking `thetadatadx_<endpoint>_with_options`
-# symbols. C has no awaitable type and its idiom is callback / poll, so
-# the C ABI stays blocking-only by design and is not tracked here.
-#
-# Like the streaming family, these terminals are endpoint-named methods
-# NOT covered by the `[[method]]` rows, so without this family a binding
-# could ship the async query on some endpoints and silently omit it on
-# others (or on a whole binding) with no checker noticing.
+# The napi crate (`thetadatadx-ts/src/config_accessors.rs`) expands every
+# config table entry into a `Config` method by a rule per value type: a `set`
+# entry becomes `set<Name>`, a `get` entry a `<name>` getter. The C ABI is
+# held to its hand-written header by `check_c_abi_completeness`, the C++
+# methods to the other bindings by the setter and getter set checks, and the
+# Python properties by `thetadatadx-py/tests/test_table_surface.py`, but
+# nothing else holds the published `index.d.ts` to the table.
 
 
-def _collect_typescript_async_endpoints(
-    ts_methods: dict[str, set[str]],
-) -> set[str]:
-    """Snake_case endpoint names whose `MarketDataView` napi class exposes a
-    buffered `<endpoint>` query method.
-
-    Every buffered TypeScript data method is an `async fn` returning a
-    `Promise`, so the buffered endpoint method IS the async surface — there
-    is no separate `_async` spelling. Reuses the already-collected
-    `{class: {method, ...}}` map: take the `MarketDataView` methods, drop
-    the `<endpoint>Stream` server-stream companions, the `<endpoint>WithColumns`
-    presence-carrying variants (tracked by the withColumns reachability gate),
-    and the FPSS lifecycle methods, and snake-ify the remainder to recover the
-    endpoint names.
-    """
-    out: set[str] = set()
-    methods = ts_methods.get("MarketDataView", set())
-    lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
-    for method in methods:
-        if method in lifecycle:
-            continue
-        if method.endswith("Stream") and len(method) > len("Stream"):
-            continue
-        if method.endswith("WithColumns") and len(method) > len("WithColumns"):
-            continue
-        out.add(_endpoint_method_to_snake(method))
-    return out
-
-
-def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `MarketData` view exposes an
-    `<endpoint>_async` member.
-
-    Reuses the already-collected C++ `{class: {method, ...}}` map. A member
-    whose snake_case name ends in `_async` is a non-blocking query
-    companion; strip the suffix to recover the endpoint name.
-    """
-    out: set[str] = set()
-    methods = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
-    for method in methods:
-        if method.endswith("_async") and len(method) > len("_async"):
-            out.add(method[: -len("_async")])
-    return out
-
-
-def _check_market_data_async_rows(
-    rows: list[dict[str, Any]],
-    rust_async: set[str],
-    py_async: set[str],
-    ts_async: set[str],
-    cpp_async: set[str],
-) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[market_data_async]]` rows.
-
-    Each row declares a snake_case endpoint `name` plus the expected async
-    query presence on Rust / Python / TypeScript / C++. The checker compares
-    the declared state against the actual surface state and returns a list of
-    mismatch strings (empty when every row matches). The Rust column is the
-    source of truth: every buffered endpoint in the registry carries a
-    `MarketDataClient::<name>` async query method (the builder-await /
-    `list_async` twin of the blocking collect), so a dropped or renamed Rust
-    endpoint trips here even if a binding still declares it. There is no C
-    ABI column — the async surface is a binding-layer concern over the
-    blocking `_with_options` symbols (C has no awaitable type).
-
-    Beyond the per-row check, the collected sets are reconciled against the
-    union of declared row names: an endpoint that exposes an async query on
-    ANY surface but has no row at all trips the gate, so a newly-async
-    endpoint cannot slip in untracked.
-    """
-    errors: list[str] = []
-    declared_names = {row.get("name") for row in rows if row.get("name")}
-    for row in rows:
-        name = row.get("name")
-        if not name:
-            errors.append(f"  [[market_data_async]] row missing `name`: {row!r}")
-            continue
-        camel = _snake_to_camel(name)
-        for lang, actual_set, hint in (
-            ("rust", rust_async, f"`MarketDataClient::{name}` async query method (registry of record)"),
-            ("python", py_async, f"`fn {name}_async` on the market-data surface"),
-            ("typescript", ts_async, f"`{camel}` async (Promise) method on `MarketDataView`"),
-            ("cpp", cpp_async, f"`{name}_async(` on the C++ `MarketData` view"),
-        ):
-            declared = row.get(lang, False)
-            actual = name in actual_set
-            if declared != actual:
-                verb = "missing" if declared and not actual else "unexpected"
-                errors.append(
-                    f"  {name}.{lang}: declared={declared}, actual={actual} "
-                    f"({verb} -- expected {hint})"
-                )
-    # Reverse-direction orphan check: any endpoint with an async query on a
-    # surface but no row is undocumented drift.
-    seen = rust_async | py_async | ts_async | cpp_async
-    for endpoint in sorted(seen - declared_names):
-        on = sorted(
-            lang
-            for lang, s in (
-                ("rust", rust_async),
-                ("python", py_async),
-                ("typescript", ts_async),
-                ("cpp", cpp_async),
-            )
-            if endpoint in s
+def _check_config_surfaces(config_table_rs: pathlib.Path, ts_methods: dict[str, set[str]]) -> list[str]:
+    """Every config table entry must reach the TypeScript `Config` in
+    `index.d.ts`. Raises when no entry can be read, so a reshaped table fails
+    the gate instead of passing it empty."""
+    expected = {
+        _snake_to_camel(f"set_{name}" if direction == "set" else name)
+        for direction, name in re.findall(
+            r"^\s*(set|get) thetadatadx_config_(?:set|get)_(\w+)\(",
+            config_table_rs.read_text(encoding="utf-8"),
+            re.MULTILINE,
         )
-        errors.append(
-            f"  {endpoint}: exposes an async query on {on} but has no "
-            f"[[market_data_async]] row. Add one declaring its "
-            f"per-binding presence so the surface stays tracked."
-        )
-    return errors
-
-
-# ─── Rust market-data surface (registry of record) ────────────────────
-#
-# The market-data-async / market-data-streaming / market-data-base families
-# gate the managed bindings (Python / TypeScript / C++) and the C ABI, but
-# the Rust core is the surface every one of them mirrors. Without a Rust
-# column, a dropped or renamed Rust endpoint reaches none of the bindings
-# yet trips no checker: every downstream surface shrinks in lockstep,
-# silently.
-#
-# The core expands its `MarketDataClient` methods from the endpoint table at
-# compile time, so no source file names them and the gate reads the table
-# (`_table_endpoint_shapes`): every `__endpoints!` entry is a buffered
-# method with its async twin, a `chunked` one also has a server-stream
-# terminal, and every entry but a flat `list` decodes into columns.
-
-
-def _collect_typescript_with_columns_endpoints(
-    ts_methods: dict[str, set[str]],
-) -> set[str]:
-    """Snake_case endpoint names whose TypeScript market-data surface exposes a
-    `<endpoint>WithColumns` presence-carrying query variant.
-
-    Reuses the already-collected `{class: {method, ...}}` map, which reads the
-    market-data members from the committed `index.d.ts`. The variant is
-    expanded onto both `MarketDataView` and `MarketDataClient`, so the set
-    dedups across the two; the camel stem snake-ifies back to the endpoint
-    name.
-    """
-    out: set[str] = set()
-    suffix = "WithColumns"
-    for cls in ("MarketDataView", "MarketDataClient"):
-        for method in ts_methods.get(cls, set()):
-            if method.endswith(suffix) and len(method) > len(suffix):
-                out.add(_endpoint_method_to_snake(method[: -len(suffix)]))
-    return out
-
-
-def _check_typescript_with_columns_reachability(
-    expected: set[str],
-    actual: set[str],
-) -> list[str]:
-    """The TypeScript projected-Arrow reachability gate.
-
-    Every buffered columnar endpoint (`expected`) must surface a
-    `<endpoint>WithColumns` variant returning the rows plus the response's
-    `presentColumns` / `symbol`, so the projected Arrow-IPC exit is reachable
-    from a live call at parity with Python's presence-carrying `<Tick>List` and
-    the C / C++ `_with_options` presence out-param. A missing variant leaves the
-    only live-call path on that endpoint the full-schema `<tick>ToArrowIpc`,
-    which emits always-present flag / contract-identity columns the wire never
-    sent. An unexpected variant (present on TS but not a columnar buffered
-    endpoint) is generator drift. Both trip the gate.
-    """
-    errors: list[str] = []
-    for name in sorted(expected - actual):
-        errors.append(
-            f"  {name}: buffered columnar endpoint has no `{_snake_to_camel(name)}"
-            f"WithColumns` TypeScript variant. Without it a live caller cannot "
-            f"obtain the response's presentColumns / symbol, so the projected "
-            f"Arrow-IPC export is unreachable (the #1072 always-zero-flag frame). "
-            f"Regenerate the TypeScript market-data surface."
-        )
-    for name in sorted(actual - expected):
-        errors.append(
-            f"  {name}: TypeScript exposes a `{_snake_to_camel(name)}WithColumns` "
-            f"variant but it is not a buffered columnar endpoint. Remove it or "
-            f"correct the endpoint registry."
-        )
-    return errors
-
-
-def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
-    base symbol is declared in the SHIPPED C-ABI header fragment.
-
-    Reads `thetadatadx-cpp/include/endpoint_with_options.h.inc` — the header
-    `thetadatadx.h` includes — rather than the `thetadatadx-ffi/src` source, so a stale
-    regenerated header that dropped (or renamed) a base symbol relative to
-    the Rust source of truth is caught. The base family cross-checks this
-    set against the Rust registry, so a header/registry divergence in EITHER
-    direction trips.
-    """
-    out: set[str] = set()
-    if not with_options_inc.is_file():
-        return out
-    text = _read_source(with_options_inc)
-    for m in re.finditer(r"\bthetadatadx_(\w+)_with_options\s*\(", text):
-        out.add(m.group(1))
-    return out
-
-
-def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
-    base symbol is DEFINED in the `thetadatadx-ffi/src` Rust source.
-
-    The companion to `_collect_cabi_base_endpoints`: the shipped header
-    declares the symbol, this source defines it. The base family asserts the
-    two agree, so a header that declares a symbol the source never defines
-    (a link-time failure invisible to a header-only scan), or a source
-    symbol the header forgot to declare (invisible to `cargo build`), trips.
-    """
-    out: set[str] = set()
-    if not ffi_src.is_dir():
-        return out
-    fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_with_options\s*\(")
-    for rs in ffi_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for m in fn_re.finditer(text):
-            out.add(m.group(1))
-    out |= {
-        s.removesuffix("_with_options")
-        for s in _ffi_table_symbols(ffi_src)
-        if s.endswith("_with_options")
     }
-    return out
-
-
-# ─── Market-data buffered base surface ([[market_data_base]]) ───────────
-#
-# Every buffered market-data endpoint exposes a blocking query terminal on
-# all five surfaces: the Rust `MarketDataClient::<endpoint>` method, the
-# Python `<Endpoint>Builder.list()` collect, the TypeScript buffered
-# `<endpoint>` method (it is itself async-returning, so the buffered and
-# async surfaces coincide there), the C++ `MarketData::<endpoint>(...)`
-# member, and the C-ABI `thetadatadx_<endpoint>_with_options` base symbol.
-#
-# This is the core "every endpoint exists everywhere" guarantee. Before
-# this family the base sync presence was asserted only TRANSITIVELY — via
-# the async / stream companions on the managed bindings — and the 61 C-ABI
-# `_with_options` base functions were checked by NO family at all. A
-# `[[market_data_base]]` row pins one endpoint's blocking-query presence
-# across all five surfaces directly.
-
-
-def _collect_python_buffered_endpoints(table_rs: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
-    exposes the buffered `list` terminal and its awaitable twin
-    `list_async`: every entry of the endpoint table, each of which
-    `thetadatadx-py/src/market_data.rs` expands into a builder with both.
-    """
-    return set(_table_endpoint_shapes(table_rs))
-
-
-def _check_market_data_base_rows(
-    rows: list[dict[str, Any]],
-    rust_buffered: set[str],
-    py_buffered: set[str],
-    ts_buffered: set[str],
-    cpp_buffered: set[str],
-    cabi_base: set[str],
-    ffi_base: set[str],
-) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[market_data_base]]` rows.
-
-    Each row declares a snake_case endpoint `name` plus the expected
-    buffered-query presence on all five surfaces: Rust (the registry-of-
-    record buffered method), Python (`<Endpoint>Builder.list()`), TypeScript
-    (the buffered `<endpoint>` method), C++ (`MarketData::<endpoint>`), and
-    the C-ABI `thetadatadx_<endpoint>_with_options` base symbol. The checker
-    compares the declared state against the actual surface state and returns
-    a list of mismatch strings (empty when every row matches).
-
-    Two reconciliations beyond the per-row forward check:
-
-    1. Reverse-direction orphan scan: an endpoint present on ANY surface but
-       with no row at all trips, so a new endpoint cannot slip in untracked.
-    2. Header/source/registry agreement: the shipped C-ABI header
-       (`cabi_base`), the `thetadatadx-ffi/src` source (`ffi_base`), and the Rust
-       registry (`rust_buffered`) must declare the same base set. A stale
-       header that drifted from the source of truth trips here, without
-       duplicating the broader `.so`↔header completeness checker.
-    """
-    errors: list[str] = []
-    declared_names = {row.get("name") for row in rows if row.get("name")}
-    for row in rows:
-        name = row.get("name")
-        if not name:
-            errors.append(f"  [[market_data_base]] row missing `name`: {row!r}")
-            continue
-        for lang, actual_set, hint in (
-            ("rust", rust_buffered, f"`MarketDataClient::{name}` buffered method (registry of record)"),
-            ("python", py_buffered, f"`fn list` on the `{name}` builder pyclass"),
-            ("typescript", ts_buffered, f"buffered `{_snake_to_camel(name)}` method on `MarketDataView`"),
-            ("cpp", cpp_buffered, f"`{name}(` on the C++ `MarketData` view"),
-            ("ffi", cabi_base, f"`thetadatadx_{name}_with_options` extern \"C\" symbol"),
-        ):
-            declared = row.get(lang, False)
-            actual = name in actual_set
-            if declared != actual:
-                verb = "missing" if declared and not actual else "unexpected"
-                errors.append(
-                    f"  {name}.{lang}: declared={declared}, actual={actual} "
-                    f"({verb} -- expected {hint})"
-                )
-
-    # Reverse-direction orphan check: any endpoint present on a surface but
-    # with no row is undocumented drift.
-    seen = (
-        rust_buffered | py_buffered | ts_buffered | cabi_base
-    )
-    # C++ buffered members co-mingle with unrelated wrapper helpers, so the
-    # orphan scan uses the four cleanly-enumerable surfaces; the C++ column
-    # is still pinned forward per row.
-    for endpoint in sorted(seen - declared_names):
-        on = sorted(
-            lang
-            for lang, s in (
-                ("rust", rust_buffered),
-                ("python", py_buffered),
-                ("typescript", ts_buffered),
-                ("ffi", cabi_base),
-            )
-            if endpoint in s
-        )
-        errors.append(
-            f"  {endpoint}: present on {on} but has no [[market_data_base]] "
-            f"row. Add one declaring its per-surface presence so the "
-            f"buffered base surface stays tracked."
-        )
-
-    # Header / source / registry agreement on the C-ABI base set. The
-    # shipped header is what downstream C / C++ consumers compile against;
-    # it must declare exactly the base symbols the `thetadatadx-ffi/src` source defines
-    # and the Rust registry generates. A divergence in any direction is a
-    # stale-artifact defect that no per-row column would surface on its own.
-    if cabi_base and ffi_base and cabi_base != ffi_base:
-        for ep in sorted(ffi_base - cabi_base):
-            errors.append(
-                f"  {ep}: `thetadatadx_{ep}_with_options` is defined in thetadatadx-ffi/src "
-                f"but missing from the shipped header "
-                f"thetadatadx-cpp/include/endpoint_with_options.h.inc (stale header)."
-            )
-        for ep in sorted(cabi_base - ffi_base):
-            errors.append(
-                f"  {ep}: `thetadatadx_{ep}_with_options` is declared in the "
-                f"shipped header but not defined in thetadatadx-ffi/src (dangling header "
-                f"declaration)."
-            )
-    if cabi_base and rust_buffered and cabi_base != rust_buffered:
-        for ep in sorted(rust_buffered - cabi_base):
-            errors.append(
-                f"  {ep}: buffered endpoint in the Rust registry has no "
-                f"`thetadatadx_{ep}_with_options` base symbol in the shipped "
-                f"C-ABI header."
-            )
-        for ep in sorted(cabi_base - rust_buffered):
-            errors.append(
-                f"  {ep}: C-ABI base symbol `thetadatadx_{ep}_with_options` "
-                f"has no matching buffered endpoint in the Rust registry "
-                f"(the endpoint table)."
-            )
-    return errors
+    if not expected:
+        raise ValueError(f"{config_table_rs}: no config table entries")
+    return [
+        f"  {member}: the config table implies TypeScript `Config.{member}`, which index.d.ts lacks"
+        for member in sorted(expected - ts_methods.get("Config", set()))
+    ]
 
 
 # ─── Client construction-from-file surface ([[from_file]]) ────────────
@@ -7783,13 +7254,6 @@ def main(argv: list[str] | None = None) -> int:
     method_rows: list[dict[str, Any]] = data.get("method", [])
     value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
     utility_rows: list[dict[str, Any]] = data.get("utility", [])
-    market_data_streaming_rows: list[dict[str, Any]] = data.get(
-        "market_data_streaming", []
-    )
-    market_data_async_rows: list[dict[str, Any]] = data.get(
-        "market_data_async", []
-    )
-    market_data_base_rows: list[dict[str, Any]] = data.get("market_data_base", [])
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     connect_rows: list[dict[str, Any]] = data.get("connect", [])
     ffi_symbol_rows: list[dict[str, Any]] = data.get("ffi_symbol", [])
@@ -7915,78 +7379,13 @@ def main(argv: list[str] | None = None) -> int:
         utility_rows, py_utils, ts_utils
     )
 
-    # Market-data server-stream surface ([[market_data_streaming]] rows) —
-    # the `.stream(handler)` / `<endpoint>Stream` / `thetadatadx_<endpoint>_stream`
-    # terminal per endpoint. These live on per-endpoint builders or as
-    # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
-    # so they would otherwise drift silently across bindings.
-    # The Rust market-data surface is the endpoint table the core expands:
-    # every entry is a buffered method with its async twin (the async + base
-    # surface), a `chunked` one also streams, and every entry but a flat
-    # `list` decodes into columns.
-    table_shapes = _table_endpoint_shapes(ENDPOINT_TABLE_RS)
-    rust_buffered = set(table_shapes)
-    rust_stream = {name for name, shape in table_shapes.items() if shape == "chunked"}
-
-    py_stream = _collect_python_streaming_endpoints(ENDPOINT_TABLE_RS)
-    ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
-    cpp_stream = _collect_cpp_streaming_endpoints(cpp_class_methods)
-    ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
-    market_data_streaming_errors = _check_market_data_streaming_rows(
-        market_data_streaming_rows,
-        rust_stream,
-        py_stream,
-        ts_stream,
-        cpp_stream,
-        ffi_stream,
+    # Market-data methods: the endpoint table against the published
+    # TypeScript declaration and the C++ header.
+    endpoints = _table_endpoints(ENDPOINT_TABLE_RS)
+    market_data_errors = _check_market_data_surfaces(
+        endpoints, ts_class_methods, cpp_class_methods
     )
-
-    # Market-data async query surface ([[market_data_async]] rows) — the
-    # non-blocking `<endpoint>_async` / Promise companion per endpoint.
-    # Python / C++ name an `<endpoint>_async` method; TypeScript's buffered
-    # method is itself async (Promise). No C ABI row: the async surface is
-    # a binding-layer concern over the existing blocking C symbols.
-    py_async = _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS)
-    ts_async = _collect_typescript_async_endpoints(ts_class_methods)
-    cpp_async = _collect_cpp_async_endpoints(cpp_class_methods)
-    market_data_async_errors = _check_market_data_async_rows(
-        market_data_async_rows, rust_buffered, py_async, ts_async, cpp_async
-    )
-
-    # TypeScript projected-Arrow reachability — every buffered columnar endpoint
-    # must surface a `<endpoint>WithColumns` variant returning the response's
-    # presentColumns / symbol alongside the rows, so the projected Arrow-IPC
-    # exit is drivable from a live call (parity with Python's presence-carrying
-    # `<Tick>List` and the C / C++ `_with_options` presence out-param).
-    ts_with_columns = _collect_typescript_with_columns_endpoints(ts_class_methods)
-    rust_columnar_buffered = {name for name, shape in table_shapes.items() if shape != "list"}
-    ts_with_columns_errors = _check_typescript_with_columns_reachability(
-        rust_columnar_buffered, ts_with_columns
-    )
-
-    # Market-data buffered base surface ([[market_data_base]] rows) — the
-    # blocking query terminal per endpoint on ALL FIVE surfaces: the Rust
-    # `MarketDataClient::<endpoint>` method (registry of record), the Python
-    # `<Endpoint>Builder.list()` collect, the buffered TypeScript method, the
-    # C++ `MarketData::<endpoint>` member, and the C-ABI
-    # `thetadatadx_<endpoint>_with_options` base symbol read from the SHIPPED
-    # header. This is the core "every endpoint exists everywhere" guarantee,
-    # previously only implicit via the async / stream companions and unchecked
-    # entirely on the C-ABI base.
-    py_buffered = _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS)
-    ts_buffered = _collect_typescript_async_endpoints(ts_class_methods)
-    cpp_buffered = cpp_class_methods.get(_cpp_class_for("MarketDataView"), set())
-    cabi_base = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
-    ffi_base = _collect_ffi_base_endpoints(FFI_SRC)
-    market_data_base_errors = _check_market_data_base_rows(
-        market_data_base_rows,
-        rust_buffered,
-        py_buffered,
-        ts_buffered,
-        cpp_buffered,
-        cabi_base,
-        ffi_base,
-    )
+    config_errors = _check_config_surfaces(CONFIG_TABLE_RS, ts_class_methods)
 
     # Client construction-from-file surface ([[from_file]] rows) — the
     # one-call `from_file` / `connectFromFile` / `thetadatadx_*_connect_from_file`
@@ -8282,47 +7681,23 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
-    if market_data_streaming_errors:
+    if market_data_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(market_data_streaming_errors)} "
-            f"market-data-streaming mismatch(es) (per-endpoint "
-            f"`[[market_data_streaming]]` granularity):"
+            f"check_binding_parity: {len(market_data_errors)} market-data "
+            f"method(s) disagree with the endpoint table:"
         )
-        for e in market_data_streaming_errors:
+        for e in market_data_errors:
             print(e)
         print()
 
-    if market_data_async_errors:
+    if config_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(market_data_async_errors)} "
-            f"market-data-async mismatch(es) (per-endpoint "
-            f"`[[market_data_async]]` granularity):"
+            f"check_binding_parity: {len(config_errors)} config table "
+            f"accessor(s) missing from the TypeScript declaration:"
         )
-        for e in market_data_async_errors:
-            print(e)
-        print()
-
-    if market_data_base_errors:
-        had_errors = True
-        print(
-            f"check_binding_parity: {len(market_data_base_errors)} "
-            f"market-data-base mismatch(es) (per-endpoint "
-            f"`[[market_data_base]]` granularity):"
-        )
-        for e in market_data_base_errors:
-            print(e)
-        print()
-
-    if ts_with_columns_errors:
-        had_errors = True
-        print(
-            f"check_binding_parity: {len(ts_with_columns_errors)} TypeScript "
-            f"projected-Arrow reachability mismatch(es) (per-endpoint "
-            f"`<endpoint>WithColumns` variant):"
-        )
-        for e in ts_with_columns_errors:
+        for e in config_errors:
             print(e)
         print()
 
@@ -8463,8 +7838,9 @@ def main(argv: list[str] | None = None) -> int:
     if had_errors:
         print(
             "Fix: either land the missing binding, or update "
-            "parity.toml to reflect the intended state. Every "
-            "cross-binding asymmetry must be explicit + tracked."
+            "parity.toml (hand-written surface) or the table in "
+            "thetadatadx-rs/src/surface/ to reflect the intended state. "
+            "Every cross-binding asymmetry must be explicit + tracked."
         )
         return 1
 
@@ -8475,9 +7851,6 @@ def main(argv: list[str] | None = None) -> int:
     n_method_sigs = sum(1 for r in method_rows if r.get("signature"))
     n_value_fields = len(value_field_rows)
     n_utilities = len(utility_rows)
-    n_hist_stream = len(market_data_streaming_rows)
-    n_hist_async = len(market_data_async_rows)
-    n_hist_base = len(market_data_base_rows)
     n_from_file = len(from_file_rows)
     n_connect = len(connect_rows)
     n_ffi_symbol = len(ffi_symbol_rows)
@@ -8487,9 +7860,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_methods} method rows ({n_method_sigs} signature-pinned) + "
         f"{n_value_fields} value-field rows + "
         f"{n_utilities} utility rows + "
-        f"{n_hist_stream} market-data-streaming rows + "
-        f"{n_hist_async} market-data-async rows + "
-        f"{n_hist_base} market-data-base rows + "
+        f"{len(endpoints)} endpoints + "
         f"{n_from_file} from-file rows + "
         f"{n_connect} connect rows + "
         f"{n_ffi_symbol} ffi-symbol rows + "
@@ -10628,340 +9999,52 @@ def _run_selftest() -> int:
     _case("utility — TS collector skips impl methods", _case_utility_ts_free_fn_collector_skips_methods)
     _case("utility — FFI collector strips thetadatadx_ prefix", _case_utility_ffi_collector_strips_prefix)
 
-    # ── Market-data server-stream surface selftests ────────────────
+    # ── Market-data surface selftest ──────────────────────────────────
 
-    def _case_hist_stream_positive_all_bound() -> None:
-        """An endpoint streaming on every declared surface is silent."""
-        rows = [
-            {
-                "name": "option_history_trade",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
-            }
-        ]
-        s = {"option_history_trade"}
-        errors = _check_market_data_streaming_rows(rows, s, s, s, s, s)
-        assert errors == [], f"all-bound row must be silent; got {errors!r}"
-
-    def _case_hist_stream_missing_on_cpp_trips() -> None:
-        """Row claims C++ streams but the C++ member is absent — trips."""
-        rows = [
-            {
-                "name": "option_history_trade",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
-            }
-        ]
-        bound = {"option_history_trade"}
-        errors = _check_market_data_streaming_rows(
-            rows, bound, bound, bound, set(), bound
-        )
-        assert any("cpp" in e and "missing" in e for e in errors), (
-            f"missing C++ stream member must trip; got {errors!r}"
-        )
-
-    def _case_hist_stream_missing_on_rust_trips() -> None:
-        """Row claims Rust streams but the registry has no such builder —
-        the dropped / renamed Rust endpoint defect this column closes.
-        """
-        rows = [
-            {
-                "name": "option_history_trade",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
-            }
-        ]
-        bound = {"option_history_trade"}
-        # Rust set is empty — the endpoint vanished from the registry of
-        # record while the bindings still declare it.
-        errors = _check_market_data_streaming_rows(
-            rows, set(), bound, bound, bound, bound
-        )
-        assert any("rust" in e and "missing" in e for e in errors), (
-            f"a dropped Rust streaming endpoint must trip; got {errors!r}"
-        )
-
-    def _case_hist_stream_ts_only_state_is_silent() -> None:
-        """The managed-only ship state (rust+py+ts true, cpp+ffi false) is
-        silent when Rust + Python + TS stream and C++ + FFI do not — the
-        documented `option_list_contracts` language-only variant the matrix
-        tracks.
-        """
-        rows = [
-            {
-                "name": "option_list_contracts",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": False,
-                "ffi": False,
-            }
-        ]
-        bound = {"option_list_contracts"}
-        errors = _check_market_data_streaming_rows(
-            rows, bound, bound, bound, set(), set()
-        )
-        assert errors == [], f"managed-only state must be silent; got {errors!r}"
-
-    def _case_hist_stream_untracked_orphan_trips() -> None:
-        """An endpoint streaming on a surface with no row at all trips
-        the reverse-direction orphan check.
-        """
-        errors = _check_market_data_streaming_rows(
-            [], {"option_history_trade"}, set(), set(), set(), set()
-        )
-        assert any(
-            "option_history_trade" in e and "no [[market_data_streaming]] row" in e
-            for e in errors
-        ), f"untracked streaming endpoint must trip; got {errors!r}"
-
-    def _case_hist_stream_initialism_inverse() -> None:
-        """`stockHistoryEODStream` (TS) and `StockHistoryEod` (Python
-        builder stem) both invert to the canonical `stock_history_eod`,
-        so the two collectors agree on the row name.
-        """
-        assert _endpoint_method_to_snake("stockHistoryEOD") == "stock_history_eod"
-        assert _endpoint_method_to_snake("StockHistoryEod") == "stock_history_eod"
-        assert (
-            _endpoint_method_to_snake("optionHistoryGreeksImpliedVolatility")
-            == "option_history_greeks_implied_volatility"
-        )
-        assert _endpoint_method_to_snake("stockHistoryOHLC") == "stock_history_ohlc"
-
-    _case("hist-stream positive — all five surfaces stream", _case_hist_stream_positive_all_bound)
-    _case("hist-stream negative — missing C++ member trips", _case_hist_stream_missing_on_cpp_trips)
-    _case("hist-stream negative — dropped Rust endpoint trips", _case_hist_stream_missing_on_rust_trips)
-    _case("hist-stream positive — managed-only ship state is silent", _case_hist_stream_ts_only_state_is_silent)
-    _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
-    _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
-
-    # ── Market-data async query surface selftests ──────────────────
-
-    def _case_hist_async_positive_all_bound() -> None:
-        """An endpoint with an async query on every declared surface is
-        silent."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        s = {"stock_history_eod"}
-        errors = _check_market_data_async_rows(rows, s, s, s, s)
-        assert errors == [], f"all-bound async row must be silent; got {errors!r}"
-
-    def _case_hist_async_missing_on_cpp_trips() -> None:
-        """Row claims C++ exposes the async query but the `_async` member is
-        absent — trips."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        bound = {"stock_history_eod"}
-        errors = _check_market_data_async_rows(rows, bound, bound, bound, set())
-        assert any("cpp" in e and "missing" in e for e in errors), (
-            f"missing C++ async member must trip; got {errors!r}"
-        )
-
-    def _case_hist_async_missing_on_rust_trips() -> None:
-        """Row claims Rust exposes the async query but the registry has no
-        such buffered endpoint — the dropped / renamed Rust endpoint defect
-        this column closes."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-            }
-        ]
-        bound = {"stock_history_eod"}
-        errors = _check_market_data_async_rows(rows, set(), bound, bound, bound)
-        assert any("rust" in e and "missing" in e for e in errors), (
-            f"a dropped Rust async endpoint must trip; got {errors!r}"
-        )
-
-    def _case_hist_async_untracked_orphan_trips() -> None:
-        """An endpoint with an async query on a surface but no row at all
-        trips the reverse-direction orphan check."""
-        errors = _check_market_data_async_rows(
-            [], {"stock_history_eod"}, set(), set(), set()
-        )
-        assert any(
-            "stock_history_eod" in e and "no [[market_data_async]] row" in e
-            for e in errors
-        ), f"untracked async endpoint must trip; got {errors!r}"
-
-    def _case_hist_async_cpp_collector_strips_suffix() -> None:
-        """The C++ collector recovers the endpoint name from an `_async`
-        member and ignores the blocking member of the same name."""
-        cpp_methods = {
-            "MarketData": {"stock_history_eod", "stock_history_eod_async"}
+    def _case_market_data_surfaces() -> None:
+        """The methods the endpoint table implies pass; a method missing from
+        one surface, or present without the shape that implies it, trips."""
+        endpoints = {
+            "stock_history_eod": ("chunked", "EodTick"),
+            "option_list_contracts": ("chunked", "OptionContract"),
+            "stock_list_symbols": ("list", "StringList"),
         }
-        found = _collect_cpp_async_endpoints(cpp_methods)
-        assert found == {"stock_history_eod"}, (
-            f"collector must strip `_async` and ignore the blocking twin; "
-            f"got {found!r}"
-        )
-
-    _case("hist-async positive — all four surfaces expose async query", _case_hist_async_positive_all_bound)
-    _case("hist-async negative — missing C++ member trips", _case_hist_async_missing_on_cpp_trips)
-    _case("hist-async negative — dropped Rust endpoint trips", _case_hist_async_missing_on_rust_trips)
-    _case("hist-async negative — untracked async endpoint trips", _case_hist_async_untracked_orphan_trips)
-    _case("hist-async — C++ collector strips `_async` suffix", _case_hist_async_cpp_collector_strips_suffix)
-
-    # ── Market-data buffered base surface selftests ────────────────
-
-    def _case_hist_base_positive_all_five() -> None:
-        """An endpoint present on all five surfaces is silent."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
+        ts = {
+            "MarketDataView": {
+                "stockHistoryEOD",
+                "stockHistoryEODStream",
+                "stockHistoryEODWithColumns",
+                "optionListContracts",
+                "optionListContractsStream",
+                "optionListContractsWithColumns",
+                "stockListSymbols",
+                "startStreaming",
             }
-        ]
-        s = {"stock_history_eod"}
-        errors = _check_market_data_base_rows(rows, s, s, s, s, s, s)
-        assert errors == [], f"all-five-surface base row must be silent; got {errors!r}"
-
-    def _case_hist_base_missing_on_cabi_trips() -> None:
-        """Row claims the C-ABI base symbol exists but the shipped header
-        does not declare it — the exact 61-symbol blind spot this family
-        closes."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
+        }
+        cpp = {
+            "MarketData": {
+                "stock_history_eod",
+                "stock_history_eod_async",
+                "stock_history_eod_stream",
+                "option_list_contracts",
+                "option_list_contracts_async",
+                "stock_list_symbols",
+                "stock_list_symbols_async",
+                "close",
             }
-        ]
-        s = {"stock_history_eod"}
-        # `cabi_base` AND `ffi_base` empty — the `_with_options` base symbol
-        # is gone everywhere on the C side.
-        errors = _check_market_data_base_rows(rows, s, s, s, s, set(), set())
-        assert any("ffi" in e and "missing" in e for e in errors), (
-            f"missing C-ABI base symbol must trip; got {errors!r}"
-        )
+        }
+        errors = _check_market_data_surfaces(endpoints, ts, cpp)
+        assert errors == [], f"the implied surface must be silent; got {errors!r}"
+        ts["MarketDataView"] = ts["MarketDataView"] - {"stockHistoryEODStream"} | {"stockListSymbolsStream"}
+        cpp["MarketData"].discard("stock_history_eod_async")
+        errors = _check_market_data_surfaces(endpoints, ts, cpp)
+        assert errors == [
+            "  stock_history_eod: TypeScript `<endpoint>Stream` is missing",
+            "  stock_list_symbols: TypeScript `<endpoint>Stream` is present, but the endpoint table does not imply it",
+            "  stock_history_eod: C++ `<endpoint>_async` is missing",
+        ], f"each drift must trip on its own surface; got {errors!r}"
 
-    def _case_hist_base_missing_on_rust_trips() -> None:
-        """Row claims the Rust buffered method exists but the registry of
-        record has no such endpoint — the dropped / renamed Rust endpoint
-        defect."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
-            }
-        ]
-        s = {"stock_history_eod"}
-        errors = _check_market_data_base_rows(rows, set(), s, s, s, s, s)
-        assert any("rust" in e and "missing" in e for e in errors), (
-            f"a dropped Rust buffered endpoint must trip; got {errors!r}"
-        )
-
-    def _case_hist_base_header_source_divergence_trips() -> None:
-        """A shipped header that dropped a base symbol the `thetadatadx-ffi/src` source
-        still defines (a stale regenerated header) trips, independent of any
-        per-row column."""
-        rows = [
-            {
-                "name": "stock_history_eod",
-                "rust": True,
-                "python": True,
-                "typescript": True,
-                "cpp": True,
-                "ffi": True,
-            }
-        ]
-        s = {"stock_history_eod"}
-        # Header is missing `option_history_eod` that the source defines.
-        cabi = {"stock_history_eod"}
-        ffi = {"stock_history_eod", "option_history_eod"}
-        errors = _check_market_data_base_rows(rows, s, s, s, s, cabi, ffi)
-        assert any(
-            "option_history_eod" in e and "stale header" in e for e in errors
-        ), f"a header/source divergence must trip; got {errors!r}"
-
-    def _case_hist_base_untracked_orphan_trips() -> None:
-        """An endpoint present on a surface but with no row at all trips the
-        reverse-direction orphan scan."""
-        errors = _check_market_data_base_rows(
-            [], {"stock_history_eod"}, set(), set(), set(), set(), set()
-        )
-        assert any(
-            "stock_history_eod" in e and "no [[market_data_base]] row" in e
-            for e in errors
-        ), f"untracked base endpoint must trip; got {errors!r}"
-
-    def _case_hist_base_live_sources_clean() -> None:
-        """The live buffered base surface is symmetric across all five
-        surfaces: every buffered endpoint present on Rust / Python /
-        TypeScript / C++ / the C-ABI base, and the shipped header agrees with
-        the `thetadatadx-ffi/src` source and the Rust registry."""
-        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
-        rows = data.get("market_data_base", [])
-        assert rows, "live parity.toml must declare [[market_data_base]] rows"
-        ts_methods = _collect_typescript_class_methods(TS_SRC, TS_PKG_DIR)
-        cpp_methods = _collect_cpp_class_methods(CPP_HPP)
-        errors = _check_market_data_base_rows(
-            rows,
-            set(_table_endpoint_shapes(ENDPOINT_TABLE_RS)),
-            _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS),
-            _collect_typescript_async_endpoints(ts_methods),
-            cpp_methods.get(_cpp_class_for("MarketDataView"), set()),
-            _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC),
-            _collect_ffi_base_endpoints(FFI_SRC),
-        )
-        assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
-
-    def _case_hist_base_registry_count() -> None:
-        """The endpoint table yields exactly the 81 buffered endpoints (the
-        raw streams in `__stream_endpoints!` excluded), and the shipped C-ABI
-        header declares the same 81 base symbols."""
-        rust = set(_table_endpoint_shapes(ENDPOINT_TABLE_RS))
-        cabi = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
-        assert len(rust) == 81, f"registry must yield 81 buffered endpoints; got {len(rust)}"
-        assert rust == cabi, (
-            f"registry buffered set must equal the C-ABI base set; "
-            f"rust-only={sorted(rust - cabi)!r}, cabi-only={sorted(cabi - rust)!r}"
-        )
-
-    _case("hist-base positive — all five surfaces present", _case_hist_base_positive_all_five)
-    _case("hist-base negative — missing C-ABI base symbol trips", _case_hist_base_missing_on_cabi_trips)
-    _case("hist-base negative — dropped Rust endpoint trips", _case_hist_base_missing_on_rust_trips)
-    _case("hist-base negative — header/source divergence trips", _case_hist_base_header_source_divergence_trips)
-    _case("hist-base negative — untracked endpoint trips", _case_hist_base_untracked_orphan_trips)
-    _case("hist-base — live sources clean", _case_hist_base_live_sources_clean)
-    _case("hist-base — registry yields 81 endpoints matching C-ABI base", _case_hist_base_registry_count)
+    _case("market-data: table-implied methods pass, drift trips", _case_market_data_surfaces)
 
     # ── Client construction-from-file surface selftests ───────────
 
