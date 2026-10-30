@@ -54,10 +54,6 @@ fn parse_backpressure(kind: Option<String>, capacity: Option<f64>) -> napi::Resu
 
 /// Serialise one [`arrow_array::RecordBatch`] as an Arrow IPC stream byte
 /// buffer (the same path the per-tick `*ToArrowIpc` exports use).
-///
-/// Declared ahead of the `#[napi]` items below so the parity gate's
-/// free-function scan (which keys off a preceding `#[napi]` attribute) never
-/// mistakes this internal helper for a cross-binding utility.
 fn batch_to_ipc(batch: &arrow_array::RecordBatch) -> napi::Result<Vec<u8>> {
     // Seed from an estimate keyed on the row COUNT, so the IPC body is written
     // without re-growing the Vec from empty. Sizing from

@@ -8,7 +8,7 @@
 //! the difference is invisible to the caller: the server applies whatever
 //! default it holds and answers normally. The values come from a declared default in
 //! the endpoint table (`src/surface/endpoints.rs`), so losing one leaves the
-//! surface compiling, the parity gate green and the request quietly different.
+//! surface compiling, the parity checks green and the request quietly different.
 //!
 //! The mock captures the request body the client actually wrote, so the
 //! assertions are on the encoded query message rather than on a value the

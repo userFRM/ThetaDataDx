@@ -368,12 +368,8 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
 ///
 /// Declarations only — the definitions live out-of-line in
 /// `market_data_stream.cpp.inc` (mirroring the buffered `market_data.cpp.inc`).
-/// Keeping the C-ABI `thetadatadx_<endpoint>_stream` call sites out of the class body
-/// is also what stops the cross-binding parity collector — which scans class
-/// bodies for `name(` shapes — from mistaking a C-ABI call for a C++ method.
-/// The one inline member is the shared trampoline
-/// `stream_chunk_shim`: tick-agnostic (the erased handler carries the per-
-/// endpoint reinterpretation) and `thetadatadx_`-free, so it is safe inline. It
+/// The one inline member is the shared trampoline `stream_chunk_shim`, which is
+/// tick-agnostic: the erased handler carries the per-endpoint reinterpretation. It
 /// swallows exceptions — a throw must never unwind across the C ABI into Rust,
 /// the same contract the FPSS `callback_shim` holds.
 pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
