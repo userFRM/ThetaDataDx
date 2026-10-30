@@ -27,7 +27,7 @@ struct EventColumn {
 }
 
 /// One-sentence docs for streaming event fields. The tick-field names
-/// reuse the same sentences as `tick_schema.toml`; the streaming-only
+/// reuse the same sentences as the tick table; the streaming-only
 /// fields (`contract`, `received_at_ns`, …) are declared here. Kept in
 /// the generator rather than `fpss_event_schema.toml` because that
 /// registry also drives generated SDK structs — annotating it would

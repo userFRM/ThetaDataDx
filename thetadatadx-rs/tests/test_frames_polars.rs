@@ -374,12 +374,12 @@ fn greeks_third_order_tick_to_polars() {
     );
 }
 
-// One test per tick type to prove the generator emits an impl for every
-// entry in `tick_schema.toml`.
+// One test per tick type to prove the tick table expands an impl for every
+// entry.
 #[test]
 fn every_tick_type_has_polars_impl() {
     // Compile-time proof the trait is implemented for each tick type.
-    // If the generator drops an impl, this file fails to build.
+    // If the expansion drops an impl, this file fails to build.
     fn _assert<T: ?Sized + TicksPolarsExt>() {}
     _assert::<[tick::CalendarDay]>();
     _assert::<[tick::EodTick]>();

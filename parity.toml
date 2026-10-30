@@ -2605,13 +2605,13 @@ typescript = "f64"
 # ─── TradeTick flag-word accessors ────────────────────────────────────
 #
 # Boolean accessors decoded from the integer condition / flag columns
-# (`is_cancelled`, ...). One schema source
-# (`tick_schema.toml::[types.TradeTick].flag_accessors`) projects them
-# into all four surfaces, so they stay in lockstep by construction and
-# the `generate_sdk_surfaces --check` drift gate — not this matrix —
-# guards a regression: a flag added or dropped in the schema regenerates
-# Rust (hand-written `impl TradeTick`), the Python computed properties,
-# the TypeScript object fields, and the C++ free functions atomically.
+# (`is_cancelled`, ...). The `flags` of the `TradeTick` entry in the tick
+# table (`thetadatadx-rs/src/surface/ticks.rs`) expand into the Python
+# computed properties and the TypeScript object fields and render the C++
+# free functions: a flag added to or dropped from the table changes the
+# first two in the same build, and the `generate_sdk_surfaces --check` drift
+# gate, not this matrix, holds the C++ free functions to it. The Rust
+# `impl TradeTick` is written by hand over the `tdbe::flags` constants.
 #
 # The shape is the idiomatic one per binding, so the surface is not
 # uniform across them: Rust + Python expose methods / computed
@@ -2620,9 +2620,9 @@ typescript = "f64"
 # TypeScript carries precomputed `bool` fields on the `#[napi(object)]`
 # row (TS tick rows are plain data objects, also method-less). Only the
 # TypeScript half lands as a struct field this checker can read, so the
-# `[[value_field]]` rows below pin that half; the Rust / Python / C++
-# shapes are pinned by the shared-source drift gate. All six flags are
-# anchored here so the matrix stays complete as flags are added.
+# `[[value_field]]` rows below pin that half; the Python and C++ shapes
+# follow the tick table, and the Rust methods are written by hand. Every
+# flag is anchored here so the matrix stays complete as flags are added.
 
 [[value_field]]
 class = "TradeTick"
@@ -2633,16 +2633,14 @@ typescript = "bool"
 #
 # Unix-epoch-millisecond conveniences combining a tick's `date` column
 # with each of its milliseconds-of-day columns (`ms_of_day` →
-# `timestamp_ms`, `<x>_ms_of_day` → `<x>_timestamp_ms`). One schema
-# source (`tick_schema.toml` columns, projected through
-# `timestamp_accessor_fields`) emits them onto every surface, and every
-# surface funnels through the one DST-aware core
-# (`thetadatadx::time::date_ms_to_epoch_ms`) — no binding reimplements the
-# Eastern-Time offset rules. They stay in lockstep by construction and
-# the `generate_sdk_surfaces --check` drift gate guards a regression: a
-# milliseconds-of-day column added or dropped regenerates the Rust
-# inherent `impl`, the Python computed properties, the TypeScript object
-# fields, and (for the free-function form) the C++ side atomically.
+# `timestamp_ms`, `<x>_ms_of_day` → `<x>_timestamp_ms`). One source, the
+# `timestamps` of each tick table entry, expands them onto the Rust, Python
+# and TypeScript surfaces, and every surface funnels through the one
+# DST-aware core (`thetadatadx::time::date_ms_to_epoch_ms`), so no binding
+# reimplements the Eastern-Time offset rules. They stay in lockstep by
+# construction: an accessor added to or dropped from the table changes the
+# Rust inherent `impl`, the Python computed properties and the TypeScript
+# object fields in the same build.
 #
 # The shape is the idiomatic one per binding, so the surface is not
 # uniform across them: Rust + Python expose `Option<i64>` methods /
@@ -2653,10 +2651,10 @@ typescript = "bool"
 # `Option<BigInt>` fields on the `#[napi(object)]` row (TS tick rows are
 # plain data objects, also method-less). Only the TypeScript half lands
 # as a struct field this checker can read, so the `[[value_field]]` rows
-# below pin that half; the Python computed properties, the Rust inherent
-# `impl`, and the single C++ free function are pinned by the shared-source
-# drift gate. Encoding a `cpp = ...` per-tick field here would assert a
-# struct member that does not exist (the C++ shape is the one free
+# below pin that half; the Python computed properties and the Rust inherent
+# `impl` are pinned by the shared source, and the single C++ free function
+# is the same for every row. Encoding a `cpp = ...` per-tick field here
+# would assert a struct member that does not exist (the C++ shape is the one free
 # function), so it is recorded in this note rather than forced into a
 # false match.
 
@@ -2862,7 +2860,7 @@ typescript = "Option<BigInt>"
 #     identical; the only difference is where the presence is carried (on the
 #     Python result, the C/C++ out-param, or the TypeScript return object).
 #
-# All surfaces are generated from `tick_schema.toml` and funnel through the one
+# All surfaces come from the tick table and funnel through the one
 # `TicksArrowExt::to_arrow` / `to_arrow_projected` + Arrow IPC `StreamWriter`
 # path; the `generate_sdk_surfaces --check` drift gate and the
 # `check_c_abi_completeness` header/symbol parity gate guard a regression. The

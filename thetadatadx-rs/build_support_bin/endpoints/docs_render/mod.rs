@@ -77,7 +77,6 @@ fn endpoint_page_path(endpoint: &GeneratedEndpoint) -> String {
 
 fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Error>> {
     let all_endpoints = table::endpoints();
-    let tick_schema = super::super::ticks::schema::load_schema()?;
     let upstream = UpstreamOpenApi::load();
 
     let endpoints: Vec<&GeneratedEndpoint> = all_endpoints
@@ -91,7 +90,7 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
     for endpoint in &endpoints {
         let tier = endpoint_tier(endpoint, upstream);
         let path = endpoint_page_path(endpoint);
-        let (contents, meta) = page::render_endpoint_page(endpoint, &tier, &path, &tick_schema)?;
+        let (contents, meta) = page::render_endpoint_page(endpoint, &tier, &path)?;
         files.push(DocFile {
             relative_path: format!("docs-site/docs/{path}.md"),
             contents,
