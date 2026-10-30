@@ -1,0 +1,29 @@
+[package]
+name = "xtask"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+# Repository maintenance tools: the surface generator, the gRPC snapshot
+# refresh and the live latency benchmark. Never published.
+publish = false
+
+[lints]
+workspace = true
+
+[features]
+# Pulls `prost-build` in for `refresh_grpc_snapshot` only, so the other tools
+# build without it.
+grpc-codegen = ["dep:prost-build"]
+
+[dependencies]
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs" }
+heck = "0.5.0"
+pastey = "0.2.3"
+serde_json = "1.0.137"
+# The runtime `bench_latency` drives the streaming client on.
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+prost-build = { version = "=0.14.4", optional = true }
+
+[[bin]]
+name = "refresh_grpc_snapshot"
+required-features = ["grpc-codegen"]

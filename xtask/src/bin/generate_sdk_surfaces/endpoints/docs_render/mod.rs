@@ -170,7 +170,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         let actual = std::fs::read_to_string(&path).map_err(|e| {
             format!(
                 "generated docs page '{}' is missing ({e}); run \
-                 `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh",
+                 `cargo run -p xtask --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
         })?;
@@ -178,7 +178,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         if actual_normalized != file.contents {
             return Err(format!(
                 "generated docs page '{}' is stale; run \
-                 `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh",
+                 `cargo run -p xtask --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());

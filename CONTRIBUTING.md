@@ -18,7 +18,7 @@ issues.
 - **maturin** - for building the PyO3 Python bindings (`pip install "maturin>=1.9.4,<2.0"`)
 - **Node.js 18+** - for the TypeScript/Node.js SDK
 
-Note: a normal `cargo build` does not need `protoc`. The crate ships the committed gRPC snapshot (`proto/beta_endpoints.snapshot.rs`); `protoc` is only needed with `--features grpc-codegen` to regenerate that snapshot after editing a `.proto` file.
+Note: a normal `cargo build` does not need `protoc`. The crate ships the committed gRPC snapshot (`proto/beta_endpoints.snapshot.rs`); `protoc` is only needed to regenerate that snapshot after editing a `.proto` file.
 
 ## Development Setup
 
@@ -137,7 +137,7 @@ The endpoint table expands at compile time into the registry, the shared endpoin
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`
-   - Regenerate the committed message types and client stubs at `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` (the only step that needs `protoc`) and commit the resulting diff alongside the proto change. CI runs the same command and fails when it changes the snapshot.
+   - Regenerate the committed message types and client stubs at `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` with `cargo run -p xtask --features grpc-codegen --bin refresh_grpc_snapshot` (the only step that needs `protoc`) and commit the resulting diff alongside the proto change. CI runs the same command and fails when it changes the snapshot.
 
 2. **Add or update the endpoint surface**
    - Add an entry to the endpoint table in `thetadatadx-rs/src/surface/endpoints.rs`, reusing the parameter definitions and groups in `__param!` where possible; its module documentation describes the entry grammar
@@ -156,7 +156,7 @@ The endpoint table expands at compile time into the registry, the shared endpoin
    - Only change the macro layer (`mdds/endpoints.rs`, `mdds/macros.rs`) if the new endpoint shape cannot be expressed by the table's grammar
 
 5. **Regenerate downstream SDK/tool surfaces**
-   - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` and commit the result; CI runs it with `--check`
+   - Run `cargo run -p xtask --bin generate_sdk_surfaces` and commit the result; CI runs it with `--check`
    - Rebuild the TypeScript declarations with `npm run build` in `thetadatadx-ts` (or `python3 scripts/dev/check_napi_drift.py`) and commit `index.d.ts` and `index.js`
    - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
 

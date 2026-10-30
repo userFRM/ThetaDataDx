@@ -217,9 +217,8 @@ pub(crate) use mdds::decode;
 pub(crate) mod proto {
     // The gRPC client stubs are pre-generated and committed at
     // `proto/beta_endpoints.snapshot.rs`, so a normal build needs no
-    // `protoc`. The `refresh_grpc_snapshot` binary regenerates it from
-    // `proto/mdds.proto` under the `grpc-codegen` feature; see
-    // `CONTRIBUTING.md`.
+    // `protoc`. The `refresh_grpc_snapshot` tool in `xtask/` regenerates it
+    // from `proto/mdds.proto`; see `CONTRIBUTING.md`.
     include!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/proto/beta_endpoints.snapshot.rs"

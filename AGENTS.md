@@ -22,6 +22,7 @@ binaries.
 | `thetadatadx-cpp/` | Header-and-source C++ SDK over the C ABI. CMake. |
 | `tools/server/` | A drop-in replacement for the vendor's JVM terminal, serving the user's own tooling. Like the terminal, it binds all interfaces by default; `--bind 127.0.0.1` restricts it to loopback. |
 | `tools/mcp/` | An MCP server: one tool per market-data endpoint, plus flat-file tools. |
+| `xtask/` | Repository tools, never published: the surface generator (`generate_sdk_surfaces`), the gRPC snapshot refresh (`refresh_grpc_snapshot`) and a live streaming latency benchmark (`bench_latency`). |
 | `scripts/ci/` | The gate suite. One script per gate, dispatched by `scripts/ci.py`. |
 | `docs-site/` | The published documentation. Its changelog page includes `CHANGELOG.md`. |
 
@@ -73,7 +74,7 @@ so a consumer never needs the generator.
 Regenerate with:
 
 ```sh
-cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces
+cargo run -p xtask --bin generate_sdk_surfaces
 ```
 
 Edit the schema, run that, commit both the schema and the regenerated files. The compiler holds the
@@ -209,7 +210,7 @@ cargo fmt --all
 ### Generators and drift
 
 ```sh
-cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces
+cargo run -p xtask --bin generate_sdk_surfaces
 python3 scripts/dev/check_napi_drift.py        # rebuilds napi and diffs the committed output
 ```
 

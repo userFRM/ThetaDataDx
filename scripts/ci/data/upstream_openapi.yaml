@@ -4,7 +4,7 @@
 #
 # This file is the pinned upstream ThetaData OpenAPI v3 spec. Both the
 # tier-badge check (scripts/ci/check_tier_badges.py) and the Rust validator
-# generator (thetadatadx-rs/build_support_bin/endpoints/) derive endpoint
+# generator (xtask/src/bin/generate_sdk_surfaces/endpoints/) derive endpoint
 # min-subscription tiers and expiration-wildcard support from it, so both
 # human docs and generated machinery agree on one pinned schema. Refresh
 # with the command above when ThetaData publishes a new spec.

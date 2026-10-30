@@ -6,7 +6,7 @@
 //! the MDDS client macros ([`crate::mdds::macros`]) delegate to these
 //! functions.
 //!
-//! The SDK generator's checks in `build_support_bin/endpoints/` operate on
+//! The SDK generator's checks (`generate_sdk_surfaces` in `xtask/`) operate on
 //! the endpoint table and the proto schema, a different domain, so they
 //! remain separate.
 

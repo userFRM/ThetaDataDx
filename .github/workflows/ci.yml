@@ -188,13 +188,13 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
       # The snapshot refresh drives `prost-build`, which shells out to `protoc`.
       - uses: ./.github/actions/install-protoc
-      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx-rs --features grpc-codegen --bin refresh_grpc_snapshot --locked
+      - run: cargo run -p xtask --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p xtask --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
         shell: bash
         run: |
           if ! git diff --exit-code; then
-            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
+            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p xtask --features grpc-codegen --bin refresh_grpc_snapshot\` and \`cargo run -p xtask --bin generate_sdk_surfaces\` locally and commit the diff." >&2
             exit 1
           fi
 
@@ -602,7 +602,7 @@ jobs:
 
   # ───────────────────────────────────────────────────────────────
   # Doc-render fast lane. The markdown-emitting doc generator
-  # (`build_support_bin/endpoints/docs_render/**`) and the checked-in
+  # (`xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render/**`) and the checked-in
   # doc-site output tree cannot change the compiled library or any SDK
   # binding surface, so a PR that touches ONLY those skips the whole
   # cross-platform matrix (`test` / `surfaces` / `build-ffi` /
@@ -627,8 +627,8 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
         with:
           components: clippy
-      # Intra-doc link hygiene on the core crate the generator lives in.
-      - run: cargo doc --no-deps -p thetadatadx-rs --features "config-file" --locked
+      # Intra-doc link hygiene on the generator.
+      - run: cargo doc --no-deps -p xtask --locked
 
   build-ffi:
     name: Build FFI (${{ matrix.os }})

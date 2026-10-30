@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Python's `_async` twins move the same way (`flatfile_to_path_async` to `option_flat_file_eod_to_path_async`). An endpoint returns typed ticks (`EodTick` here) in place of `FlatFileRowList`, with the columnar exits every endpoint has (`to_arrow()`, `to_polars()`, `to_pandas()` and `to_list()` in Python, `eodTickToArrowIpc(rows)` in TypeScript, `thetadatadx::eod_ticks_to_arrow_ipc(rows)` in C++, `thetadatadx_eod_ticks_to_arrow_ipc(rows, len)` in C), and its `_stream` companion takes a large file chunk by chunk. In C, `market_data` is the handle `thetadatadx_client_market_data` returns. The `flatfiles_*` settings have no replacement: the endpoints follow the market-data request settings.
 
+- **The `grpc-codegen` feature of `thetadatadx-rs`.** It changed nothing in the library: it pulled in `prost-build` for the repository tool that regenerates the committed gRPC stubs, a tool the published crate does not contain. The repository's tools now live in an unpublished `xtask` crate, and the `config-file` feature no longer pulls in `heck`, which only those tools used. A build that enables `grpc-codegen` now fails on an unknown feature; remove it from the feature list, and nothing else changes.
+
 ### Fixed
 
 - **The local server writes each timestamp from its own instant.** The EOD routes wrote `last_trade` with the date of `created`, and the trade-quote routes wrote `quote_timestamp` with the date of `trade_timestamp`, so either one carried the wrong day whenever it fell on a different day from the other. Each is now written from the instant the vendor sent, as the terminal writes it.

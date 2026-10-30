@@ -2,7 +2,8 @@
 //!
 //! Consumed by:
 //! - runtime request building in `mdds/endpoints.rs`
-//! - generator-side mode collapsing in `build_support_bin/endpoints/modes.rs`
+//! - generator-side mode collapsing in
+//!   `xtask/src/bin/generate_sdk_surfaces/endpoints/modes.rs`
 //!   (via `#[path]` reuse of this file)
 
 // The `venue=nqb` default is declared with the parameter (`venue` in the

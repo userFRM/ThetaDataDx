@@ -31,7 +31,7 @@ on:
       docs_render_only:
         description: >-
           Every changed file is a markdown-emitting doc generator
-          (build_support_bin/endpoints/docs_render/**) or the checked-in
+          (xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render/**) or the checked-in
           doc-site output tree (docs-site/**). True only when the PR
           touches nothing that can change the compiled library or any SDK
           binding surface, so the cross-platform matrix is safe to skip
@@ -111,6 +111,7 @@ jobs:
               - 'thetadatadx-rs/**'
               - 'thetadatadx-ffi/**'
               - 'tools/**'
+              - 'xtask/**'
               - 'thetadatadx-py/**'
               - 'thetadatadx-ts/**'
               - 'thetadatadx-cpp/**'
@@ -178,7 +179,7 @@ jobs:
       # `R<score>` record (old + new path) instead of the rename-blind D+A
       # pair; `A`/`M`/`D` carry a single path. Every path on every record —
       # both sides of a rename or copy — must fall inside the doc set
-      # (build_support_bin/endpoints/docs_render, docs-site). The
+      # (xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render, docs-site). The
       # code-emitting generators (sdk_render / fpss_events / ticks) are
       # deliberately NOT in the set: they change
       # the compiled SDK binding surface and must still fire the full
@@ -215,7 +216,7 @@ jobs:
           # The case arms must leave $? = 0 so the call is set -e safe.
           classify() {
             case "$1" in
-              thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
+              xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render/*) ;;
               docs-site/*) ;;
               *)
                 docs_only=false

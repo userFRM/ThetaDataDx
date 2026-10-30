@@ -20,7 +20,7 @@ surface by checking a few high-signal invariants:
 
 The generated reference tree, `llms.txt` and the OpenAPI `x-code-examples`
 are byte-verified by
-`cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces -- --check`
+`cargo run -p xtask --bin generate_sdk_surfaces -- --check`
 in CI; the structural checks here are the cargo-free fast path the docs
 deploy workflow runs.
 
@@ -191,7 +191,7 @@ OPENAPI_REST_ONLY_PARAMS = {"format"}
 # the required, default-less parameter the registry declares. The docs
 # generator renders each alias's `x-code-examples` from the same endpoint, so
 # the table is `ROUTE_ALIASES` beside it and is read from there.
-OPENAPI_ALIASES_RS = ROOT / "thetadatadx-rs/build_support_bin/endpoints/docs_render/openapi.rs"
+OPENAPI_ALIASES_RS = ROOT / "xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render/openapi.rs"
 
 
 def openapi_alias_endpoints() -> dict[str, str]:

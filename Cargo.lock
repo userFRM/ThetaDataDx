@@ -3769,7 +3769,6 @@ dependencies = [
  "futures",
  "futures-core",
  "h2",
- "heck",
  "http",
  "hyper",
  "hyper-util",
@@ -3781,7 +3780,6 @@ dependencies = [
  "polars",
  "proptest",
  "prost",
- "prost-build",
  "prost-types",
  "rand 0.10.3",
  "reqwest",
@@ -4694,6 +4692,18 @@ dependencies = [
  "rusticata-macros",
  "thiserror 2.0.21",
  "time",
+]
+
+[[package]]
+name = "xtask"
+version = "0.0.0"
+dependencies = [
+ "heck",
+ "pastey",
+ "prost-build",
+ "serde_json",
+ "thetadatadx-rs",
+ "tokio",
 ]
 
 [[package]]
