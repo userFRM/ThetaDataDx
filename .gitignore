@@ -21,6 +21,10 @@ build/
 private/
 # Live validator per-cell artifacts (scripts/ci/check_agreement.py reads these).
 artifacts/
+# Live validator cells, rendered by `cargo run -p xtask --bin generate_sdk_surfaces`
+# before a live run.
+/scripts/ci/data/live_cells.json
+/thetadatadx-cpp/examples/validate_cells.inc
 todo.md
 out/
 report/

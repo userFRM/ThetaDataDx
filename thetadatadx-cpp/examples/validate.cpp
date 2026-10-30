@@ -1,6 +1,7 @@
 // Live parameter-mode matrix validator for the C++ SDK. Runs every cell in
-// validate_cells.inc, which generate_sdk_surfaces renders from the endpoint
-// table, against production; the server is the ground truth for what the
+// validate_cells.inc, which `cargo run -p xtask --bin generate_sdk_surfaces`
+// renders from the endpoint table before a live run (the file is not
+// committed), against production; the server is the ground truth for what the
 // account can access. Cells whose documented min_tier exceeds the live
 // account tier come back as a SubscriptionError and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL.

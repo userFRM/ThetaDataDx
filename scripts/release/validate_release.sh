@@ -50,6 +50,14 @@ CREDS="$(cd "$(dirname "$CREDS")" && pwd)/$(basename "$CREDS")"
 rm -f "$REPO"/artifacts/validator_*.json
 mkdir -p "$REPO/artifacts"
 
+# Both validators run the cells rendered from this tree's endpoint table; the
+# cells are not committed.
+echo "Rendering the live validation cells..."
+if ! cargo run -p xtask --bin generate_sdk_surfaces --manifest-path "$REPO/Cargo.toml"; then
+    echo "error: rendering the live validation cells failed; neither validator can run."
+    exit 1
+fi
+
 TOTAL_PASS=0
 TOTAL_SKIP=0
 TOTAL_FAIL=0

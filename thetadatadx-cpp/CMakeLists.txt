@@ -85,7 +85,9 @@ target_link_libraries(thetadatadx_example PRIVATE thetadatadx_cpp)
 
 # ── Validation and smoke executables ──
 
-add_executable(thetadatadx_validate examples/validate.cpp)
+# Its cells are rendered by `cargo run -p xtask --bin generate_sdk_surfaces`
+# before a live run, so it is built only when asked for by name.
+add_executable(thetadatadx_validate EXCLUDE_FROM_ALL examples/validate.cpp)
 target_link_libraries(thetadatadx_validate PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_streaming_smoke examples/streaming_smoke.cpp)

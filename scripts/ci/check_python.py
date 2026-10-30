@@ -2,8 +2,9 @@
 """Live parameter-mode matrix validator for the Python SDK.
 
 Runs every cell in `data/live_cells.json`, which
-`generate_sdk_surfaces` renders from the endpoint table: one (endpoint,
-mode) pair, its positional arguments and its keyword options. Modes cover
+`cargo run -p xtask --bin generate_sdk_surfaces` renders from the endpoint
+table before a live run (the file is not committed): one (endpoint, mode)
+pair, its positional arguments and its keyword options. Modes cover
 concrete fixtures plus wildcard / ISO-date variants for option ContractSpec
 endpoints and one cell per optional parameter. Every cell is attempted
 against production; the server is the ground truth for what the account can

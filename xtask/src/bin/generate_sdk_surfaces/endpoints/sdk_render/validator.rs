@@ -1,5 +1,6 @@
 //! The live parameter-mode matrix, one cell per (endpoint, mode), rendered
-//! for the two validators that run it against a real account.
+//! for the two validators that run it against a real account. The cells are
+//! rendered before each live run and never committed.
 //!
 //! The Python validator (`scripts/ci/check_python.py`) reads the cells as
 //! data and calls each endpoint by name. C++ cannot call a method by name, so
