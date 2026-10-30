@@ -1,9 +1,10 @@
 //! Checked-in generation for non-endpoint SDK/tool surfaces.
 //!
-//! `endpoint_surface.toml` remains the SSOT for validated request/response
-//! endpoints. This module covers the remaining non-endpoint surfaces that still
-//! need declarative checked-in generation: offline utilities, FPSS/unified
-//! wrapper methods, and small public wrapper implementations.
+//! The endpoint table (`src/surface/endpoints.rs`) remains the SSOT for the
+//! request/response endpoints. This module covers the remaining non-endpoint
+//! surfaces that still need declarative checked-in generation: offline
+//! utilities, FPSS/unified wrapper methods, and small public wrapper
+//! implementations.
 //!
 //! The TOML (`sdk_surface.toml`) declares the public method set, parameters,
 //! target projections, and user-facing docs. This module is only the renderer:

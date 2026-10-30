@@ -27,8 +27,8 @@
 //!      execution / EOD trade-quote columns the silent-routing
 //!      dropped are populated on the first row.
 //!
-//! Pinning routing AND parsing in one assertion: a future drift in
-//! `proto_parser.rs` that reverts `option_history_greeks_eod` back to
+//! Pinning routing AND parsing in one assertion: a future drift in the
+//! endpoint table that reverts `option_history_greeks_eod` back to
 //! `parse_greeks_all_ticks` (or any other wrong parser) would either
 //! type-fail at compile time (wrong `Vec<Tick>` shape) or runtime-fail
 //! the column-population asserts here.

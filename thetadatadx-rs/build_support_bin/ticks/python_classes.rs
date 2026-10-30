@@ -76,20 +76,20 @@ pub(super) fn render_python_tick_classes(
     // latency-sensitive path. Only the snapshot and calendar endpoint
     // methods in `thetadatadx-py/src/market_data.rs` call these.
     //
-    // Emission is gated on `snapshot_return_types` (derived from
-    // `endpoint_surface.toml` by `endpoints::snapshot_return_types`) so
+    // Emission is gated on `snapshot_return_types` (derived from the
+    // endpoint table by `endpoints::snapshot_return_types`) so
     // tick types that are not returned by any snapshot endpoint — e.g.
     // `EodTick`, `TradeQuoteTick`, `InterestRateTick`, `OptionContract`
     // at the time of writing — do not land as dead-code functions in the
     // generated file. Adding a snapshot endpoint of a new tick type to
-    // the TOML automatically opts its converter into emission on the
+    // the table automatically opts its converter into emission on the
     // next generator run.
     for type_name in &type_names {
         // `python_list_fn_name` yields the `*_to_pyclass_list` name;
         // the matching collection return-type is the prefix (e.g.
         // `OhlcTick` -> `OhlcTicks`). Map using `tick_collection_name`
-        // below so the filter key matches `endpoint_surface.toml::returns`
-        // verbatim.
+        // below so the filter key matches the collection the endpoint
+        // returns verbatim.
         let collection_name = tick_collection_name(schema, type_name);
         if !snapshot_return_types.contains(collection_name) {
             continue;
@@ -1212,10 +1212,9 @@ fn render_python_tick_class_list_fn(
 }
 
 /// Map a `tick_schema.toml` tick-type name (e.g. `OhlcTick`) to the
-/// collection name used in `endpoint_surface.toml::returns`
-/// (`OhlcTicks`). Bridges the two TOML files at the generator layer so
-/// the snapshot-return-type filter driving `_vec_to_pylist` emission can
-/// match `returns` verbatim.
+/// collection an endpoint returns (`OhlcTicks`), so the
+/// snapshot-return-type filter driving `_vec_to_pylist` emission can match
+/// it verbatim.
 fn tick_collection_name<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
     render_for_type(schema, type_name).collection.as_str()
 }

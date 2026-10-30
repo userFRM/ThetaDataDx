@@ -841,7 +841,7 @@ impl Client {
 /// Holds a cheap `Arc` clone of the inner unified client; constructing it
 /// performs no auth round-trip and mutates no streaming state. Every
 /// market-data endpoint method (sync, `*_async`, and `*_builder`) is
-/// generated onto this view from `endpoint_surface.toml`, so the surface
+/// expanded onto this view from the endpoint table, so the surface
 /// stays a single generated source of truth.
 #[pyclass(frozen)]
 struct MarketDataView {
@@ -1886,8 +1886,8 @@ mod market_data;
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
 // Every market-data endpoint returns a typed `<TickName>List` (or
-// `StringList` for list endpoints), generator-emitted from
-// `tick_schema.toml` + `endpoint_surface.toml`. Terminals live on the
+// `StringList` for list endpoints), generated from `tick_schema.toml`
+// and the endpoint table. Terminals live on the
 // wrapper: `ticks.to_list()`, `ticks.to_arrow()`, `ticks.to_pandas()`,
 // `ticks.to_polars()` — one surface, no free-function round-trip.
 //

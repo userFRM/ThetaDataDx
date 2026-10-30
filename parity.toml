@@ -3901,7 +3901,7 @@ cpp = true
 # companions on the managed bindings) and not at all on the C-ABI base.
 #
 #   rust        — `MarketDataClient::<endpoint>` buffered method, generated
-#                 from the registry of record (`endpoint_surface.toml`).
+#                 from the endpoint table (`src/surface/endpoints.rs`).
 #   python      — `<Endpoint>Builder.list()` collect terminal.
 #   typescript  — the buffered `<endpoint>` method on `MarketDataView`
 #                 (itself async-returning, so the buffered and async surfaces

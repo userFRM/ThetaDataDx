@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""Validate checked-in documentation against the endpoint surface spec.
+"""Validate checked-in documentation against the endpoint table.
 
 This script keeps the human-facing docs aligned with the current SDK and REST
 surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs, each derived from the list it heads
-- REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
+- REST/OpenAPI path + operationId parity with the endpoint table
+  (`thetadatadx-rs/src/surface/endpoints.rs`)
 - per-route OpenAPI parameter names, required flags and defaults matching
-  the same registry (a generated client must not demand a parameter the
-  server treats as optional, nor hide the value an omitted one takes)
+  the same registry, as its generated reference pages state them (a
+  generated client must not demand a parameter the server treats as
+  optional, nor hide the value an omitted one takes)
 - each option route's documented `expiration` pattern accepting the `*`
   wildcard exactly where the pinned vendor spec accepts it
 - one generated docs-site reference page per registry endpoint (and no
@@ -40,14 +42,21 @@ import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SURFACE = tomllib.loads((ROOT / "thetadatadx-rs/endpoint_surface.toml").read_text())
-ENDPOINTS = SURFACE["endpoints"]
-TEMPLATES = SURFACE["templates"]
+ENDPOINT_TABLE_RS = ROOT / "thetadatadx-rs/src/surface/endpoints.rs"
+# Every entry of `__endpoints!` and `__stream_endpoints!` in table order: its
+# shape, name and REST path.
+TABLE_ENTRIES = re.findall(
+    r'^\s*(list|buffered|chunked|stream)\s+(\w+)\s*\{\s*group:\s*\w+\s*/\s*\w+,\s*rest:\s*"([^"]+)"',
+    ENDPOINT_TABLE_RS.read_text(),
+    re.MULTILINE,
+)
+if not TABLE_ENTRIES:
+    raise SystemExit(f"docs consistency error: {ENDPOINT_TABLE_RS} parsed to no endpoints")
 # The OpenAPI `servers` block points at the HTTP server root
 # (`http://localhost:25503`), so each documented path must carry the full
 # served route (the registry `rest_path` verbatim, `/v3/...`) for a
 # generated client to resolve it. Compare the registry paths as-is.
-REST_PATHS = {ep["rest_path"] for ep in ENDPOINTS}
+REST_PATHS = {rest for _, _, rest in TABLE_ENTRIES}
 
 # The single server a generated client targets: the local HTTP server root.
 # `tools/server` listens on this port by default (`tools/server/src/main.rs`),
@@ -204,63 +213,11 @@ def openapi_alias_endpoints() -> dict[str, str]:
     return dict(pairs)
 
 
-# Builder-bound params (the optional fluent setters that materialize as fields
-# on the `*EndpointRequestOptions` structs) come from two places in the surface:
-# the reusable `[param_groups.*]` definitions AND inline `[[endpoints.params]]`
-# entries that declare a param directly (a `name = ...` row) rather than
-# referencing a group (`use = ...`). An endpoint that needs a one-off optional
-# param (e.g. an optional `symbol` filter on a single listing endpoint) declares
-# it inline, so collecting only the group params would let that field escape the
-# FFI/SDK option-struct parity check. Both sources feed `BUILDER_PARAMS`; the
-# `use = ...` references are already covered via their group, so only inline
-# `name`-carrying params are read here.
-def _builder_param_names() -> set[str]:
-    names = {
-        param["name"]
-        for group in SURFACE["param_groups"].values()
-        for param in group.get("params", [])
-        if param.get("binding") == "builder"
-    }
-    for endpoint in SURFACE.get("endpoints", []):
-        for param in endpoint.get("params", []):
-            if "name" in param and param.get("binding") == "builder":
-                names.add(param["name"])
-    return names
-
-
-BUILDER_PARAMS = _builder_param_names()
-
-# Global request-level options (not per-endpoint builder params, but still
-# required fields on `ThetaDataDxEndpointRequestOptions` / `EndpointRequestOptions`
-# so the FFI struct layout must include them).
-GLOBAL_REQUEST_OPTIONS = {opt["name"] for opt in SURFACE.get("request_options_global", [])}
-
-# All fields the request-options structs must expose (per-endpoint builders +
-# cross-cutting globals). Drift in either direction is a bug.
-ALL_OPTION_FIELDS = BUILDER_PARAMS | GLOBAL_REQUEST_OPTIONS
-
-
-def endpoint_attr(endpoint: dict, key: str) -> str | None:
-    """An endpoint attribute, resolved up its `[templates.*]` chain.
-
-    `endpoint_surface.toml` is validated by the build, which rejects an unknown
-    template and any cycle among them, so the walk only has to follow what is
-    there.
-    """
-    value = endpoint.get(key)
-    template_name = endpoint.get("template")
-    while value is None and template_name is not None:
-        template = TEMPLATES[template_name]
-        value = template.get(key)
-        template_name = template.get("extends")
-    return value
-
-
-def endpoint_kind(endpoint: dict) -> str:
-    return endpoint_attr(endpoint, "kind") or "parsed"
-
-
-REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
+# The registry endpoints: every table entry but the raw streams, which share
+# the route of the endpoint they stream and have no page of their own.
+REGISTRY_ENDPOINTS = [
+    {"name": name, "rest_path": rest} for shape, name, rest in TABLE_ENTRIES if shape != "stream"
+]
 
 
 def lower_camel(snake: str) -> str:
@@ -419,8 +376,8 @@ def check_static_docs() -> None:
             fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")
 
     expect_contains(
-        ROOT / "thetadatadx-rs/endpoint_surface.toml",
-        'description = "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',
+        ENDPOINT_TABLE_RS,
+        '"ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',
     )
     # The generated at-time pages inherit the same wording from the
     # registry; pin one so a registry rewrite that loses the format
@@ -947,33 +904,37 @@ def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]
     return "".join(out), pos
 
 
-def _expand_param_group(params: list[dict]) -> list[dict]:
-    """Flatten `[[...params]]` rows, resolving every `use = "<group>"` row.
+# A row of a generated reference page's `## Parameters` table: the name,
+# whether it is required, and the default (`-` when there is none).
+_PAGE_PARAM_ROW_RE = re.compile(
+    r"^\| `(\w+)` \| [^|]+ \| (yes|no) \| (?:`([^`]*)`|-) \|", re.MULTILINE
+)
 
-    A row either declares a param inline (`name = ...`) or references a
-    reusable `[param_groups.*]` entry, which may itself reference further
-    groups. The build rejects an unknown group and any cycle among them.
+
+def reference_page_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
+    """`{endpoint name: {param: (required, default)}}`, read off the generated pages.
+
+    The docs generator renders each page's parameter table from the endpoint
+    table and holds the pages to its output byte for byte, so the rows are the
+    parameters the SDK and `tools/server` implement, each default the registry
+    literal verbatim. Every page also lists the SDK's `timeout_ms` deadline,
+    which is a request option and not a REST parameter.
     """
-    out: list[dict] = []
-    for param in params:
-        group_name = param.get("use")
-        if group_name is None:
-            out.append(param)
-        else:
-            out.extend(_expand_param_group(SURFACE["param_groups"][group_name]["params"]))
-    return out
-
-
-def endpoint_params(endpoint: dict) -> list[dict]:
-    """Every parameter an endpoint declares, its template chain first."""
-    chain: list[dict] = []
-    template_name = endpoint.get("template")
-    while template_name is not None:
-        template = TEMPLATES[template_name]
-        chain.insert(0, template)
-        template_name = template.get("extends")
-    params = [p for template in chain for p in _expand_param_group(template.get("params", []))]
-    return params + _expand_param_group(endpoint.get("params", []))
+    params = {}
+    for endpoint in REGISTRY_ENDPOINTS:
+        path = endpoint_page_path(endpoint)
+        rows = _PAGE_PARAM_ROW_RE.findall(
+            _markdown_section(path.read_text(), "## Parameters", path)
+        )
+        if not rows:
+            fail(
+                f"{rel(path)} parsed to no parameter rows (the page layout changed: "
+                f"the gate would be blind to parameter drift)"
+            )
+        params[endpoint["name"]] = {
+            name: (required == "yes", default or None) for name, required, default in rows
+        }
+    return params
 
 
 def registry_routes(value: Callable[[dict], object]) -> dict:
@@ -1002,10 +963,10 @@ def registry_route_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
     registry literal verbatim (`"*"`, `"1s"`, `"true"`), which is how the
     OpenAPI scalar reads too.
     """
+    pages = reference_page_params()
     return registry_routes(
         lambda endpoint: {
-            param["name"]: (bool(param.get("required", False)), param.get("default"))
-            for param in endpoint_params(endpoint)
+            name: row for name, row in pages[endpoint["name"]].items() if name != "timeout_ms"
         }
     )
 
@@ -1138,7 +1099,7 @@ def check_openapi_parameters(
         if extra or missing:
             fail(
                 f"{rel(OPENAPI_YAML)} {path} parameter set drifted from "
-                f"endpoint_surface.toml. missing={missing or '[]'} "
+                f"the endpoint table. missing={missing or '[]'} "
                 f"extra={extra or '[]'}"
             )
         for name in sorted(want):
@@ -1147,13 +1108,13 @@ def check_openapi_parameters(
             if want_required != got_required:
                 fail(
                     f"{rel(OPENAPI_YAML)} {path} documents {name} as "
-                    f"required={got_required}, but endpoint_surface.toml declares "
+                    f"required={got_required}, but the endpoint table declares "
                     f"required={want_required}"
                 )
             if want_default != got_default:
                 fail(
                     f"{rel(OPENAPI_YAML)} {path} documents {name} with "
-                    f"default {got_default!r}, but endpoint_surface.toml declares "
+                    f"default {got_default!r}, but the endpoint table declares "
                     f"{want_default!r}"
                 )
     if checked == 0:
@@ -1391,7 +1352,7 @@ def _markdown_section(text: str, heading: str, path: Path) -> str:
     try:
         start = next(i for i, line in enumerate(lines) if line.strip() == heading)
     except StopIteration:
-        fail(f"{path.relative_to(ROOT)} missing the {heading!r} section the tool gate scans")
+        fail(f"{path.relative_to(ROOT)} missing the {heading!r} section this gate scans")
     level = len(heading) - len(heading.lstrip("#"))
     out: list[str] = []
     for line in lines[start + 1 :]:
@@ -1540,13 +1501,21 @@ def check_endpoint_option_surface() -> None:
             f"header={c_layout} table={rust_layout}"
         )
 
+    # Every optional parameter of an endpoint is a field and every field is
+    # one, `timeout_ms` included: a field no endpoint reads is dead ABI.
+    option_fields = {
+        name
+        for rows in reference_page_params().values()
+        for name, (required, _) in rows.items()
+        if not required
+    }
     c_fields = {f.split()[-1] for f in c_layout if not f.split()[-1].startswith("has_")}
-    if c_fields != ALL_OPTION_FIELDS:
-        missing = sorted(ALL_OPTION_FIELDS - c_fields)
-        extra = sorted(c_fields - ALL_OPTION_FIELDS)
+    if c_fields != option_fields:
+        missing = sorted(option_fields - c_fields)
+        extra = sorted(c_fields - option_fields)
         fail(
-            f"{c_path.relative_to(ROOT)} endpoint option fields drifted from endpoint_surface.toml. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
+            f"{c_path.relative_to(ROOT)} endpoint option fields differ from the endpoints' "
+            f"optional parameters. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     cpp_fields = extract_struct_fields(
@@ -1554,12 +1523,12 @@ def check_endpoint_option_surface() -> None:
         r"struct EndpointRequestOptions \{(.*?)\n\};",
         r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
     )
-    if cpp_fields != ALL_OPTION_FIELDS:
-        missing = sorted(ALL_OPTION_FIELDS - cpp_fields)
-        extra = sorted(cpp_fields - ALL_OPTION_FIELDS)
+    if cpp_fields != option_fields:
+        missing = sorted(option_fields - cpp_fields)
+        extra = sorted(cpp_fields - option_fields)
         fail(
-            "thetadatadx-cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
+            "thetadatadx-cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields differ "
+            f"from the endpoints' optional parameters. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     for path in [

@@ -1,8 +1,8 @@
 # Declarative non-endpoint SDK/tool surface specification.
 #
-# endpoint_surface.toml remains the SSOT for validated request/response
-# endpoints backed by the upstream proto. This file covers the remaining
-# non-endpoint projections:
+# The endpoint table (src/surface/endpoints.rs) remains the SSOT for the
+# request/response endpoints backed by the upstream proto. This file covers
+# the remaining non-endpoint projections:
 #   - FPSS/unified public methods
 #   - offline utility functions
 #   - CLI/MCP utility commands and tools

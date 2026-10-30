@@ -5,9 +5,9 @@
 //! registry, the dispatch behind it and the shard fan-out allowlist; the
 //! Python and TypeScript bindings expand them into their endpoint methods and
 //! builders, and the C ABI into its entry points and `__request_options!` into
-//! its options struct. `endpoint_surface.toml` still drives the Python type
-//! stub, the C and C++ headers and the documentation, so an endpoint change
-//! lands in both until that file is retired.
+//! its options struct. `generate_sdk_surfaces` expands them too, to render the
+//! Python type stub, the C and C++ headers, the live validators and the
+//! documentation.
 //!
 //! A consumer passes the name of one of its own macros and receives every
 //! entry, in table order, after the tokens it passed:

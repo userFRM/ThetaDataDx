@@ -874,25 +874,11 @@ def test_client_view_accessors_live_sources_enrolled() -> None:
 # ─── Market-data Rust surface + buffered base family ────────────────
 
 
-def test_rust_streaming_mirror_equals_generated_python() -> None:
-    """The Rust streaming classification (registry-of-record mirror of the
-    build's `endpoint_streams` SSOT) equals the Python `stream` surface, the
-    `chunked` entries of the endpoint table, so any desync is a real drift.
-    """
-    rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
-    py_stream = cbp._collect_python_streaming_endpoints(cbp.ENDPOINT_TABLE_RS)
-    assert rust_stream == py_stream, (
-        f"Rust streaming mirror must equal the generated Python stream "
-        f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
-        f"py-only={sorted(py_stream - rust_stream)!r}"
-    )
-
-
 def test_cabi_base_matches_registry() -> None:
     """The shipped C-ABI header declares one `_with_options` base symbol per
     buffered endpoint, matching the Rust registry exactly.
     """
-    rust = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    rust = set(cbp._table_endpoint_shapes(cbp.ENDPOINT_TABLE_RS))
     cabi = cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC)
     assert rust == cabi, (
         f"C-ABI base set must equal the registry buffered set; "
@@ -1029,7 +1015,7 @@ def test_market_data_base_live_sources_clean() -> None:
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
     errors = cbp._check_market_data_base_rows(
         rows,
-        cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML),
+        set(cbp._table_endpoint_shapes(cbp.ENDPOINT_TABLE_RS)),
         cbp._collect_python_buffered_endpoints(cbp.ENDPOINT_TABLE_RS),
         cbp._collect_typescript_async_endpoints(ts_methods),
         cpp_methods.get(cbp._cpp_class_for("MarketDataView"), set()),
@@ -1046,8 +1032,8 @@ def test_market_data_families_live_rust_column_clean() -> None:
     import tomllib
 
     data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
-    rust_buffered = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
-    rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
+    rust_buffered = set(cbp._table_endpoint_shapes(cbp.ENDPOINT_TABLE_RS))
+    rust_stream = cbp._collect_python_streaming_endpoints(cbp.ENDPOINT_TABLE_RS)
     ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC, cbp.TS_PKG_DIR)
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
     async_errors = cbp._check_market_data_async_rows(
@@ -1579,7 +1565,6 @@ def main() -> int:
     _check("client view accessors all-enrolled passes", test_client_view_accessors_all_enrolled_passes)
     _check("client view accessor orphan trips", test_client_view_accessor_orphan_trips)
     _check("client view accessors live sources enrolled", test_client_view_accessors_live_sources_enrolled)
-    _check("rust streaming mirror equals generated python", test_rust_streaming_mirror_equals_generated_python)
     _check("c-abi base matches registry", test_cabi_base_matches_registry)
     _check("c-abi header matches ffi source", test_cabi_header_matches_ffi_source)
     _check("market-data-async rust column missing trips", test_market_data_async_rust_column_missing_trips)
