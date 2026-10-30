@@ -30,12 +30,10 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
-use std::sync::atomic::{AtomicU8, AtomicU64, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from, set_error_with_code};
 use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketDataClient};
-use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 /// Lock a `Mutex`, recovering the guard through poisoning rather than
 /// propagating a panic across the C ABI. A poisoned lock here means some
@@ -121,108 +119,32 @@ impl FfiCallback {
 /// Opaque unified client handle — wraps both market-data and streaming.
 pub struct ThetaDataDxClient {
     pub(crate) inner: thetadatadx::Client,
-    /// Callback registered via `thetadatadx_client_set_callback`. `None` until
-    /// the first registration; persisted across `thetadatadx_client_reconnect`
-    /// so the reconnect path can re-attach the same C user function
-    /// without re-asking the caller for it. Cleared when
-    /// `thetadatadx_client_batches_open` starts a batch session in its place.
-    pub(crate) callback: Mutex<Option<FfiCallback>>,
-    /// The subscriptions `thetadatadx_client_reconnect` is replaying. A
-    /// reconnect stops the session before the fallible restart, and the stop
-    /// clears the session's own lists, so this is what a retry after a failed
-    /// restart replays. An explicit stop or a new callback registration
-    /// starts over and clears it.
-    saved_subscriptions: Mutex<Option<SavedSubscriptions>>,
+    /// The client's streaming front-end, over the same core lifecycle as
+    /// `inner.stream()`.
+    pub(crate) stream: ThetaDataDxStreamHandle,
 }
 
-// `FfpssDispatcherSession` is imported above as a `use` alias of the
-// canonical `thetadatadx::DispatcherSession` defined in
-// `thetadatadx-rs/src/lifecycle.rs`. The three per-site enum
-// definitions (client.rs / streaming.rs / fpss_client.rs) are consolidated
-// there to eliminate drift risk.
-
-/// FPSS handle lifecycle state — see [`ThetaDataDxStreamHandle::state`].
+/// Opaque streaming handle: the streaming front-end of a client, without a
+/// market-data connection.
 ///
-/// The C ABI documents a strict three-state machine on every FPSS
-/// handle. `thetadatadx_streaming_set_callback` and `_reconnect` enforce the
-/// transitions; `thetadatadx_streaming_shutdown` is terminal (no further
-/// registration / reconnect / shutdown calls succeed).
-const STREAM_STATE_FRESH: u8 = 0;
-const STREAM_STATE_ACTIVE: u8 = 1;
-const STREAM_STATE_SHUTDOWN: u8 = 2;
-
-/// Opaque FPSS streaming client handle.
-///
-/// `thetadatadx_streaming_connect` allocates the handle and stores connection
-/// parameters; the actual FPSS TLS connection is opened on the first
-/// call to `thetadatadx_streaming_set_callback`. This mirrors the unified handle's
-/// lifecycle (`connect` then `set_callback`).
-///
-/// # Lifecycle state machine
-///
-/// `state` enforces the public C ABI contract:
-///
-/// - `STREAM_STATE_FRESH`  -> `STREAM_STATE_ACTIVE` on the first successful
-///   `thetadatadx_streaming_set_callback`. A second registration on an already-
-///   `ACTIVE` handle returns -1 with "streaming callback already installed
-///   -- only one set_callback call is permitted per handle".
-/// - `STREAM_STATE_ACTIVE` -> `STREAM_STATE_SHUTDOWN` on
-///   `thetadatadx_streaming_shutdown`. Shutdown is terminal: every subsequent
-///   register / reconnect / shutdown call returns -1 with
-///   "streaming handle has already been shut down -- this is terminal".
-/// - `STREAM_STATE_FRESH` directly to `STREAM_STATE_SHUTDOWN` is allowed
-///   (caller shut down a handle before installing a callback).
+/// `thetadatadx_streaming_connect` allocates it and opens nothing; the FPSS TLS
+/// connection is opened by `thetadatadx_streaming_set_callback`. Every
+/// `thetadatadx_streaming_*` call runs the same body as its
+/// `thetadatadx_client_*` counterpart, over the core streaming lifecycle the
+/// unified client uses, so the two handles share one lifecycle contract.
 pub struct ThetaDataDxStreamHandle {
-    inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::StreamingClient>>>>,
-    /// Saved connection parameters used at `set_callback` time and on
-    /// every subsequent `thetadatadx_streaming_reconnect`.
-    connect_params: StreamingConnectParams,
-    /// User callback recorded at `thetadatadx_streaming_set_callback` time. Stored
-    /// on the handle so `thetadatadx_streaming_reconnect` can re-register the same
-    /// callback on the new FPSS connection without forcing the caller
-    /// to re-supply it.
-    callback: Mutex<Option<FfiCallback>>,
-    /// Permanent lifecycle state — separate from `inner` so that a
-    /// post-shutdown reconnect (which would re-populate `inner`) is
-    /// rejected before any work happens. `Relaxed` ordering is
-    /// sufficient because state transitions are coordinated by the
-    /// inner `Mutex`es around the actual resources; `state` is purely
-    /// observational from the perspective of the C ABI fast paths.
-    state: AtomicU8,
-    /// Quiescence flags for every superseded FPSS session that has
-    /// not yet drained, captured during `thetadatadx_streaming_reconnect` /
-    /// `thetadatadx_streaming_shutdown` before the previous client is dropped.
-    /// `thetadatadx_streaming_await_drain` waits for ALL flags to flip so callers
-    /// can confirm every old user callback has stopped firing before
-    /// freeing the previous `ctx`. Stacked reconnect/shutdown cycles
-    /// layer multiple in-flight generations on top of each other; a
-    /// single slot would silently drop earlier still-firing sessions
-    /// when a later one retired.
-    prev_drained: Mutex<Vec<Arc<std::sync::atomic::AtomicBool>>>,
-    /// Dispatcher lifecycle — single mutex covering serialisation,
-    /// the `JoinHandle`, and failure state.  Replaces the three-
-    /// primitive cluster: `install_lock: Mutex<()>`,
-    /// `dispatcher_handle: Mutex<Option<JoinHandle<()>>>`, and
-    /// `dispatcher_failed: Arc<AtomicBool>`.  Every `set_callback` /
-    /// `reconnect` / `shutdown` / `free` path acquires this one lock,
-    /// transitions the variant, and releases.  Dispatcher panic state
-    /// is derived from `JoinHandle::join()` returning `Err(_)`.
-    ///
-    /// Wrapped in `Arc` so the spawned dispatcher thread can hold an
-    /// owning handle to just this slot (not the whole `*const` handle,
-    /// whose lifetime it cannot express) and publish `Failed` from its own
-    /// catch-arm the instant an outer panic kills the event loop — see
-    /// [`publish_failed_if_current`].
-    dispatcher: Arc<Mutex<FfpssDispatcherSession>>,
-    /// User-callback panics and ring-overflow drops accrued by every session
-    /// this handle has already retired. See [`ThetaDataDxStreamHandle::fold_retired`].
-    retired_panics: AtomicU64,
-    retired_dropped: AtomicU64,
-    /// The subscriptions `thetadatadx_streaming_reconnect` is replaying. A
-    /// reconnect retires the previous session before the fallible connect,
-    /// so this is what a retry after a failed attempt replays instead of
-    /// starting over with nothing.
-    saved_subscriptions: Mutex<SavedSubscriptions>,
+    service: Arc<thetadatadx::StreamService>,
+    /// Callback registered via `*_set_callback`. `None` until the first
+    /// registration; persisted across stop and reconnect so the reconnect
+    /// path can re-attach the same C user function without re-asking the
+    /// caller for it. Cleared when `thetadatadx_client_batches_open` starts a
+    /// batch session in its place.
+    pub(crate) callback: Mutex<Option<FfiCallback>>,
+    /// The subscriptions a reconnect is replaying. A reconnect stops the
+    /// session before the fallible restart, and the stop clears the session's
+    /// own lists, so this is what a retry after a failed restart replays. An
+    /// explicit stop or a new callback registration starts over and clears it.
+    saved_subscriptions: Mutex<Option<SavedSubscriptions>>,
 }
 
 /// Per-contract and full-stream subscriptions captured for replay.
@@ -237,50 +159,263 @@ type SavedSubscriptions = (
     )>,
 );
 
+/// Drain budget of the reconnect barrier and of `*_free`.
+const DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 impl ThetaDataDxStreamHandle {
-    /// Add a retired session's panic and drop counts, beyond `folded`, to
-    /// this handle's running totals, and return what was read.
-    ///
-    /// Called with `(0, 0)` as the session leaves the slot, so a reading taken
-    /// during the teardown never drops below one taken before it, and again
-    /// with that result once its dispatcher has stopped: `shutdown()` only
-    /// signals, and the callback keeps firing until the ring drains.
-    fn fold_retired(
-        &self,
-        client: &thetadatadx::fpss::StreamingClient,
-        folded: (u64, u64),
-    ) -> (u64, u64) {
-        let now = (client.panic_count(), client.dropped_count());
-        self.retired_panics
-            .fetch_add(now.0.saturating_sub(folded.0), AtomicOrdering::Relaxed);
-        self.retired_dropped
-            .fetch_add(now.1.saturating_sub(folded.1), AtomicOrdering::Relaxed);
-        now
+    fn new(service: Arc<thetadatadx::StreamService>) -> Self {
+        Self {
+            service,
+            callback: Mutex::new(None),
+            saved_subscriptions: Mutex::new(None),
+        }
     }
-}
 
-/// Saved FPSS connection parameters for FFI-safe (re)connection.
-struct StreamingConnectParams {
-    creds: thetadatadx::Credentials,
-    /// Snapshot of `DirectConfig.streaming` at handle-construction time —
-    /// hosts, ring size, timeouts, keepalive schedule.
-    streaming: thetadatadx::config::StreamingConfig,
-    /// Snapshot of `DirectConfig.reconnect` at handle-construction
-    /// time — policy, per-class cadences, jitter, replay pacing.
-    reconnect: thetadatadx::config::ReconnectConfig,
-}
+    fn stream(&self) -> thetadatadx::StreamSurface<'_> {
+        self.service.stream()
+    }
 
-/// Build a [`thetadatadx::fpss::StreamingClientBuilder`] from a
-/// [`StreamingConnectParams`] snapshot, for the FFI's two build sites
-/// (initial `set_callback` connect and `thetadatadx_streaming_reconnect`).
-fn streaming_builder(
-    params: &StreamingConnectParams,
-) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
-    thetadatadx::fpss::StreamingClientBuilder::from_config(
-        &params.creds,
-        &params.streaming,
-        &params.reconnect,
-    )
+    fn set_callback(&self, callback: Option<ThetaDataDxStreamCallback>, ctx: *mut c_void) -> i32 {
+        // A C caller can pass a null function pointer; modelling the
+        // parameter as `Option` lets the null bit pattern be represented
+        // and rejected here, instead of being stored and invoked on the
+        // dispatcher thread where a call through address 0 would fault the
+        // process beyond the reach of the unwind boundary.
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return -1;
+        };
+        let cb = FfiCallback { callback, ctx };
+        // Hold `callback` across the gate, the store, and `start_streaming`
+        // so registration is serialised: two racing calls take this lock in
+        // turn, the first installs and starts, the second observes the
+        // now-`Live` slot and is rejected, so the started session's
+        // `(callback, ctx)` can never diverge from the stored registration.
+        // The dispatcher invokes the `cb` captured by copy below, never
+        // reading this mutex, so holding it across `start_streaming` does not
+        // deadlock the first delivered event.
+        let mut guard = self.callback.lock_recover();
+        // Registration is one-shot while a session is live: reject a second
+        // call without disturbing the live session's stored `(callback, ctx)`.
+        // Replacement is only permitted after a stop (or reconnect), where the
+        // slot is no longer `Live`.
+        if self.stream().is_streaming() {
+            set_error("streaming already started");
+            return -1;
+        }
+        // A new registration starts a fresh session, so a failed reconnect's
+        // saved subscriptions no longer apply.
+        *self.saved_subscriptions.lock_recover() = None;
+        // Store BEFORE `start_streaming` so the engine observes a consistent
+        // handle; roll back to `None` if start fails.
+        *guard = Some(cb);
+        match self
+            .stream()
+            .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
+                cb.invoke(event);
+            }) {
+            Ok(()) => 0,
+            Err(e) => {
+                *guard = None;
+                set_error_from(&e);
+                -1
+            }
+        }
+    }
+
+    /// Subscribe (`subscribe = true`) or unsubscribe one request.
+    ///
+    /// # Safety
+    ///
+    /// `request` is null or a `ThetaDataDxSubscriptionRequest` the caller pins
+    /// for the call duration.
+    unsafe fn subscription(
+        &self,
+        request: *const ThetaDataDxSubscriptionRequest,
+        subscribe: bool,
+    ) -> i32 {
+        // SAFETY: forwarded from this function's contract; `coerce_subscription`
+        // validates the discriminant + tagged-union fields, setting
+        // `thetadatadx_last_error` on malformed payloads.
+        let Some(sub) = (unsafe { coerce_subscription(request) }) else {
+            return -1;
+        };
+        let stream = self.stream();
+        let result = if subscribe {
+            stream.subscribe(sub)
+        } else {
+            stream.unsubscribe(sub)
+        };
+        match result {
+            Ok(()) => 0,
+            Err(e) => {
+                set_error_from(&e);
+                -1
+            }
+        }
+    }
+
+    fn reconnect(&self, prefix: &str) -> i32 {
+        let stream = self.stream();
+        // Save active subscriptions. With no live session, a previous
+        // reconnect stopped it and then failed to restart: replay what that
+        // attempt saved. With neither, there is nothing to reconnect (a stop
+        // drops the subscriptions), and falling back to an empty list would
+        // open a session with nothing subscribed. Both snapshots fail only
+        // when no session is live.
+        let (saved_subs, saved_full_subs) = {
+            let mut saved = self.saved_subscriptions.lock_recover();
+            match (
+                stream.active_subscriptions(),
+                stream.active_full_subscriptions(),
+            ) {
+                (Ok(subs), Ok(full_subs)) => *saved = Some((subs, full_subs)),
+                (Err(_), _) | (_, Err(_)) => {
+                    if saved.is_none() {
+                        set_error_with_code(
+                            &format!(
+                                "streaming not started -- call {prefix}_set_callback, then \
+                                 subscribe, before {prefix}_reconnect"
+                            ),
+                            crate::error::THETADATADX_ERR_NETWORK,
+                        );
+                        return -1;
+                    }
+                }
+            }
+            saved.clone().unwrap_or_default()
+        };
+
+        // Reconnect requires a prior `set_callback`: without one there is no
+        // destination for the new stream's events.
+        let Some(cb) = *self.callback.lock_recover() else {
+            set_error(&format!(
+                "no callback registered -- call {prefix}_set_callback before {prefix}_reconnect"
+            ));
+            return -1;
+        };
+
+        // Initiate teardown of the FPSS reader and Disruptor consumer for the
+        // current session. This swaps the streaming slot to `Stopped` and
+        // signals the I/O thread; the consumer keeps firing the old C callback
+        // until its exit path joins.
+        stream.stop_streaming();
+
+        // Wait for the previous consumer thread to finish firing the old
+        // callback BEFORE opening a fresh session bound to the same C callback
+        // / `ctx`. The C ABI guarantees single-threaded callback invocation;
+        // without this barrier the old consumer can still be inside the user's
+        // `ctx` when the new consumer starts firing on a different thread.
+        if !stream.await_drain(DRAIN_TIMEOUT) {
+            set_error(
+                "reconnect drain barrier timed out after 5s — previous \
+                 callback is still in flight; refusing to bind the new \
+                 session to the same ctx",
+            );
+            return -1;
+        }
+
+        if let Err(e) = stream.start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
+            cb.invoke(event);
+        }) {
+            set_error_from(&e);
+            return -1;
+        }
+
+        // Re-subscribe through the core's paced replay engine, which spreads a
+        // large saved set over wall-clock time instead of firing it at a
+        // recovering upstream back-to-back. The session is live either way; a
+        // subscription that failed to restore is reported as
+        // `PartialReconnect` so the caller can retry it rather than wait on a
+        // contract that never delivers.
+        let restored = stream.restore_subscriptions(&saved_subs, &saved_full_subs);
+        *self.saved_subscriptions.lock_recover() = None;
+        if let Err(e) = restored {
+            set_error_from(&e);
+            return -1;
+        }
+        0
+    }
+
+    fn active_subscriptions(&self) -> *mut ThetaDataDxSubscriptionArray {
+        match self.stream().active_subscriptions() {
+            Ok(subs) => build_subscription_array(
+                subs.iter()
+                    .map(|(k, c)| (k.kind_str().to_string(), format!("{c}"))),
+            ),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    }
+
+    fn active_full_subscriptions(&self) -> *mut ThetaDataDxSubscriptionArray {
+        match self.stream().active_full_subscriptions() {
+            Ok(subs) => build_subscription_array(subs.iter().filter_map(|(k, st)| {
+                k.full_kind_str()
+                    .map(|kind| (kind.to_string(), format!("{st:?}")))
+            })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    }
+
+    fn stop_streaming(&self) {
+        *self.saved_subscriptions.lock_recover() = None;
+        self.stream().stop_streaming();
+    }
+
+    /// # Safety
+    ///
+    /// `out_ms` is a non-null pointer the caller pins for the call duration.
+    unsafe fn millis_since_last_event(&self, out_ms: *mut u64) -> i32 {
+        let (ms, rc) = match self.stream().millis_since_last_event() {
+            Some(ms) => (ms, 0),
+            None => (0, 1),
+        };
+        // SAFETY: forwarded from this function's contract.
+        unsafe { *out_ms = ms };
+        rc
+    }
+
+    fn last_connected_addr(&self) -> *mut c_char {
+        match self.stream().last_connected_addr() {
+            Some(addr) => match CString::new(addr) {
+                Ok(c) => c.into_raw(),
+                Err(e) => {
+                    set_error(&format!("connected address contains an interior NUL: {e}"));
+                    ptr::null_mut()
+                }
+            },
+            None => ptr::null_mut(),
+        }
+    }
+
+    /// The `*_free` barrier: stop, then wait for the consumer to finish
+    /// firing the callback so the caller can release `ctx` on return.
+    fn stop_and_drain(&self, prefix: &str) {
+        // `stop_streaming` is idempotent on an already-stopped slot and, when
+        // the slot was `Live`, registers the retired session's drain flag. The
+        // barrier polls every registered flag regardless of the current slot
+        // state: an earlier explicit stop is the path most likely to leave a
+        // callback still firing.
+        self.stop_streaming();
+        // `await_drain` also answers `true` when nothing was ever started; the
+        // snapshot tells an honest timeout from a handle that never streamed,
+        // so only the former is logged.
+        let had_prior_session = self.stream().prev_drained_is_set();
+        if had_prior_session && !self.stream().await_drain(DRAIN_TIMEOUT) {
+            tracing::error!(
+                target: "thetadatadx::ffi",
+                timeout_ms = DRAIN_TIMEOUT.as_millis() as u64,
+                "{prefix}_free: drain barrier exceeded timeout -- callback may still \
+                 be firing on the consumer thread; user ctx must remain valid past return",
+            );
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -505,9 +640,8 @@ pub unsafe extern "C" fn thetadatadx_client_connect(
             thetadatadx::Client::connect(&creds.inner, config.inner.clone()),
         ) {
             Ok(client) => Box::into_raw(Box::new(ThetaDataDxClient {
+                stream: ThetaDataDxStreamHandle::new(Arc::clone(client.stream_service())),
                 inner: client,
-                callback: Mutex::new(None),
-                saved_subscriptions: Mutex::new(None),
             })),
             Err(e) => {
                 set_error_from(&e);
@@ -606,10 +740,8 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 ///
 /// After `thetadatadx_client_stop_streaming` the unified client accepts a
 /// fresh `thetadatadx_client_set_callback`; the new `(callback, ctx)` REPLACES
-/// the saved registration. This is intentionally different from the
-/// FPSS-handle one-shot rule: the unified path is the high-level API,
-/// where stop+restart is a normal user flow (`thetadatadx_client_reconnect`
-/// is built on top of it).
+/// the saved registration: stop+restart is a normal user flow
+/// (`thetadatadx_client_reconnect` is built on top of it).
 ///
 /// On the first call after `thetadatadx_client_connect` this is the initial
 /// registration. Calling `thetadatadx_client_set_callback` while streaming is
@@ -623,61 +755,13 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return -1;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // A C caller can pass a null function pointer; modelling the
-        // parameter as `Option` lets the null bit pattern be represented
-        // and rejected here, instead of being stored and invoked on the
-        // dispatcher thread where a call through address 0 would fault the
-        // process beyond the reach of the unwind boundary.
-        let Some(callback) = callback else {
-            set_error("callback function pointer is null");
-            return -1;
         };
-        let cb = FfiCallback { callback, ctx };
-        // Hold `callback` across the gate, the store, and `start_streaming`
-        // so registration is serialised the same way the FPSS path holds
-        // `dispatcher` across `reject_if_not_fresh` + `open_fpss`. Two racing
-        // self-calls take this lock in turn: the first installs and starts,
-        // the second observes the now-`Live` slot and is rejected, so the
-        // started session's `(callback, ctx)` can never diverge from the
-        // stored registration. The dispatcher invokes the `cb` captured by
-        // copy below, never reading this mutex, so holding it across
-        // `start_streaming` does not deadlock the first delivered event.
-        let mut guard = handle.callback.lock_recover();
-        // Registration is one-shot while a session is live: reject a second
-        // call without disturbing the live session's stored `(callback, ctx)`.
-        // Replacement is only permitted after `thetadatadx_client_stop_streaming`
-        // (or `_reconnect`), where the slot is no longer `Live`. This makes the
-        // documented `-1` + "streaming already started" contract real instead
-        // of letting the prior registration be clobbered by an overwrite.
-        if handle.inner.stream().is_streaming() {
-            set_error("streaming already started");
-            return -1;
-        }
-        // A new registration starts a fresh session, so a failed reconnect's
-        // saved subscriptions no longer apply.
-        *handle.saved_subscriptions.lock_recover() = None;
-        // The slot is not `Live`, so this is either the first registration or a
-        // replacement after stop. Store BEFORE `start_streaming` so the engine
-        // observes a consistent handle; roll back to `None` if start fails.
-        *guard = Some(cb);
-        match handle.inner.stream().start_streaming(
-            move |event: &thetadatadx::fpss::StreamEvent| {
-                cb.invoke(event);
-            },
-        ) {
-            Ok(()) => 0,
-            Err(e) => {
-                *guard = None;
-                set_error_from(&e);
-                -1
-            }
-        }
+        h.set_callback(callback, ctx)
     })
 }
 
@@ -898,24 +982,14 @@ pub unsafe extern "C" fn thetadatadx_client_subscribe(
     request: *const ThetaDataDxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return -1;
-        }
-        // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
-        let sub = match unsafe { coerce_subscription(request) } {
-            Some(s) => s,
-            None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const ThetaDataDxClient` returned by `thetadatadx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().subscribe(sub) {
-            Ok(()) => 0,
-            Err(e) => {
-                set_error_from(&e);
-                -1
-            }
-        }
+        // SAFETY: forwarded from this function's contract.
+        unsafe { h.subscription(request, true) }
     })
 }
 
@@ -928,24 +1002,14 @@ pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
     request: *const ThetaDataDxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return -1;
-        }
-        // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
-        let sub = match unsafe { coerce_subscription(request) } {
-            Some(s) => s,
-            None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const ThetaDataDxClient` returned by `thetadatadx_client_*_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().unsubscribe(sub) {
-            Ok(()) => 0,
-            Err(e) => {
-                set_error_from(&e);
-                -1
-            }
-        }
+        // SAFETY: forwarded from this function's contract.
+        unsafe { h.subscription(request, false) }
     })
 }
 
@@ -959,9 +1023,10 @@ pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
 /// using the previously-registered callback, and re-subscribes
 /// everything.
 ///
-/// Requires that a callback has already been installed via
-/// `thetadatadx_client_set_callback`. Returns -1 if no callback was registered
-/// (the new ABI has no out-of-band buffer to fall back on).
+/// Requires a live session started by `thetadatadx_client_set_callback`, or
+/// a previous reconnect that failed to restart, whose subscriptions it
+/// replays. Without either, including after `thetadatadx_client_stop_streaming`,
+/// which drops the subscriptions, it returns -1 with `THETADATADX_ERR_NETWORK`.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
 /// If the session reconnected but some subscriptions failed to restore, the
@@ -990,110 +1055,13 @@ pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDxClient) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return -1;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-
-        // Save active subscriptions. With no live session, a previous
-        // reconnect stopped it and then failed to restart: replay what that
-        // attempt saved. With neither, there is nothing to reconnect, and
-        // falling back to an empty list would drop every subscription.
-        let (saved_subs, saved_full_subs) = {
-            let mut saved = handle.saved_subscriptions.lock_recover();
-            let stream = handle.inner.stream();
-            match (
-                stream.active_subscriptions(),
-                stream.active_full_subscriptions(),
-            ) {
-                (Ok(subs), Ok(full_subs)) => *saved = Some((subs, full_subs)),
-                (Err(e), _) | (_, Err(e)) => {
-                    if saved.is_none() {
-                        set_error_from(&e);
-                        return -1;
-                    }
-                }
-            }
-            saved.clone().unwrap_or_default()
         };
-
-        // Look up the previously-registered callback so we can re-attach
-        // it on the new FPSS connection. `thetadatadx_client_reconnect` requires
-        // a prior `set_callback` — without one there is no destination
-        // for the new stream's events.
-        let cb = {
-            let guard = handle.callback.lock_recover();
-            match *guard {
-                Some(cb) => cb,
-                None => {
-                    set_error(
-                        "no callback registered -- call thetadatadx_client_set_callback \
-                         before thetadatadx_client_reconnect",
-                    );
-                    return -1;
-                }
-            }
-        };
-
-        // Initiate teardown of the FPSS reader and Disruptor consumer
-        // for the current session. This swaps the streaming slot to
-        // `Stopped` and signals the I/O thread; the consumer keeps
-        // firing the old C callback until its exit path joins.
-        handle.inner.stream().stop_streaming();
-
-        // Wait for the previous consumer thread to finish firing the
-        // old callback BEFORE we open a fresh session bound to the
-        // same C callback / `ctx`. The C ABI contract guarantees
-        // single-threaded callback invocation; without this barrier
-        // the old consumer can still be inside the user's `ctx` when
-        // the new consumer starts firing on a different thread, and
-        // the user's "no internal locks needed" assumption breaks. A
-        // 5 s budget matches the FFI free-path drain budget; on
-        // timeout we surface the error rather than racing.
-        if !handle
-            .inner
-            .stream()
-            .await_drain(std::time::Duration::from_millis(5_000))
-        {
-            set_error(
-                "reconnect drain barrier timed out after 5s — previous \
-                 callback is still in flight; refusing to bind the new \
-                 session to the same ctx",
-            );
-            return -1;
-        }
-
-        let result =
-            handle
-                .inner
-                .stream()
-                .start_streaming(move |event: &thetadatadx::fpss::StreamEvent| {
-                    cb.invoke(event);
-                });
-        if let Err(e) = result {
-            set_error_from(&e);
-            return -1;
-        }
-
-        // Re-subscribe all previous subscriptions through the core's
-        // paced replay engine, which spreads a large saved set over
-        // wall-clock time instead of firing it at a recovering upstream
-        // back-to-back. The session is live either way; a subscription that
-        // failed to restore is reported as `PartialReconnect` so the caller
-        // can retry it rather than wait on a contract that never delivers.
-        let restored = handle
-            .inner
-            .stream()
-            .restore_subscriptions(&saved_subs, &saved_full_subs);
-        *handle.saved_subscriptions.lock_recover() = None;
-        if let Err(e) = restored {
-            set_error_from(&e);
-            return -1;
-        }
-
-        0
+        h.reconnect("thetadatadx_client")
     })
 }
 
@@ -1101,12 +1069,12 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_is_streaming(handle: *const ThetaDataDxClient) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        i32::from(handle.inner.stream().is_streaming())
+        };
+        i32::from(h.stream().is_streaming())
     })
 }
 
@@ -1122,12 +1090,12 @@ pub unsafe extern "C" fn thetadatadx_client_is_authenticated(
     handle: *const ThetaDataDxClient,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        i32::from(handle.inner.stream().is_authenticated())
+        };
+        i32::from(h.stream().is_authenticated())
     })
 }
 
@@ -1139,22 +1107,13 @@ pub unsafe extern "C" fn thetadatadx_client_active_subscriptions(
     handle: *const ThetaDataDxClient,
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().active_subscriptions() {
-            Ok(subs) => build_subscription_array(
-                subs.iter()
-                    .map(|(k, c)| (k.kind_str().to_string(), format!("{c}"))),
-            ),
-            Err(e) => {
-                set_error_from(&e);
-                ptr::null_mut()
-            }
-        }
+        };
+        h.active_subscriptions()
     })
 }
 
@@ -1174,22 +1133,13 @@ pub unsafe extern "C" fn thetadatadx_client_active_full_subscriptions(
     handle: *const ThetaDataDxClient,
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().active_full_subscriptions() {
-            Ok(subs) => build_subscription_array(subs.iter().filter_map(|(k, st)| {
-                k.full_kind_str()
-                    .map(|kind| (kind.to_string(), format!("{st:?}")))
-            })),
-            Err(e) => {
-                set_error_from(&e);
-                ptr::null_mut()
-            }
-        }
+        };
+        h.active_full_subscriptions()
     })
 }
 
@@ -1227,16 +1177,15 @@ pub unsafe extern "C" fn thetadatadx_client_market_data(
 
 /// Stop streaming on the unified client. Market-data remains available.
 ///
-/// Initiates teardown of the FPSS event-dispatch consumer thread and the
-/// underlying TLS reader, but returns immediately after the streaming
-/// state cell is swapped to `Stopped`. The old consumer continues
-/// firing the previously-registered C callback for any events still
-/// in-flight in the ring buffer until its exit path joins. Use
-/// `thetadatadx_client_await_drain` to confirm the consumer has finished
-/// firing the callback before freeing `ctx` or replacing the
-/// callback registration. The saved `(callback, ctx)` itself is
-/// preserved so a subsequent `thetadatadx_client_reconnect` can re-attach it
-/// without the caller re-supplying the function pointer.
+/// Tears down the FPSS event-dispatch consumer thread and the underlying TLS
+/// reader, and returns once the consumer has exited, except when called from
+/// the consumer itself. Use `thetadatadx_client_await_drain` to confirm the
+/// consumer has finished firing the callback before freeing `ctx` or
+/// replacing the callback registration.
+///
+/// The stop drops the subscriptions, so `thetadatadx_client_reconnect` after
+/// it returns -1 with `THETADATADX_ERR_NETWORK`. Resume with
+/// `thetadatadx_client_set_callback` and subscribe again.
 ///
 /// # Lifecycle restriction
 ///
@@ -1249,13 +1198,11 @@ pub unsafe extern "C" fn thetadatadx_client_market_data(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_stop_streaming(handle: *const ThetaDataDxClient) {
     ffi_boundary!((), {
-        if handle.is_null() {
-            return;
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        if let Some(h) = unsafe { handle.as_ref() } {
+            h.stream.stop_streaming();
         }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        *handle.saved_subscriptions.lock_recover() = None;
-        handle.inner.stream().stop_streaming();
     })
 }
 
@@ -1280,24 +1227,9 @@ pub unsafe extern "C" fn thetadatadx_client_millis_since_last_event(
             set_error("handle or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().millis_since_last_event() {
-            Some(ms) => {
-                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
-                unsafe {
-                    *out_ms = ms;
-                }
-                0
-            }
-            None => {
-                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
-                unsafe {
-                    *out_ms = 0;
-                }
-                1
-            }
-        }
+        // SAFETY: `handle` is a non-null live handle from `thetadatadx_client_connect`
+        // and `out_ms` is non-null, pinned by the caller for the call duration.
+        unsafe { (*handle).stream.millis_since_last_event(out_ms) }
     })
 }
 
@@ -1312,11 +1244,12 @@ pub unsafe extern "C" fn thetadatadx_client_last_event_received_at_unix_nanos(
     handle: *const ThetaDataDxClient,
 ) -> i64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        unsafe { (*handle).inner.stream().last_event_received_at_unix_nanos() }
+        };
+        h.stream().last_event_received_at_unix_nanos()
     })
 }
 
@@ -1331,22 +1264,13 @@ pub unsafe extern "C" fn thetadatadx_client_last_connected_addr(
     handle: *const ThetaDataDxClient,
 ) -> *mut std::os::raw::c_char {
     ffi_boundary!(ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             set_error("unified handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        match handle.inner.stream().last_connected_addr() {
-            Some(addr) => match std::ffi::CString::new(addr) {
-                Ok(c) => c.into_raw(),
-                Err(e) => {
-                    set_error(&format!("connected address contains an interior NUL: {e}"));
-                    ptr::null_mut()
-                }
-            },
-            None => ptr::null_mut(),
-        }
+        };
+        h.last_connected_addr()
     })
 }
 
@@ -1366,11 +1290,12 @@ pub unsafe extern "C" fn thetadatadx_client_dropped_events(
     handle: *const ThetaDataDxClient,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        unsafe { (*handle).inner.stream().dropped_event_count() }
+        };
+        h.stream().dropped_event_count()
     })
 }
 
@@ -1392,11 +1317,12 @@ pub unsafe extern "C" fn thetadatadx_client_ring_occupancy(
     handle: *const ThetaDataDxClient,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        unsafe { (*handle).inner.stream().ring_occupancy() as u64 }
+        };
+        h.stream().ring_occupancy() as u64
     })
 }
 
@@ -1411,11 +1337,12 @@ pub unsafe extern "C" fn thetadatadx_client_ring_occupancy(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_ring_capacity(handle: *const ThetaDataDxClient) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        unsafe { (*handle).inner.stream().ring_capacity() as u64 }
+        };
+        h.stream().ring_capacity() as u64
     })
 }
 
@@ -1432,11 +1359,12 @@ pub unsafe extern "C" fn thetadatadx_client_ring_capacity(handle: *const ThetaDa
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaDataDxClient) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        unsafe { (*handle).inner.stream().panic_count() }
+        };
+        h.stream().panic_count()
     })
 }
 
@@ -1446,9 +1374,7 @@ pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaData
 /// `_reconnect` session's event-dispatch consumer thread has finished
 /// firing the registered callback, and also when no stream has ever been
 /// started or stopped on this handle (an idle handle has nothing to
-/// drain, so it is already quiesced). Returns `0` only on timeout. Note
-/// this differs from the standalone `thetadatadx_streaming_await_drain`,
-/// which returns `0` for the empty case.
+/// drain, so it is already quiesced). Returns `0` on timeout or a null handle.
 ///
 /// # When to call
 ///
@@ -1474,13 +1400,15 @@ pub unsafe extern "C" fn thetadatadx_client_await_drain(
     timeout_ms: u64,
 ) -> i32 {
     ffi_boundary!(0, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_client_connect`
+        // not yet passed to `thetadatadx_client_free`.
+        let Some(h) = (unsafe { handle.as_ref() }).map(|h| &h.stream) else {
             return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        i32::from(handle.inner.stream().await_drain(timeout))
+        };
+        i32::from(
+            h.stream()
+                .await_drain(std::time::Duration::from_millis(timeout_ms)),
+        )
     })
 }
 
@@ -1520,69 +1448,25 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
         }
         // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
         let handle = unsafe { Box::from_raw(handle) };
-
-        // Raise the stop signal first. `stop_streaming` is idempotent
-        // on an already-stopped slot and, when the slot was `Live`,
-        // captures the drain flag of the superseded session into the
-        // client's `prev_drained` slot — the flag we poll below.
-        //
-        // Importantly, if the caller already invoked
-        // `thetadatadx_client_stop_streaming` before `_free`, `is_streaming()`
-        // is already `false` here, but `prev_drained` was populated by
-        // that earlier `stop_streaming` call. The barrier MUST poll
-        // `prev_drained` regardless of the current slot state — the
-        // earlier-stop path is the one most likely to hit a callback
-        // still firing on the event-dispatch consumer thread.
-        handle.inner.stream().stop_streaming();
-
-        // Wait for the consumer thread to finish firing the registered
-        // callback before we destroy the handle. This is the strict
-        // `free` contract: returning only after the
-        // callback path is quiesced means user code can release `ctx`
-        // immediately afterwards. Default 5 s timeout; overrun is
-        // surfaced via `tracing::error!` so ops can spot a wedged
-        // callback rather than pay an unbounded teardown cost.
-        //
-        // `await_drain` returns `false` in two distinct cases:
-        //
-        //   (a) timeout expired with the flag still false — the
-        //       consumer is still firing past the budget, ops must
-        //       see this surfaced so they can investigate.
-        //   (b) no prior session was ever live — `prev_drained` is
-        //       `None` (e.g. a unified handle that only ran market-data
-        //       endpoints; nothing to wait on). This is the normal
-        //       free-without-streaming flow and must NOT be flagged.
-        //
-        // We disambiguate by snapshotting `prev_drained.is_some()`
-        // BEFORE the wait: `true` means a session existed, so a
-        // `false` return is an honest timeout worth logging.
-        const FREE_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        let had_prior_session = handle.inner.stream().prev_drained_is_set();
-        if had_prior_session && !handle.inner.stream().await_drain(FREE_DRAIN_TIMEOUT) {
-            tracing::error!(
-                target: "thetadatadx::ffi",
-                timeout_ms = FREE_DRAIN_TIMEOUT.as_millis() as u64,
-                "thetadatadx_client_free: drain barrier exceeded timeout -- callback may still \
-                 be firing on the consumer thread; user ctx must remain valid past return",
-            );
-        }
-
-        // Now safe to destroy the handle.
+        handle.stream.stop_and_drain("thetadatadx_client");
         drop(handle);
     })
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  FPSS — Real-time streaming client
+//
+//  Every entry point below runs the same body as its `thetadatadx_client_*`
+//  counterpart, so the contracts documented there apply here unchanged.
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Allocate a streaming handle and stash the connection parameters.
 ///
-/// **Does NOT open the FPSS TLS connection** — connection is deferred
-/// until the caller installs a callback via `thetadatadx_streaming_set_callback`.
-/// This is required because `StreamingClient::connect` registers its event
-/// handler at connect time; deferring the connect until callback
-/// installation lets us avoid an internal queue.
+/// **Does NOT open the FPSS TLS connection** and issues no authentication
+/// request: the connection is opened by `thetadatadx_streaming_set_callback`,
+/// through the streaming service's own credentials handshake. The config is
+/// validated here, as `thetadatadx_client_connect` validates it, so an
+/// out-of-range value is refused naming its field.
 ///
 /// Returns null on argument validation failure (check `thetadatadx_last_error()`).
 #[unsafe(no_mangle)]
@@ -1604,38 +1488,19 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
         let creds = unsafe { &*creds };
         // SAFETY: config is a non-null pointer returned by thetadatadx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
-
-        // Validate here, as the unified client's connect does, so an
-        // out-of-range value is refused naming its field instead of reaching
-        // the reconnect driver.
-        let validated = match config.inner.clone().validate() {
-            Ok(validated) => validated,
+        match thetadatadx::StreamService::new(&creds.inner, config.inner.clone()) {
+            Ok(service) => {
+                // Seed the process-global async runtime from this client's
+                // config so `worker_threads` is honored when a standalone
+                // streaming client is the first client created in the process.
+                crate::runtime_from_config(&service.config().runtime);
+                Box::into_raw(Box::new(ThetaDataDxStreamHandle::new(Arc::new(service))))
+            }
             Err(e) => {
                 set_error_from(&e);
-                return ptr::null_mut();
+                ptr::null_mut()
             }
-        };
-
-        // Seed the process-global async runtime from this client's config so
-        // `worker_threads` is honored when a standalone FPSS client is the
-        // first client created in the process; the worker pool is built once.
-        crate::runtime_from_config(&validated.runtime);
-
-        Box::into_raw(Box::new(ThetaDataDxStreamHandle {
-            inner: Arc::new(Mutex::new(None)),
-            connect_params: StreamingConnectParams {
-                creds: creds.inner.clone(),
-                streaming: validated.streaming,
-                reconnect: validated.reconnect,
-            },
-            callback: Mutex::new(None),
-            state: AtomicU8::new(STREAM_STATE_FRESH),
-            prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
-            retired_panics: AtomicU64::new(0),
-            retired_dropped: AtomicU64::new(0),
-            saved_subscriptions: Mutex::default(),
-        }))
+        }
     })
 }
 
@@ -1676,185 +1541,17 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect_from_file(
     })
 }
 
-/// Reject the call if the handle is already past its first
-/// registration (`Active`) or has been shut down (`Shutdown`).
-///
-/// Returns `true` if the caller should proceed (handle is `Fresh`);
-/// `false` after setting `thetadatadx_last_error()` to a contract-specific
-/// message. Used by `thetadatadx_streaming_set_callback` to enforce one-shot
-/// registration and the terminal-shutdown rule.
-fn reject_if_not_fresh(handle: &ThetaDataDxStreamHandle) -> bool {
-    match handle.state.load(AtomicOrdering::Relaxed) {
-        STREAM_STATE_FRESH => true,
-        STREAM_STATE_ACTIVE => {
-            set_error(
-                "streaming callback already installed -- only one set_callback call is permitted per handle",
-            );
-            false
-        }
-        STREAM_STATE_SHUTDOWN => {
-            set_error("streaming handle has already been shut down -- this is terminal");
-            false
-        }
-        _ => {
-            // Unreachable -- state is only ever set to one of the three
-            // constants above. Treat as terminal to fail closed.
-            set_error("streaming handle in unknown lifecycle state -- refusing operation");
-            false
-        }
-    }
-}
-
-/// Reject the call if the handle has been shut down. Used by
-/// `thetadatadx_streaming_reconnect` and `thetadatadx_streaming_shutdown` (the latter to make
-/// double-shutdown a clean error rather than silently no-op).
-fn reject_if_shutdown(handle: &ThetaDataDxStreamHandle) -> bool {
-    if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
-        set_error("streaming handle has already been shut down -- this is terminal");
-        false
-    } else {
-        true
-    }
-}
-
-/// Open the FPSS connection if not already open.
-///
-/// Internal helper used by `thetadatadx_streaming_set_callback`. The caller supplies
-/// a Rust closure that consumes `StreamEvent` references; this is the
-/// closure registered with `StreamingClient::connect` and lives for the
-/// lifetime of the connection. Returns -1 on connect failure (error
-/// already set), 0 on success.
-///
-/// Lifecycle enforcement (one-shot registration, terminal shutdown)
-/// happens upstream in [`reject_if_not_fresh`]; this helper only
-/// touches the inner `StreamingClient` slot and spawns the dispatcher.
-///
-/// Returns the spawned `JoinHandle` on success; callers store it in
-/// `handle.dispatcher`.  On failure the error is already set via
-/// [`set_error`] / [`set_error_from`] and the caller returns `-1`.
-fn open_fpss<F>(
-    handle: &ThetaDataDxStreamHandle,
-    callback: Option<FfiCallback>,
-    on_event: F,
-) -> Result<std::thread::JoinHandle<()>, ()>
-where
-    F: FnMut(&thetadatadx::fpss::StreamEvent) + Send + 'static,
-{
-    let mut guard = handle.inner.lock_recover();
-    if guard.is_some() {
-        // Belt-and-suspenders: reject_if_not_fresh should already have
-        // caught this at the C ABI entry point. Keep the check so a
-        // future caller that bypasses the state gate cannot end up
-        // double-connecting silently.
-        set_error(
-            "streaming callback already installed -- only one set_callback call is permitted per handle",
-        );
-        return Err(());
-    }
-    let build_result = streaming_builder(&handle.connect_params).build();
-    match build_result {
-        Ok(client) => {
-            let client_arc = std::sync::Arc::new(client);
-
-            // Publish every state slot BEFORE spawning the dispatcher so
-            // a callback that fires on the first delivered event sees a
-            // fully initialised handle (`inner`, stored callback, and
-            // lifecycle state all consistent). Re-entrant teardown calls
-            // serialise on `handle.inner.lock()`, which we hold here, so
-            // they observe the new state only after this function has
-            // returned and the dispatcher is running.
-            *guard = Some(std::sync::Arc::clone(&client_arc));
-            if let Some(cb) = callback {
-                let mut cb_guard = handle.callback.lock_recover();
-                *cb_guard = Some(cb);
-            }
-            handle
-                .state
-                .store(STREAM_STATE_ACTIVE, AtomicOrdering::Relaxed);
-
-            let dispatcher_client = std::sync::Arc::clone(&client_arc);
-            let dispatcher_slot = std::sync::Arc::clone(&handle.dispatcher);
-            let spawn_result = std::thread::Builder::new()
-                .name("thetadatadx-ffi-fpss-dispatcher".into())
-                .spawn(move || {
-                    run_ffi_dispatcher(dispatcher_client, on_event, &dispatcher_slot, false);
-                });
-            match spawn_result {
-                Ok(h) => Ok(h),
-                Err(e) => {
-                    // Roll the publishes back so a failed spawn does not
-                    // leave the handle wedged with a `Some(client)` slot
-                    // and an ACTIVE state but no dispatcher behind them.
-                    let taken = guard.take();
-                    handle
-                        .state
-                        .store(STREAM_STATE_FRESH, AtomicOrdering::Relaxed);
-                    if let Some(client) = taken {
-                        client.shutdown();
-                        drop(client);
-                    }
-                    *handle.callback.lock_recover() = None;
-                    set_error(&format!("failed to spawn streaming dispatcher thread: {e}"));
-                    Err(())
-                }
-            }
-        }
-        Err(e) => {
-            set_error_from(&thetadatadx::error::Error::from(e));
-            Err(())
-        }
-    }
-}
-
 /// Register a queued FPSS callback and open the FPSS connection.
 ///
-/// `callback` is invoked from the LMAX event-dispatch consumer thread for
-/// every FPSS event the reader pulls off the wire, with each invocation
-/// wrapped in [`std::panic::catch_unwind`]. That wrapper contains a panic
-/// raised by our own Rust code on the dispatch path so it does not kill the
-/// consumer; `callback` itself runs under the C ABI and must not unwind
-/// across the boundary, because an exception or `longjmp` escaping it is
-/// undefined behavior and is not contained by the wrapper (see
-/// [`ThetaDataDxStreamCallback`]). The TLS reader publishes events via
-/// `Producer::try_publish`; on ring overflow events are dropped and
-/// counted (queryable via `thetadatadx_streaming_dropped_events`). The reader
-/// thread NEVER blocks on `callback`.
+/// Same contract as `thetadatadx_client_set_callback`, including the `ctx`
+/// lifetime and thread-affinity rules: `ctx` must stay valid until
+/// `thetadatadx_streaming_free` returns, or until a stop / reconnect has
+/// returned and `thetadatadx_streaming_await_drain` has returned `1`.
 ///
-/// `ctx` is an opaque pointer passed back unchanged on every invocation.
-/// It MUST remain valid until ONE of the following barriers completes:
-///
-/// - `thetadatadx_streaming_free` returns (the simple path; `_free` performs the
-///   shutdown if the handle is still live and internally polls the
-///   drain barrier with a 5-second timeout, so on a non-overrun return
-///   the consumer thread has finished firing the callback);
-/// - `thetadatadx_streaming_shutdown` (or `thetadatadx_streaming_reconnect`) returns AND
-///   `thetadatadx_streaming_await_drain` has confirmed `1`. Stop / reconnect return
-///   asynchronously; events still in the ring continue flowing through
-///   the old callback until the consumer exits.
-///
-/// In the `_free` timeout-overrun path (rare; emits a
-/// `tracing::error!`) the consumer may still be firing the callback,
-/// so under that diagnostic `ctx` MUST remain valid past return; the
-/// caller is expected to investigate the wedged callback rather than
-/// race destruction. The event-dispatch consumer thread accesses `ctx` on
-/// every event and on every `thetadatadx_streaming_reconnect`.
-///
-/// # Lifecycle contract (FPSS one-shot rule)
-///
-/// May only be called ONCE per handle, and ONLY before
-/// `thetadatadx_streaming_shutdown`. Subsequent calls — including any call after
-/// shutdown — return -1 with an error message:
-///
-/// - second register on an already-active handle:
-///   `"streaming callback already installed -- only one set_callback call is permitted per handle"`
-/// - register after shutdown:
-///   `"streaming handle has already been shut down -- this is terminal"`
-///
-/// This is intentionally stricter than the unified C ABI's
-/// `thetadatadx_client_set_callback`, which supports stop-then-re-register as
-/// a normal user flow. The FPSS handle is the low-level surface; the
-/// unified handle is the high-level surface. See
-/// [`thetadatadx_client_set_callback`] for the replacement contract.
+/// Calling it while streaming is active returns -1 with
+/// `"streaming already started"`. After `thetadatadx_streaming_shutdown` the
+/// handle accepts a fresh registration, which REPLACES the saved one and
+/// starts a session with nothing subscribed.
 ///
 /// Returns 0 on success, -1 on error (check `thetadatadx_last_error()`).
 #[unsafe(no_mangle)]
@@ -1864,57 +1561,17 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
     ctx: *mut c_void,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`
+        // not yet passed to `thetadatadx_streaming_free`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return -1;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // A C caller can pass a null function pointer; modelling the
-        // parameter as `Option` lets the null bit pattern be represented
-        // and rejected before the dispatcher thread would invoke it.
-        let Some(callback) = callback else {
-            set_error("callback function pointer is null");
-            return -1;
         };
-        // Serialise concurrent installs: `dispatcher` mutex prevents two
-        // racing callers from each publishing a client into `handle.inner`
-        // and orphaning one another's dispatcher.
-        let mut dispatcher_guard = handle.dispatcher.lock_recover();
-        if !reject_if_not_fresh(handle) {
-            return -1;
-        }
-        let cb = FfiCallback { callback, ctx };
-        let dispatch_cb = cb;
-        // `open_fpss` publishes the client, the stored callback handle,
-        // and the lifecycle state atomically under the inner mutex
-        // BEFORE the dispatcher thread is spawned, so a callback that
-        // fires on the first delivered event observes a fully
-        // initialised handle.
-        match open_fpss(
-            handle,
-            Some(cb),
-            move |event: &thetadatadx::fpss::StreamEvent| {
-                dispatch_cb.invoke(event);
-            },
-        ) {
-            Ok(h) => {
-                // The callback dispatcher parks only on the event ring, which
-                // the client shutdown signals on teardown, so no wake hook.
-                *dispatcher_guard = FfpssDispatcherSession::Running {
-                    handle: h,
-                    on_teardown: None,
-                    // The C ABI runs its own teardown and never reads this flag.
-                    registers_drain_flag: true,
-                };
-                0
-            }
-            Err(()) => -1,
-        }
+        h.set_callback(callback, ctx)
     })
 }
 
-/// Check if the standalone FPSS streaming connection is currently open.
+/// Check if the streaming connection is currently open.
 ///
 /// Distinct from `thetadatadx_streaming_is_authenticated`: the connection
 /// can be open yet briefly unauthenticated mid-reconnect. A panicked
@@ -1926,196 +1583,86 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Lock order is uniformly `dispatcher` -> `inner` across every
-        // lifecycle mutator (set_callback, reconnect, shutdown, free), so a
-        // status reader must never hold `inner` while taking `dispatcher`.
-        // Snapshot the one bit we need from `inner`, drop that guard, then
-        // take `dispatcher` -- the two locks are never held at once here.
-        let has_session = {
-            let inner_guard = handle.inner.lock_recover();
-            inner_guard.as_ref().is_some()
-        };
-        if !has_session {
-            return 0;
-        }
-        let session = handle.dispatcher.lock_recover();
-        if let FfpssDispatcherSession::Failed { reason } = &*session {
-            tracing::debug!(
-                target: "thetadatadx::ffi",
-                reason = %reason,
-                "thetadatadx_streaming_is_streaming: dispatcher failed",
-            );
-            return 0;
-        }
-        1
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| i32::from(h.stream().is_streaming()))
     })
 }
 
-/// Check if the FPSS client is currently authenticated.
+/// Check if the live streaming session is authenticated.
 ///
-/// Returns 1 if authenticated, 0 if not (or if handle is null).
+/// Returns 1 if authenticated, 0 if not (including a null handle, before
+/// streaming starts, after it stops, and after a dispatcher panic).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Lock order is uniformly `dispatcher` -> `inner` across every
-        // lifecycle mutator, so snapshot the authentication bit from `inner`,
-        // drop that guard, THEN take `dispatcher`. Holding both at once in
-        // the opposite order is the lock-order inversion that can deadlock
-        // against a concurrent mutator.
-        let authenticated = {
-            let inner_guard = handle.inner.lock_recover();
-            match inner_guard.as_ref() {
-                Some(c) => c.is_authenticated(),
-                None => return 0,
-            }
-        };
-        // A panicked dispatcher folds back to `!authenticated` so status
-        // readers see a visible failed state instead of "authenticated with
-        // no callbacks".
-        let session = handle.dispatcher.lock_recover();
-        let dispatcher_failed = if let FfpssDispatcherSession::Failed { reason } = &*session {
-            tracing::debug!(
-                target: "thetadatadx::ffi",
-                reason = %reason,
-                "thetadatadx_streaming_is_authenticated: dispatcher failed",
-            );
-            true
-        } else {
-            false
-        };
-        i32::from(authenticated && !dispatcher_failed)
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| i32::from(h.stream().is_authenticated()))
     })
 }
 
 /// Get a snapshot of currently active subscriptions.
 ///
-/// Returns a heap-allocated `ThetaDataDxSubscriptionArray` (null on error).
-/// Caller must free the result with `thetadatadx_subscription_array_free`.
+/// Returns a heap-allocated `ThetaDataDxSubscriptionArray`, or null with
+/// `thetadatadx_last_error()` set when the handle is null or streaming is not
+/// active. Caller must free the result with `thetadatadx_subscription_array_free`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
     handle: *const ThetaDataDxStreamHandle,
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        let client = if let Some(c) = guard.as_ref() {
-            c
-        } else {
-            set_error(
-                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
-            );
-            return ptr::null_mut();
         };
-        let subs = client.active_subscriptions();
-        build_subscription_array(
-            subs.into_iter()
-                .map(|(kind, contract)| (kind.kind_str().to_string(), format!("{contract}"))),
-        )
+        h.active_subscriptions()
     })
 }
 
 /// Get a snapshot of currently active full-stream subscriptions.
 ///
-/// Each entry's `contract` field carries the security-type discriminant
-/// (`"Stock"` / `"Option"` / `"Index"`) the full-stream subscription is
-/// bound to. The `kind` field is the snake_case full-stream kind label
-/// (`"full_trades"` / `"full_open_interest"`), matching the unified
-/// `thetadatadx_client_active_full_subscriptions` projection. Per-contract-only
-/// kinds (`Quote` / `MarketValue`) have no full-stream form and are
-/// omitted.
-///
-/// Returns a heap-allocated `ThetaDataDxSubscriptionArray` (null on error).
-/// Caller must free the result with `thetadatadx_subscription_array_free`.
+/// Same projection as `thetadatadx_client_active_full_subscriptions`: each
+/// entry's `contract` field carries the security type and its `kind` field
+/// the full-stream kind label. Returns null with `thetadatadx_last_error()`
+/// set when the handle is null or streaming is not active. Caller must free
+/// the result with `thetadatadx_subscription_array_free`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
     handle: *const ThetaDataDxStreamHandle,
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        let client = if let Some(c) = guard.as_ref() {
-            c
-        } else {
-            set_error(
-                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
-            );
-            return ptr::null_mut();
         };
-        let subs = client.active_full_subscriptions();
-        build_subscription_array(subs.into_iter().filter_map(|(kind, sec_type)| {
-            kind.full_kind_str()
-                .map(|full| (full.to_string(), format!("{sec_type:?}")))
-        }))
+        h.active_full_subscriptions()
     })
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  Standalone FPSS — polymorphic subscribe / unsubscribe
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Polymorphic subscribe on the standalone FPSS client. Mirrors the
-/// Rust `StreamingClient::subscribe(Subscription)` shape.
+/// Polymorphic subscribe on the standalone streaming client.
 ///
-/// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
+/// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`),
+/// including when streaming is not active.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
     handle: *const ThetaDataDxStreamHandle,
     request: *const ThetaDataDxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return -1;
-        }
-        // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
-        let sub = match unsafe { coerce_subscription(request) } {
-            Some(s) => s,
-            None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const ThetaDataDxStreamHandle` returned by `thetadatadx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        let client = if let Some(c) = guard.as_ref() {
-            c
-        } else {
-            set_error(
-                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
-            );
-            return -1;
-        };
-        match client.subscribe(sub) {
-            Ok(()) => 0,
-            Err(e) => {
-                set_error_from(&e);
-                -1
-            }
-        }
+        // SAFETY: `request` is null or pinned by the caller for the call duration.
+        unsafe { h.subscription(request, true) }
     })
 }
 
-/// Polymorphic unsubscribe on the standalone FPSS client.
+/// Polymorphic unsubscribe on the standalone streaming client.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
 #[unsafe(no_mangle)]
@@ -2124,532 +1671,52 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
     request: *const ThetaDataDxSubscriptionRequest,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return -1;
-        }
-        // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
-        let sub = match unsafe { coerce_subscription(request) } {
-            Some(s) => s,
-            None => return -1,
         };
-        // SAFETY: `handle` is a non-null `*const ThetaDataDxStreamHandle` returned by `thetadatadx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        let client = if let Some(c) = guard.as_ref() {
-            c
-        } else {
-            set_error(
-                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
-            );
-            return -1;
-        };
-        match client.unsubscribe(sub) {
-            Ok(()) => 0,
-            Err(e) => {
-                set_error_from(&e);
-                -1
-            }
-        }
+        // SAFETY: `request` is null or pinned by the caller for the call duration.
+        unsafe { h.subscription(request, false) }
     })
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-//  FPSS — reconnect (Gap 3)
-// ═══════════════════════════════════════════════════════════════════════
-
-/// Reconnect the FPSS streaming client, re-subscribing all previous subscriptions.
+/// Reconnect the streaming client, re-subscribing all previous subscriptions.
 ///
-/// Reuses the credentials/config saved at `thetadatadx_streaming_connect` time and
-/// the C callback registered via the most recent `thetadatadx_streaming_set_callback`.
-/// Returns -1 if no callback was ever installed or if the handle has
-/// been shut down (shutdown is terminal — see [`thetadatadx_streaming_shutdown`]).
-/// A retry after a failed reconnect replays the subscriptions the failed
-/// attempt saved.
+/// Same contract as `thetadatadx_client_reconnect`: requires a live session
+/// started by `thetadatadx_streaming_set_callback`, waits up to 5 s for the
+/// previous session's callback to finish before binding the new session to
+/// the same `ctx`, and replays the saved subscriptions. A retry after a failed
+/// reconnect replays the subscriptions the failed attempt saved. After
+/// `thetadatadx_streaming_shutdown`, which drops the subscriptions, it returns
+/// -1 with `THETADATADX_ERR_NETWORK`: resume with
+/// `thetadatadx_streaming_set_callback` and subscribe again.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
 /// If the session reconnected but some subscriptions failed to restore, the
 /// stream stays live and the call returns -1 with `THETADATADX_ERR_STREAM`;
 /// `thetadatadx_streaming_active_subscriptions` lists what was restored.
 ///
-/// # Event continuity
-///
-/// Events still pending in the old session's Disruptor ring continue
-/// flowing through the previous registration's callback until the old
-/// consumer thread joins; events buffered inside the old TLS read
-/// path are lost. There is no gap-free delivery guarantee across
-/// reconnections — callers that require gap-free streaming should
-/// implement sequence-number-based gap detection and replay.
-///
 /// # Lifecycle restriction
 ///
-/// MUST NOT be called from inside the user callback. The new
-/// connection is opened immediately after the old client is dropped,
-/// but the old consumer thread keeps firing the previous callback
-/// until its exit path joins. Pair with `thetadatadx_streaming_await_drain` from
-/// a separate thread when the application needs to free `ctx` or
-/// otherwise rely on the old callback having stopped firing.
+/// MUST NOT be called from inside the user callback. Drive reconnect from a
+/// separate thread.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
     handle: *const ThetaDataDxStreamHandle,
 ) -> i32 {
     ffi_boundary!(-1, {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return -1;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Serialise concurrent reconnects: `dispatcher` mutex prevents two
-        // callers from each building a replacement client and racing on the
-        // inner-slot publish.
-        let mut dispatcher_guard = handle.dispatcher.lock_recover();
-        if !reject_if_shutdown(handle) {
-            return -1;
-        }
-        let params = &handle.connect_params;
-
-        // Look up the previously-registered C callback. Reconnect cannot
-        // make forward progress without one — `StreamingClient::connect`
-        // requires an event handler at construction time.
-        let cb = {
-            let guard = handle.callback.lock_recover();
-            match *guard {
-                Some(cb) => cb,
-                None => {
-                    set_error(
-                        "no callback registered -- call thetadatadx_streaming_set_callback \
-                         before thetadatadx_streaming_reconnect",
-                    );
-                    return -1;
-                }
-            }
         };
-
-        // 1. Save active subscriptions from the current client. With no
-        // client, a previous reconnect retired it and then failed: replay
-        // what that attempt saved. Recording the lists on the handle keeps
-        // them across every failure exit below until a replay runs.
-        let (saved_subs, saved_full_subs) = {
-            let guard = handle.inner.lock_recover();
-            let mut saved = handle.saved_subscriptions.lock_recover();
-            if let Some(c) = guard.as_ref() {
-                *saved = (c.active_subscriptions(), c.active_full_subscriptions());
-            }
-            saved.clone()
-        };
-
-        // 2. Shut down the old client. With the SSOT pipeline there is
-        // no separate dispatcher to tear down — the Disruptor consumer
-        // joins inside `StreamingClient::Drop` when the last `Arc` goes
-        // away. Capture the drain flag BEFORE dropping `old` so a
-        // subsequent `thetadatadx_streaming_await_drain` poll observes the previous
-        // session's quiescence even though `Drop` runs asynchronously
-        // when invoked from the consumer thread.
-        // Take the previous `Arc<StreamingClient>` OUT of the inner lock so
-        // a callback re-entering any `thetadatadx_streaming_*` API that needs
-        // `handle.inner.lock()` never sees the lock held while the old
-        // session tears down.
-        let taken_old = handle.inner.lock_recover().take().map(|old| {
-            let folded = handle.fold_retired(&old, (0, 0));
-            (old, folded)
-        });
-        // Extract the old dispatcher session and RELEASE the dispatcher lock
-        // before the join: the old dispatcher keeps draining ring-buffered
-        // events through the user callback until it observes the shutdown, and
-        // such a callback may call a `thetadatadx_streaming_*` status reader that
-        // takes this same lock. Joining under the lock would deadlock. The lock
-        // is re-acquired below (step 3) to publish the replacement session; a
-        // shutdown racing in the lock-free window is caught by the
-        // `reject_if_shutdown` re-check there.
-        let old_session = extract_dispatcher_session(&mut dispatcher_guard);
-        drop(dispatcher_guard);
-        let prev_drain_flag = if let Some((old, folded)) = taken_old {
-            let flag = old.drained_flag();
-            handle.prev_drained.lock_recover().push(flag.clone());
-            old.shutdown();
-            // Join the OLD dispatcher (lock-free) BEFORE spawning the
-            // replacement so the new dispatcher does not race the old one over
-            // the same C callback context.
-            join_extracted_session(handle, old_session);
-            handle.fold_retired(&old, folded);
-            drop(old);
-            Some(flag)
-        } else {
-            // No old client, but a stale Running session could still exist
-            // (e.g. a prior client already taken); join it lock-free too.
-            join_extracted_session(handle, old_session);
-            None
-        };
-
-        // 2b. Block until the previous consumer thread has finished
-        // firing the old C callback BEFORE opening a fresh session
-        // bound to the same `cb` / `ctx`. The C ABI contract
-        // guarantees single-threaded callback invocation; without
-        // this barrier the old consumer can still be inside the
-        // user's `ctx` when the new consumer starts firing on a
-        // different thread, and the user's "no internal locks
-        // needed" assumption breaks. A 5 s budget matches the FFI
-        // free-path drain budget; on timeout we surface the error
-        // rather than racing.
-        if let Some(flag) = prev_drain_flag
-            && !await_flags(
-                std::slice::from_ref(&flag),
-                std::time::Duration::from_millis(5_000),
-            )
-        {
-            set_error(
-                "reconnect drain barrier timed out after 5s — \
-                     previous callback is still in flight; refusing \
-                     to bind the new session to the same ctx",
-            );
-            return -1;
-        }
-
-        // 3. Build the new client + spawn a fresh dispatcher thread
-        // bound to the same C callback.
-        let connect_result = streaming_builder(params).build();
-
-        let new_client = match connect_result {
-            Ok(c) => Arc::new(c),
-            Err(e) => {
-                set_error_from(&thetadatadx::error::Error::from(e));
-                return -1;
-            }
-        };
-
-        // Re-acquire the dispatcher lock for the publish-and-install, now that
-        // the lock-free old-session join is done. A `thetadatadx_streaming_shutdown`
-        // / `_free` could have run in the lock-free window and flipped the
-        // handle terminal; re-check and bail (shutting the freshly built client)
-        // rather than resurrecting a shut-down handle with a new dispatcher.
-        let mut dispatcher_guard = handle.dispatcher.lock_recover();
-        if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
-            drop(dispatcher_guard);
-            new_client.shutdown();
-            drop(new_client);
-            set_error(
-                "handle was shut down concurrently with reconnect -- \
-                 the replacement session was discarded",
-            );
-            return -1;
-        }
-        // Hold `handle.inner` for the entire publish-and-spawn so a
-        // racing `thetadatadx_streaming_subscribe` / `_unsubscribe` /
-        // `_active_subscriptions` (the lock-free control surface that
-        // only takes `inner.lock`) either serialises in front of the
-        // publish (sees `None`) or behind both publish and spawn
-        // (sees a fully wired session). `thetadatadx_streaming_shutdown` / `_free`
-        // / `_set_callback` are serialised against this install by
-        // `handle.dispatcher` (re-acquired just above and held through the
-        // `*dispatcher_guard = Running` write below). The spawned dispatcher
-        // iterates the FPSS client poller via its own internal mutex
-        // and never touches `handle.inner`, so the held guard does
-        // NOT deadlock the dispatcher.
-        let spawn_result = {
-            let mut guard = handle.inner.lock_recover();
-            *guard = Some(std::sync::Arc::clone(&new_client));
-
-            let dispatcher_client = std::sync::Arc::clone(&new_client);
-            let dispatcher_slot = std::sync::Arc::clone(&handle.dispatcher);
-            let spawn_result = std::thread::Builder::new()
-                .name("thetadatadx-ffi-fpss-dispatcher".into())
-                .spawn(move || {
-                    run_ffi_dispatcher(
-                        dispatcher_client,
-                        move |event| cb.invoke(event),
-                        &dispatcher_slot,
-                        true,
-                    );
-                });
-            match spawn_result {
-                Ok(h) => Ok(h),
-                Err(e) => {
-                    // Roll publication back inside the same locked
-                    // section so no concurrent `thetadatadx_streaming_*` call ever
-                    // observes the transient `Some(client)` state.
-                    let taken = guard.take();
-                    if let Some(client) = taken {
-                        client.shutdown();
-                        drop(client);
-                    }
-                    Err(e)
-                }
-            }
-        };
-        match spawn_result {
-            Ok(h) => {
-                // The callback dispatcher parks only on the event ring, which
-                // the client shutdown signals on teardown, so no wake hook.
-                *dispatcher_guard = FfpssDispatcherSession::Running {
-                    handle: h,
-                    on_teardown: None,
-                    // The C ABI runs its own teardown and never reads this flag.
-                    registers_drain_flag: true,
-                };
-            }
-            Err(e) => {
-                set_error(&format!("failed to spawn streaming dispatcher thread: {e}"));
-                return -1;
-            }
-        }
-
-        // 4. Re-subscribe all previous subscriptions through the core's
-        // paced replay engine. The engine paces submissions in bursts so a
-        // large saved set is not fired at a recovering upstream
-        // back-to-back. The session is live either way; a subscription that
-        // failed to restore is reported as `PartialReconnect` so the caller
-        // can retry it, and what did restore is in the live session's list.
-        let restored = new_client.restore_subscriptions(&saved_subs, &saved_full_subs);
-        *handle.saved_subscriptions.lock_recover() = SavedSubscriptions::default();
-
-        // The new client was already published into `handle.inner`
-        // before the dispatcher started; nothing left to commit.
-        drop(new_client);
-
-        if let Err(e) = restored {
-            set_error_from(&e);
-            return -1;
-        }
-        0
+        h.reconnect("thetadatadx_streaming")
     })
 }
 
-/// Phase 1 of teardown: move the dispatcher session OUT of the lock so the
-/// join can run with no lock held. The caller holds the `dispatcher` guard
-/// only for this `mem::replace`; it must then DROP the guard and hand the
-/// returned session to [`join_extracted_session`].
-///
-/// Splitting extract from join is what keeps teardown deadlock-free: while the
-/// client is shutting down it keeps draining already-ring-buffered events
-/// through the user callback until it observes the shutdown, and such a
-/// callback may call `thetadatadx_streaming_is_streaming` /
-/// `_is_authenticated`, which take the `dispatcher` lock. Joining the
-/// dispatcher thread while still holding that lock would block the re-entrant
-/// status read, the dispatcher would never reach its exit, and the join would
-/// hang. With the lock released before the join, those calls proceed and the
-/// dispatcher reaches its shutdown exit.
-fn extract_dispatcher_session(session: &mut FfpssDispatcherSession) -> FfpssDispatcherSession {
-    std::mem::replace(session, FfpssDispatcherSession::Idle)
-}
-
-/// Spin-poll a set of quiescence flags until every one reads `true` or the
-/// `timeout` elapses, sleeping 1 ms between polls. Returns `true` when all
-/// flags drained, `false` on timeout. `checked_add` overflow on an extreme
-/// `timeout` is treated as "effectively never" — the wait proceeds without
-/// a deadline rather than panicking. Callers own any pre-snapshot, logging,
-/// or post-drain cleanup around this barrier.
-fn await_flags(flags: &[Arc<std::sync::atomic::AtomicBool>], timeout: std::time::Duration) -> bool {
-    let deadline = std::time::Instant::now().checked_add(timeout);
-    loop {
-        if flags
-            .iter()
-            .all(|f| f.load(std::sync::atomic::Ordering::Acquire))
-        {
-            return true;
-        }
-        if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
-            return false;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(1));
-    }
-}
-
-/// Phase 2 of teardown: join the extracted dispatcher thread with NO lock
-/// held. `handle` is taken only to RE-ACQUIRE the `dispatcher` lock on a panic
-/// join, to publish `Failed`. Defers to detach via the `prev_drained` chain
-/// when called from inside the dispatcher itself (the consumer-thread
-/// self-join hazard).
-fn join_extracted_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSession) {
-    let FfpssDispatcherSession::Running {
-        handle: thread_handle,
-        on_teardown,
-        ..
-    } = session
-    else {
-        return;
-    };
-    // Wake a dispatcher parked on a teardown-specific primitive before joining.
-    // The per-event callback dispatcher parks only on the event ring, which the
-    // caller's `client.shutdown()` already signalled, so it installs no hook;
-    // the call is a no-op there but keeps every teardown route converging on
-    // the same wakeup contract the core client uses.
-    if let Some(wake) = on_teardown {
-        wake();
-    }
-    // Self-join hazard: a callback (or a dispatcher-thread drop) may reach this
-    // path on the dispatcher thread itself. Detach in that case; the
-    // `prev_drained` chain still provides quiescence visibility.
-    if thread_handle.thread().id() == std::thread::current().id() {
-        return;
-    }
-    if let Err(payload) = thread_handle.join() {
-        let reason = downcast_ffi_panic_payload(payload);
-        tracing::error!(
-            target: "thetadatadx::ffi",
-            reason = %reason,
-            "thetadatadx-ffi-fpss-dispatcher panicked; handle marked as failed",
-        );
-        // Publish `Failed` by re-acquiring the lock, which is safe now that the
-        // join has completed. Record it ONLY if the slot is still `Idle`: the
-        // lock was released across the join, so a concurrent
-        // `thetadatadx_streaming_set_callback` / `_reconnect` may have installed
-        // a fresh `Running` session in that window. The panic belongs to the
-        // now-superseded OLD session, so overwriting unconditionally would
-        // clobber the new session's `JoinHandle` (orphaning its thread) and
-        // falsely report a healthy live session as failed.
-        let mut guard = handle.dispatcher.lock_recover();
-        if matches!(*guard, FfpssDispatcherSession::Idle) {
-            *guard = FfpssDispatcherSession::Failed { reason };
-        }
-    }
-}
-
-/// Tear down a live FPSS session: take the `StreamingClient` out of
-/// `handle.inner` (a different lock than `dispatcher`), record its drain
-/// flag in `prev_drained`, signal shutdown, drop it, then join the extracted
-/// dispatcher thread lock-free. Ordering the take + shutdown ahead of the
-/// join keeps a dispatcher re-entering `handle.inner` or `dispatcher` via the
-/// user callback from observing either lock held, so the join cannot
-/// deadlock. The caller must already hold no relevant lock and have flipped
-/// the handle terminal under the `dispatcher` lock before extracting
-/// `session`.
-fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSession) {
-    // Bind the take to a `let` so the `inner` guard drops at the end of THIS
-    // statement, before `shutdown()`/`drop()` — keeping a dispatcher that
-    // re-enters `handle.inner` via the user callback from observing the lock
-    // held. Holding it across the if-let block (scrutinee form) would extend
-    // the guard over the teardown and break the lock-free re-entry invariant.
-    let taken = handle.inner.lock_recover().take().map(|client| {
-        let folded = handle.fold_retired(&client, (0, 0));
-        (client, folded)
-    });
-    if let Some((client, _)) = &taken {
-        handle
-            .prev_drained
-            .lock_recover()
-            .push(client.drained_flag());
-        client.shutdown();
-    }
-    // A reconnect callback runs on the I/O thread when no decision thread
-    // could be spawned for it, and the dispatcher exits only once that
-    // thread drops the ring producer, so a stop from there detaches the
-    // dispatcher instead of joining it.
-    if !taken
-        .as_ref()
-        .is_some_and(|(client, _)| client.on_io_thread())
-    {
-        join_extracted_session(handle, session);
-    }
-    if let Some((client, folded)) = taken {
-        handle.fold_retired(&client, folded);
-    }
-}
-
-/// Downcast a thread-panic payload to a human-readable string.
-fn downcast_ffi_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String {
-    if let Some(s) = payload.downcast_ref::<&str>() {
-        return (*s).to_owned();
-    }
-    if let Some(s) = payload.downcast_ref::<String>() {
-        return s.clone();
-    }
-    "dispatcher panicked with non-string payload".to_owned()
-}
-
-/// Publish `Failed` from the dispatcher thread's OWN catch-arm after an outer
-/// panic in the event-iteration machinery, so `thetadatadx_streaming_is_streaming`
-/// / `_is_authenticated` report the dead loop immediately rather than only
-/// after teardown joins the corpse.
-///
-/// `dispatcher_thread_id` is the id of the thread the session's `JoinHandle`
-/// names; the caller passes its own [`std::thread::current`] id. The store
-/// happens ONLY when the slot still holds the matching `Running` session: the
-/// lock is dropped between spawning the dispatcher and a later
-/// `set_callback` / `reconnect`, so a fresh session (different thread id) or a
-/// teardown-extracted `Idle` may already occupy the slot. Overwriting either
-/// would clobber a live session's `JoinHandle` or resurrect a torn-down one.
-///
-/// Orthogonal to teardown: this is a mutate-UNDER-lock-then-RELEASE with no
-/// join and no drain wait held across the guard, exactly like the publish in
-/// [`join_extracted_session`]. The lock order is unchanged (this takes only
-/// `dispatcher`, never `inner`). When this wins the race against a concurrent
-/// teardown, the teardown's `extract` then yields the `Failed` variant — whose
-/// `let-else` skips the join — so the already-finished panicked thread is
-/// detached rather than reaped; the `_free` drain barrier still waits on the
-/// client's own drained flag, so quiescence is unaffected.
-fn publish_failed_if_current(
-    dispatcher: &Mutex<FfpssDispatcherSession>,
-    dispatcher_thread_id: std::thread::ThreadId,
-    reason: String,
-) {
-    let mut guard = dispatcher.lock_recover();
-    if let FfpssDispatcherSession::Running { handle, .. } = &*guard
-        && handle.thread().id() == dispatcher_thread_id
-    {
-        *guard = FfpssDispatcherSession::Failed { reason };
-    }
-}
-
-/// Drive the FPSS callback drain to termination on the dispatcher thread,
-/// publishing `Failed` to `dispatcher_slot` when the drain ends on an
-/// I/O-thread fault ([`thetadatadx::PollOutcome::Failed`]) or an outer
-/// event-iteration panic, so the C-ABI health checks flip immediately rather
-/// than only after teardown joins the dead thread. Shared by the `set_callback`
-/// and `reconnect` dispatcher spawns so both handle a fault identically;
-/// `across_reconnect` only tunes the log message.
-///
-/// `for_each` drives `poll_batch`, which wraps each callback invocation in its
-/// own `catch_unwind`; a user-handler panic is caught and counted there and
-/// does not stop delivery. The outer `catch_unwind` here guards only the
-/// event-iteration machinery itself.
-fn run_ffi_dispatcher<F>(
-    client: std::sync::Arc<thetadatadx::fpss::StreamingClient>,
-    on_event: F,
-    dispatcher_slot: &Mutex<FfpssDispatcherSession>,
-    across_reconnect: bool,
-) where
-    F: FnMut(&thetadatadx::fpss::StreamEvent),
-{
-    let outcome =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| client.for_each(on_event)));
-    match outcome {
-        Err(payload) => {
-            let reason = downcast_ffi_panic_payload(payload);
-            if across_reconnect {
-                tracing::error!(
-                    target: "thetadatadx::ffi",
-                    reason = %reason,
-                    "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery across reconnect; handle transitioning to failed state",
-                );
-            } else {
-                tracing::error!(
-                    target: "thetadatadx::ffi",
-                    reason = %reason,
-                    "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery; handle transitioning to failed state",
-                );
-            }
-            // Publish `Failed` from this thread before it exits so health checks
-            // reflect the dead loop immediately, not only once teardown joins.
-            publish_failed_if_current(dispatcher_slot, std::thread::current().id(), reason);
-        }
-        // The FPSS I/O thread unwound: the drain ended on a fault, not a clean
-        // stop. Publish `Failed` so `thetadatadx_streaming_is_streaming` reports
-        // the dead loop, matching the Rust core and the pull path's
-        // `DispatcherFailed`.
-        Ok(thetadatadx::PollOutcome::Failed) => {
-            publish_failed_if_current(
-                dispatcher_slot,
-                std::thread::current().id(),
-                "fpss io thread terminated abnormally".to_string(),
-            );
-        }
-        Ok(_) => {}
-    }
-}
-
 /// Milliseconds since the most recent inbound streaming frame of any
-/// kind on this FPSS handle. Same contract as
+/// kind on this handle. Same contract as
 /// `thetadatadx_client_millis_since_last_event`: returns `0` on success with
 /// the value in `*out_ms`, `1` when no session is live or no frame
 /// has been received yet, `-1` on a null pointer.
@@ -2663,33 +1730,14 @@ pub unsafe extern "C" fn thetadatadx_streaming_millis_since_last_event(
             set_error("handle or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let value = {
-            let guard = handle.inner.lock_recover();
-            guard.as_ref().and_then(|c| c.millis_since_last_event())
-        };
-        match value {
-            Some(ms) => {
-                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
-                unsafe {
-                    *out_ms = ms;
-                }
-                0
-            }
-            None => {
-                // SAFETY: out_ms checked non-null above; the FFI contract pins the storage for the call duration.
-                unsafe {
-                    *out_ms = 0;
-                }
-                1
-            }
-        }
+        // SAFETY: `handle` is a non-null live handle from `thetadatadx_streaming_connect`
+        // and `out_ms` is non-null, pinned by the caller for the call duration.
+        unsafe { (*handle).millis_since_last_event(out_ms) }
     })
 }
 
 /// UNIX-nanosecond receive timestamp of the most recent inbound
-/// streaming frame of any kind on this FPSS handle. Returns `0` when
+/// streaming frame of any kind on this handle. Returns `0` when
 /// the handle is null, no session is live, or no frame has been
 /// received yet.
 #[unsafe(no_mangle)]
@@ -2697,56 +1745,34 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_event_received_at_unix_nanos
     handle: *const ThetaDataDxStreamHandle,
 ) -> i64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        guard
-            .as_ref()
-            .map_or(0, |c| c.last_event_received_at_unix_nanos())
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| h.stream().last_event_received_at_unix_nanos())
     })
 }
 
-/// Address (`host:port`) of the streaming server the current FPSS
+/// Address (`host:port`) of the streaming server the current
 /// session is connected to, following the session across
 /// auto-reconnects. Returns a heap-owned C string the caller must
 /// release with `thetadatadx_string_free`, or null when no session is live.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
     handle: *const ThetaDataDxStreamHandle,
-) -> *mut std::os::raw::c_char {
+) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
-        if handle.is_null() {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        let Some(h) = (unsafe { handle.as_ref() }) else {
             set_error("streaming handle is null");
             return ptr::null_mut();
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let addr = {
-            let guard = handle.inner.lock_recover();
-            guard.as_ref().map(|c| c.last_connected_addr())
         };
-        match addr {
-            Some(addr) => match std::ffi::CString::new(addr) {
-                Ok(c) => c.into_raw(),
-                Err(e) => {
-                    set_error(&format!("connected address contains an interior NUL: {e}"));
-                    ptr::null_mut()
-                }
-            },
-            None => ptr::null_mut(),
-        }
+        h.last_connected_addr()
     })
 }
 
-/// Cumulative count of FPSS events the TLS reader could not publish
+/// Cumulative count of streaming events the TLS reader could not publish
 /// into the Disruptor ring because the consumer fell behind and the
-/// ring was full (`Producer::try_publish` returned `RingBufferFull`),
-/// counted across every session this handle has run: a reconnect or a
-/// shutdown retires the session, and the drops it recorded stay in the
-/// total.
+/// ring was full, counted across every session this handle has run: a
+/// reconnect or a shutdown retires the session, and the drops it recorded
+/// stay in the total.
 ///
 /// Returns 0 if the handle is null or no session has ever started.
 #[unsafe(no_mangle)]
@@ -2754,22 +1780,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Retired total first, then the live session: a teardown landing
-        // between the two reads leaves the live session's count out of this
-        // answer and in the next one, where the other order would count it
-        // twice and make a monotonic counter jump.
-        let retired = handle.retired_dropped.load(AtomicOrdering::Relaxed);
-        let guard = handle.inner.lock_recover();
-        retired + guard.as_ref().map_or(0, |c| c.dropped_count())
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| h.stream().dropped_event_count())
     })
 }
 
-/// Point-in-time count of FPSS events published into the event ring
+/// Point-in-time count of streaming events published into the event ring
 /// but not yet drained into the registered callback — the in-flight
 /// depth between the I/O thread and the dispatcher.
 ///
@@ -2779,46 +1795,36 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
 /// there is still time to react. Sampling never blocks the feed; safe
 /// to poll from any thread at any cadence.
 ///
-/// Returns 0 if the handle is null or has been shut down.
+/// Returns 0 if the handle is null or no session is live.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        guard.as_ref().map_or(0, |c| c.ring_occupancy() as u64)
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| h.stream().ring_occupancy() as u64)
     })
 }
 
-/// Configured capacity of the FPSS event ring in slots (the
+/// Configured capacity of the streaming event ring in slots (the
 /// `streaming_ring_size` setting, a power of two), the fixed denominator
 /// for `thetadatadx_streaming_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
 /// will be dropped (counted by `thetadatadx_streaming_dropped_events`).
 ///
-/// Returns 0 if the handle is null or has been shut down.
+/// Returns 0 if the handle is null or no session is live.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        let guard = handle.inner.lock_recover();
-        guard.as_ref().map_or(0, |c| c.ring_capacity() as u64)
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| h.stream().ring_capacity() as u64)
     })
 }
 
 /// Cumulative count of user-callback panics caught by the per-invocation
-/// `catch_unwind` boundary on this FPSS handle, counted across every
+/// `catch_unwind` boundary on this handle, counted across every
 /// session it has run: a reconnect or a shutdown retires the session, and
 /// the panics it caught stay in the total.
 ///
@@ -2833,244 +1839,85 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
     handle: *const ThetaDataDxStreamHandle,
 ) -> u64 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Retired total first, then the live session; see
-        // `thetadatadx_streaming_dropped_events` for why that order.
-        let retired = handle.retired_panics.load(AtomicOrdering::Relaxed);
-        let guard = handle.inner.lock_recover();
-        retired + guard.as_ref().map_or(0, |c| c.panic_count())
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| h.stream().panic_count())
     })
 }
 
-/// Shut down the FPSS client, stopping all background threads.
+/// Stop streaming, stopping all background threads.
 ///
-/// # Lifecycle contract (terminal)
-///
-/// Shutdown is terminal: every subsequent `thetadatadx_streaming_set_callback` /
-/// `_reconnect` / `_shutdown` call on this handle returns -1 with the
-/// error message
-/// `"streaming handle has already been shut down -- this is terminal"`. The
-/// handle remains valid for `thetadatadx_streaming_free()` only.
-///
-/// Idempotency: calling shutdown twice on the same handle is rejected
-/// rather than silently no-op'd, so a misuse caller cannot accidentally
-/// observe "success" after the resource is gone.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaDataDxStreamHandle) {
-    ffi_boundary!((), {
-        if handle.is_null() {
-            return;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Serialise with `thetadatadx_streaming_set_callback` / `thetadatadx_streaming_reconnect`
-        // so an in-flight install cannot publish a fresh client AFTER
-        // we have flipped the state to `SHUTDOWN`. Without this lock
-        // the terminal-shutdown contract is violated: a concurrent
-        // reconnect could resurrect the handle with a new dispatcher
-        // and keep firing the C callback on a handle that
-        // `thetadatadx_last_error()` already reports as shut down.
-        let mut dispatcher_guard = handle.dispatcher.lock_recover();
-        if !reject_if_shutdown(handle) {
-            // Double-shutdown -- error already set, nothing to drop.
-            return;
-        }
-        // Flip to terminal SHUTDOWN while still holding the dispatcher lock, and
-        // extract the session, BEFORE releasing the lock for the join. A racing
-        // `thetadatadx_streaming_set_callback` / `_reconnect` serialises on this
-        // same lock: it can only proceed after we release, by which point the
-        // state is SHUTDOWN and the session is extracted, so its
-        // `reject_if_shutdown` bails and it cannot resurrect the handle with a
-        // fresh dispatcher. (The join itself must run lock-free, below, so a
-        // callback re-entering a status read does not deadlock the join.)
-        handle
-            .state
-            .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
-        let session = extract_dispatcher_session(&mut dispatcher_guard);
-        drop(dispatcher_guard);
-        // Take the client out of `handle.inner`, push its drain flag, signal
-        // shutdown, drop, then join lock-free — see `retire_session`. The join
-        // runs AFTER the producer-drop signal has propagated through the ring
-        // shutdown to the iterator, so the `for ... in &client` loop returns
-        // `Ok(None)` and the thread exits cleanly while any re-entrant status
-        // read proceeds lock-free.
-        retire_session(handle, session);
-    })
-}
-
-/// Wait for every superseded FPSS session to quiesce.
-///
-/// Returns `1` once **all** prior `thetadatadx_streaming_reconnect` /
-/// `thetadatadx_streaming_shutdown` sessions' Disruptor consumers have finished
-/// firing the registered callback. Returns `0` on timeout or when no
-/// session has been superseded on this handle.
-///
-/// Stacked reconnect/shutdown cycles layer multiple in-flight
-/// generations on top of each other; this barrier waits for ALL of
-/// them, not just the most-recent. Drained flags are GC'd from the
-/// internal Vec on each poll.
-///
-/// # When to call
-///
-/// After `thetadatadx_streaming_reconnect` or `thetadatadx_streaming_shutdown` returns, before
-/// freeing `ctx` or otherwise relying on the old callback having
-/// stopped firing.
+/// Same contract as `thetadatadx_client_stop_streaming`: idempotent, and
+/// returns once the consumer has exited, except when called from the consumer
+/// itself (pair with `thetadatadx_streaming_await_drain` before freeing
+/// `ctx`). The shutdown drops the subscriptions, so
+/// `thetadatadx_streaming_reconnect` after it returns -1 with
+/// `THETADATADX_ERR_NETWORK`; resume with `thetadatadx_streaming_set_callback`
+/// and subscribe again.
 ///
 /// # Lifecycle restriction
 ///
-/// MUST be called from a thread other than the FPSS Disruptor
-/// consumer thread. Calling it from inside the user callback would
-/// block the helper the consumer is waiting on and always time out.
+/// MUST NOT be called from inside the user callback.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaDataDxStreamHandle) {
+    ffi_boundary!((), {
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        if let Some(h) = unsafe { handle.as_ref() } {
+            h.stop_streaming();
+        }
+    })
+}
+
+/// Wait for every superseded streaming session to quiesce.
+///
+/// Same contract as `thetadatadx_client_await_drain`: returns `1` once every
+/// prior reconnect / shutdown session's consumer has finished firing the
+/// registered callback, and also when no session was ever stopped on this
+/// handle (nothing to drain). Returns `0` only on timeout or a null handle.
+///
+/// # Lifecycle restriction
+///
+/// MUST be called from a thread other than the consumer thread. Calling it
+/// from inside the user callback blocks the very thread it waits on and
+/// always times out.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
     handle: *const ThetaDataDxStreamHandle,
     timeout_ms: u64,
 ) -> i32 {
     ffi_boundary!(0, {
-        if handle.is_null() {
-            return 0;
-        }
-        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-        let handle = unsafe { &*handle };
-        // Snapshot the pending generations once and walk them on each
-        // poll. New stops landing during the wait join the next call's
-        // working set — `await_drain` semantics are "wait for what was
-        // outstanding when I started", which mirrors the in-process
-        // `Client::await_drain` contract.
-        let initial = {
-            let guard = handle.prev_drained.lock_recover();
-            if guard.is_empty() {
-                return 0;
-            }
-            guard.clone()
-        };
-        if !await_flags(&initial, std::time::Duration::from_millis(timeout_ms)) {
-            return 0;
-        }
-        // Lazy GC of the shared Vec so a long-lived handle that cycles through
-        // many sessions does not accumulate entries. Take the lock briefly;
-        // this is a clean-up path, never on the hot tick path.
-        let mut guard = handle.prev_drained.lock_recover();
-        guard.retain(|f| !f.load(std::sync::atomic::Ordering::Acquire));
-        1
+        // SAFETY: `handle` is null or a live handle from `thetadatadx_streaming_connect`.
+        unsafe { handle.as_ref() }.map_or(0, |h| {
+            i32::from(
+                h.stream()
+                    .await_drain(std::time::Duration::from_millis(timeout_ms)),
+            )
+        })
     })
 }
 
-/// Free a FPSS handle.
+/// Free a streaming handle.
 ///
-/// # Lifecycle contract
-///
-/// `thetadatadx_streaming_free` accepts the handle in either state:
-///
-/// - **Already shut down**: the prior `thetadatadx_streaming_shutdown` (or
-///   `thetadatadx_streaming_reconnect`) populated the drain flag; `_free` polls that
-///   flag with a 5-second internal timeout so it returns only after the
-///   superseded session's Disruptor consumer has finished firing the
-///   registered callback.
-/// - **Not yet shut down**: `_free` performs the equivalent of
-///   `thetadatadx_streaming_shutdown` first (drops the FPSS client, captures the
-///   drain flag, marks the state terminal) and then polls the same
-///   barrier.
-///
-/// On drain-flag timeout, `_free` emits a `tracing::error!` and proceeds
-/// with destruction. In the timeout-overrun path the previous Disruptor
-/// consumer may still be firing the user callback, so `ctx` MUST remain
-/// valid past return. Under normal operation (callback returns within
-/// microseconds, ring not deeply backlogged), drain completes in low
-/// single-digit milliseconds and `ctx` is safe to free immediately on
-/// return.
-///
-/// Calling `thetadatadx_streaming_await_drain` from another thread before invoking
-/// `thetadatadx_streaming_free` is no longer required for callback-context lifetime
-/// safety — `_free` now serves as the public drain barrier as well.
+/// Same contract as `thetadatadx_client_free`: stops streaming if it is
+/// live, then waits up to 5 s for the consumer thread to finish firing the
+/// registered callback, so `ctx` is safe to free on return. On a drain
+/// timeout it emits a `tracing::error!` and proceeds, and `ctx` MUST then
+/// remain valid past return.
 ///
 /// # Lifecycle restriction
 ///
-/// Do NOT call `thetadatadx_streaming_free` from inside the user callback. The
-/// callback runs on the dispatcher thread; `_free` first acquires
-/// `handle.dispatcher` and then waits for the dispatcher's drain flag.
-/// Issuing `_free` from inside the callback means the dispatcher is
-/// still inside user code while `_free` waits for it to exit. The
-/// 5-second drain budget elapses, `_free` logs the overrun and
-/// proceeds to `Box::from_raw(handle)`; control then returns into
-/// the user callback which is now operating against freed memory.
-/// Drive `_free` from a separate thread; if the callback wants to
-/// signal teardown, post to an external channel and have the
-/// non-callback thread invoke `_free` (or `_shutdown` followed by
-/// `_await_drain` then `_free`).
+/// Do NOT call `thetadatadx_streaming_free` from inside the user callback:
+/// the drain waits for the very thread the call runs on, the budget
+/// elapses, and control returns into a callback whose handle is freed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStreamHandle) {
     ffi_boundary!((), {
         if handle.is_null() {
             return;
         }
-
-        // Shut down first if the handle is still live, mirroring
-        // `thetadatadx_streaming_shutdown` so callers who skip the explicit shutdown
-        // call still get a quiesced consumer thread by the time `_free`
-        // returns. Detect "already shut down" via the lifecycle state
-        // so we never attempt a double shutdown.
-        {
-            // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
-            let h = unsafe { &*handle };
-            // Acquire `dispatcher` so an in-flight
-            // `thetadatadx_streaming_set_callback` / `thetadatadx_streaming_reconnect` cannot be
-            // mid-publish when we destroy the handle. `STREAM_STATE_SHUTDOWN`
-            // is flipped under this lock (below) before the lock is released
-            // for the lock-free join, so a concurrent install that later
-            // acquires the lock observes SHUTDOWN and bails out before touching
-            // freed memory. The drain wait further down runs lock-free.
-            let mut disp_guard = h.dispatcher.lock_recover();
-            if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
-                // Flip terminal + extract the session under the lock, then
-                // RELEASE the lock before the join: a dispatcher draining
-                // ring-buffered events through the user callback may re-enter a
-                // `thetadatadx_streaming_*` status reader that takes this same lock,
-                // so joining under it would deadlock. A concurrent install that
-                // acquires the lock after we release observes SHUTDOWN and bails.
-                h.state
-                    .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
-                let session = extract_dispatcher_session(&mut disp_guard);
-                drop(disp_guard);
-                retire_session(h, session);
-            } else {
-                // Already terminal: nothing to retire, but the drain wait
-                // below must run lock-free on this path too, so release the
-                // dispatcher lock here rather than holding it to scope end.
-                drop(disp_guard);
-            }
-
-            // Wait for every superseded session's consumer thread to
-            // finish firing the registered callback. The Vec is empty
-            // when no callback was ever installed (FRESH -> SHUTDOWN
-            // direct transition), so suppress the timeout log on that
-            // path.
-            const FREE_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-            let pending: Vec<Arc<std::sync::atomic::AtomicBool>> = {
-                let guard = h.prev_drained.lock_recover();
-                guard.clone()
-            };
-            if !pending.is_empty() {
-                let drained = await_flags(&pending, FREE_DRAIN_TIMEOUT);
-                if !drained {
-                    tracing::error!(
-                        target: "thetadatadx::ffi",
-                        timeout_ms = FREE_DRAIN_TIMEOUT.as_millis() as u64,
-                        pending_generations = pending.len(),
-                        "thetadatadx_streaming_free: drain barrier exceeded timeout -- callback may still \
-                         be firing on the consumer thread; user ctx must remain valid past return",
-                    );
-                }
-            }
-        }
-
-        // Now safe to destroy the handle.
-        // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
-        drop(unsafe { Box::from_raw(handle) });
+        // SAFETY: the pointer was returned by Box::into_raw in thetadatadx_streaming_connect and has not been freed; ownership returns to Rust.
+        let handle = unsafe { Box::from_raw(handle) };
+        handle.stop_and_drain("thetadatadx_streaming");
+        drop(handle);
     })
 }
 
@@ -3372,475 +2219,6 @@ mod discriminant_conversion_tests {
 }
 
 #[cfg(test)]
-mod teardown_deadlock_tests {
-    //! Deterministic watchdog for the standalone-handle teardown deadlock.
-    //!
-    //! The bug: `thetadatadx_streaming_shutdown` / `_free` / `_reconnect` joined
-    //! the dispatcher thread WHILE holding the `dispatcher` lock. A user
-    //! callback draining ring-buffered events during shutdown can re-enter a
-    //! status reader (`thetadatadx_streaming_is_streaming` / `_is_authenticated`)
-    //! that takes the same lock, so the join blocks forever on a thread that is
-    //! itself blocked on the held lock.
-    //!
-    //! The fix splits teardown into `extract_dispatcher_session` (under the
-    //! lock) + `join_extracted_session` (lock-free). This test reproduces the
-    //! exact re-entrancy: a stand-in dispatcher thread blocks on
-    //! `handle.dispatcher.lock()` (the callback's status read) and only then
-    //! exits. Run the teardown sequence the production paths use; it must
-    //! complete within a watchdog budget. Against the OLD join-under-lock code
-    //! the stand-in could never acquire the lock, the join would hang, and the
-    //! watchdog would fire.
-
-    use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
-    use std::sync::{Arc, Barrier, Mutex};
-    use std::time::Duration;
-
-    use super::{
-        FfiCallback, FfpssDispatcherSession, LockRecover, STREAM_STATE_ACTIVE,
-        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
-        ThetaDataDxStreamHandle, extract_dispatcher_session, join_extracted_session,
-    };
-    use std::ffi::c_void;
-
-    extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
-
-    /// Build a minimal handle whose `dispatcher` slot holds the given session.
-    /// The connection params / callback are never exercised by the teardown
-    /// helpers; only `handle.dispatcher` matters here.
-    fn handle_with(session: FfpssDispatcherSession) -> ThetaDataDxStreamHandle {
-        ThetaDataDxStreamHandle {
-            inner: Arc::new(Mutex::new(None)),
-            connect_params: StreamingConnectParams {
-                creds: thetadatadx::Credentials::api_key("test"),
-                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
-                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
-            },
-            callback: Mutex::new(Some(FfiCallback {
-                callback: noop as ThetaDataDxStreamCallback,
-                ctx: std::ptr::null_mut(),
-            })),
-            state: AtomicU8::new(STREAM_STATE_ACTIVE),
-            prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Arc::new(Mutex::new(session)),
-            retired_panics: AtomicU64::new(0),
-            retired_dropped: AtomicU64::new(0),
-            saved_subscriptions: Mutex::default(),
-        }
-    }
-
-    #[test]
-    fn teardown_does_not_deadlock_when_callback_re_enters_the_dispatcher_lock() {
-        let handle = Arc::new(handle_with(FfpssDispatcherSession::Idle));
-
-        // `released` flips true only AFTER the teardown worker drops the
-        // dispatcher guard. The stand-in (the re-entrant callback) records
-        // whether it acquired the lock BEFORE that release; a correct lock-free
-        // join lets it acquire only after the release.
-        let released = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let acquired_before_release = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        // The worker holds the guard, then opens this gate so the stand-in
-        // attempts the lock while the worker still holds it — the deadlock
-        // condition, made deterministic rather than timing-dependent.
-        let attempt_gate = Arc::new(Barrier::new(2));
-
-        let dispatcher_handle = {
-            let handle = Arc::clone(&handle);
-            let released = Arc::clone(&released);
-            let acquired_before_release = Arc::clone(&acquired_before_release);
-            let attempt_gate = Arc::clone(&attempt_gate);
-            std::thread::Builder::new()
-                .name("test-reentrant-dispatcher".into())
-                .spawn(move || {
-                    // Wait until the worker holds the guard and signals us.
-                    attempt_gate.wait();
-                    // Re-enter the dispatcher lock, as a status reader called
-                    // from the user callback would. Blocks until the worker
-                    // releases the guard.
-                    let guard = handle.dispatcher.lock_recover();
-                    // With the fix the worker drops the guard before joining, so
-                    // we get in only after `released` is set. With the old
-                    // join-under-lock code the worker never releases before the
-                    // join, so this acquisition (and thus the thread, and thus
-                    // the join) blocks forever — the watchdog fires.
-                    if !released.load(Ordering::Acquire) {
-                        acquired_before_release.store(true, Ordering::Release);
-                    }
-                    let _ = matches!(*guard, FfpssDispatcherSession::Idle);
-                    drop(guard);
-                })
-                .expect("spawn stand-in dispatcher")
-        };
-
-        // Install the running session carrying the stand-in thread's handle.
-        {
-            let mut guard = handle.dispatcher.lock_recover();
-            *guard = FfpssDispatcherSession::Running {
-                handle: dispatcher_handle,
-                on_teardown: None,
-                registers_drain_flag: true,
-            };
-        }
-
-        // Run the production teardown discipline on a worker, with a watchdog.
-        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let teardown = {
-            let handle = Arc::clone(&handle);
-            let done = Arc::clone(&done);
-            let released = Arc::clone(&released);
-            let attempt_gate = Arc::clone(&attempt_gate);
-            std::thread::spawn(move || {
-                // Phase 1: acquire the guard and extract the session.
-                let mut guard = handle.dispatcher.lock_recover();
-                let session = extract_dispatcher_session(&mut guard);
-                // While STILL holding the guard, release the stand-in to attempt
-                // the lock. It now blocks on a lock we hold — the precise
-                // deadlock condition.
-                attempt_gate.wait();
-                std::thread::sleep(Duration::from_millis(50));
-                // Phase 2: drop the guard, THEN join lock-free. The OLD code
-                // joined here while still holding `guard`.
-                released.store(true, Ordering::Release);
-                drop(guard);
-                join_extracted_session(&handle, session);
-                done.store(true, Ordering::Release);
-            })
-        };
-
-        // Watchdog: teardown must finish well within this budget. A hang means
-        // the deadlock is back.
-        let deadline = std::time::Instant::now() + Duration::from_secs(10);
-        while !done.load(Ordering::Acquire) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "teardown deadlocked: the dispatcher join did not complete with a \
-                 callback blocked on the dispatcher lock (join-under-lock regression)",
-            );
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        teardown.join().expect("teardown thread");
-        // The re-entrant reader got in only AFTER the guard was released —
-        // proving the join did not hold the lock.
-        assert!(
-            !acquired_before_release.load(Ordering::Acquire),
-            "the re-entrant status read acquired the dispatcher lock before teardown \
-             released it — the join was not lock-free",
-        );
-    }
-
-    /// A reconnect retires the previous session before it dials. When the
-    /// dial fails, the subscriptions that session held must survive for the
-    /// retry to replay, or the retry succeeds with nothing subscribed.
-    #[test]
-    fn failed_reconnect_keeps_the_subscriptions_for_the_retry() {
-        use thetadatadx::streaming::{Contract, SubscriptionKind};
-
-        // A loopback port nothing listens on, so the dial is refused at once.
-        let port = std::net::TcpListener::bind("127.0.0.1:0")
-            .and_then(|listener| listener.local_addr())
-            .expect("bind an ephemeral loopback port")
-            .port();
-        let mut config = thetadatadx::config::DirectConfig::production();
-        config.set_streaming_hosts(vec![("127.0.0.1".to_string(), port)]);
-        let mut handle = handle_with(FfpssDispatcherSession::Idle);
-        handle.connect_params.streaming = config.streaming;
-        let aapl = (SubscriptionKind::Quote, Contract::stock("AAPL"));
-        *handle.saved_subscriptions.lock_recover() = (vec![aapl.clone()], Vec::new());
-
-        for attempt in 1..=2 {
-            // SAFETY: `&handle` is a live, stack-pinned, never-freed handle
-            // for the whole test.
-            let rc = unsafe { super::thetadatadx_streaming_reconnect(&handle) };
-            assert_eq!(rc, -1, "attempt {attempt}: the dial must fail");
-            assert_eq!(
-                handle.saved_subscriptions.lock_recover().0,
-                vec![aapl.clone()],
-                "attempt {attempt}: the saved subscription was dropped",
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod health_on_outer_panic_tests {
-    //! An OUTER dispatcher panic (the event-iteration machinery, not a user
-    //! callback) must flip `thetadatadx_streaming_is_streaming` /
-    //! `_is_authenticated` to `0` IMMEDIATELY — from the dispatcher thread's
-    //! own catch-arm — rather than staying healthy until teardown joins the
-    //! dead thread. This pins [`super::publish_failed_if_current`], the catch-arm
-    //! publish both `set_callback` and `reconnect` spawns route through.
-
-    use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
-    use std::sync::{Arc, Mutex};
-
-    use super::{
-        FfiCallback, FfpssDispatcherSession, LockRecover, STREAM_STATE_ACTIVE,
-        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
-        ThetaDataDxStreamHandle, publish_failed_if_current, run_ffi_dispatcher,
-    };
-    use std::ffi::c_void;
-    use thetadatadx::fpss::{HarnessPublishMode, StreamingClient};
-
-    extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
-
-    /// Build a handle whose `inner` holds a live harness `StreamingClient`
-    /// (`for_self_join_test` flips its `authenticated` flag `true`), so absent
-    /// a `Failed` dispatcher both status readers report healthy. The returned
-    /// `(handle, drained)` lets the caller shut the harness client down so its
-    /// consumer thread cannot outlive the test.
-    fn handle_with_live_client(
-        session: FfpssDispatcherSession,
-    ) -> (ThetaDataDxStreamHandle, Arc<AtomicBool>) {
-        // One idle harness event through a noop handler; the consumer parks on
-        // the ring afterwards and exits on the shutdown the test signals.
-        let client = StreamingClient::for_self_join_test(
-            1,
-            64,
-            HarnessPublishMode::BlockingPublish,
-            None,
-            |_event| {},
-        );
-        let drained = client.drained_flag();
-        let handle = ThetaDataDxStreamHandle {
-            inner: Arc::new(Mutex::new(Some(client))),
-            connect_params: StreamingConnectParams {
-                creds: thetadatadx::Credentials::api_key("test"),
-                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
-                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
-            },
-            callback: Mutex::new(Some(FfiCallback {
-                callback: noop as ThetaDataDxStreamCallback,
-                ctx: std::ptr::null_mut(),
-            })),
-            state: AtomicU8::new(STREAM_STATE_ACTIVE),
-            prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Arc::new(Mutex::new(session)),
-            retired_panics: AtomicU64::new(0),
-            retired_dropped: AtomicU64::new(0),
-            saved_subscriptions: Mutex::default(),
-        };
-        (handle, drained)
-    }
-
-    #[test]
-    fn outer_panic_flips_health_checks_to_failed_immediately() {
-        // A stand-in for the dispatcher thread whose `JoinHandle` the
-        // `Running` session carries. It parks until released, so the handle
-        // stays joinable while the test drives the catch-arm publish — the
-        // production catch-arm runs ON this thread, so the test passes this
-        // thread's id to `publish_failed_if_current`.
-        let release = Arc::new(AtomicBool::new(false));
-        let dispatcher_handle = {
-            let release = Arc::clone(&release);
-            std::thread::Builder::new()
-                .name("test-parked-dispatcher".into())
-                .spawn(move || {
-                    while !release.load(Ordering::Acquire) {
-                        std::thread::sleep(std::time::Duration::from_millis(1));
-                    }
-                })
-                .expect("spawn parked dispatcher")
-        };
-        let dispatcher_thread_id = dispatcher_handle.thread().id();
-
-        let (handle, drained) = handle_with_live_client(FfpssDispatcherSession::Running {
-            handle: dispatcher_handle,
-            on_teardown: None,
-            registers_drain_flag: true,
-        });
-
-        // The two C-ABI status readers, each wrapped once.
-        // SAFETY: `&handle` points at a live `ThetaDataDxStreamHandle` pinned on
-        // this stack for the whole test, never freed, so the is_streaming entry
-        // point's non-null / not-yet-freed precondition holds on every call.
-        let is_streaming = || unsafe { super::thetadatadx_streaming_is_streaming(&handle) };
-        // SAFETY: same stack-pinned, never-freed `&handle` as the reader above;
-        // the is_authenticated entry point shares the identical precondition.
-        let is_authenticated = || unsafe { super::thetadatadx_streaming_is_authenticated(&handle) };
-
-        // Healthy before the panic: live authenticated client, no `Failed`.
-        assert_eq!(
-            is_streaming(),
-            1,
-            "a live session with a Running dispatcher must report streaming",
-        );
-        assert_eq!(
-            is_authenticated(),
-            1,
-            "a live authenticated session must report authenticated before any panic",
-        );
-
-        // A non-matching thread id must NOT publish (models a fresh session
-        // installed by a concurrent reconnect in the lock-release window).
-        publish_failed_if_current(
-            &handle.dispatcher,
-            std::thread::current().id(),
-            "wrong-thread panic must not clobber".to_owned(),
-        );
-        assert_eq!(
-            is_streaming(),
-            1,
-            "publish_failed_if_current must not overwrite a session owned by a different thread",
-        );
-
-        // The dispatcher thread's own catch-arm publishes `Failed`.
-        publish_failed_if_current(
-            &handle.dispatcher,
-            dispatcher_thread_id,
-            "intentional outer-machinery panic".to_owned(),
-        );
-
-        // Both status readers now report the dead loop, with no teardown join.
-        assert_eq!(
-            is_streaming(),
-            0,
-            "is_streaming must return 0 immediately after an outer dispatcher panic",
-        );
-        assert_eq!(
-            is_authenticated(),
-            0,
-            "is_authenticated must return 0 immediately after an outer dispatcher panic",
-        );
-
-        // Release the parked stand-in (it self-terminates on the flag; the
-        // publish already detached its `JoinHandle` into the `Failed` variant),
-        // then shut the harness client down and wait for its consumer thread to
-        // drain so nothing outlives the test.
-        release.store(true, Ordering::Release);
-        if let Some(client) = handle.inner.lock_recover().take() {
-            client.shutdown();
-            drop(client);
-        }
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while !drained.load(Ordering::Acquire) {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "harness client did not drain within 5 s",
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-    }
-
-    /// A shut-down session keeps the faults it recorded.
-    #[test]
-    fn a_retired_session_keeps_its_fault_count() {
-        let client = StreamingClient::for_io_fault_test();
-        client.record_panic();
-        client.record_panic();
-        let handle = ThetaDataDxStreamHandle {
-            inner: Arc::new(Mutex::new(Some(Arc::clone(&client)))),
-            connect_params: StreamingConnectParams {
-                creds: thetadatadx::Credentials::api_key("test"),
-                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
-                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
-            },
-            callback: Mutex::new(None),
-            state: AtomicU8::new(STREAM_STATE_ACTIVE),
-            prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
-            retired_panics: AtomicU64::new(0),
-            retired_dropped: AtomicU64::new(0),
-            saved_subscriptions: Mutex::default(),
-        };
-
-        // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
-        // whole test, so the reader's non-null / not-yet-freed precondition holds.
-        let live = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
-        assert_eq!(live, 2, "the live session reports the faults it caught");
-
-        let retired = handle.inner.lock_recover().take();
-        let retired = retired.expect("the live session was the one retired");
-        let folded = handle.fold_retired(&retired, (0, 0));
-        // SAFETY: as above.
-        let mid = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
-        assert_eq!(
-            mid, 2,
-            "a reading mid-teardown does not drop below the live one"
-        );
-
-        // The drain: the dispatcher catches one more fault after the session
-        // left the slot and before it stopped.
-        retired.record_panic();
-        handle.fold_retired(&retired, folded);
-        // SAFETY: as above.
-        let after = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
-        assert_eq!(
-            after, 3,
-            "the faults before the swap and the one during the drain both stay"
-        );
-    }
-
-    /// The REAL FFI dispatcher loop (`run_ffi_dispatcher`), run over a client
-    /// already in the faulted terminal state, must publish `Failed` so
-    /// `thetadatadx_streaming_is_streaming` flips to 0 WITHOUT any teardown join.
-    /// Pins the `Ok(PollOutcome::Failed)` arm: the FFI has its OWN `for_each`
-    /// loop and does NOT ride the core dispatcher, so the core fix alone does not
-    /// cover it. The parent holds the dispatcher lock across spawn + install
-    /// exactly as production does, so the dispatcher's fault publish serialises
-    /// AFTER the `Running` install (never against an `Idle` slot).
-    #[test]
-    fn io_thread_fault_flips_health_checks_via_dispatcher_loop() {
-        let faulted = StreamingClient::for_io_fault_test();
-        let handle = ThetaDataDxStreamHandle {
-            inner: Arc::new(Mutex::new(Some(Arc::clone(&faulted)))),
-            connect_params: StreamingConnectParams {
-                creds: thetadatadx::Credentials::api_key("test"),
-                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
-                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
-            },
-            callback: Mutex::new(Some(FfiCallback {
-                callback: noop as ThetaDataDxStreamCallback,
-                ctx: std::ptr::null_mut(),
-            })),
-            state: AtomicU8::new(STREAM_STATE_ACTIVE),
-            prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
-            retired_panics: AtomicU64::new(0),
-            retired_dropped: AtomicU64::new(0),
-            saved_subscriptions: Mutex::default(),
-        };
-
-        // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
-        // whole test, so the reader's non-null / not-yet-freed precondition holds.
-        let is_streaming = || unsafe { super::thetadatadx_streaming_is_streaming(&handle) };
-
-        // Production spawn+install discipline: hold the dispatcher lock across the
-        // spawn AND the `Running` install so the dispatcher's fault publish cannot
-        // race ahead of the install and drop the fault against an `Idle` slot.
-        let slot = Arc::clone(&handle.dispatcher);
-        let mut guard = handle.dispatcher.lock_recover();
-        let dispatcher = std::thread::Builder::new()
-            .name("test-ffi-io-fault-dispatcher".into())
-            .spawn(move || {
-                run_ffi_dispatcher(faulted, |_event| {}, &slot, false);
-            })
-            .expect("spawn faulted dispatcher");
-        *guard = FfpssDispatcherSession::Running {
-            handle: dispatcher,
-            on_teardown: None,
-            registers_drain_flag: true,
-        };
-        drop(guard);
-
-        // The dispatcher's `for_each` over the faulted client returns
-        // `PollOutcome::Failed` at once and publishes `Failed`. Wait (bounded)
-        // for the session to flip, proving is_streaming reflects the fault.
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-        while is_streaming() == 1 {
-            assert!(
-                std::time::Instant::now() < deadline,
-                "the FFI dispatcher did not flip is_streaming to 0 on an io-thread fault",
-            );
-            std::thread::sleep(std::time::Duration::from_millis(1));
-        }
-        assert_eq!(
-            is_streaming(),
-            0,
-            "an io-thread fault must flip FFI is_streaming to 0 via the dispatcher loop",
-        );
-    }
-}
-
-#[cfg(test)]
 mod standalone_connect_tests {
     /// The standalone handle validates its configuration when it is built, as
     /// the unified client's connect does, so an out-of-range reconnect budget
@@ -3870,6 +2248,110 @@ mod standalone_connect_tests {
             assert!(message.contains("reconnect.max_attempts"), "{message}");
             crate::auth::thetadatadx_credentials_free(creds);
             crate::auth::thetadatadx_config_free(cfg);
+        }
+    }
+
+    /// A reconnect stops the previous session before it dials. When the dial
+    /// fails, the subscriptions that session held must survive for the retry
+    /// to replay, or the retry succeeds with nothing subscribed.
+    #[test]
+    fn failed_reconnect_keeps_the_subscriptions_for_the_retry() {
+        use super::{
+            FfiCallback, LockRecover, ThetaDataDxStreamEvent, ThetaDataDxStreamHandle,
+            thetadatadx_streaming_reconnect,
+        };
+        use std::os::raw::c_void;
+        use thetadatadx::streaming::{Contract, SubscriptionKind};
+
+        extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
+
+        // A loopback port nothing listens on, so the dial is refused at once.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("bind an ephemeral loopback port")
+            .port();
+        let mut config = thetadatadx::config::DirectConfig::production();
+        config.set_streaming_hosts(vec![("127.0.0.1".to_string(), port)]);
+        let service =
+            thetadatadx::StreamService::new(&thetadatadx::Credentials::api_key("test"), config)
+                .expect("a valid config");
+        let handle = ThetaDataDxStreamHandle::new(std::sync::Arc::new(service));
+        *handle.callback.lock_recover() = Some(FfiCallback {
+            callback: noop,
+            ctx: std::ptr::null_mut(),
+        });
+        let aapl = (SubscriptionKind::Quote, Contract::stock("AAPL"));
+        *handle.saved_subscriptions.lock_recover() = Some((vec![aapl.clone()], Vec::new()));
+
+        for attempt in 1..=2 {
+            // SAFETY: `&handle` is a live, stack-pinned, never-freed handle
+            // for the whole test.
+            let rc = unsafe { thetadatadx_streaming_reconnect(&handle) };
+            assert_eq!(rc, -1, "attempt {attempt}: the dial must fail");
+            assert_eq!(
+                handle
+                    .saved_subscriptions
+                    .lock_recover()
+                    .as_ref()
+                    .map(|saved| saved.0.clone()),
+                Some(vec![aapl.clone()]),
+                "attempt {attempt}: the saved subscription was dropped",
+            );
+        }
+    }
+
+    /// A shutdown drops the subscriptions, so a reconnect after it has nothing
+    /// to replay: it must refuse with `THETADATADX_ERR_NETWORK`, naming the
+    /// call that resumes, rather than dial a session with nothing subscribed.
+    #[test]
+    fn reconnect_after_shutdown_refuses_and_names_set_callback() {
+        use super::{
+            FfiCallback, LockRecover, ThetaDataDxStreamEvent, ThetaDataDxStreamHandle,
+            thetadatadx_streaming_reconnect, thetadatadx_streaming_shutdown,
+        };
+        use std::os::raw::c_void;
+        use thetadatadx::streaming::{Contract, SubscriptionKind};
+
+        extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
+
+        // A loopback port nothing listens on, so a dial would fail with a
+        // connect error rather than the refusal under test.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("bind an ephemeral loopback port")
+            .port();
+        let mut config = thetadatadx::config::DirectConfig::production();
+        config.set_streaming_hosts(vec![("127.0.0.1".to_string(), port)]);
+        let service =
+            thetadatadx::StreamService::new(&thetadatadx::Credentials::api_key("test"), config)
+                .expect("a valid config");
+        let handle = ThetaDataDxStreamHandle::new(std::sync::Arc::new(service));
+        *handle.callback.lock_recover() = Some(FfiCallback {
+            callback: noop,
+            ctx: std::ptr::null_mut(),
+        });
+        *handle.saved_subscriptions.lock_recover() = Some((
+            vec![(SubscriptionKind::Quote, Contract::stock("AAPL"))],
+            Vec::new(),
+        ));
+
+        // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
+        // whole test; `thetadatadx_last_error` returns a pointer valid until the
+        // next error on this thread, read before any further call.
+        unsafe {
+            thetadatadx_streaming_shutdown(&handle);
+            assert_eq!(thetadatadx_streaming_reconnect(&handle), -1);
+            assert_eq!(
+                crate::error::thetadatadx_last_error_code(),
+                crate::error::THETADATADX_ERR_NETWORK
+            );
+            let message = std::ffi::CStr::from_ptr(crate::error::thetadatadx_last_error())
+                .to_string_lossy()
+                .into_owned();
+            assert!(
+                message.contains("thetadatadx_streaming_set_callback"),
+                "{message}"
+            );
         }
     }
 }

@@ -68,7 +68,7 @@ use arrow_schema::Schema;
 
 use super::batch_schema::{StreamBatchBuilder, stream_batch_schema};
 use super::{StreamEvent, StreamingClient};
-use crate::client::{Client, StreamingState};
+use crate::client::{StreamService, StreamingState};
 use crate::streaming::StreamError;
 
 /// Default rows per batch when [`BatchReaderBuilder::batch_size`] is not set.
@@ -168,7 +168,7 @@ fn clamp_batch_size(rows: usize) -> usize {
 /// errors with "streaming not started".
 #[must_use = "call `.build()` to open the RecordBatch stream"]
 pub struct BatchReaderBuilder<'a> {
-    client: &'a Client,
+    client: &'a StreamService,
     batch_size: usize,
     linger: Duration,
     backpressure: Backpressure,
@@ -178,7 +178,7 @@ impl<'a> BatchReaderBuilder<'a> {
     /// Construct a builder over a unified client. The public entry point is
     /// `client.stream().batches()`; this is the crate-internal constructor
     /// it calls.
-    pub(crate) fn new(client: &'a Client) -> Self {
+    pub(crate) fn new(client: &'a StreamService) -> Self {
         Self {
             client,
             batch_size: DEFAULT_BATCH_SIZE,
@@ -573,7 +573,7 @@ pub struct RecordBatchStream {
 
 impl RecordBatchStream {
     fn start(
-        client: &Client,
+        client: &StreamService,
         batch_size: usize,
         linger: Duration,
         backpressure: Backpressure,

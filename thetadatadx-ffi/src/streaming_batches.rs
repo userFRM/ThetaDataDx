@@ -135,7 +135,7 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
         // `thetadatadx_client_reconnect` tear this reader down and restart a
         // callback session on a `ctx` the caller may already have freed after
         // stop and drain.
-        let mut callback = client.callback.lock_recover();
+        let mut callback = client.stream.callback.lock_recover();
         let stream = client
             .inner
             .stream()

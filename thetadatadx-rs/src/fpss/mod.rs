@@ -1087,7 +1087,7 @@ pub struct StreamingClient {
     /// (e.g. [`crate::StreamSurface::stop_streaming`]) may capture an
     /// [`Arc::clone`] of this flag before releasing their last
     /// `Arc<StreamingClient>` so that
-    /// [`crate::Client::await_drain`] can poll for full
+    /// [`crate::StreamService::await_drain`] can poll for full
     /// quiescence after stop / reconnect.
     drained: Arc<AtomicBool>,
 }
