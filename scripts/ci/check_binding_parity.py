@@ -151,6 +151,10 @@ CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
 ENDPOINT_SURFACE_TOML = (
     REPO_ROOT / "thetadatadx-rs" / "endpoint_surface.toml"
 )
+# The endpoint table. The Python endpoint methods and builders are expanded
+# from it at compile time (`thetadatadx-py/src/market_data.rs`), so no source
+# file names them and the gate reads the table instead.
+ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
 # The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
 # declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
 # buffered endpoint. Reading the SHIPPED header (not just the `thetadatadx-ffi/src`
@@ -4061,8 +4065,8 @@ def _endpoint_method_to_snake(name: str) -> str:
 # per-binding terminal:
 #
 #   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
-#     pyclass (generated into
-#     `thetadatadx-py/src/_generated/market_data_methods.rs`).
+#     pyclass (expanded from the endpoint table in
+#     `thetadatadx-py/src/market_data.rs`).
 #   * TypeScript: a `<endpoint>Stream` method on the `Client`
 #     napi class (generated into
 #     `thetadatadx-ts/src/_generated/market_data_methods.rs`).
@@ -4079,38 +4083,34 @@ def _endpoint_method_to_snake(name: str) -> str:
 # presence across the four bindings.
 
 
-def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
-    exposes a `fn stream` terminal.
+def _table_endpoint_shapes(table_rs: pathlib.Path) -> dict[str, str]:
+    """Shape (`list`, `buffered` or `chunked`) of every `__endpoints!` entry,
+    keyed by endpoint name. The raw streams in `__stream_endpoints!` have no
+    Python surface and are not read."""
+    if not table_rs.is_file():
+        return {}
+    text = _read_source(table_rs)
+    start = text.find("macro_rules! __endpoints")
+    end = text.find("macro_rules! __stream_endpoints", start)
+    if start < 0 or end < 0:
+        return {}
+    return {
+        name: shape
+        for shape, name in re.findall(
+            r"^\s*(list|buffered|chunked)\s+(\w+)\s*\{", text[start:end], re.MULTILINE
+        )
+    }
 
-    Walks every `impl <Name>Builder { ... }` block and records the
-    builder's endpoint name (the CamelCase struct stem, lowered to
-    snake_case) when the body declares `fn stream(`. The async companion
-    `fn stream_async` rides on the same builder, so the sync terminal is
-    the canonical presence signal.
+
+def _collect_python_streaming_endpoints(table_rs: pathlib.Path) -> set[str]:
+    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
+    exposes `stream` and `stream_async`: the `chunked` entries of the
+    endpoint table, which `thetadatadx-py/src/market_data.rs` expands with
+    the streaming terminals.
     """
-    out: set[str] = set()
-    if not py_src.is_dir():
-        return out
-    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
-    for rs in py_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for header in impl_re.finditer(text):
-            stem = header.group(1)
-            body_start = header.end()
-            depth = 1
-            i = body_start
-            while i < len(text) and depth > 0:
-                c = text[i]
-                if c == "{":
-                    depth += 1
-                elif c == "}":
-                    depth -= 1
-                i += 1
-            body = text[body_start : i - 1]
-            if re.search(r"\bfn\s+stream\s*\(", body):
-                out.add(_endpoint_method_to_snake(stem))
-    return out
+    return {
+        name for name, shape in _table_endpoint_shapes(table_rs).items() if shape == "chunked"
+    }
 
 
 def _collect_typescript_streaming_endpoints(
@@ -4286,8 +4286,8 @@ def _check_market_data_streaming_rows(
 # managing their own threads. The shape is per-binding idiom:
 #
 #   * Python: an `<endpoint>_async` method on the market-data surface,
-#     returning an awaitable (generated into
-#     `thetadatadx-py/src/_generated/market_data_methods.rs`).
+#     returning an awaitable (expanded from the endpoint table in
+#     `thetadatadx-py/src/market_data.rs`).
 #   * TypeScript: the buffered `<endpoint>` method is itself `async` and
 #     returns a `Promise`, so there is no separate `_async` name — the
 #     presence of the buffered endpoint method on `MarketDataView` IS the
@@ -4304,45 +4304,6 @@ def _check_market_data_streaming_rows(
 # NOT covered by the `[[method]]` rows, so without this family a binding
 # could ship the async query on some endpoints and silently omit it on
 # others (or on a whole binding) with no checker noticing.
-
-
-def _collect_python_async_endpoints(py_src: pathlib.Path) -> set[str]:
-    """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
-    exposes a buffered `list_async` terminal.
-
-    The Python async query surface is the awaitable `list_async()` terminal
-    on each buffered endpoint's `<Endpoint>Builder` — the async twin of the
-    blocking `list()` collect. It rides on the same builder the blocking
-    query returns, so the builder's endpoint name (the CamelCase struct
-    stem, lowered to snake_case) is the async-query presence signal. The
-    server-stream `stream_async` terminal is a different surface (tracked by
-    the `[[market_data_streaming]]` family) and is not matched here.
-    """
-    out: set[str] = set()
-    if not py_src.is_dir():
-        return out
-    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
-    for rs in py_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for header in impl_re.finditer(text):
-            stem = header.group(1)
-            body_start = header.end()
-            depth = 1
-            i = body_start
-            while i < len(text) and depth > 0:
-                c = text[i]
-                if c == "{":
-                    depth += 1
-                elif c == "}":
-                    depth -= 1
-                i += 1
-            body = text[body_start : i - 1]
-            # The terminal carries a `<'py>` lifetime generic between the
-            # name and the arg list (`fn list_async<'py>(`), so allow an
-            # optional generic-parameter clause before the paren.
-            if re.search(r"\bfn\s+list_async\s*(<[^>]*>)?\s*\(", body):
-                out.add(_endpoint_method_to_snake(stem))
-    return out
 
 
 def _collect_typescript_async_endpoints(
@@ -4642,9 +4603,10 @@ def _collect_rust_streaming_endpoints(
     This is the Rust streaming surface independent of the managed bindings:
     a Rust endpoint dropped from the registry vanishes from this set even if
     a binding still (wrongly) declares it, so the per-row gate trips. The
-    classification is pinned against the live generated Python `fn stream`
-    surface by `_case_hist_stream_rust_mirrors_generated` so a future change
-    to the build SSOT cannot silently desync the gate's mirror.
+    classification is pinned against the `chunked` entries of the endpoint
+    table, which carry the Python `stream` terminals, by
+    `_case_hist_stream_rust_mirrors_generated`, so a future change to the
+    build SSOT cannot silently desync the gate's mirror.
     """
     if not surface_toml.is_file():
         return set()
@@ -4727,29 +4689,13 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
 # across all five surfaces directly.
 
 
-def _collect_python_buffered_endpoints(py_src: pathlib.Path) -> set[str]:
+def _collect_python_buffered_endpoints(table_rs: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose Python `<Endpoint>Builder` pyclass
-    exposes a buffered `list` terminal.
-
-    The Python buffered query surface is the `list()` collect on each
-    endpoint's `<Endpoint>Builder` — the blocking twin of the awaitable
-    `list_async()`. Walks every `impl <Name>Builder { ... }` block and
-    records the builder's endpoint name (the CamelCase struct stem, lowered)
-    when the body declares `fn list(`. Mirrors the async / stream collectors
-    on the buffered terminal.
+    exposes the buffered `list` terminal and its awaitable twin
+    `list_async`: every entry of the endpoint table, each of which
+    `thetadatadx-py/src/market_data.rs` expands into a builder with both.
     """
-    out: set[str] = set()
-    if not py_src.is_dir():
-        return out
-    impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
-    for rs in py_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for header in impl_re.finditer(text):
-            stem = header.group(1)
-            body = _balanced_body(text, header.end())
-            if re.search(r"\bfn\s+list\s*\(", body):
-                out.add(_endpoint_method_to_snake(stem))
-    return out
+    return set(_table_endpoint_shapes(table_rs))
 
 
 def _check_market_data_base_rows(
@@ -8258,7 +8204,7 @@ def main(argv: list[str] | None = None) -> int:
     rust_buffered = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
     rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
 
-    py_stream = _collect_python_streaming_endpoints(PY_SRC)
+    py_stream = _collect_python_streaming_endpoints(ENDPOINT_TABLE_RS)
     ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
     cpp_stream = _collect_cpp_streaming_endpoints(cpp_class_methods)
     ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
@@ -8276,7 +8222,7 @@ def main(argv: list[str] | None = None) -> int:
     # Python / C++ name an `<endpoint>_async` method; TypeScript's buffered
     # method is itself async (Promise). No C ABI row: the async surface is
     # a binding-layer concern over the existing blocking C symbols.
-    py_async = _collect_python_async_endpoints(PY_SRC)
+    py_async = _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS)
     ts_async = _collect_typescript_async_endpoints(ts_class_methods)
     cpp_async = _collect_cpp_async_endpoints(cpp_class_methods)
     market_data_async_errors = _check_market_data_async_rows(
@@ -8309,7 +8255,7 @@ def main(argv: list[str] | None = None) -> int:
     # header. This is the core "every endpoint exists everywhere" guarantee,
     # previously only implicit via the async / stream companions and unchecked
     # entirely on the C-ABI base.
-    py_buffered = _collect_python_buffered_endpoints(PY_SRC)
+    py_buffered = _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS)
     ts_buffered = _collect_typescript_async_endpoints(ts_class_methods)
     cpp_buffered = cpp_class_methods.get(_cpp_class_for("MarketDataView"), set())
     cabi_base = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
@@ -11179,13 +11125,13 @@ def _run_selftest() -> int:
 
     def _case_hist_stream_rust_mirrors_generated() -> None:
         """The Rust streaming classification (registry-of-record mirror of
-        the build's `endpoint_streams` SSOT) must equal the live generated
-        Python `fn stream` surface — both are emitted from the same
-        registry, so any desync between the gate's mirror and the build's
-        predicate is a real drift the gate must surface.
+        the build's `endpoint_streams` SSOT) must equal the Python `stream`
+        surface, the `chunked` entries of the endpoint table. Both describe
+        the same endpoints, so any desync between the gate's mirror and the
+        table is a real drift the gate must surface.
         """
         rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
-        py_stream = _collect_python_streaming_endpoints(PY_SRC)
+        py_stream = _collect_python_streaming_endpoints(ENDPOINT_TABLE_RS)
         assert rust_stream == py_stream, (
             f"Rust streaming mirror must equal the generated Python stream "
             f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
@@ -11404,7 +11350,7 @@ def _run_selftest() -> int:
         errors = _check_market_data_base_rows(
             rows,
             _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML),
-            _collect_python_buffered_endpoints(PY_SRC),
+            _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS),
             _collect_typescript_async_endpoints(ts_methods),
             cpp_methods.get(_cpp_class_for("MarketDataView"), set()),
             _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC),

@@ -876,12 +876,11 @@ def test_client_view_accessors_live_sources_enrolled() -> None:
 
 def test_rust_streaming_mirror_equals_generated_python() -> None:
     """The Rust streaming classification (registry-of-record mirror of the
-    build's `endpoint_streams` SSOT) equals the live generated Python
-    `fn stream` surface — both emitted from the same registry, so any desync
-    is a real drift.
+    build's `endpoint_streams` SSOT) equals the Python `stream` surface, the
+    `chunked` entries of the endpoint table, so any desync is a real drift.
     """
     rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
-    py_stream = cbp._collect_python_streaming_endpoints(cbp.PY_SRC)
+    py_stream = cbp._collect_python_streaming_endpoints(cbp.ENDPOINT_TABLE_RS)
     assert rust_stream == py_stream, (
         f"Rust streaming mirror must equal the generated Python stream "
         f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
@@ -1031,7 +1030,7 @@ def test_market_data_base_live_sources_clean() -> None:
     errors = cbp._check_market_data_base_rows(
         rows,
         cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML),
-        cbp._collect_python_buffered_endpoints(cbp.PY_SRC),
+        cbp._collect_python_buffered_endpoints(cbp.ENDPOINT_TABLE_RS),
         cbp._collect_typescript_async_endpoints(ts_methods),
         cpp_methods.get(cbp._cpp_class_for("MarketDataView"), set()),
         cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC),
@@ -1054,14 +1053,14 @@ def test_market_data_families_live_rust_column_clean() -> None:
     async_errors = cbp._check_market_data_async_rows(
         data.get("market_data_async", []),
         rust_buffered,
-        cbp._collect_python_async_endpoints(cbp.PY_SRC),
+        cbp._collect_python_buffered_endpoints(cbp.ENDPOINT_TABLE_RS),
         cbp._collect_typescript_async_endpoints(ts_methods),
         cbp._collect_cpp_async_endpoints(cpp_methods),
     )
     stream_errors = cbp._check_market_data_streaming_rows(
         data.get("market_data_streaming", []),
         rust_stream,
-        cbp._collect_python_streaming_endpoints(cbp.PY_SRC),
+        cbp._collect_python_streaming_endpoints(cbp.ENDPOINT_TABLE_RS),
         cbp._collect_typescript_streaming_endpoints(ts_methods),
         cbp._collect_cpp_streaming_endpoints(cpp_methods),
         cbp._collect_ffi_streaming_endpoints(cbp.FFI_SRC),

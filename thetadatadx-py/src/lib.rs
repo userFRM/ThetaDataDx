@@ -2,9 +2,11 @@
 //! PyO3 boundary into the same Rust code path used by the CLI and FFI.
 
 // A `#[pymethods]` signature is the Python call signature: every keyword
-// argument is its own parameter, so the generated endpoint methods and tick
-// constructors take one per query parameter or column.
+// argument is its own parameter, so the generated tick constructors take one
+// per column.
 #![expect(clippy::too_many_arguments)]
+// The endpoint table expands through nested macros deeper than the default limit.
+#![recursion_limit = "256"]
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -26,11 +28,10 @@ mod logging_bridge;
 mod mdds_client;
 mod streaming_batches;
 
-// These imports look unused at source level — they are pulled in by
-// the `include!("_generated/market_data_methods.rs")` and
-// `include!("_generated/streaming_methods.rs")` blocks below, which
-// expand inside this module and reference these names without their
-// own `use` declarations.
+// These imports look unused at source level: the
+// `include!("_generated/streaming_methods.rs")` block below and the
+// `market_data` module reference these names without their own `use`
+// declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
 use errors::{config_err, to_py_err};
@@ -1880,13 +1881,7 @@ use streaming_session::StreamingSession;
 // `start_streaming(cb)` plus the `StreamingSession` context manager is
 // the sole streaming surface on the bundled client.
 
-include!("_generated/market_data_methods.rs");
-
-// `decode_response_bytes(endpoint, chunks)` hook used by the external
-// parity bench harness. Generator-emitted from `endpoint_surface.toml`
-// so every new endpoint is auto-wired — no manual edits here. See
-// `thetadatadx-rs/build_support/endpoints/render/python.rs::render_python_decode_bench`.
-include!("_generated/decode_bench.rs");
+mod market_data;
 
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
@@ -2025,7 +2020,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<flatfile_methods::FlatFileRowList>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
-    register_generated_market_data_builders(m)?;
+    market_data::register_market_data_builders(m)?;
     coerce::register_string_enums(m)?;
     register_generated_util_submodule(m)?;
 
@@ -2034,7 +2029,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // full tree + mapping from `thetadatadx::Error` variants.
     errors::register_exceptions(py, m)?;
 
-    m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(market_data::decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
     // Introspection helper for the offline `MarketDataClient` block-list
     // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.

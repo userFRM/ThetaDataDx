@@ -14,8 +14,7 @@ use super::super::parser::load_endpoint_specs;
 use super::super::sdk_helpers::collect_builder_params;
 use super::super::test_fixtures::load_test_fixtures;
 use super::{
-    config_accessors, cpp, cpp_validate, enums, ffi, python, python_stub, python_validate,
-    typescript,
+    config_accessors, cpp, cpp_validate, enums, ffi, python_stub, python_validate, typescript,
 };
 
 struct GeneratedSourceFile {
@@ -181,14 +180,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_cpp_stream_defs(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/market_data_methods.rs",
-            contents: python::render_python_market_data_methods(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/decode_bench.rs",
-            contents: python::render_python_decode_bench(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
             relative_path: "thetadatadx-ts/src/_generated/market_data_methods.rs",
             contents: typescript::render_typescript_market_data_methods(&parsed.endpoints),
         },
@@ -205,8 +196,8 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
 /// Files whose generated region is spliced between marker comments while
 /// the rest of the file stays hand-maintained. Today this carries only the
-/// Python type stub's `MarketDataView` endpoint surface, projected from the
-/// same `endpoint_surface.toml` that drives the runtime `#[pymethods]`.
+/// Python type stub's `MarketDataView` endpoint surface, projected from
+/// `endpoint_surface.toml`.
 fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;
     Ok(vec![SplicedSourceFile {

@@ -104,12 +104,10 @@ fn render_record_batch_to_pyarrow_helper() -> String {
 
 fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     let mut out = String::new();
-    // Slice-based Arrow fast path: the fluent builder `.arrow()` /
-    // `.pandas()` / `.polars()` terminals in `market_data_methods.rs`
-    // call these converters directly on the decoder-owned
-    // `Vec<tick::T>`, skipping the pyclass-list double-buffer. See
-    // `build_support/endpoints/render/python.rs::python_slice_arrow_converter`
-    // for the dispatch mapping.
+    // Slice-based Arrow fast path: the typed list wrappers' `to_arrow()` /
+    // `to_pandas()` / `to_polars()` terminals call these converters
+    // directly on the decoder-owned `Vec<tick::T>`, skipping the
+    // pyclass-list double-buffer.
     out.push_str("pub(crate) mod slice_arrow {\n");
     out.push_str("    use super::*;\n");
     out.push_str("    use super::tick;\n");
@@ -122,13 +120,9 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     // (the full readers fetch a fixed schema from `arrow_schema_for_qualname`).
     out.push_str("    use arrow::datatypes::{DataType, Field, Schema};\n");
     out.push_str("    use std::sync::Arc;\n\n");
-    // The fluent-builder Arrow terminals in `market_data_methods.rs`
-    // dispatch on endpoint return type (via
-    // `build_support/endpoints/helpers.rs::python_slice_arrow_converter`)
-    // directly to the free helper functions below. No intermediate
-    // trait is needed — keeping the surface to the free functions
-    // means no unused-trait lint and the call sites stay visible in
-    // the generated `market_data_methods.rs` diff.
+    // The typed list wrappers call the free helper functions below
+    // directly. No intermediate trait is needed: keeping the surface to
+    // the free functions means no unused-trait lint.
 
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];

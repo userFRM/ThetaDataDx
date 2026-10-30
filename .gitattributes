@@ -10,7 +10,6 @@ thetadatadx-cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
 thetadatadx-cpp/src/market_data.cpp.inc      text eol=lf linguist-generated=true
 thetadatadx-cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 thetadatadx-cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
-thetadatadx-py/src/market_data_methods.rs text eol=lf linguist-generated=true
 thetadatadx-py/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/ci/check_python.py           text eol=lf linguist-generated=true
 thetadatadx-py/src/fpss_event_classes.rs text eol=lf linguist-generated=true

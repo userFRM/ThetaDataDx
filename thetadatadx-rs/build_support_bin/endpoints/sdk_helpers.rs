@@ -25,8 +25,6 @@ struct BinTickRender {
     ffi_array: String,
     ffi_free_fn: String,
     cpp_value: String,
-    python_pyclass_list: String,
-    python_vec_to_pylist: String,
     ts_class: String,
     ts_class_vec: String,
     pyclass: String,
@@ -48,8 +46,6 @@ struct TickRenderToml {
     ffi_array: String,
     ffi_free_fn: String,
     cpp_value: String,
-    python_pyclass_list: String,
-    python_vec_to_pylist: String,
     ts_class: String,
     ts_class_vec: String,
     pyclass: String,
@@ -75,8 +71,6 @@ fn load_render_map() -> HashMap<String, BinTickRender> {
             ffi_array: render.ffi_array,
             ffi_free_fn: render.ffi_free_fn,
             cpp_value: render.cpp_value,
-            python_pyclass_list: render.python_pyclass_list,
-            python_vec_to_pylist: render.python_vec_to_pylist,
             ts_class: render.ts_class,
             ts_class_vec: render.ts_class_vec,
             pyclass: render.pyclass,
@@ -261,30 +255,6 @@ pub(super) fn to_camel_case(value: &str) -> String {
 
 // ───────────────────────── Per-language type tables ─────────────────────────
 
-/// Returns the Rust `Option<...>` type used for an optional Python
-/// keyword argument of the given parameter.
-pub(super) fn python_optional_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        "Int" => "Option<i32>",
-        "Float" => "Option<f64>",
-        "Bool" => "Option<bool>",
-        "Date" | "Expiration" => "Option<PyDateArg>",
-        _ if is_time_arg(param) => "Option<PyTimeArg>",
-        _ => "Option<PyStringArg>",
-    }
-}
-
-/// Returns the Rust argument type used for a required Python parameter
-/// of the given wire type.
-pub(super) fn python_string_arg_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        "Symbols" => "PySymbols",
-        "Date" | "Expiration" => "PyDateArg",
-        _ if is_time_arg(param) => "PyTimeArg",
-        _ => "PyStringArg",
-    }
-}
-
 /// Returns `true` if the parameter is a time-of-day argument
 /// (`start_time`, `end_time`, `min_time`, or `time_of_day`).
 pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
@@ -330,14 +300,6 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
     )
 }
 
-/// Name of the generated `*_to_pyclass_list` converter for a given tick
-/// return type. This is the PRIMARY return path for Python market-data
-/// endpoints — typed `#[pyclass]` objects matching Rust/TS/C++ SDKs.
-/// See `build_support_bin/ticks/python_classes.rs::render_python_tick_classes`.
-pub(super) fn python_pyclass_list_converter(return_type: &str) -> String {
-    render_for(return_type).python_pyclass_list.clone()
-}
-
 /// Name of the generated `<TickName>List` pyclass wrapper (e.g.
 /// `EodTickList`). Market-data endpoints return `Py<<TickName>List>`
 /// directly so callers can chain `.to_polars()` / `.to_arrow()` /
@@ -355,18 +317,6 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
 /// annotates them as `List[<row pyclass>]`.
 pub(super) fn python_pyclass_row_class(return_type: &str) -> String {
     render_for(return_type).pyclass.clone()
-}
-
-/// Map a collection return type (e.g. `CalendarDays`) to the generated
-/// `<tick>_vec_to_pylist` converter in `tick_classes.rs`. This is the
-/// snapshot-endpoint fast path: takes a decoder-owned `Vec<tick::T>` and
-/// materialises a plain `Py<PyList>` of typed pyclass instances, skipping
-/// the `<TickName>List` wrapper allocation. Used only for snapshot- and
-/// calendar-kind endpoints (see `is_snapshot_endpoint`). Parsed list
-/// endpoints keep the wrapper because users chain `.to_polars()` on bulk
-/// results.
-pub(super) fn python_vec_to_pylist_converter(return_type: &str) -> String {
-    render_for(return_type).python_vec_to_pylist.clone()
 }
 
 /// Map a collection return type (e.g. `TradeTicks`) to the generated
@@ -434,13 +384,6 @@ pub(super) fn sdk_method_arg_name(param: &GeneratedParam) -> String {
     } else {
         param.name.clone()
     }
-}
-
-/// Returns the `name: Type` declaration for a required Python method
-/// argument.
-pub(super) fn python_method_arg_decl(param: &GeneratedParam) -> String {
-    let name = sdk_method_arg_name(param);
-    format!("{name}: {}", python_string_arg_type(param))
 }
 
 /// Returns the C++ `const T& name` declaration for a required method
