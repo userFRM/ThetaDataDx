@@ -1,12 +1,11 @@
-//! Options-aware market-data endpoint wrappers emitted by the generator.
+//! The market-data C entry points.
 //!
-//! The generated `endpoint_request_options.rs` declares `ThetaDataDxEndpointRequestOptions`
-//! and the private helper `apply_endpoint_request_options`. The generated
-//! `endpoint_with_options.rs` declares one
-//! `thetadatadx_<endpoint>_with_options` entry point per buffered endpoint. The generated `endpoint_stream.rs` declares the
-//! `thetadatadx_<endpoint>_stream` server-stream entry points. All three are
-//! `include!`'d here so the shared helper + callback ABI are in scope when the
-//! generated wrappers expand.
+//! `endpoint_table.rs` expands the core endpoint table into
+//! `ThetaDataDxEndpointRequestOptions`, its private helper
+//! `apply_endpoint_request_options`, one `thetadatadx_<endpoint>_with_options`
+//! entry point per endpoint and the `thetadatadx_<endpoint>_stream`
+//! server-stream entry points. It is `include!`'d here so the shared helpers
+//! and the callback ABI are in scope where the entry points expand.
 
 use std::os::raw::c_char;
 use std::os::raw::c_void;
@@ -176,9 +175,7 @@ fn invoke_endpoint_stream_blocking(
     ))
 }
 
-include!("endpoint_request_options.rs");
-include!("endpoint_with_options.rs");
-include!("endpoint_stream.rs");
+include!("endpoint_table.rs");
 
 // A C caller can pass a null chunk callback. It is representable only as the
 // `None` niche of `Option<ThetaDataDxTickChunkCallback>`, which every

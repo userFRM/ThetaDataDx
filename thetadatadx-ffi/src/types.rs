@@ -49,8 +49,7 @@ pub unsafe extern "C" fn thetadatadx_string_free(s: *mut c_char) {
     })
 }
 
-// ── Endpoint-argument coercion helpers (shared with the generated
-//    `endpoint_with_options.rs` include) ──
+// ── Endpoint-argument coercion helpers (used by `endpoint_table.rs`) ──
 
 pub(crate) fn insert_optional_str_arg(
     args: &mut thetadatadx::EndpointArgs,

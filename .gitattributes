@@ -1,7 +1,5 @@
 # Force LF line endings on generated SDK surfaces so that
 # `generate_sdk_surfaces --check` doesn't false-positive on Windows.
-thetadatadx-ffi/src/endpoint_request_options.rs  text eol=lf linguist-generated=true
-thetadatadx-ffi/src/endpoint_with_options.rs     text eol=lf linguist-generated=true
 thetadatadx-cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
 thetadatadx-cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
 thetadatadx-cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true

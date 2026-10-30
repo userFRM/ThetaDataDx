@@ -1721,30 +1721,59 @@ def check_mcp_tool_inventory() -> None:
     check_mcp_tool_counts(set(inv["registry"]) | set(connection_only))
 
 
-def check_endpoint_option_surface() -> None:
-    rust_fields = extract_struct_fields(
-        ROOT / "thetadatadx-ffi/src/endpoint_request_options.rs",
-        r"pub struct ThetaDataDxEndpointRequestOptions \{(.*?)\n\}",
-        r"^\s*pub\s+([a-z_]+)\s*:",
+def request_options_layout() -> list[str]:
+    """The C declarations of `ThetaDataDxEndpointRequestOptions` the FFI
+    crate expands from `__request_options!`, in field order.
+
+    Mirrors `thetadatadx-ffi/src/endpoint_table.rs`: each listed key's
+    parameter becomes a field, a bool, int or float one followed by its
+    `has_` flag, and the `timeout_ms` deadline closes the struct.
+    """
+    text = (ROOT / "thetadatadx-rs/src/surface/endpoints.rs").read_text()
+    keys = re.search(r"macro_rules! __request_options \{.*?\[(.*?)\]", text, re.DOTALL)
+    if not keys:
+        fail("thetadatadx-rs/src/surface/endpoints.rs has no `__request_options!` key list")
+    defs = dict(
+        (key, (name, ty))
+        for key, name, ty in re.findall(
+            r"\((\w+) \$\(\$s:tt\)\*\) => \{ \$crate::__resolve! \{ @def \{\s*(\w+)(?:\(\w+\))? opt (\w+)",
+            text,
+        )
     )
-    # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
-    rust_fields = {f for f in rust_fields if not f.startswith("has_")}
-    if rust_fields != ALL_OPTION_FIELDS:
-        missing = sorted(ALL_OPTION_FIELDS - rust_fields)
-        extra = sorted(rust_fields - ALL_OPTION_FIELDS)
+    c_types = {"Bool": "int32_t", "Int": "int32_t", "Float": "double"}
+    layout = []
+    for key in keys.group(1).split():
+        if key not in defs:
+            fail(f"`__request_options!` key `{key}` is not an optional parameter definition in `__param!`")
+        name, ty = defs[key]
+        layout.append(f"{c_types.get(ty, 'const char*')} {name}")
+        if ty in c_types:
+            layout.append(f"int32_t has_{name}")
+    return layout + ["uint64_t timeout_ms", "int32_t has_timeout_ms"]
+
+
+def check_endpoint_option_surface() -> None:
+    c_path = ROOT / "thetadatadx-cpp/include/endpoint_request_options.h.inc"
+    c_layout = re.findall(
+        r"^\s*((?:const char\*|int32_t|double|uint64_t) [a-z_]+);",
+        re.search(
+            r"typedef struct \{(.*?)\n\}\s*ThetaDataDxEndpointRequestOptions;",
+            c_path.read_text(),
+            re.DOTALL,
+        ).group(1),
+        re.MULTILINE,
+    )
+    # The field order is ABI: the C header and the struct the FFI crate
+    # expands must declare the same fields, with the same types, in order.
+    rust_layout = request_options_layout()
+    if rust_layout != c_layout:
         fail(
-            "thetadatadx-ffi/src/endpoint_request_options.rs endpoint option fields drifted from endpoint_surface.toml. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
+            f"{c_path.relative_to(ROOT)} and the `__request_options!` list in "
+            "thetadatadx-rs/src/surface/endpoints.rs declare different ThetaDataDxEndpointRequestOptions layouts. "
+            f"header={c_layout} table={rust_layout}"
         )
 
-    c_path = ROOT / "thetadatadx-cpp/include/endpoint_request_options.h.inc"
-    c_fields = extract_struct_fields(
-        c_path,
-        r"typedef struct \{(.*?)\n\}\s*ThetaDataDxEndpointRequestOptions;",
-        r"^\s*(?:const char\*|int32_t|double|uint64_t)\s+([a-z_]+);",
-    )
-    # Exclude has_* sentinel flags (FFI implementation detail, not builder params)
-    c_fields = {f for f in c_fields if not f.startswith("has_")}
+    c_fields = {f.split()[-1] for f in c_layout if not f.split()[-1].startswith("has_")}
     if c_fields != ALL_OPTION_FIELDS:
         missing = sorted(ALL_OPTION_FIELDS - c_fields)
         extra = sorted(c_fields - ALL_OPTION_FIELDS)
