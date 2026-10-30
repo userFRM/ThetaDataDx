@@ -124,10 +124,6 @@ def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib
 # on top.
 TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
 TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
-# The committed generated napi market-data surface. The `<endpoint>WithColumns`
-# reachability gate reads its `#[napi(js_name = ...)]` attributes directly (a
-# deterministic no-build source the napi compile lowers into `index.d.ts`).
-TS_MARKET_DATA_METHODS_RS = TS_SRC / "_generated" / "market_data_methods.rs"
 CPP_HPP = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
@@ -1946,6 +1942,13 @@ def _collect_typescript_class_methods(
     The class name is lifted from `impl <Name>` directly (not the
     `#[napi(js_name = "X")]` on the struct itself), which is the form
     the cross-binding parity rows use as the canonical class identifier.
+
+    The market-data endpoint methods are expanded from the core endpoint
+    table by `macro_rules!`, so no `fn` for them appears in the napi source.
+    When `ts_pkg_dir` is supplied, every member napi declares on a class in
+    the committed `index.d.ts` is merged in as well; CI rebuilds the package
+    and fails when that file drifts from the source, so it is a no-build
+    record of the compiled surface.
     """
     out: dict[str, set[str]] = {}
     if not ts_src.is_dir():
@@ -2004,6 +2007,14 @@ def _collect_typescript_class_methods(
                     out.setdefault(class_name, set()).add(camel)
                     out.setdefault(class_name, set()).add(snake)
     if ts_pkg_dir is not None:
+        napi_dts = ts_pkg_dir / "index.d.ts"
+        text = _read_source(napi_dts) if napi_dts.is_file() else ""
+        for header in TS_NAPI_CLASS_RE.finditer(text):
+            body = _balanced_body(text, header.end())
+            for member in TS_NAPI_MEMBER_RE.finditer(body):
+                # The source scan records the constructor as its Rust `fn`.
+                if member.group(1) != "constructor":
+                    out.setdefault(header.group(1), set()).add(member.group(1))
         for cls, methods in _collect_ts_wrapper_class_methods(ts_pkg_dir).items():
             out.setdefault(cls, set()).update(methods)
     return out
@@ -2044,6 +2055,12 @@ TS_STANDALONE_DECL_RE = re.compile(
 # `[Symbol.x]` computed members are bracketed and never match `\w+`.
 TS_STANDALONE_MEMBER_RE = re.compile(
     r"^\s*(?:readonly\s+)?(\w+)\s*[(:?<]", re.MULTILINE
+)
+# A napi class in the generated `index.d.ts`, and a named member inside its
+# body: a method, a `static` factory or a `get`/`set` accessor.
+TS_NAPI_CLASS_RE = re.compile(r"export\s+declare\s+class\s+(\w+)\b[^\{]*\{")
+TS_NAPI_MEMBER_RE = re.compile(
+    r"^\s*(?:(?:static|readonly|get|set)\s+)*(\w+)\s*[(:?<]", re.MULTILINE
 )
 
 
@@ -4067,9 +4084,9 @@ def _endpoint_method_to_snake(name: str) -> str:
 #   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
 #     pyclass (expanded from the endpoint table in
 #     `thetadatadx-py/src/market_data.rs`).
-#   * TypeScript: a `<endpoint>Stream` method on the `Client`
-#     napi class (generated into
-#     `thetadatadx-ts/src/_generated/market_data_methods.rs`).
+#   * TypeScript: a `<endpoint>Stream` method on the `MarketDataView`
+#     napi class (expanded from the endpoint table in
+#     `thetadatadx-ts/src/market_data.rs`).
 #   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `thetadatadx-ffi/src/`.
 #   * C++: an `<endpoint>_stream` member on the `Client` wrapper
 #     (`thetadatadx.hpp` + its `.inc` fragments).
@@ -4530,26 +4547,23 @@ def _collect_rust_columnar_buffered_endpoints(
 
 
 def _collect_typescript_with_columns_endpoints(
-    hist_methods_rs: pathlib.Path,
+    ts_methods: dict[str, set[str]],
 ) -> set[str]:
     """Snake_case endpoint names whose TypeScript market-data surface exposes a
     `<endpoint>WithColumns` presence-carrying query variant.
 
-    Reads the committed generated napi source
-    (`thetadatadx-ts/src/_generated/market_data_methods.rs`) rather than the
-    built `index.d.ts`, so the gate holds against the deterministic no-build
-    source the napi compile lowers into the `.d.ts` — the same reason the
-    streaming / buffered rows read `endpoint_surface.toml`. Each variant carries
-    a `#[napi(js_name = "<camel>WithColumns")]` attribute; the camel stem
-    snake-ifies back to the endpoint name. The method is emitted onto both the
-    `MarketDataView` and `MarketDataClient` impl blocks, so the set dedups.
+    Reuses the already-collected `{class: {method, ...}}` map, which reads the
+    market-data members from the committed `index.d.ts`. The variant is
+    expanded onto both `MarketDataView` and `MarketDataClient`, so the set
+    dedups across the two; the camel stem snake-ifies back to the endpoint
+    name.
     """
     out: set[str] = set()
-    if not hist_methods_rs.is_file():
-        return out
-    text = _read_source(hist_methods_rs)
-    for m in re.finditer(r'#\[napi\(js_name = "(\w+?)WithColumns"\)\]', text):
-        out.add(_endpoint_method_to_snake(m.group(1)))
+    suffix = "WithColumns"
+    for cls in ("MarketDataView", "MarketDataClient"):
+        for method in ts_methods.get(cls, set()):
+            if method.endswith(suffix) and len(method) > len(suffix):
+                out.add(_endpoint_method_to_snake(method[: -len(suffix)]))
     return out
 
 
@@ -8233,12 +8247,8 @@ def main(argv: list[str] | None = None) -> int:
     # must surface a `<endpoint>WithColumns` variant returning the response's
     # presentColumns / symbol alongside the rows, so the projected Arrow-IPC
     # exit is drivable from a live call (parity with Python's presence-carrying
-    # `<Tick>List` and the C / C++ `_with_options` presence out-param). Read
-    # from the committed generated napi source, the deterministic no-build
-    # counterpart of the streaming / base families' `endpoint_surface.toml`.
-    ts_with_columns = _collect_typescript_with_columns_endpoints(
-        TS_MARKET_DATA_METHODS_RS
-    )
+    # `<Tick>List` and the C / C++ `_with_options` presence out-param).
+    ts_with_columns = _collect_typescript_with_columns_endpoints(ts_class_methods)
     rust_columnar_buffered = _collect_rust_columnar_buffered_endpoints(
         ENDPOINT_SURFACE_TOML
     )
@@ -11345,7 +11355,7 @@ def _run_selftest() -> int:
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
         rows = data.get("market_data_base", [])
         assert rows, "live parity.toml must declare [[market_data_base]] rows"
-        ts_methods = _collect_typescript_class_methods(TS_SRC)
+        ts_methods = _collect_typescript_class_methods(TS_SRC, TS_PKG_DIR)
         cpp_methods = _collect_cpp_class_methods(CPP_HPP)
         errors = _check_market_data_base_rows(
             rows,

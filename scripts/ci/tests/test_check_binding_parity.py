@@ -1025,7 +1025,7 @@ def test_market_data_base_live_sources_clean() -> None:
     data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
     rows = data.get("market_data_base", [])
     assert rows, "live parity.toml must declare [[market_data_base]] rows"
-    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC, cbp.TS_PKG_DIR)
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
     errors = cbp._check_market_data_base_rows(
         rows,
@@ -1048,7 +1048,7 @@ def test_market_data_families_live_rust_column_clean() -> None:
     data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
     rust_buffered = cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML)
     rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
-    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
+    ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC, cbp.TS_PKG_DIR)
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
     async_errors = cbp._check_market_data_async_rows(
         data.get("market_data_async", []),

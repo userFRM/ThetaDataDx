@@ -175,18 +175,12 @@ describe('projected Arrow-IPC terminal', () => {
 // `{ rows, presentColumns, symbol? }`, so the response's own column set drives
 // `<tick>ToArrowIpcProjected` — the projected exit reachable from a live call.
 //
-// The prebuilt native addon in the tree predates this method, so the live call
-// itself is exercised against the committed generated napi source (the shape
-// napi lowers into index.d.ts, verified by the drift gate). The end-to-end
-// drivability of the RETURN SHAPE is exercised for real: the object a live call
-// yields is assembled and its `presentColumns` / `symbol` feed the real
-// projected serialiser in the addon.
+// No live call runs offline, so the method itself is checked against the
+// committed index.d.ts, the published contract the drift gate keeps in step
+// with the source. The end-to-end drivability of the RETURN SHAPE is exercised
+// for real: the object a live call yields is assembled and its `presentColumns`
+// / `symbol` feed the real projected serialiser in the addon.
 describe('withColumns live-call variant drives the projected export', () => {
-  const generated = readFileSync(
-    resolve(__dirname, '..', 'src', '_generated', 'market_data_methods.rs'),
-    'utf8'
-  );
-
   // Emulate what `stockHistoryTradeWithColumns` returns for a stock response:
   // the converted rows plus the response's present columns (resolved from the
   // wire headers exactly as the method does from the core ColumnPresence) and
@@ -217,17 +211,27 @@ describe('withColumns live-call variant drives the projected export', () => {
     assert.equal(cols[0], 'symbol', 'the return object symbol must lead the projected frame');
   });
 
-  it('generates the WithColumns variant on both market-data classes', () => {
-    // Present on the standalone MarketDataClient and the unified MarketDataView
-    // (both impl blocks), returning the presence-carrying object, never the bare
-    // row array.
-    const jsName = (generated.match(/js_name = "(\w+WithColumns)"/g) || []).length;
-    assert.ok(jsName >= 2, 'stockHistoryTradeWithColumns must exist on both market-data impl blocks');
-    assert.match(generated, /pub async fn stock_history_trade_with_columns\(/);
-    assert.match(generated, /-> napi::Result<TradeTickWithColumns>/);
-    assert.match(generated, /pub struct TradeTickWithColumns \{/);
-    assert.match(generated, /pub present_columns: Vec<String>,/);
-    // The plain buffered method is untouched (no breaking change).
-    assert.match(generated, /pub async fn stock_history_trade\(\s*&self,[\s\S]*?-> napi::Result<Vec<TradeTick>>/);
+  it('declares the WithColumns variant on both market-data classes', () => {
+    // Present on the standalone MarketDataClient and on MarketDataView,
+    // returning the presence-carrying object, never the bare row array.
+    for (const cls of ['MarketDataClient', 'MarketDataView']) {
+      const block = dts.match(new RegExp(`export declare class ${cls} \\{[\\s\\S]*?\\n\\}`));
+      assert.ok(block, `${cls} class missing from index.d.ts`);
+      assert.match(
+        block[0],
+        /\n  stockHistoryTradeWithColumns\(symbol: string, options\?: StockHistoryTradeOptions \| undefined \| null\): Promise<TradeTickWithColumns>\n/,
+        `${cls} must declare stockHistoryTradeWithColumns returning TradeTickWithColumns`
+      );
+      // The plain buffered method is untouched (no breaking change).
+      assert.match(
+        block[0],
+        /\n  stockHistoryTrade\(symbol: string, options\?: StockHistoryTradeOptions \| undefined \| null\): Promise<Array<TradeTick>>\n/,
+        `${cls} must keep stockHistoryTrade returning Array<TradeTick>`
+      );
+    }
+    const shape = dts.match(/export interface TradeTickWithColumns \{[\s\S]*?\n\}/);
+    assert.ok(shape, 'TradeTickWithColumns interface missing from index.d.ts');
+    assert.match(shape[0], /\n  rows: Array<TradeTick>\n/);
+    assert.match(shape[0], /\n  presentColumns: Array<string>\n/);
   });
 });
