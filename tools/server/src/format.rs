@@ -27,6 +27,7 @@ use std::fmt::Write as _;
 use std::ops::Range;
 
 use thetadatadx::decode::DecodeError;
+use thetadatadx::flatfiles::{HTML_END, HTML_START, escape_html};
 use thetadatadx::wire::{DataValueList, data_value::DataType};
 use thetadatadx::{EndpointMeta, Price, ReturnType};
 
@@ -778,27 +779,6 @@ fn push_value(out: &mut Vec<u8>, format: ResponseFormat, value: Value<'_>) {
             out.extend_from_slice(text.as_bytes());
         }
     }
-}
-
-/// The terminal's HTML page around the table, shared with the flat-file
-/// routes, which write the same page.
-pub(crate) const HTML_START: &str = "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n<table style=\"width:100%; text-align: center;\">";
-pub(crate) const HTML_END: &str = "</tbody></table></body></html>\n";
-
-/// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
-/// condition string) cannot inject markup into the rendered table.
-pub(crate) fn escape_html(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for c in value.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            other => out.push(other),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

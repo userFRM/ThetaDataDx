@@ -1,37 +1,26 @@
-//! Output format selector for the FLATFILES surface.
-//!
-//! The same logical row stream — `(contract_keys, [data_columns])` —
-//! materializes to one of these streaming on-disk formats:
-//!
-//! - `Csv`: vendor byte-format (lowercase headers, comma-separated, no
-//!   quoting, Unix line-endings). Used for legacy interop and as the
-//!   gold-standard for the byte-match integration test.
-//! - `Jsonl`: one JSON object per line, keys identical to the CSV
-//!   column names, integer columns stay numeric (no stringification).
-//! - `Json`: a single JSON array of the same per-row objects `Jsonl`
-//!   emits, streamed element-by-element (no whole-file buffering).
-//! - `Html`: an HTML `<table>`, streamed header then row-by-row, with
-//!   every header and cell HTML-escaped.
-//!
-//! For columnar formats (Parquet, Arrow IPC, polars) callers should use
-//! the in-memory typed entry point (see `flatfile_request_decoded`) and
-//! drive their own writer — keeping the SDK free of heavy columnar
-//! dependencies.
+//! The formats a flat file is written in: the terminal's.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-/// Selectable output format for any `flatfile_*` SDK call.
+/// The format a flat file is written in. Each is the terminal's own for the
+/// same file, byte for byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FlatFileFormat {
-    /// Vendor byte-format CSV. Header on line 1, then `\n`-terminated rows.
+    /// CSV: a header line of the column names, then one line per row with
+    /// text quoted, integers bare and an empty cell for a missing value, and
+    /// one blank line at the end.
     Csv,
-    /// JSON Lines — one JSON object per line.
+    /// One JSON object per row, one row per line (the terminal's `ndjson`).
     Jsonl,
-    /// A single JSON array of per-row objects.
+    /// One JSON object, `{"response": [...]}`, holding an object per row.
     Json,
-    /// An HTML `<table>` with a header row and one row per record.
+    /// One JSON object holding an array per column (the terminal's
+    /// `json_legacy`). No column closes before the last row, so the whole
+    /// file is held in memory until then.
+    JsonLegacy,
+    /// The terminal's HTML page: one table, a header row and a row per row.
     Html,
 }
 
@@ -42,7 +31,7 @@ impl FlatFileFormat {
         match self {
             Self::Csv => "csv",
             Self::Jsonl => "jsonl",
-            Self::Json => "json",
+            Self::Json | Self::JsonLegacy => "json",
             Self::Html => "html",
         }
     }
@@ -60,14 +49,18 @@ impl FlatFileFormat {
     }
 }
 
+/// The format's name, as [`FromStr`] reads it.
 impl fmt::Display for FlatFileFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.extension())
+        f.write_str(match self {
+            Self::JsonLegacy => "json_legacy",
+            other => other.extension(),
+        })
     }
 }
 
-/// Parses the format case-insensitively: `csv`, `json` (one JSON array),
-/// `jsonl` or its alias `ndjson` (JSON Lines), and `html`.
+/// Parses the format case-insensitively: `csv`, `json`, `json_legacy`,
+/// `jsonl` or its alias `ndjson`, and `html`.
 impl FromStr for FlatFileFormat {
     type Err = String;
 
@@ -75,10 +68,11 @@ impl FromStr for FlatFileFormat {
         match s.to_ascii_lowercase().as_str() {
             "csv" => Ok(Self::Csv),
             "json" => Ok(Self::Json),
+            "json_legacy" => Ok(Self::JsonLegacy),
             "jsonl" | "ndjson" => Ok(Self::Jsonl),
             "html" => Ok(Self::Html),
             _ => Err(format!(
-                "format must be csv, json, jsonl, ndjson or html, got {s:?}"
+                "format must be csv, json, json_legacy, jsonl, ndjson or html, got {s:?}"
             )),
         }
     }
@@ -112,7 +106,7 @@ mod tests {
     #[test]
     fn ensure_extension_preserves_existing() {
         let p = Path::new("/tmp/foo.json");
-        // Already has an extension — leave it alone (caller's intent).
+        // Already has an extension: leave it alone (caller's intent).
         assert_eq!(
             FlatFileFormat::Jsonl.ensure_extension(p),
             PathBuf::from("/tmp/foo.json")

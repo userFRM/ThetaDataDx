@@ -113,6 +113,73 @@ curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&forma
 
 A streamed chunk carries the root of each of its rows, as a whole result does: in Rust on the chunk's `columns()`, in Python on the chunk's frames, in TypeScript on the callback's `columns` argument and in C++ on the handler's `ColumnPresence`. When the chunk's rows span several roots, `symbols` holds one root per row; when every row in it shares one, `symbol` holds it.
 
+## Write a file to disk
+
+Each flat file has a companion call that writes it to disk exactly as the terminal writes it: `<endpoint>_to_path`, such as `option_flat_file_trade_quote_to_path`. It takes the file's `date`, the path to write and a format, and returns the path written. The file streams to disk chunk by chunk, so memory stays flat whatever its size, `json_legacy` aside: its one array per column cannot close before the last row, so the file is held until then, as the terminal holds it. It is written under a temporary name beside the path and takes the path's name only once complete, so a failed or cancelled download never leaves a partial file under that name. A path without an extension gets the format's.
+
+| Format | Layout |
+|---|---|
+| `csv` (default) | A header line of the column names, then one line per row: text and price cells quoted, integers bare, a missing value empty. |
+| `json` | One object, `{"response": [...]}`, holding an object per row. |
+| `json_legacy` | One object holding an array per column. |
+| `ndjson` (alias `jsonl`) | One object per row, one row per line. |
+| `html` | The terminal's HTML page: one table, a header row and a row per row. |
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+use thetadatadx::flatfiles::FlatFileFormat;
+
+let path = client
+    .market_data()
+    .option_flat_file_trade_quote_to_path("20261021", "trade_quotes.csv", FlatFileFormat::Csv)
+    .await?;
+```
+
+</template>
+
+<template #python>
+
+```python
+path = client.market_data.option_flat_file_trade_quote_to_path("20261021", "trade_quotes.csv")
+
+# In a coroutine:
+path = await client.market_data.option_flat_file_trade_quote_to_path_async("20261021", "trade_quotes.csv")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+const path = await client.marketData.optionFlatFileTradeQuoteToPath('20261021', 'trade_quotes.csv');
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+// Throws on failure.
+client.market_data().option_flat_file_trade_quote_to_path("20261021", "trade_quotes.csv");
+```
+
+</template>
+
+<template #http>
+
+```bash
+curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20261021&format=csv' -o trade_quotes.csv
+```
+
+</template>
+
+</SdkTabs>
+
+The C ABI exposes the same call as `thetadatadx_option_flat_file_trade_quote_to_path(market_data, date, path, format)` on a market-data handle, where a NULL `format` means `csv` and the return is 0 on success. The [MCP server](/mcp) offers it as one `<endpoint>_to_path` tool per flat file, its way to hand a model a file past the 50,000 rows one tool call returns.
+
 ## Over HTTP
 
 The [local server](/server/) answers `/v3/{option,stock,index}/flat_file/{dataset}` the way the terminal does. It writes each chunk as it arrives, so the first bytes leave at once and memory stays flat whatever the file's size. The columns carry the terminal's names: `root`, then `expiration`, `strike` and `right` on option files, then the dataset's columns, where the EOD report time is `ms_of_day` and the second time column `ms_of_day2`. Times are integer milliseconds since midnight ET and dates `YYYYMMDD` integers.
@@ -120,9 +187,9 @@ The [local server](/server/) answers `/v3/{option,stock,index}/flat_file/{datase
 | Parameter | Required | Description |
 |---|---|---|
 | `date` | yes | The file's date, `YYYYMMDD` or `YYYY-MM-DD`. |
-| `format` | no | `csv` (default), `json`, `ndjson` (alias `jsonl`) or `html`. |
+| `format` | no | `csv` (default), `json`, `json_legacy`, `ndjson` (alias `jsonl`) or `html`. |
 
-In CSV every text and price cell is quoted and a price keeps its decimal point (`"SPY",20261030,"808.0","P",...`); `json` wraps the rows in a `response` array with prices as strings. A refusal before any data, such as a date outside the window, answers with its own status, like every other route. A download that fails after the first bytes ends in a broken transfer, never a short file that reads as complete.
+In CSV every text and price cell is quoted and a price keeps its decimal point (`"SPY",20261030,"808.0","P",...`); `json` wraps the rows in a `response` array with prices as strings. The body is byte for byte the file the `_to_path` calls write. A refusal before any data, such as a date outside the window, answers with its own status, like every other route. A download that fails after the first bytes ends in a broken transfer, never a short file that reads as complete.
 
 ## The `flat_files` API
 

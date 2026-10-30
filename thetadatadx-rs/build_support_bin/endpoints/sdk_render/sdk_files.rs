@@ -121,6 +121,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi::render_c_stream_decls(&endpoints),
         },
         GeneratedSourceFile {
+            relative_path: "thetadatadx-cpp/include/market_data_to_path.h.inc",
+            contents: ffi::render_c_to_path_decls(&endpoints),
+        },
+        GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/endpoint_options.hpp.inc",
             contents: cpp::render_cpp_options(REQUEST_OPTIONS),
         },

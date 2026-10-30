@@ -344,6 +344,14 @@
         });
     }
 
+    /// Write the `stock_flat_file_eod` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void stock_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
+
     /// Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     std::vector<TradeQuoteTick> stock_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -364,6 +372,14 @@
         });
     }
 
+    /// Write the `stock_flat_file_trade_quote` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void stock_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
+
     /// Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     std::vector<IntervalQuoteTick> stock_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -383,6 +399,14 @@
             return std::make_pair(std::move(rows), std::move(columns));
         });
     }
+
+    /// Write the `stock_flat_file_quote` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void stock_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
 
     /// List all available option underlying symbols.
     std::vector<std::string> option_list_symbols(const EndpointRequestOptions& options = {}) const;
@@ -1320,6 +1344,14 @@
         });
     }
 
+    /// Write the `option_flat_file_eod` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void option_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
+
     /// Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
     std::vector<TradeQuoteTick> option_flat_file_trade_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -1339,6 +1371,14 @@
             return std::make_pair(std::move(rows), std::move(columns));
         });
     }
+
+    /// Write the `option_flat_file_trade_quote` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void option_flat_file_trade_quote_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
 
     /// Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
     std::vector<OpenInterestTick> option_flat_file_open_interest(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
@@ -1360,6 +1400,14 @@
         });
     }
 
+    /// Write the `option_flat_file_open_interest` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void option_flat_file_open_interest_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
+
     /// Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
     std::vector<IntervalQuoteTick> option_flat_file_quote(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -1379,6 +1427,14 @@
             return std::make_pair(std::move(rows), std::move(columns));
         });
     }
+
+    /// Write the `option_flat_file_quote` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void option_flat_file_quote_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
 
     /// List all available index symbols.
     std::vector<std::string> index_list_symbols(const EndpointRequestOptions& options = {}) const;
@@ -1624,6 +1680,14 @@
             return std::make_pair(std::move(rows), std::move(columns));
         });
     }
+
+    /// Write the `index_flat_file_eod` file for `date` to `path` as the terminal writes it.
+    ///
+    /// `format` is `csv` (the default), `json`, `json_legacy`, `ndjson` (or
+    /// `jsonl`) or `html`. The file streams to disk chunk by chunk and takes its
+    /// name only once complete; a path without an extension gets the format's.
+    /// Throws on failure.
+    void index_flat_file_eod_to_path(const std::string& date, const std::string& path, const std::string& format = "csv") const;
 
     /// Check whether the market is open today.
     std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;

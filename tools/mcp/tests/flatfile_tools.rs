@@ -22,13 +22,10 @@ const OFFLINE_TOOLS: [&str; 1] = ["ping"];
 
 /// Connection-only tools that must NOT appear while the server is offline:
 /// the flat-file tools and a representative registry market-data endpoint.
-const CONNECTION_ONLY_TOOLS: [&str; 7] = [
-    "thetadatadx_flatfile_request",
-    "thetadatadx_flatfile_option_trade_quote",
-    "thetadatadx_flatfile_option_open_interest",
-    "thetadatadx_flatfile_option_eod",
-    "thetadatadx_flatfile_stock_trade_quote",
-    "thetadatadx_flatfile_stock_eod",
+const CONNECTION_ONLY_TOOLS: [&str; 4] = [
+    "option_flat_file_trade_quote_to_path",
+    "stock_flat_file_eod_to_path",
+    "index_flat_file_eod_to_path",
     "option_history_greeks_eod",
 ];
 

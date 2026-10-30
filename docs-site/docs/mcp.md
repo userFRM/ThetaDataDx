@@ -60,22 +60,22 @@ Keep credentials in environment variables or a secrets manager, not in config fi
 
 Every generated market-data endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
-Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class (stock, options, indices, or interest-rate) is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, the two classes it serves. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
+Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class (stock, options, indices, or interest-rate) is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
-When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV (the default), a JSON array, JSON Lines or an HTML table, and returns the written path:
+The endpoint tools named `*_flat_file_*` return a flat file's rows like any other endpoint tool, under the 50,000-row limit below. A flat file cannot be narrowed, so one past the limit is refused as soon as its 50,001st row arrives, without downloading the rest. To obtain the whole file, each flat file also has an `<endpoint>_to_path` tool, advertised by class like its endpoint. It writes the file to disk as the terminal writes it, however many rows it has, and returns the written path. It takes the file's `date`, an optional `output_path` (a temp path when omitted) and an optional `format`: `csv` (the default), `json`, `json_legacy`, `ndjson` (or its alias `jsonl`) or `html`.
 
-- `thetadatadx_flatfile_request`: generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error.
-- `thetadatadx_flatfile_option_trade_quote`: option trade-quote flat file.
-- `thetadatadx_flatfile_option_open_interest`: option open-interest flat file.
-- `thetadatadx_flatfile_option_eod`: option end-of-day flat file.
-- `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
-- `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
-
-The endpoint tools named `*_flat_file_*` return a flat file's rows like any other endpoint tool, under the 50,000-row limit below. A flat file cannot be narrowed, so one past the limit is refused as soon as its 50,001st row arrives, without downloading the rest. The tools above write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
+- `option_flat_file_eod_to_path`: option end-of-day flat file.
+- `option_flat_file_trade_quote_to_path`: option trade-quote flat file.
+- `option_flat_file_open_interest_to_path`: option open-interest flat file.
+- `option_flat_file_quote_to_path`: option 1-minute quote flat file.
+- `stock_flat_file_eod_to_path`: stock end-of-day flat file.
+- `stock_flat_file_trade_quote_to_path`: stock trade-quote flat file.
+- `stock_flat_file_quote_to_path`: stock 1-minute quote flat file.
+- `index_flat_file_eod_to_path`: index end-of-day flat file.
 
 The `entitlements` tool reports the subscription tier held for each asset class, which is what decides the rest of the tool list.
 
-Without credentials, the server still starts and serves the offline tool (`ping`), which is useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
+Without credentials, the server still starts and serves the offline tool (`ping`), which is useful for testing the integration. The market-data endpoints and the flat-file tools need a live connection.
 
 ## Option queries from a model
 

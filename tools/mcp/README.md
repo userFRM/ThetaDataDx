@@ -8,7 +8,7 @@ MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM
 
 Speaks the `2026-07-28` revision of the protocol and still answers `2025-11-25` and `2024-11-05` clients. Call `server/discover` to read the revisions, capabilities and identity in one request.
 
-> **FLATFILES coverage:** the MCP server advertises six FLATFILES tools: `thetadatadx_flatfile_request` plus five convenience wrappers covering the datasets the distribution serves (`thetadatadx_flatfile_option_trade_quote`, `thetadatadx_flatfile_option_open_interest`, `thetadatadx_flatfile_option_eod`, `thetadatadx_flatfile_stock_trade_quote`, `thetadatadx_flatfile_stock_eod`). Each call writes the file to disk as CSV (the default), a JSON array, JSON Lines or an HTML table, and returns the path; the generic tool rejects an unserved `(sec_type, req_type)` pair with a typed invalid-parameter error.
+> **Flat files:** each of the eight flat files has an endpoint tool, which returns its rows under the 50,000-row limit, and an `<endpoint>_to_path` tool, which writes the whole file to disk as the terminal writes it and returns the path.
 
 ## Architecture
 
@@ -123,7 +123,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 8 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
 
 ### Offline (1 total: `ping`)
 
@@ -182,18 +182,18 @@ Advertised only when a client is connected.
 
 - `entitlements` - the subscription tier held for each asset class, which is what decides the rest of the tool list
 
-### Flat Files (6 tools)
+### Flat Files (8 tools)
 
-Advertised only when a client is connected, and by class: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+The `*_flat_file_*` endpoint tools listed by asset class above return a flat file's rows like any other endpoint tool, under the same 50,000-row limit per call. A flat file cannot be narrowed, so one past the limit is refused as soon as its 50,001st row arrives, without downloading the rest. The tools below write the whole file to disk instead, as the terminal writes it, and return the written path. Each takes `date`, an optional `output_path` (a temp path when omitted) and an optional `format`: `csv` (the default), `json`, `json_legacy`, `ndjson` (or its alias `jsonl`) or `html`. They are advertised only when a client is connected, and by class like their endpoints.
 
-The `*_flat_file_*` endpoint tools listed by asset class above return a flat file's rows like any other endpoint tool, under the same 50,000-row limit per call. A flat file cannot be narrowed, so one past the limit is refused as soon as its 50,001st row arrives, without downloading the rest. The tools below write a file to disk instead, for the five files the vendor's older flat-file service serves: option trade-quote, open interest and EOD, and stock trade-quote and EOD.
-
-- `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
-- `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file
-- `thetadatadx_flatfile_option_open_interest` - option open-interest flat file
-- `thetadatadx_flatfile_option_eod` - option end-of-day flat file
-- `thetadatadx_flatfile_stock_trade_quote` - stock trade-quote flat file
-- `thetadatadx_flatfile_stock_eod` - stock end-of-day flat file
+- `option_flat_file_eod_to_path` - option end-of-day flat file
+- `option_flat_file_trade_quote_to_path` - option trade-quote flat file
+- `option_flat_file_open_interest_to_path` - option open-interest flat file
+- `option_flat_file_quote_to_path` - option 1-minute quote flat file
+- `stock_flat_file_eod_to_path` - stock end-of-day flat file
+- `stock_flat_file_trade_quote_to_path` - stock trade-quote flat file
+- `stock_flat_file_quote_to_path` - stock 1-minute quote flat file
+- `index_flat_file_eod_to_path` - index end-of-day flat file
 
 ## Example Tool Calls
 

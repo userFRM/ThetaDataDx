@@ -233,6 +233,12 @@ pub(crate) fn decode_to_file(
             hdr.fmt.clone(),
             hdr.price_type_idx,
         )?),
+        FlatFileFormat::JsonLegacy => {
+            return Err(Error::config_invalid(
+                "format",
+                "json_legacy is written by the flat-file endpoints' `_to_path` calls",
+            ));
+        }
     };
     sink.write_header()?;
 

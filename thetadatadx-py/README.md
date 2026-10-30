@@ -232,6 +232,12 @@ df = eod.to_polars()                        # leads with each row's `symbol`
     .stream(lambda chunk: print(len(chunk))))
 ```
 
+Each file also writes straight to disk, exactly as the terminal writes it, through its `<endpoint>_to_path` companion (and `_to_path_async` in a coroutine), which returns the path written. `format` is `"csv"` (the default), `"json"`, `"json_legacy"`, `"ndjson"` or `"html"`:
+
+```python
+path = client.market_data.option_flat_file_trade_quote_to_path("20260428", "trade_quotes.csv")
+```
+
 The `flat_files` view (`option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, `request(...)`) and `flatfile_to_path(...)` read the vendor's older flat-file service, which serves five of those datasets and rejects an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage

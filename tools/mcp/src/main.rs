@@ -430,25 +430,16 @@ impl AssetClass {
 }
 
 /// Asset class a tool's data belongs to, or `None` when the tool is not gated
-/// by a market-data subscription: `ping`, the trading calendar, and the
-/// multi-asset `thetadatadx_flatfile_request` dispatcher (it validates the
-/// asset class per call).
+/// by a market-data subscription: `ping` and the trading calendar. A flat
+/// file's `<endpoint>_to_path` tool belongs to its endpoint's class.
 fn tool_asset_class(name: &str) -> Option<AssetClass> {
-    if let Some(ep) = ENDPOINTS.iter().find(|e| e.name == name) {
-        return AssetClass::from_category(ep.category);
-    }
-    // Flat-file convenience tools encode their security type in the name (see
-    // `convenience_pair` in flatfile_tools.rs). The multi-asset
-    // `_flatfile_request` dispatcher matches neither, so it has no single class
-    // to gate on here; it is gated on holding either of them where the tool
-    // list is built.
-    if name.contains("_flatfile_option_") {
-        Some(AssetClass::Option)
-    } else if name.contains("_flatfile_stock_") {
-        Some(AssetClass::Stock)
-    } else {
-        None
-    }
+    let endpoint = name
+        .strip_suffix(flatfile_tools::TO_PATH_SUFFIX)
+        .unwrap_or(name);
+    ENDPOINTS
+        .iter()
+        .find(|e| e.name == endpoint)
+        .and_then(|ep| AssetClass::from_category(ep.category))
 }
 
 /// Per-asset-class access granted by the authenticated subscription.
@@ -521,15 +512,6 @@ fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
         .filter(|tool| {
             tool_name(tool).is_some_and(|name| match tool_asset_class(name) {
                 Some(class) => access.allows(class),
-                // The multi-asset flat-file dispatcher validates asset class
-                // per call, so advertise it only to an account with at least
-                // one flat-file-eligible subscription (stock and option are
-                // the only classes with flat files). An index- or rate-only
-                // account is then never offered a flat-file tool it can serve
-                // for no class at all.
-                None if name == flatfile_tools::FLATFILE_DISPATCHER_TOOL => {
-                    access.stock || access.option
-                }
                 None => true,
             })
         })
@@ -1283,6 +1265,28 @@ macro_rules! param {
     };
 }
 
+/// Map a core [`thetadatadx::Error`] onto the JSON-RPC error taxonomy.
+///
+/// A request the SDK refuses on its own input, such as a malformed date or a
+/// list `symbol` filter naming several symbols where the list cannot
+/// attribute its values, fails with a typed invalid-parameter error before any
+/// upstream call. That is a client request fault (`-32602` Invalid params), not
+/// a server-side outage (`-32000` Server error). This mirrors the REST `400`
+/// and C-ABI `THETADATADX_ERR_INVALID_PARAMETER` mappings: any core error whose
+/// kind reports [`is_invalid_parameter`](thetadatadx::ConfigErrorKind::is_invalid_parameter)
+/// routes to Invalid params, generically, never keyed on the tool name.
+pub(crate) fn classify_core_error(e: &thetadatadx::Error) -> ToolError {
+    let message = sanitize_error(&e.to_string());
+    if matches!(
+        e,
+        thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter()
+    ) {
+        ToolError::InvalidParams(message)
+    } else {
+        ToolError::ServerError(message)
+    }
+}
+
 mod flatfile_tools;
 
 async fn execute_tool(
@@ -1376,8 +1380,9 @@ async fn execute_tool(
         Ok(None) => {
             return Err(ToolError::InvalidParams(format!(
                 "{name} has more than {MAX_TOOL_ROWS} rows; one tool call returns at most \
-                 {MAX_TOOL_ROWS}, and a flat file cannot be narrowed. Write it to disk with a \
-                 thetadatadx_flatfile_* tool where one serves it, or pull it with the SDK."
+                 {MAX_TOOL_ROWS}, and a flat file cannot be narrowed. Write it to disk with \
+                 {name}{}.",
+                flatfile_tools::TO_PATH_SUFFIX
             )));
         }
         Err(EndpointError::InvalidParams(message)) => {
@@ -1387,7 +1392,7 @@ async fn execute_tool(
             return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
         }
         Err(EndpointError::Server(error)) => {
-            return Err(flatfile_tools::classify_core_error(&error));
+            return Err(classify_core_error(&error));
         }
     };
 
@@ -2006,20 +2011,43 @@ mod tests {
     /// wider request.
     #[tokio::test]
     async fn an_undeclared_tool_argument_is_refused_by_name() {
-        let args = json!({ "symbol": "AAPL", "date": "20260315", "start_tim": "09:30:00" });
-        match execute_tool(
-            None,
-            "stock_history_quote",
-            &args,
-            std::time::Instant::now(),
-        )
-        .await
-        {
-            Err(ToolError::InvalidParams(message)) => {
-                assert!(message.contains("'start_tim'"), "{message}");
+        for (tool, args, key) in [
+            (
+                "stock_history_quote",
+                json!({ "symbol": "AAPL", "date": "20260315", "start_tim": "09:30:00" }),
+                "'start_tim'",
+            ),
+            // A filter cannot narrow a flat file written to disk either.
+            (
+                "stock_flat_file_eod_to_path",
+                json!({ "date": "20260315", "symbol": "AAPL" }),
+                "'symbol'",
+            ),
+        ] {
+            match execute_tool(None, tool, &args, std::time::Instant::now()).await {
+                Err(ToolError::InvalidParams(message)) => {
+                    assert!(message.contains(key), "{message}");
+                }
+                other => panic!("expected {key} to be refused by {tool}, got {other:?}"),
             }
-            other => panic!("expected the misspelled key to be refused, got {other:?}"),
         }
+    }
+
+    /// A core error the SDK raises on the caller's own input maps to `-32602`
+    /// Invalid params; any other core error to `-32000` Server error.
+    #[test]
+    fn core_errors_map_onto_their_json_rpc_codes() {
+        let invalid =
+            thetadatadx::Error::config_invalid("endpoint.params", "date must be YYYYMMDD");
+        assert!(matches!(
+            classify_core_error(&invalid),
+            ToolError::InvalidParams(_)
+        ));
+        let internal = thetadatadx::Error::config_internal("decode task panicked");
+        assert!(matches!(
+            classify_core_error(&internal),
+            ToolError::ServerError(_)
+        ));
     }
 
     #[tokio::test]
@@ -2366,7 +2394,7 @@ mod tests {
         // A flat-file tool and a registry market-data endpoint are connection-only
         // and must appear only in the connected surface.
         for online_only in [
-            "thetadatadx_flatfile_option_trade_quote",
+            "option_flat_file_trade_quote_to_path",
             "option_history_greeks_eod",
         ] {
             assert!(
@@ -2399,12 +2427,10 @@ mod tests {
             interest_rate: false,
         })));
         assert!(stock_only.contains("stock_history_eod"));
-        assert!(stock_only.contains("thetadatadx_flatfile_stock_eod"));
+        assert!(stock_only.contains("stock_flat_file_eod_to_path"));
         assert!(stock_only.contains("ping"));
-        // Stock is flat-file-eligible, so the multi-asset dispatcher stays.
-        assert!(stock_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
         assert!(!stock_only.contains("option_history_greeks_eod"));
-        assert!(!stock_only.contains("thetadatadx_flatfile_option_trade_quote"));
+        assert!(!stock_only.contains("option_flat_file_trade_quote_to_path"));
 
         // Options only: the mirror image.
         let option_only = tool_names(&tool_definitions_for(Some(SubscriptionAccess {
@@ -2414,14 +2440,12 @@ mod tests {
             interest_rate: false,
         })));
         assert!(option_only.contains("option_history_greeks_eod"));
-        assert!(option_only.contains("thetadatadx_flatfile_option_trade_quote"));
-        assert!(option_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
+        assert!(option_only.contains("option_flat_file_trade_quote_to_path"));
         assert!(!option_only.contains("stock_history_eod"));
-        assert!(!option_only.contains("thetadatadx_flatfile_stock_eod"));
+        assert!(!option_only.contains("stock_flat_file_eod_to_path"));
 
-        // Interest-rate only: no flat-file-eligible class, so the multi-asset
-        // dispatcher is withheld too — the account cannot serve it for any
-        // class. Rate tools stay; the always-available `ping` stays.
+        // Interest-rate only: no flat file belongs to the class, so none is
+        // offered; the always-available `ping` stays.
         let rate_only = tool_names(&tool_definitions_for(Some(SubscriptionAccess {
             stock: false,
             option: false,
@@ -2429,9 +2453,8 @@ mod tests {
             interest_rate: true,
         })));
         assert!(rate_only.contains("ping"));
-        assert!(!rate_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
-        assert!(!rate_only.contains("thetadatadx_flatfile_stock_eod"));
-        assert!(!rate_only.contains("thetadatadx_flatfile_option_trade_quote"));
+        assert!(!rate_only.contains("stock_flat_file_eod_to_path"));
+        assert!(!rate_only.contains("option_flat_file_trade_quote_to_path"));
 
         // Every class subscribed advertises the complete surface.
         assert_eq!(

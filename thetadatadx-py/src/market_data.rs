@@ -677,8 +677,61 @@ macro_rules! py_endpoint {
     (@stored_req $t:ident) => { String };
 }
 
-/// Expands the endpoint table into the endpoint methods, the builder classes
-/// and their registration.
+/// A flat file's `<endpoint>_to_path` method and its awaitable companion.
+macro_rules! py_to_path {
+    (flat_file $name:ident) => {
+        thetadatadx::__paste! {
+            #[pymethods]
+            impl MarketDataView {
+                #[doc = concat!("Write the `", stringify!($name), "` file for `date` to `path` as the terminal writes it, and return the path written.")]
+                #[doc = ""]
+                #[doc = "`format` is `\"csv\"` (the default), `\"json\"`, `\"json_legacy\"`, `\"ndjson\"` (or `\"jsonl\"`) or `\"html\"`. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's."]
+                #[pyo3(signature = (date, path, format=None))]
+                fn [<$name _to_path>](
+                    &self,
+                    py: Python<'_>,
+                    date: PyDateArg,
+                    path: std::path::PathBuf,
+                    format: Option<&str>,
+                ) -> PyResult<String> {
+                    let format = py_to_path!(@format format)?;
+                    let client = self.client.clone();
+                    let written = run_blocking(py, async move {
+                        client.market_data().[<$name _to_path>](date.as_str(), &path, format).await
+                    })?;
+                    Ok(written.to_string_lossy().into_owned())
+                }
+
+                #[doc = concat!("Async companion of `", stringify!($name), "_to_path`: returns an awaitable (`asyncio.Future`) that resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.")]
+                #[pyo3(signature = (date, path, format=None))]
+                fn [<$name _to_path_async>]<'py>(
+                    &self,
+                    py: Python<'py>,
+                    date: PyDateArg,
+                    path: std::path::PathBuf,
+                    format: Option<&str>,
+                ) -> PyResult<Bound<'py, PyAny>> {
+                    let format = py_to_path!(@format format)?;
+                    let client = self.client.clone();
+                    spawn_awaitable(
+                        py,
+                        async move { client.market_data().[<$name _to_path>](date.as_str(), &path, format).await },
+                        |py, written| Ok(written.to_string_lossy().into_owned().into_pyobject(py)?.into_any().unbind()),
+                    )
+                }
+            }
+        }
+    };
+    (@format $format:ident) => {
+        $format
+            .map_or(Ok(thetadatadx::flatfiles::FlatFileFormat::Csv), str::parse)
+            .map_err(crate::errors::invalid_parameter_err)
+    };
+    ($sub:ident $name:ident) => {};
+}
+
+/// Expands the endpoint table into the endpoint methods, the builder classes,
+/// the flat files' `_to_path` methods and their registration.
 macro_rules! py_market_data {
     ($( $(#[$attr:ident])* $shape:ident $name:ident {
         group: $cat:ident / $sub:ident,
@@ -687,7 +740,10 @@ macro_rules! py_market_data {
         params: [$($key:tt)*],
         doc: [$($doc:tt),* $(,)?],
     } )*) => {
-        $( thetadatadx::__resolve! { [$($key)*] => py_endpoint { [$($attr)*] $shape $name $ret $(($col))? [$($doc)*] } } )*
+        $(
+            thetadatadx::__resolve! { [$($key)*] => py_endpoint { [$($attr)*] $shape $name $ret $(($col))? [$($doc)*] } }
+            py_to_path! { $sub $name }
+        )*
 
         thetadatadx::__paste! {
             pub(crate) fn register_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
