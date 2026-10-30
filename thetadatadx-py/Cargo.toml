@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "0.7.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Python bindings for thetadatadx, the native ThetaData SDK powered by Rust"

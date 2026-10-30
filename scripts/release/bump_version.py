@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""Bump every user-visible version pin in lockstep.
+"""Move every version pin of the release in lockstep, or check that they agree.
 
 Usage:
-    scripts/release/bump_version.py 9.9.9
+    scripts/release/bump_version.py 9.9.9     # rewrite every pin
+    scripts/release/bump_version.py --check   # fail if any pin disagrees
 
-Reads the canonical version from ``thetadatadx-rs/Cargo.toml`` (only
-to print "from -> to" for context), then walks every file that pins a
-version of the published artifact and rewrites it. Every npm
-``package.json`` file (the TypeScript SDK launcher + its three platform
-packages, and the MCP server launcher + its five platform packages), the
-six member Cargo.toml files (thetadatadx-rs + ffi + tools/mcp + tools/server
-+ thetadatadx-py + thetadatadx-ts), and the ``optionalDependencies`` pins
-inside both ``package.json`` launchers. The workspace ``Cargo.lock`` is
-refreshed via ``cargo update --workspace``.
+The canonical version is `[workspace.package] version` in the root
+`Cargo.toml`, which every member crate inherits. The other pins are the npm
+packages (the TypeScript SDK launcher and its platform packages, the MCP server
+launcher and its platform packages, the launchers' `optionalDependencies`), the
+napi loader `thetadatadx-ts/index.js` and the TypeScript `package-lock.json`,
+the C++ `project(... VERSION ...)`, the published OpenAPI `info.version`, and
+every `thetadatadx-rs = "<version>"` pin in the Markdown docs.
 
-After the bump, ``scripts/ci/check_version_sync.py`` runs to verify nothing
-got missed. Exits non-zero if anything is out of sync.
-
-This is the only supported way to bump the SDK version. Doing it by
-hand reliably misses ``thetadatadx-ts/`` files (lesson from npm being
-stuck at v9.9.6 across v9.9.7 / v9.9.8 / v9.9.9 releases).
+A bump validates every pin before writing any, so it writes all of them or
+none. `--check` runs the same validation against the canonical version and
+writes nothing; CI runs it on every push. This is the only supported way to
+bump the version: by hand, `thetadatadx-ts/` reliably gets missed, which once
+left npm three releases behind.
 """
 
 from __future__ import annotations
@@ -32,7 +30,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
-WORKSPACE_CARGOS = [
+MEMBER_CARGOS = [
     ROOT / "thetadatadx-rs" / "Cargo.toml",
     ROOT / "thetadatadx-ffi" / "Cargo.toml",
     ROOT / "tools" / "mcp" / "Cargo.toml",
@@ -41,273 +39,242 @@ WORKSPACE_CARGOS = [
     ROOT / "thetadatadx-ts" / "Cargo.toml",
 ]
 
-def parse_semver(value: str) -> tuple[int, int, int]:
-    # Accept an optional SemVer pre-release / build suffix (e.g.
-    # `9.9.9-rc.1`) so a release candidate can be bumped with the same
-    # tool. The numeric core is returned; the suffix rides through on the
-    # version strings the bump writes. Cargo and npm take `-rc.1` as-is;
-    # maturin normalises it to the PEP 440 form, and `bump_cmake` writes
-    # only the numeric core.
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.\-]+)?", value)
-    if not match:
+# `thetadatadx-rs = "<version>"` and `thetadatadx-rs = { version = "<version>", ... }`.
+DOC_PIN_RE = re.compile(r'thetadatadx-rs\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")')
+# The changelogs, release notes and migration guides pin past versions by design.
+_DOC_PIN_EXCLUDE_FRAGMENTS = ("/target/", "/node_modules/", "/.git/", "/.github/", "/migration/", "/worktrees/")
+_DOC_PIN_EXCLUDE_NAMES = frozenset({"CHANGELOG.md", "changelog.md"})
+
+
+class PinError(Exception):
+    """A pin that does not hold the version the bump expects."""
+
+
+def parse_semver(value: str) -> None:
+    # A pre-release or build suffix (`9.9.9-rc.1`) rides through: Cargo and npm
+    # take it as-is, maturin normalises it to PEP 440, and CMake gets the core.
+    if not re.fullmatch(r"\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.\-]+)?", value):
         sys.exit(f"not a semver MAJOR.MINOR.PATCH[-prerelease]: '{value}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 def current_canonical() -> str:
-    text = (ROOT / "thetadatadx-rs" / "Cargo.toml").read_text()
-    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    match = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "Cargo.toml").read_text(), re.MULTILINE)
     if not match:
-        sys.exit("could not parse current version from thetadatadx-rs/Cargo.toml")
+        sys.exit("could not parse `[workspace.package] version` from Cargo.toml")
     return match.group(1)
 
 
-def bump_cargo(path: Path, current: str, target: str) -> None:
-    text = path.read_text()
-    pattern = re.compile(rf'^version\s*=\s*"{re.escape(current)}"', re.MULTILINE)
-    new_text, count = pattern.subn(f'version = "{target}"', text, count=1)
+def bump_cargo(text: str, current: str, target: str) -> str:
+    new_text, count = re.subn(
+        rf'^version\s*=\s*"{re.escape(current)}"', f'version = "{target}"', text, count=1, flags=re.MULTILINE
+    )
     if count != 1:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: expected one `version = \"{current}\"` line, "
-            f"found {count}"
-        )
-    path.write_text(new_text)
+        raise PinError(f'expected one `version = "{current}"` line')
+    return new_text
 
 
-def bump_root_package_json(path: Path, current: str, target: str) -> None:
-    data = json.loads(path.read_text())
-    if data.get("version") != current:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: version is {data.get('version')!r}, "
-            f"expected {current!r}"
-        )
-    data["version"] = target
-    deps = data.get("optionalDependencies", {})
-    for name, pinned in list(deps.items()):
-        if pinned == current:
+def require_inherited_version(text: str, current: str, target: str) -> str:
+    """A member that pins its own version leaves the lockstep silently."""
+    if not re.search(r"^version\.workspace\s*=\s*true\s*$", text, re.MULTILINE):
+        raise PinError("does not inherit `version.workspace = true`")
+    return text
+
+
+def _platform_names(npm_dir: Path, launcher: str | None = None) -> set[str]:
+    return {
+        json.loads(pkg.read_text())["name"]
+        for pkg in npm_dir.glob("*/package.json")
+        if pkg.parent.name != launcher
+    }
+
+
+def bump_launcher_package_json(platforms: set[str]):
+    """The launcher's version and its `optionalDependencies` pins, which must
+    name every platform package the repository publishes: a missing one never
+    installs the native binary on that platform."""
+
+    def bump(text: str, current: str, target: str) -> str:
+        data = json.loads(text)
+        if data.get("version") != current:
+            raise PinError(f"version is {data.get('version')!r}, expected {current!r}")
+        data["version"] = target
+        deps = data.get("optionalDependencies", {})
+        if not platforms or set(deps) != platforms:
+            raise PinError(f"optionalDependencies name {sorted(deps)}, the platform packages are {sorted(platforms)}")
+        for name, pinned in deps.items():
+            if pinned != current:
+                raise PinError(f"optionalDependencies['{name}'] is {pinned!r}, expected {current!r}")
             deps[name] = target
-        else:
-            sys.exit(
-                f"{path.relative_to(ROOT)} optionalDependencies['{name}'] is "
-                f"{pinned!r}, expected {current!r}"
-            )
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+    return bump
 
 
-def bump_platform_package_json(path: Path, current: str, target: str) -> None:
-    data = json.loads(path.read_text())
+def bump_platform_package_json(text: str, current: str, target: str) -> str:
+    data = json.loads(text)
     if data.get("version") != current:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: version is {data.get('version')!r}, "
-            f"expected {current!r}"
-        )
+        raise PinError(f"version is {data.get('version')!r}, expected {current!r}")
     data["version"] = target
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-def bump_napi_index_js(path: Path, current: str, target: str) -> None:
-    """Rewrite the version napi baked into `thetadatadx-ts/index.js`.
-
-    The file is generated by the napi build from package.json and committed,
-    and it ships to npm inside package.json's `files`. It pins the version at
-    every native-binding load path, so a bump that leaves it behind publishes a
-    package whose own loader rejects its own binary once
-    NAPI_RS_ENFORCE_VERSION_CHECK is set. Every semantic version in the file is
-    that one pin, which is why a textual replace produces exactly what
-    regenerating would; `check_version_sync.py` verifies the result either way.
-    """
-    text = path.read_text()
-    # The same pattern `check_version_sync.py` reads the file with. Stopping at
-    # the patch digit reads a `0.5.1-rc.1` pin as `0.5.1`, so every bump away
-    # from a pre-release stopped here after the manifests were already written.
+def bump_napi_index_js(text: str, current: str, target: str) -> str:
+    """The version napi bakes into every native-binding load path of the
+    generated, published `index.js`. Left behind, the loader rejects its own
+    binary once NAPI_RS_ENFORCE_VERSION_CHECK is set. Every semantic version in
+    the file is that one pin, so a textual replace is what regenerating gives."""
+    # The suffix is part of the version: a pattern that stopped at the patch
+    # digit would read a loader still pinned to `0.5.1-rc.1` as `0.5.1`.
     found = set(re.findall(r"\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", text))
     if found != {current}:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: pins {sorted(found)}, expected only "
-            f"{current!r}; regenerate it with `npm run build` in thetadatadx-ts "
-            "and bump again"
-        )
-    path.write_text(text.replace(current, target))
+        raise PinError(f"pins {sorted(found)}, expected only {current!r}; regenerate it with `npm run build`")
+    return text.replace(current, target)
 
 
-def bump_package_lock(path: Path, current: str, target: str, first_party_prefix: str) -> None:
-    """Move this package's version, and its own platform packages, in a lockfile.
+def bump_package_lock(first_party_prefix: str):
+    """This package's version, and its own platform packages, in a lockfile.
 
-    Three kinds of entry carry it: the top-level `version`, `packages[""]`, and
-    the `node_modules/<first-party>` entries for the per-platform binary
-    packages this project publishes alongside the launcher. Third-party
-    dependencies that happen to sit at the same version are left alone.
-
-    The platform entries matter as much as the self-version: the launcher pins
-    them through `optionalDependencies`, so a lockfile left behind makes
-    `npm ci` install the previous release's binaries under the new launcher,
-    which is the exact mismatch `index.js` throws on.
+    The launcher pins the platform packages through `optionalDependencies`, so
+    a lockfile left behind makes `npm ci` install the previous release's
+    binaries under the new launcher. Third-party packages at the same version
+    are left alone.
     """
-    data = json.loads(path.read_text())
-    root_pkg = data.get("packages", {}).get("", {})
-    for where, holder in (("version", data), ('packages[""].version', root_pkg)):
-        if holder.get("version") != current:
-            sys.exit(
-                f"{path.relative_to(ROOT)} {where} is {holder.get('version')!r}, "
-                f"expected {current!r}"
-            )
-        holder["version"] = target
 
-    moved = 0
-    # The launcher records its dependency pins a second time inside the
-    # lockfile; `npm ci` resolves from these, so leaving them behind asks for
-    # the previous release's binaries by name.
-    for dep, pinned in list(root_pkg.get("optionalDependencies", {}).items()):
-        if dep.startswith(first_party_prefix) and pinned == current:
-            root_pkg["optionalDependencies"][dep] = target
-            moved += 1
-    for name, entry in data.get("packages", {}).items():
-        if not name.startswith("node_modules/"):
-            continue
-        if not name.rsplit("/", 1)[-1].startswith(first_party_prefix):
-            continue
-        if isinstance(entry, dict) and entry.get("version") == current:
+    def bump(text: str, current: str, target: str) -> str:
+        data = json.loads(text)
+        root_pkg = data.get("packages", {}).get("", {})
+        for where, holder in (("version", data), ('packages[""].version', root_pkg)):
+            if holder.get("version") != current:
+                raise PinError(f"{where} is {holder.get('version')!r}, expected {current!r}")
+            holder["version"] = target
+
+        moved = 0
+        for dep, pinned in list(root_pkg.get("optionalDependencies", {}).items()):
+            if dep.startswith(first_party_prefix):
+                if pinned != current:
+                    raise PinError(f'packages[""].optionalDependencies[{dep!r}] is {pinned!r}, expected {current!r}')
+                root_pkg["optionalDependencies"][dep] = target
+        for name, entry in data.get("packages", {}).items():
+            if not name.startswith("node_modules/") or not name.rsplit("/", 1)[-1].startswith(first_party_prefix):
+                continue
+            if entry.get("version") != current:
+                raise PinError(f"{name} is {entry.get('version')!r}, expected {current!r}")
+            resolved = entry.get("resolved")
+            if resolved and f"-{current}.tgz" not in resolved:
+                raise PinError(f"{name} is {current} but resolves {resolved.rsplit('/', 1)[-1]}")
             entry["version"] = target
-            # `resolved` and `integrity` describe the tarball of the version
-            # being left behind, and the new one does not exist on the registry
-            # until this release publishes it. Carrying them over labels the
-            # old artifact with the new version, which is how this entry came
-            # to say 0.5.0 beside a 0.4.0 tarball. Dropping them is a legal
-            # lockfile state: npm resolves the entry on the next install.
-            entry.pop("resolved", None)
-            entry.pop("integrity", None)
+            if target != current:
+                # The new release's tarballs do not exist until it publishes;
+                # carrying these over labels the old artifact with the new
+                # version. npm resolves the entry again on the next install.
+                entry.pop("resolved", None)
+                entry.pop("integrity", None)
             moved += 1
-    if moved == 0:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: found no `node_modules/{first_party_prefix}*` "
-            f"entry at {current!r}; the platform packages are pinned through "
-            "optionalDependencies and must move with the launcher"
-        )
+        if moved == 0:
+            raise PinError(f"no `node_modules/{first_party_prefix}*` entry")
+        return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    return bump
 
 
-def bump_cmake(path: Path, current: str, target: str) -> None:
-    """Move the `project(... VERSION x.y.z ...)` pin in the C++ CMakeLists.
-
-    CMake rejects anything but a numeric version at configure, so the pin
-    carries only the numeric core and a pre-release suffix is dropped on both
-    sides. Moving between candidates of one release leaves it unchanged.
-    """
-    text = path.read_text()
+def bump_cmake(text: str, current: str, target: str) -> str:
+    """CMake rejects anything but a numeric version, so the pin carries only
+    the numeric core and a pre-release suffix is dropped on both sides."""
     needle = f"VERSION {re.split(r'[-+]', current, maxsplit=1)[0]}"
     if text.count(needle) != 1:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: expected exactly one {needle!r}, "
-            f"found {text.count(needle)}"
-        )
-    path.write_text(
-        text.replace(needle, f"VERSION {re.split(r'[-+]', target, maxsplit=1)[0]}")
+        raise PinError(f"expected exactly one {needle!r}, found {text.count(needle)}")
+    return text.replace(needle, f"VERSION {re.split(r'[-+]', target, maxsplit=1)[0]}")
+
+
+def bump_openapi_yaml(text: str, current: str, target: str) -> str:
+    """`info.version`, the only unindented-block `version:` the spec carries."""
+    needle = f"\n  version: {current}\n"
+    if text.count(needle) != 1:
+        raise PinError(f"expected exactly one info `version: {current}`")
+    return text.replace(needle, f"\n  version: {target}\n")
+
+
+def bump_doc_pins(text: str, current: str, target: str) -> str:
+    stale = sorted({m.group(1) or m.group(2) for m in DOC_PIN_RE.finditer(text)} - {current})
+    if stale:
+        raise PinError(f"pins thetadatadx-rs at {stale}, expected {current!r}")
+    return DOC_PIN_RE.sub(lambda m: m.group(0).replace(f'"{current}"', f'"{target}"'), text)
+
+
+def _doc_pin_files() -> list[Path]:
+    """Every Markdown file that should carry the current pin, discovered so a
+    new install snippet is covered the moment it lands."""
+    return sorted(
+        path
+        for path in ROOT.rglob("*.md")
+        if not any(frag in "/" + path.relative_to(ROOT).as_posix() for frag in _DOC_PIN_EXCLUDE_FRAGMENTS)
+        and path.name not in _DOC_PIN_EXCLUDE_NAMES
     )
 
 
-def bump_openapi_yaml(path: Path, current: str, target: str) -> None:
-    """Move `info.version` in the published OpenAPI document."""
-    text = path.read_text()
-    needle = f"version: {current}"
-    if text.count(needle) != 1:
-        sys.exit(
-            f"{path.relative_to(ROOT)}: expected exactly one {needle!r}, "
-            f"found {text.count(needle)}"
-        )
-    path.write_text(text.replace(needle, f"version: {target}"))
+def pins() -> list[tuple[Path, object]]:
+    ts = ROOT / "thetadatadx-ts"
+    mcp_npm = ROOT / "tools" / "mcp" / "npm"
+    mcp_launcher = "thetadatadx-mcp-server"
+    out: list[tuple[Path, object]] = [(ROOT / "Cargo.toml", bump_cargo)]
+    out += [(cargo, require_inherited_version) for cargo in MEMBER_CARGOS]
+    out.append((ts / "package.json", bump_launcher_package_json(_platform_names(ts / "npm"))))
+    out += [(pkg, bump_platform_package_json) for pkg in sorted((ts / "npm").glob("*/package.json"))]
+    out.append((ts / "index.js", bump_napi_index_js))
+    out.append((ts / "package-lock.json", bump_package_lock("thetadatadx-ts")))
+    # The MCP server ships to npm too (`npx -y thetadatadx-mcp-server`), laid
+    # out like the TypeScript SDK.
+    out.append(
+        (mcp_npm / mcp_launcher / "package.json", bump_launcher_package_json(_platform_names(mcp_npm, mcp_launcher)))
+    )
+    out += [
+        (pkg, bump_platform_package_json)
+        for pkg in sorted(mcp_npm.glob("*/package.json"))
+        if pkg.parent.name != mcp_launcher
+    ]
+    out.append((ROOT / "thetadatadx-cpp" / "CMakeLists.txt", bump_cmake))
+    out.append((ROOT / "docs-site" / "docs" / "public" / "thetadatadx.yaml", bump_openapi_yaml))
+    out += [(doc, bump_doc_pins) for doc in _doc_pin_files()]
+    return out
 
 
-def bump_doc_pins(current: str, target: str) -> list[Path]:
-    """Move every `thetadatadx-rs = "<version>"` pin in the docs.
-
-    The file set and the pin pattern come from `check_version_sync.py` rather
-    than being restated here, so the files the bump writes are exactly the
-    files the gate reads. Restating them is how `index.js` and
-    `package-lock.json` came to be written by one and checked by neither.
-    """
-    sys.path.insert(0, str(ROOT / "scripts" / "ci"))
-    import check_version_sync as sync
-
-    touched: list[Path] = []
-    for doc in sync._discover_doc_pin_files():
-        text = doc.read_text()
-        replaced = sync.DOC_PIN_RE.sub(
-            lambda m: m.group(0).replace(f'"{current}"', f'"{target}"'), text
-        )
-        if replaced != text:
-            doc.write_text(replaced)
-            touched.append(doc)
-    return touched
+def rewrite_all(current: str, target: str) -> tuple[dict[Path, str], list[str]]:
+    rewritten: dict[Path, str] = {}
+    errors: list[str] = []
+    for path, bump in pins():
+        try:
+            rewritten[path] = bump(path.read_text(), current, target)
+        except (PinError, OSError) as exc:
+            errors.append(f"{path.relative_to(ROOT)}: {exc}")
+    return rewritten, errors
 
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
-        sys.exit("usage: scripts/release/bump_version.py <new-version>")
-    target = argv[1]
-    parse_semver(target)
+        sys.exit("usage: scripts/release/bump_version.py <new-version> | --check")
     current = current_canonical()
+    target = current if argv[1] == "--check" else argv[1]
+    parse_semver(target)
+
+    rewritten, errors = rewrite_all(current, target)
+    if errors:
+        print(f"version pins disagree with Cargo.toml ({current}):", file=sys.stderr)
+        for error in errors:
+            print(f"  - {error}", file=sys.stderr)
+        return 1
+    if argv[1] == "--check":
+        print(f"version pins: {len(rewritten)} files at {current}")
+        return 0
     if current == target:
         sys.exit(f"current version is already {current}; nothing to bump")
+
     print(f"bumping {current} -> {target}")
-
-    for cargo in WORKSPACE_CARGOS:
-        bump_cargo(cargo, current, target)
-        print(f"  bumped {cargo.relative_to(ROOT)}")
-
-    bump_root_package_json(
-        ROOT / "thetadatadx-ts" / "package.json", current, target
-    )
-    print("  bumped thetadatadx-ts/package.json (+ optionalDependencies)")
-
-    for platform_pkg in (ROOT / "thetadatadx-ts" / "npm").glob("*/package.json"):
-        bump_platform_package_json(platform_pkg, current, target)
-        print(f"  bumped {platform_pkg.relative_to(ROOT)}")
-
-    bump_napi_index_js(ROOT / "thetadatadx-ts" / "index.js", current, target)
-    print("  bumped thetadatadx-ts/index.js (napi binding-version pins)")
-
-    bump_package_lock(
-        ROOT / "thetadatadx-ts" / "package-lock.json", current, target, "thetadatadx-ts"
-    )
-    print("  bumped thetadatadx-ts/package-lock.json")
-
-    # The MCP server ships to npm too (`npx -y thetadatadx-mcp-server`): a launcher
-    # package with per-platform binary packages as optionalDependencies,
-    # mirroring the TypeScript SDK layout under `tools/mcp/npm/`.
-    bump_root_package_json(
-        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp-server" / "package.json",
-        current,
-        target,
-    )
-    print("  bumped tools/mcp/npm/thetadatadx-mcp-server/package.json (+ optionalDependencies)")
-
-    for platform_pkg in (ROOT / "tools" / "mcp" / "npm").glob("*/package.json"):
-        if platform_pkg.parent.name == "thetadatadx-mcp-server":
-            continue  # the launcher package, bumped above
-        bump_platform_package_json(platform_pkg, current, target)
-        print(f"  bumped {platform_pkg.relative_to(ROOT)}")
-
-    bump_cmake(ROOT / "thetadatadx-cpp" / "CMakeLists.txt", current, target)
-    print("  bumped thetadatadx-cpp/CMakeLists.txt")
-
-    bump_openapi_yaml(
-        ROOT / "docs-site" / "docs" / "public" / "thetadatadx.yaml", current, target
-    )
-    print("  bumped docs-site/docs/public/thetadatadx.yaml")
-
-    for doc in bump_doc_pins(current, target):
-        print(f"  bumped {doc.relative_to(ROOT)} (doc pin)")
-
+    for path, text in rewritten.items():
+        if text != path.read_text():
+            path.write_text(text)
+            print(f"  bumped {path.relative_to(ROOT)}")
     print("refreshing Cargo.lock ...")
     subprocess.run(["cargo", "update", "--workspace"], cwd=ROOT, check=True)
-
-    print("verifying with scripts/ci/check_version_sync.py ...")
-    subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "ci" / "check_version_sync.py")],
-        cwd=ROOT,
-        check=True,
-    )
     print(f"version bump to {target} complete; review `git diff` before committing")
     return 0
 

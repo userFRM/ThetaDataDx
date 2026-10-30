@@ -291,13 +291,10 @@ def check_static_docs() -> None:
         "Every generated market-data endpoint plus `ping`.",
     )
     # Version strings in getting-started docs must match the canonical
-    # workspace version; derive it from `thetadatadx-rs/Cargo.toml`
-    # so the pin tracks bumps automatically instead of pinning a literal
-    # that silently ages. The version-sync gate
-    # (`scripts/ci/check_version_sync.py`) enforces the major separately.
-    cargo_version = tomllib.loads(
-        (ROOT / "thetadatadx-rs/Cargo.toml").read_text()
-    )["package"]["version"]
+    # workspace version; derive it from the root `Cargo.toml` so the pin
+    # tracks bumps automatically instead of pinning a literal that silently
+    # ages.
+    cargo_version = tomllib.loads((ROOT / "Cargo.toml").read_text())["workspace"]["package"]["version"]
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
         f'thetadatadx-rs = "{cargo_version}"',
