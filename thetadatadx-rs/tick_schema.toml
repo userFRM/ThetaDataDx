@@ -40,7 +40,7 @@
 #
 # Render block (per-language binding names):
 #   collection            -- wire-collection plural (e.g. "GreeksTicks") matched
-#                            by `endpoint_surface.toml::returns`. Must be unique.
+#                            by an endpoint's `returns` type plus `s`. Must be unique.
 #   direct                -- Rust direct-client tick type
 #   parser                -- generated parser fn name (matches `parser` above)
 #   ffi_array             -- FFI array struct (e.g. "ThetaDataDxGreeksAllTickArray")

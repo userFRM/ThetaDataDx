@@ -2,8 +2,8 @@
 //!
 //! Unlike the market-data / streaming surfaces, FLATFILES has only one
 //! Rust public entry point (`flatfile_request_decoded`) whose schema is
-//! determined at runtime by `(SecType, ReqType)`. Codegen via
-//! `endpoint_surface.toml` / `tick_schema.toml` does not apply — those
+//! determined at runtime by `(SecType, ReqType)`. Codegen via the
+//! endpoint table / `tick_schema.toml` does not apply: those
 //! pipelines target static-schema endpoints. This module is intentionally
 //! hand-written and stays under 350 LOC.
 //!

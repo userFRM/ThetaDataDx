@@ -8,9 +8,7 @@ type structs, and DataTable parsers across all languages.
 
 **`mdds.proto` is the canonical wire contract, provided directly by ThetaData engineering.**
 
-**The endpoint table in `../src/surface/endpoints.rs` is the endpoint surface of the Rust client.** It owns normalized endpoint names, parameter semantics, REST paths, return kinds and documentation. Every entry builds its request from the message types generated from `mdds.proto`, so an entry that does not match the wire contract does not compile.
-
-**`endpoint_surface.toml` carries the same surface for the other bindings and the docs site.** It owns projection call-shapes, reusable parameter groups, and endpoint templates, and `generate_sdk_surfaces` validates it against the wire contract in `mdds.proto`. An endpoint change goes into both files.
+**The endpoint table in `../src/surface/endpoints.rs` is the endpoint surface of every binding.** It owns normalized endpoint names, parameter semantics, REST paths, return kinds and documentation. Every entry builds its request from the message types generated from `mdds.proto`, so an entry that does not match the wire contract does not compile. `generate_sdk_surfaces` renders the Python type stub, the C and C++ headers, the live validators and the docs site's endpoint pages from the same table, and fails while an RPC of `mdds.proto` has no entry.
 
 Earlier revisions of this crate shipped two separate proto files
 (`endpoints.proto` + `v3_endpoints.proto`). Those have
@@ -29,8 +27,7 @@ proto/
   MAINTENANCE.md    - this file
 
 ../tick_schema.toml    - column schemas for all DataTable-returning endpoints
-../src/surface/endpoints.rs - endpoint table (the Rust surface)
-../endpoint_surface.toml   - endpoint surface of the bindings and docs
+../src/surface/endpoints.rs - endpoint table (every endpoint surface)
 ../build.rs                - small build entrypoint
 ../build_support/          - build-time generators and validators
 ```
@@ -57,21 +54,23 @@ The build needs no `protoc`. Under the `grpc-codegen`
 feature the build additionally recompiles `mdds.proto` with `protoc` and
 drift-checks the committed snapshot; CI runs that check.
 
-## Endpoint surface spec structure
+## Endpoint table structure
 
-`endpoint_surface.toml` is intentionally more expressive than the upstream
-proto. It supports three layers:
+The table has two layers:
 
-1. **`param_groups.*`** for reusable parameter blocks such as contract
-   identity, date ranges, or common builder filters.
-2. **`templates.*`** for reusable endpoint families such as stock snapshots or
-   option Greeks history. Templates may inherit from each other with `extends`.
-3. **`[[endpoints]]`** for concrete endpoint declarations that bind a name,
-   description, rest path, return kind, and any endpoint-specific overrides.
+1. **`__param!`** defines each parameter once (its wire name, whether it is
+   required, its type, its default and its description) and names reusable
+   groups of parameters, such as contract identity or date ranges.
+2. **`__endpoints!`** declares each endpoint: its shape, name, group, REST
+   path, return type, the parameter keys it takes and its documentation.
 
-The generator expands groups and templates first, then validates the fully
-resolved endpoint against `mdds.proto`. Cycles, unknown references, unused
-groups/templates, and invalid overrides fail `generate_sdk_surfaces`.
+The module documentation of `../src/surface/endpoints.rs` describes the
+grammar. An unknown key or a malformed entry does not expand, and an entry
+whose parameters do not match its request message does not compile.
+`generate_sdk_surfaces` rejects what the compiler lets through: an unknown
+shape, a list entry that does not return `StringList` or a non-list entry
+that does, a default its type does not accept, and an enum parameter whose
+description does not list exactly the values of its enum.
 
 ## How to: add a new column to an existing endpoint
 
@@ -135,12 +134,11 @@ use the existing type.
 
 Add a new entry to the endpoint table in `../src/surface/endpoints.rs`. Its module documentation describes the entry grammar, and the compiler checks the entry against the request messages.
 
-Add the matching entry to `../endpoint_surface.toml`. `generate_sdk_surfaces` validates it against the wire contract in `mdds.proto` and renders the binding surfaces from it.
-
-Prefer reusing existing `param_groups` and `templates` instead of copying whole
-parameter blocks. If the new endpoint introduces a new repeated family shape,
-add a new template or parameter group first and then reference it from the
-concrete endpoint entry.
+Prefer reusing the parameter definitions and groups in `__param!` instead of
+defining a parameter again. If the new endpoint introduces a new repeated
+family shape, add a group first and then reference it from the entry.
+`generate_sdk_surfaces` renders the binding surfaces and the docs pages from
+the entry.
 
 **Step 4: Build and test**
 
@@ -166,8 +164,8 @@ When ThetaData ships a new version:
    `protoc`): `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`,
    then commit the `proto/beta_endpoints.snapshot.rs` diff. CI drift-checks
    this under `--features grpc-codegen`, so a stale snapshot fails the build.
-4. If any RPCs were renamed or removed, the endpoint table entries that no longer match the wire contract fail to compile, and `generate_sdk_surfaces` rejects `endpoint_surface.toml`. Fix both.
-5. If new RPCs were added, add corresponding entries to the endpoint table and to `endpoint_surface.toml`.
+4. If any RPCs were renamed or removed, the endpoint table entries that no longer match the wire contract fail to compile. Fix them.
+5. If new RPCs were added, add corresponding entries to the endpoint table; `generate_sdk_surfaces` fails until every RPC has one.
 6. If column schemas changed, update `tick_schema.toml` to match.
 7. Run `cargo test` to verify everything works.
 

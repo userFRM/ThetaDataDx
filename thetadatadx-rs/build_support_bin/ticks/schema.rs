@@ -208,9 +208,9 @@ pub(crate) struct ColumnDef {
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct TickRenderDef {
     /// Wire-collection plural keying every renderer call (e.g. `"GreeksTicks"`).
-    /// Matches the `returns` value declared on each endpoint in
-    /// `endpoint_surface.toml`. Build-time validator rejects duplicates and
-    /// strays.
+    /// Matches the collection each endpoint of the endpoint table returns
+    /// (its `returns` type plus `s`). The render-map loader rejects
+    /// duplicates, and an endpoint returning a collection with no entry.
     pub(crate) collection: String,
     pub(crate) python_pyclass_list: String,
     pub(crate) python_vec_to_pylist: String,

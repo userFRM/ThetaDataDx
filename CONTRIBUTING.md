@@ -130,11 +130,10 @@ feat(core)!: replace MarketDataClient with the unified Client
 
 The endpoint-facing source of truth is split across:
 - `thetadatadx-rs/proto/mdds.proto` for the wire contract
-- `thetadatadx-rs/src/surface/endpoints.rs`, the endpoint table, for the Rust surface
-- `thetadatadx-rs/endpoint_surface.toml` for the Python and C binding surfaces and the docs
+- `thetadatadx-rs/src/surface/endpoints.rs`, the endpoint table, for every binding surface and the docs
 - `thetadatadx-rs/tick_schema.toml` for DataTable parser layouts
 
-The endpoint table expands at compile time into the registry, the shared endpoint dispatch, the `MarketDataClient` methods and builders, and the TypeScript market-data methods.
+The endpoint table expands at compile time into the registry, the shared endpoint dispatch, the `MarketDataClient` methods and builders, and the Python, TypeScript and C ABI endpoint surfaces. `generate_sdk_surfaces` renders the Python type stub, the C and C++ headers, the live validators and the docs site's endpoint pages from it.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`
@@ -147,9 +146,8 @@ The endpoint table expands at compile time into the registry, the shared endpoin
      and commit the resulting diff alongside the proto change.
 
 2. **Add or update the endpoint surface**
-   - Add an entry to the endpoint table in `thetadatadx-rs/src/surface/endpoints.rs`; its module documentation describes the entry grammar
-   - Add the matching entry to `thetadatadx-rs/endpoint_surface.toml`, reusing existing `param_groups` / `templates` where possible
-   - `cargo build` checks the table entry against the request messages of `mdds.proto`; `generate_sdk_surfaces` validates the TOML entry against `mdds.proto`
+   - Add an entry to the endpoint table in `thetadatadx-rs/src/surface/endpoints.rs`, reusing the parameter definitions and groups in `__param!` where possible; its module documentation describes the entry grammar
+   - `cargo build` checks the entry against the request messages of `mdds.proto`, and `generate_sdk_surfaces` fails while an RPC of `mdds.proto` has no entry
 
 3. **Add the column schema** (if the response has a new layout)
    - Add a `[types.YourTick]` block to `thetadatadx-rs/tick_schema.toml`
@@ -164,7 +162,7 @@ The endpoint table expands at compile time into the registry, the shared endpoin
    - Only change the macro layer (`mdds/endpoints.rs`, `mdds/macros.rs`) if the new endpoint shape cannot be expressed by the table's grammar
 
 5. **Regenerate downstream SDK/tool surfaces**
-   - Endpoint wrappers project from `thetadatadx-rs/endpoint_surface.toml`
+   - Endpoint wrappers, the live validators and the docs site's endpoint pages project from the endpoint table
    - Non-endpoint SDK/tool surfaces project from `thetadatadx-rs/sdk_surface.toml`
    - Tick projection helpers project from `thetadatadx-rs/tick_schema.toml`
    - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces`
@@ -208,7 +206,7 @@ breakage.
 When ThetaData ships a new proto revision:
 
 1. Replace `thetadatadx-rs/proto/mdds.proto`
-2. Update the endpoint table (`src/surface/endpoints.rs`) and `endpoint_surface.toml` when the normalized SDK surface changes
+2. Update the endpoint table (`src/surface/endpoints.rs`) when the normalized SDK surface changes
 3. Update `tick_schema.toml` if DataTable column layouts changed
 4. Run the relevant checks from the sections above
 5. See `thetadatadx-rs/proto/MAINTENANCE.md` for the detailed guide

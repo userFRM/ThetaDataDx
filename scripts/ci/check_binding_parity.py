@@ -44,13 +44,12 @@ fails the gate.
 Market-data endpoint families (`[[market_data_base]]` /
 `[[market_data_async]]` / `[[market_data_streaming]]`): the buffered,
 async-query, and server-stream surfaces per endpoint. Each carries a
-`rust` column whose source of truth is the registry of record,
-`thetadatadx-rs/endpoint_surface.toml` — the file the build pipeline
-generates every binding's market-data method from. The Rust buffered
-surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
-subscription endpoints (every buffered endpoint); the Rust streaming subset mirrors
-the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
-get no server-stream terminal). `[[market_data_base]]` additionally pins
+`rust` column read from the endpoint table,
+`thetadatadx-rs/src/surface/endpoints.rs`, which the core expands into its
+market-data methods. The Rust buffered surface is every `__endpoints!`
+entry; the Rust streaming subset is its `chunked` entries (list /
+snapshot / calendar endpoints get no server-stream terminal).
+`[[market_data_base]]` additionally pins
 the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
 SHIPPED header (`thetadatadx-cpp/include/endpoint_with_options.h.inc`) and
 cross-checks the shipped header, the `thetadatadx-ffi/src` source, and the registry
@@ -137,19 +136,10 @@ RUST_CLIENT_BUILDER_RS = (
 # surface is the `StreamingClient` FPSS client.
 CORE_CLIENT_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "client.rs"
 CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
-# The canonical endpoint registry of record. The build pipeline generates
-# the Rust market-data surface (`MarketDataClient::<endpoint>` methods + the
-# per-endpoint streaming builders) from this file; the parity gate reads it
-# directly so a dropped or renamed Rust market-data endpoint trips without a
-# full build. Every `[[endpoints]]` entry not named `*_stream` (the four FPSS
-# real-time subscription endpoints) is one of the buffered market-data
-# endpoints (the 61-endpoint base surface).
-ENDPOINT_SURFACE_TOML = (
-    REPO_ROOT / "thetadatadx-rs" / "endpoint_surface.toml"
-)
-# The endpoint table. The Python endpoint methods and builders are expanded
-# from it at compile time (`thetadatadx-py/src/market_data.rs`), so no source
-# file names them and the gate reads the table instead.
+# The endpoint table. The core's market-data methods and the Python endpoint
+# methods and builders are expanded from it at compile time
+# (`thetadatadx-py/src/market_data.rs`), so no source file names them and the
+# gate reads the table instead.
 ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
 # The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
 # declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
@@ -161,8 +151,8 @@ ENDPOINT_WITH_OPTIONS_INC = (
 )
 # The two generated consumers of the request-options SSOT: the C++ fluent
 # `with_*` setters and the C `ThetaDataDxEndpointRequestOptions` struct they
-# fill. Both are emitted from `endpoint_surface.toml` and must carry the same
-# option roster.
+# fill. Both are emitted from the endpoint table's `__request_options!` list
+# and must carry the same option roster.
 ENDPOINT_OPTIONS_HPP_INC = (
     REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_options.hpp.inc"
 )
@@ -2256,8 +2246,8 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
 
 # The unified `Client`'s data surfaces are reached through view accessors
 # that return a cheap handle clone (`marketData`, `stream`, `flatFiles`).
-# They are hand-written per binding rather than generated from
-# `endpoint_surface.toml`. Kept as the canonical-name reference for the view
+# They are hand-written per binding rather than expanded from the endpoint
+# table. Kept as the canonical-name reference for the view
 # accessors; the reverse-orphan scan below is no longer limited to this set.
 # It discovers every Client-level helper from the bindings so a NEW helper
 # (any shape, not just a view accessor) cannot ship on a binding untracked.
@@ -4441,109 +4431,16 @@ def _check_market_data_async_rows(
 #
 # The market-data-async / market-data-streaming / market-data-base families
 # gate the managed bindings (Python / TypeScript / C++) and the C ABI, but
-# the Rust core is the SOURCE OF TRUTH every one of them is generated from:
-# the build pipeline reads `endpoint_surface.toml` and emits the
-# `MarketDataClient::<endpoint>` buffered method, its async / streaming
-# companions, and the `thetadatadx_<endpoint>_with_options` C-ABI base
-# symbol. Without a Rust column + a collector that reads the actual Rust
-# market-data surface, a dropped or renamed Rust endpoint reaches none of
-# the bindings yet trips no checker — the registry simply has one fewer
-# entry and every downstream surface shrinks in lockstep, silently.
+# the Rust core is the surface every one of them mirrors. Without a Rust
+# column, a dropped or renamed Rust endpoint reaches none of the bindings
+# yet trips no checker: every downstream surface shrinks in lockstep,
+# silently.
 #
-# The generated Rust method files live only in `OUT_DIR` (not committed),
-# so the gate reads the registry of record directly — `endpoint_surface.toml`
-# — which is the deterministic, no-build source the build pipeline itself
-# consumes. Every `[[endpoints]]` entry generates a `MarketDataClient`
-# method, so the registry IS the Rust market-data surface.
-
-
-def _collect_rust_buffered_endpoints(
-    surface_toml: pathlib.Path,
-) -> set[str]:
-    """Snake_case names of every buffered market-data endpoint in the
-    registry of record.
-
-    Parses `endpoint_surface.toml` and returns each `[[endpoints]]` `name`
-    that is NOT a `*_stream` entry. The four `*_stream` entries are the
-    FPSS real-time subscription endpoints (a distinct surface tracked by
-    the streaming-client `[[method]]` rows); the remainder are the buffered
-    market-data endpoints (the 61-endpoint base surface). Each generates a
-    `MarketDataClient::<name>` method on the Rust core, so this set is the
-    Rust buffered + async query surface (every buffered endpoint carries an
-    `.await` collect and the `list_async` / builder-await async twin).
-    """
-    if not surface_toml.is_file():
-        return set()
-    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
-    out: set[str] = set()
-    for endpoint in data.get("endpoints", []):
-        name = endpoint.get("name")
-        if not name or name.endswith("_stream"):
-            continue
-        out.add(name)
-    return out
-
-
-def _endpoint_is_simple_list(endpoint: dict[str, Any]) -> bool:
-    """True for a flat-list endpoint (`Vec<String>` return).
-
-    Mirrors the build's `is_simple_list_endpoint` SSOT from the registry
-    surface: a list endpoint declares a `list_column` (the field it
-    projects) and/or returns the `StringList` collection. Flat lists return
-    `Vec<String>`, not a typed row collection, so they get no server-stream
-    terminal.
-    """
-    return "list_column" in endpoint or endpoint.get("returns") == "StringList"
-
-
-def _endpoint_is_snapshot(endpoint: dict[str, Any]) -> bool:
-    """True for a snapshot endpoint (bounded one-row-per-request result).
-
-    Mirrors the build's `is_snapshot_endpoint` SSOT structurally from the
-    registry: the snapshot endpoints carry the `_snapshot_` segment in their
-    canonical name (`stock_snapshot_quote`, `option_snapshot_greeks_all`).
-    A snapshot has nothing to drain incrementally, so it gets no
-    server-stream terminal.
-    """
-    return "_snapshot_" in endpoint.get("name", "")
-
-
-def _endpoint_is_calendar(endpoint: dict[str, Any]) -> bool:
-    """True for a calendar endpoint (bounded handful of rows).
-
-    Mirrors the build's calendar exclusion from the registry: the calendar
-    endpoints are named under the `calendar_` prefix. Like snapshots, they
-    return a bounded result and get no server-stream terminal.
-    """
-    return endpoint.get("name", "").startswith("calendar")
-
-
-def _collect_rust_columnar_buffered_endpoints(
-    surface_toml: pathlib.Path,
-) -> set[str]:
-    """Snake_case names of every buffered COLUMNAR market-data endpoint.
-
-    The buffered set (`_collect_rust_buffered_endpoints`) minus the flat
-    `StringList` list endpoints, which carry no column set. Each columnar
-    endpoint's `.await` decode yields a core `Ticks<T>` carrying the response's
-    `ColumnPresence`, so each must surface a presence-carrying variant on the
-    managed bindings for the projected Arrow-IPC exit to be drivable from a live
-    call. This is the expected set the TypeScript `withColumns` reachability gate
-    holds the binding to (the same registry of record the streaming / base
-    families read).
-    """
-    if not surface_toml.is_file():
-        return set()
-    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
-    out: set[str] = set()
-    for endpoint in data.get("endpoints", []):
-        name = endpoint.get("name")
-        if not name or name.endswith("_stream"):
-            continue
-        if _endpoint_is_simple_list(endpoint):
-            continue
-        out.add(name)
-    return out
+# The core expands its `MarketDataClient` methods from the endpoint table at
+# compile time, so no source file names them and the gate reads the table
+# (`_table_endpoint_shapes`): every `__endpoints!` entry is a buffered
+# method with its async twin, a `chunked` one also has a server-stream
+# terminal, and every entry but a flat `list` decodes into columns.
 
 
 def _collect_typescript_with_columns_endpoints(
@@ -4599,45 +4496,6 @@ def _check_typescript_with_columns_reachability(
             f"correct the endpoint registry."
         )
     return errors
-
-
-def _collect_rust_streaming_endpoints(
-    surface_toml: pathlib.Path,
-) -> set[str]:
-    """Snake_case names of every buffered endpoint that carries a Rust
-    server-stream terminal (`<Endpoint>Builder::stream`).
-
-    Mirrors the build's `endpoint_streams` SSOT predicate from the registry
-    of record: a buffered endpoint streams unless it is a flat list (returns
-    `Vec<String>`, no typed row chunks), a snapshot, or a calendar (both
-    bounded, nothing to drain). The multi-day / full-universe history pulls
-    — the ones whose buffered collect can exhaust memory — are exactly the
-    streamable set.
-
-    This is the Rust streaming surface independent of the managed bindings:
-    a Rust endpoint dropped from the registry vanishes from this set even if
-    a binding still (wrongly) declares it, so the per-row gate trips. The
-    classification is pinned against the `chunked` entries of the endpoint
-    table, which carry the Python `stream` terminals, by
-    `_case_hist_stream_rust_mirrors_generated`, so a future change to the
-    build SSOT cannot silently desync the gate's mirror.
-    """
-    if not surface_toml.is_file():
-        return set()
-    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
-    out: set[str] = set()
-    for endpoint in data.get("endpoints", []):
-        name = endpoint.get("name")
-        if not name or name.endswith("_stream"):
-            continue
-        if _endpoint_is_simple_list(endpoint):
-            continue
-        if _endpoint_is_snapshot(endpoint):
-            continue
-        if _endpoint_is_calendar(endpoint):
-            continue
-        out.add(name)
-    return out
 
 
 def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
@@ -4818,7 +4676,7 @@ def _check_market_data_base_rows(
             errors.append(
                 f"  {ep}: C-ABI base symbol `thetadatadx_{ep}_with_options` "
                 f"has no matching buffered endpoint in the Rust registry "
-                f"(endpoint_surface.toml)."
+                f"(the endpoint table)."
             )
     return errors
 
@@ -6168,42 +6026,28 @@ def _check_ffi_symbol_orphans(
 
 # ─── Request-options SSOT roster (the C++ + FFI generated consumers) ──
 #
-# The endpoint request-options surface is generated from
-# `endpoint_surface.toml` into two consumers: the C++ fluent `with_*`
+# The endpoint request-options surface is generated from the endpoint
+# table into two consumers: the C++ fluent `with_*`
 # setters (`endpoint_options.hpp.inc`) and the C struct
 # `ThetaDataDxEndpointRequestOptions` (`endpoint_request_options.h.inc`, with
 # a `has_*` presence flag per scalar). Both are emitted from the same option roster, so they must
 # carry the same option set; a hand-edit or a generator drift that adds a
 # `with_X` without the FFI field (or vice versa), or a scalar field without
 # its `has_X` flag, breaks the C++ → C bridge silently. This checks the two
-# generated consumers agree, anchored on the SSOT global (`timeout_ms`).
+# generated consumers agree, anchored on the global option (`timeout_ms`).
 # `_check_request_options_roster` holds the NAME/roster level; the companion
 # `_check_request_options_types` adds the per-option TYPE level — every
-# option's declared type must agree across the SSOT, the C++ `with_*`
+# option's declared type must agree across the table, the C++ `with_*`
 # parameter, and the FFI struct field, via `REQUEST_OPTION_TYPE_MAP`.
 # `with_deadline` is a `std::chrono` convenience alias of `timeout_ms`, not
 # a distinct option, and is exempt.
 REQUEST_OPTIONS_WITH_EXEMPT: frozenset[str] = frozenset({"deadline"})
 
 
-def _collect_endpoint_request_options(surface_toml: pathlib.Path) -> set[str]:
-    """The request-options SSOT anchor: the `[[request_options_global]]`
-    names from `endpoint_surface.toml`.
-
-    These cross-cutting options (today: `timeout_ms`) must appear in BOTH
-    generated consumers. The full builder-option roster is read from the
-    generated `with_*` set directly (the authoritative emitted roster),
-    which the cross-consumer equality check then holds the FFI struct to.
-    """
-    out: set[str] = set()
-    if not surface_toml.is_file():
-        return out
-    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
-    for opt in data.get("request_options_global", []):
-        name = opt.get("name")
-        if name:
-            out.add(name)
-    return out
+# The request option every endpoint takes beside its own parameters: the
+# per-request deadline the C ABI appends to the options struct after the
+# `__request_options!` fields. It anchors the roster check below.
+REQUEST_OPTIONS_GLOBAL: frozenset[str] = frozenset({"timeout_ms"})
 
 
 def _collect_cpp_with_options(hpp_inc: pathlib.Path) -> set[str]:
@@ -6261,7 +6105,7 @@ def _check_request_options_roster(
     * Every FFI scalar option field (one carrying a `has_*` flag) round-trips
       — the check enforces presence-flag completeness by requiring each
       `has_<field>` to name a real field.
-    * The SSOT global anchor (`timeout_ms`) appears in both consumers AND
+    * The global option (`timeout_ms`) appears in both consumers AND
       carries its `has_<name>` presence flag in the FFI struct — without the
       flag the scalar value is never applied, so the C++ → C bridge would
       silently drop the option while every roster still matched.
@@ -6291,12 +6135,12 @@ def _check_request_options_roster(
     for name in sorted(ssot_global):
         if name not in cpp_roster:
             errors.append(
-                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"  request-options `{name}`: global request option "
                 f"option absent from the C++ `with_*` roster."
             )
         if name not in ffi_fields:
             errors.append(
-                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"  request-options `{name}`: global request option "
                 f"option absent from the FFI options struct."
             )
         elif name not in ffi_has_flags:
@@ -6304,7 +6148,7 @@ def _check_request_options_roster(
             # applied only when `has_<name> = 1`, so a missing flag makes the
             # value unreachable even though the rosters still match.
             errors.append(
-                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"  request-options `{name}`: global request option "
                 f"scalar option has no `has_{name}` presence flag in the FFI "
                 f"options struct — the value would never be applied."
             )
@@ -6340,7 +6184,7 @@ REQUEST_OPTION_TYPE_MAP: dict[str, tuple[str, str]] = {
 # fails closed (rather than silently assuming a string) — a numeric option
 # mis-tagged string would otherwise slip the gate.
 REQUEST_OPTION_STRING_TYPES: frozenset[str] = frozenset(
-    {"Str", "Strike", "Right", "Interval", "Date", "Symbol", "Venue", "Version", "RateType"}
+    {"Time", "Strike", "Right", "Interval", "Date", "Symbol", "Venue", "Version", "RateType"}
 )
 _REQUEST_OPTION_STRING_SPELLING: tuple[str, str] = ("std::string", "const char*")
 
@@ -6353,37 +6197,19 @@ def _request_option_canonical_types(param_type: str) -> tuple[str, str] | None:
     return REQUEST_OPTION_TYPE_MAP.get(param_type)
 
 
-def _collect_ssot_request_option_types(surface_toml: pathlib.Path) -> dict[str, str]:
-    """Map each request-option name to its canonical SSOT `param_type`.
+def _collect_ssot_request_option_types(table_rs: pathlib.Path) -> dict[str, str]:
+    """Map each request-option name to its type in the endpoint table.
 
-    A request-option is any `binding = "builder"` param (defined in a
-    `[param_groups.*]` group or inline on an endpoint) plus every
-    `[[request_options_global]]` (whose canonical type is its `type` key).
-    Returns `{name: param_type}`. A name appearing under two `param_type`s
-    (a real SSOT inconsistency) is reported by the caller via the per-name
-    type comparison, so only the first is recorded here.
+    A request option is any optional parameter `__param!` defines, plus the
+    `timeout_ms` deadline (`u64`) the C ABI appends. Returns
+    `{name: param_type}`; a name defined twice keeps its first type.
     """
     out: dict[str, str] = {}
-    if not surface_toml.is_file():
-        return out
-    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
-
-    def scan(params: list[dict[str, Any]]) -> None:
-        for p in params:
-            if "use" in p or p.get("binding") != "builder":
-                continue
-            name, pt = p.get("name"), p.get("param_type")
-            if name and pt:
-                out.setdefault(name, pt)
-
-    for group in data.get("param_groups", {}).values():
-        scan(group.get("params", []))
-    for endpoint in data.get("endpoints", []):
-        scan(endpoint.get("params", []))
-    for opt in data.get("request_options_global", []):
-        name, ty = opt.get("name"), opt.get("type")
-        if name and ty:
-            out.setdefault(name, ty)
+    for name, param_type in re.findall(
+        r"@def \{\s*(\w+)(?:\(\w+\))? opt (\w+)", _read_source(table_rs)
+    ):
+        out.setdefault(name, param_type)
+    out.setdefault("timeout_ms", "u64")
     return out
 
 
@@ -6420,10 +6246,16 @@ def _check_request_options_types(
     parameter spelling and the FFI struct-field spelling it must take, then
     compare against the actual declared types. A `param_type` outside the map,
     a C++ parameter that differs, or an FFI field that differs each fails with
-    the option named. The C field type is read with the same
+    the option named, and so does a C++ setter the SSOT gives no type: an
+    endpoint table the collector cannot read fails rather than comparing
+    nothing. The C field type is read with the same
     `_c_abi_struct_field_type` machinery the `[[value_field]]` gate uses.
     """
-    errors: list[str] = []
+    errors: list[str] = [
+        f"  request-options `{name}`: the generated C++ `with_{name}` setter has "
+        f"no optional parameter in the endpoint table to take its type from."
+        for name in sorted(set(cpp_with_types) - set(ssot_types) - REQUEST_OPTIONS_WITH_EXEMPT)
+    ]
     for name in sorted(ssot_types):
         if name in REQUEST_OPTIONS_WITH_EXEMPT:
             continue
@@ -8209,14 +8041,13 @@ def main(argv: list[str] | None = None) -> int:
     # terminal per endpoint. These live on per-endpoint builders or as
     # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
     # so they would otherwise drift silently across bindings.
-    # The Rust market-data surface is the registry of record
-    # (`endpoint_surface.toml`): the build pipeline generates every binding's
-    # market-data method from it, so a dropped / renamed Rust endpoint must
-    # trip the gate. The buffered set is the async + base surface; the
-    # streamable subset (mirroring the build's `endpoint_streams` SSOT) is
-    # the streaming surface.
-    rust_buffered = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
-    rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
+    # The Rust market-data surface is the endpoint table the core expands:
+    # every entry is a buffered method with its async twin (the async + base
+    # surface), a `chunked` one also streams, and every entry but a flat
+    # `list` decodes into columns.
+    table_shapes = _table_endpoint_shapes(ENDPOINT_TABLE_RS)
+    rust_buffered = set(table_shapes)
+    rust_stream = {name for name, shape in table_shapes.items() if shape == "chunked"}
 
     py_stream = _collect_python_streaming_endpoints(ENDPOINT_TABLE_RS)
     ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
@@ -8249,9 +8080,7 @@ def main(argv: list[str] | None = None) -> int:
     # exit is drivable from a live call (parity with Python's presence-carrying
     # `<Tick>List` and the C / C++ `_with_options` presence out-param).
     ts_with_columns = _collect_typescript_with_columns_endpoints(ts_class_methods)
-    rust_columnar_buffered = _collect_rust_columnar_buffered_endpoints(
-        ENDPOINT_SURFACE_TOML
-    )
+    rust_columnar_buffered = {name for name, shape in table_shapes.items() if shape != "list"}
     ts_with_columns_errors = _check_typescript_with_columns_reachability(
         rust_columnar_buffered, ts_with_columns
     )
@@ -8434,24 +8263,23 @@ def main(argv: list[str] | None = None) -> int:
         ffi_all_symbols, ffi_symbol_rows
     )
 
-    # Request-options roster: the two generated consumers of the
-    # `endpoint_surface.toml` request-options SSOT (the C++ `with_*` setters
-    # and the FFI `ThetaDataDxEndpointRequestOptions` struct) must carry the
-    # same option set, with a `has_*` flag per scalar, anchored on the SSOT
-    # global. Name/roster level; per-option TYPE parity is a later phase.
-    request_options_global = _collect_endpoint_request_options(ENDPOINT_SURFACE_TOML)
+    # Request-options roster: the two generated consumers of the endpoint
+    # table's request options (the C++ `with_*` setters and the FFI
+    # `ThetaDataDxEndpointRequestOptions` struct) must carry the same option
+    # set, with a `has_*` flag per scalar, anchored on the global option.
+    # Name/roster level; per-option TYPE parity follows.
     cpp_with_options = _collect_cpp_with_options(ENDPOINT_OPTIONS_HPP_INC)
     ffi_opt_fields, ffi_opt_has = _collect_ffi_request_option_fields(
         ENDPOINT_REQUEST_OPTIONS_H_INC
     )
     request_options_errors = _check_request_options_roster(
-        request_options_global, cpp_with_options, ffi_opt_fields, ffi_opt_has
+        REQUEST_OPTIONS_GLOBAL, cpp_with_options, ffi_opt_fields, ffi_opt_has
     )
     # Signature level: every option's type must agree across the SSOT, the C++
     # `with_*` parameter, and the FFI struct field (Route A — SSOT-generated, so
     # the types agree today; the check makes a future drift fail).
     request_options_errors += _check_request_options_types(
-        _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
+        _collect_ssot_request_option_types(ENDPOINT_TABLE_RS),
         _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
         ENDPOINT_REQUEST_OPTIONS_H_INC,
     )
@@ -9738,7 +9566,7 @@ def _run_selftest() -> int:
         """The actual SSOT / C++ `.inc` / FFI struct types agree (Route A is
         by-construction today), so the type check is silent on the real repo."""
         errors = _check_request_options_types(
-            _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
+            _collect_ssot_request_option_types(ENDPOINT_TABLE_RS),
             _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
             ENDPOINT_REQUEST_OPTIONS_H_INC,
         )
@@ -9748,14 +9576,14 @@ def _run_selftest() -> int:
 
     def _case_request_options_cpp_type_drift_trips() -> None:
         """A C++ `with_X` parameter type that differs from the SSOT-implied
-        spelling (here `int32_t` where the SSOT says `Str` → `std::string`)
+        spelling (here `int32_t` where the SSOT says `Strike` → `std::string`)
         trips, with the option named."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi = _write_ffi_options_struct(
                 pathlib.Path(tmp), {"strike": "const char*"}
             )
             errors = _check_request_options_types(
-                {"strike": "Str"},
+                {"strike": "Strike"},
                 {"strike": "int32_t"},  # drifted: should be std::string
                 ffi,
             )
@@ -9830,6 +9658,27 @@ def _run_selftest() -> int:
     _case(
         "request-options type - deadline alias exempt",
         _case_request_options_types_deadline_exempt,
+    )
+
+    def _case_request_options_types_setter_without_ssot_trips() -> None:
+        """A C++ setter whose option the SSOT does not list trips, so a table
+        the collector reads as empty fails instead of comparing nothing."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi = _write_ffi_options_struct(
+                pathlib.Path(tmp), {"timeout_ms": "uint64_t", "strike": "const char*"}
+            )
+            errors = _check_request_options_types(
+                {"timeout_ms": "u64"},
+                {"timeout_ms": "uint64_t", "strike": "std::string"},
+                ffi,
+            )
+        assert any(
+            "strike" in e and "no optional parameter" in e for e in errors
+        ), f"a setter with no SSOT type must trip; got {errors!r}"
+
+    _case(
+        "request-options type - setter with no SSOT type trips",
+        _case_request_options_types_setter_without_ssot_trips,
     )
 
     def _case_ts_entry_resolves_from_package_json() -> None:
@@ -11133,21 +10982,6 @@ def _run_selftest() -> int:
             for e in errors
         ), f"untracked streaming endpoint must trip; got {errors!r}"
 
-    def _case_hist_stream_rust_mirrors_generated() -> None:
-        """The Rust streaming classification (registry-of-record mirror of
-        the build's `endpoint_streams` SSOT) must equal the Python `stream`
-        surface, the `chunked` entries of the endpoint table. Both describe
-        the same endpoints, so any desync between the gate's mirror and the
-        table is a real drift the gate must surface.
-        """
-        rust_stream = _collect_rust_streaming_endpoints(ENDPOINT_SURFACE_TOML)
-        py_stream = _collect_python_streaming_endpoints(ENDPOINT_TABLE_RS)
-        assert rust_stream == py_stream, (
-            f"Rust streaming mirror must equal the generated Python stream "
-            f"surface; rust-only={sorted(rust_stream - py_stream)!r}, "
-            f"py-only={sorted(py_stream - rust_stream)!r}"
-        )
-
     def _case_hist_stream_initialism_inverse() -> None:
         """`stockHistoryEODStream` (TS) and `StockHistoryEod` (Python
         builder stem) both invert to the canonical `stock_history_eod`,
@@ -11166,7 +11000,6 @@ def _run_selftest() -> int:
     _case("hist-stream negative — dropped Rust endpoint trips", _case_hist_stream_missing_on_rust_trips)
     _case("hist-stream positive — managed-only ship state is silent", _case_hist_stream_ts_only_state_is_silent)
     _case("hist-stream negative — untracked streaming endpoint trips", _case_hist_stream_untracked_orphan_trips)
-    _case("hist-stream — Rust mirror equals generated Python stream surface", _case_hist_stream_rust_mirrors_generated)
     _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
 
     # ── Market-data async query surface selftests ──────────────────
@@ -11359,7 +11192,7 @@ def _run_selftest() -> int:
         cpp_methods = _collect_cpp_class_methods(CPP_HPP)
         errors = _check_market_data_base_rows(
             rows,
-            _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML),
+            set(_table_endpoint_shapes(ENDPOINT_TABLE_RS)),
             _collect_python_buffered_endpoints(ENDPOINT_TABLE_RS),
             _collect_typescript_async_endpoints(ts_methods),
             cpp_methods.get(_cpp_class_for("MarketDataView"), set()),
@@ -11369,10 +11202,10 @@ def _run_selftest() -> int:
         assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
 
     def _case_hist_base_registry_count() -> None:
-        """The registry of record yields exactly the 81 buffered endpoints
-        (the four `*_stream` FPSS subscription endpoints excluded), and the
-        shipped C-ABI header declares the same 81 base symbols."""
-        rust = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
+        """The endpoint table yields exactly the 81 buffered endpoints (the
+        raw streams in `__stream_endpoints!` excluded), and the shipped C-ABI
+        header declares the same 81 base symbols."""
+        rust = set(_table_endpoint_shapes(ENDPOINT_TABLE_RS))
         cabi = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
         assert len(rust) == 81, f"registry must yield 81 buffered endpoints; got {len(rust)}"
         assert rust == cabi, (
