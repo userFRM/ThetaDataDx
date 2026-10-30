@@ -249,182 +249,18 @@ python = true
 typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
-# ─── FlatFilesConfig cross-binding setters ─────────────────────────────
-#
-# Per-field access on the legacy `FlatFilesConfig` sub-config. Bound on
-# every binding: Python via `Config.flatfiles_*` setters/getters,
-# TypeScript via `Config.setFlatfiles*`, C++ via
-# `thetadatadx::Config::set_flatfiles_*` (which forwards to the FFI
-# `thetadatadx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
-# two `Duration` fields cross the binding boundary as `u64` seconds
-# (`initial_backoff_secs` / `max_backoff_secs`), and the two timeout
-# fields (`connect_timeout_secs` / `read_timeout_secs`) are `u64` seconds
-# directly.
-
-[[class]]
-name = "FlatFilesConfig.max_attempts"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "FlatFilesConfig.initial_backoff_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "FlatFilesConfig.max_backoff_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "FlatFilesConfig.jitter"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "FlatFilesConfig.connect_timeout_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "FlatFilesConfig.read_timeout_secs"
-python = true
-typescript = true
-cpp = true
-
-# ─── MarketDataConfig cross-binding setters ────────────────────────────
-#
-# Tuning knobs on the market-data sub-config exposed across every binding.
-# `warn_on_buffered_threshold_bytes` / `request_timeout_secs` are bound
-# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
-# `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
-# `max_concurrent_requests` sizes the channel pool: it defaults to the
-# subscription tier's allowance and can be overridden with no client-side
-# cap (the server enforces the account's real limit).
-
-[[class]]
-name = "MarketDataConfig.warn_on_buffered_threshold_bytes"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MarketDataConfig.request_timeout_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MarketDataConfig.bulk_fetch"
-python = true       # `Config.bulk_fetch` property ("auto"/"off")
-typescript = true   # `Config.setBulkFetch` / `bulkFetch` napi setter+getter
-cpp = true          # `Config::set_bulk_fetch` over `thetadatadx_config_set_bulk_fetch`
-setter = "bulk_fetch"
-
-[[class]]
-name = "MarketDataConfig.shard_concurrency"
-python = true       # `Config.shard_concurrency` property (Optional[int])
-typescript = true   # `Config.setShardConcurrency` / `shardConcurrency` napi setter+getter
-cpp = true          # `Config::set_shard_concurrency` over `thetadatadx_config_set_shard_concurrency`
-setter = "shard_concurrency"
-
-[[class]]
-name = "MarketDataConfig.max_concurrent_requests"
-python = true       # `Config.max_concurrent_requests` property (Optional[int])
-typescript = true   # `Config.setMaxConcurrentRequests` / `maxConcurrentRequests` napi setter+getter
-cpp = true          # `Config::set_max_concurrent_requests` over `thetadatadx_config_set_max_concurrent_requests`
-setter = "max_concurrent_requests"
-
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #
-# Streaming reconnect policy + per-class attempt budgets + stable-window
-# timer. Bound on every binding: Python via `Config.reconnect_*`
-# setters, TypeScript via `Config.setReconnect*`, C++ via
-# `thetadatadx::Config::set_reconnect_*` (which forwards to the FFI
-# `thetadatadx_config_set_reconnect_*` symbols). Dotted-name rows track
-# field-level parity; the parity script's class-existence check skips
-# dotted rows pending the per-field granularity tightening (issue
-# referenced in `scripts/ci/check_binding_parity.py`).
+# Dotted `<Struct>.<field>` rows declare the config fields whose accessors
+# each binding writes by hand. A field the config table
+# (`thetadatadx-rs/src/surface/config.rs`) writes needs no row.
+#
+# The reconnect policy is one: Python `Config.reconnect_policy`, TypeScript
+# `Config.setReconnectPolicy`, C++ `thetadatadx::Config::set_reconnect_policy`
+# over the FFI `thetadatadx_config_set_reconnect_policy`.
 
 [[class]]
 name = "ReconnectConfig.policy"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.max_attempts"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.max_rate_limited_attempts"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.stable_window_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.wait_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.wait_rate_limited_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.wait_max_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.wait_server_restart_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.jitter"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.max_elapsed_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.max_server_restart_attempts"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.replay_burst_size"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "ReconnectConfig.replay_pace_ms"
 python = true
 typescript = true
 cpp = true
@@ -447,48 +283,6 @@ python = true
 typescript = true
 cpp = true
 
-# ─── RetryPolicy cross-binding setters ─────────────────────────────────
-#
-# Per-field access on `DirectConfig.retry`. The `delay_for_attempt`
-# / `capped_backoff` / `disabled()` helpers stay Rust-only — they are
-# method-shape helpers that callers can recompute from the four field
-# values if needed. Field setters bound on every binding (Python via
-# `Config.retry_*`, TS via `Config.setRetry*`, C++ via
-# `thetadatadx::Config::set_retry_*`); the dotted rows below track field-level
-# parity and the parity script's class-existence check skips dotted
-# rows pending the per-field granularity tightening (issue referenced
-# in `scripts/ci/check_binding_parity.py`).
-
-[[class]]
-name = "RetryPolicy.initial_delay_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "RetryPolicy.max_delay_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "RetryPolicy.max_attempts"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "RetryPolicy.jitter"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "RetryPolicy.max_elapsed_secs"
-python = true
-typescript = true
-cpp = true
-
 # ─── FPSS parse-error event class ─────────────────────────────────────
 #
 # Named `ParseError` on every binding (mirrors the Rust core's
@@ -504,43 +298,9 @@ python = true
 typescript = true   # `#[napi(object)]` interface `ParseError` + `StreamEvent.parseError`
 cpp = true          # `ThetaDataDxStreamParseError` C struct, `thetadatadx::StreamParseError` alias
 
-# ─── EOD-Greek + index-price tick anchors ─────────────────────────────
+# ─── Rust-only market-data knobs (Gate 2 tightening / #595) ───────────
 #
-# Two tick types model the captured wire shape on two endpoints
-# whose earlier routing dropped server-emitted columns:
-#
-#   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
-#     Previously routed to the bare `GreeksAllTick` (28 columns),
-#     losing the twelve EOD trade/quote columns (`open`, `high`,
-#     `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
-#     `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`).
-#   * `IndexPriceAtTimeTick` (10 columns) -- `index_at_time_price`.
-#     Previously routed to the bare `PriceTick` (3 columns), losing
-#     the seven trade-side execution columns (`sequence`,
-#     `ext_condition1..4`, `condition`, `size`, `exchange`) including
-#     the SIP-exchange attribution field.
-#
-# Both ticks are implicitly tracked by the parity script's `*Tick`
-# catch-all (`scripts/ci/check_binding_parity.py::_is_implicitly_tracked`)
-# alongside every other generator-emitted tick wrapper. The rows
-# below are documentation anchors so the parity matrix records the
-# Additions; the script does not gate on dotted-name rows.
-
-[[class]]
-name = "GreeksEodTick.cross_binding_anchor"
-python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
-typescript = true   # `GreeksEodTick` napi class
-cpp = true          # `thetadatadx::GreeksEodTick` alias over `ThetaDataDxGreeksEodTick`
-
-[[class]]
-name = "IndexPriceAtTimeTick.cross_binding_anchor"
-python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
-typescript = true   # `IndexPriceAtTimeTick` napi class
-cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataDxIndexPriceAtTimeTick`
-
-# ─── Rust-only market-data / streaming knobs (Gate 2 tightening / #595) ──
-#
-# Pub fields on `MarketDataConfig` / `StreamingConfig` that the binding
+# Pub fields on `MarketDataConfig` that the binding
 # sweep has not yet exposed on Python / TypeScript / C++. These are
 # deliberately Rust-only today — embedders that own the runtime can
 # mutate the field directly through the `DirectConfig` struct, but the
@@ -549,30 +309,6 @@ cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataD
 # tracked-work status: #595 (the Gate 2 per-field granularity
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
-#
-# Two `MarketDataConfig` advanced overrides (`market_data_host` /
-# `market_data_port`): point the market-data channel at a known host (e.g.
-# a refused endpoint in structural tests that prove the streaming surface
-# never opens it). Exposed on every binding: Python (`Config.market_data_host`
-# / `.market_data_port`), TypeScript (`Config.setMarketDataHost` /
-# `.setMarketDataPort`), and C++ (`set_market_data_host` /
-# `set_market_data_port` over the FFI `thetadatadx_config_set_market_data_host` /
-# `thetadatadx_config_set_market_data_port`). The dotted rows below capture
-# the binding state via the `setter = "..."` override.
-
-[[class]]
-name = "MarketDataConfig.host"
-python = true       # `Config.market_data_host` advanced override
-typescript = true   # `Config.setMarketDataHost` / `marketDataHost` napi setter+getter
-cpp = true          # `Config::set_market_data_host` over `thetadatadx_config_set_market_data_host`
-setter = "market_data_host"
-
-[[class]]
-name = "MarketDataConfig.port"
-python = true       # `Config.market_data_port` advanced override
-typescript = true   # `Config.setMarketDataPort` / `marketDataPort` napi setter+getter
-cpp = true          # `Config::set_market_data_port` over `thetadatadx_config_set_market_data_port`
-setter = "market_data_port"
 
 [[class]]
 name = "MarketDataConfig.tls"
@@ -607,20 +343,6 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MarketDataConfig.stream_window_size_kb"
-python = true       # `Config.market_data_stream_window_size_kb` property
-typescript = true   # `Config.setMarketDataStreamWindowSizeKb` / `marketDataStreamWindowSizeKb` napi setter+getter
-cpp = true          # `Config::set_market_data_stream_window_size_kb` over `thetadatadx_config_set_market_data_stream_window_size_kb`
-setter = "market_data_stream_window_size_kb"
-
-[[class]]
-name = "MarketDataConfig.connection_window_size_kb"
-python = true       # `Config.market_data_connection_window_size_kb` property
-typescript = true   # `Config.setMarketDataConnectionWindowSizeKb` / `marketDataConnectionWindowSizeKb` napi setter+getter
-cpp = true          # `Config::set_market_data_connection_window_size_kb` over `thetadatadx_config_set_market_data_connection_window_size_kb`
-setter = "market_data_connection_window_size_kb"
-
-[[class]]
 name = "MarketDataConfig.connect_timeout_secs"
 python = false
 typescript = false
@@ -628,65 +350,14 @@ cpp = false
 rust_only = true
 issue = "#595"
 
-[[class]]
-name = "StreamingConfig.hosts"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
-
-# Streaming transport knobs are bound on every binding under
-# `streaming_`-prefixed canonical names (Python `Config.streaming_*`,
-# TypeScript `Config.setStreaming*`, C++ `set_streaming_*`, FFI
-# `thetadatadx_config_set_streaming_*`). The prefix disambiguates the
-# generic field names (`timeout_ms`, `ring_size`) against sibling
-# sub-configs at the binding surface.
-
-[[class]]
-name = "StreamingConfig.streaming_timeout_ms"
-python = true
-typescript = true
-cpp = true
+# The streaming ring size is set by hand on every binding under its
+# `streaming_`-prefixed name (Python `Config.streaming_ring_size`, TypeScript
+# `Config.setStreamingRingSize`, C++ `set_streaming_ring_size`, FFI
+# `thetadatadx_config_set_streaming_ring_size`), which keeps the generic
+# `ring_size` unambiguous against sibling sub-configs.
 
 [[class]]
 name = "StreamingConfig.streaming_ring_size"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_ping_interval_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_connect_timeout_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_io_read_slice_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_keepalive_idle_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_keepalive_interval_secs"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_keepalive_retries"
 python = true
 typescript = true
 cpp = true
@@ -702,43 +373,6 @@ name = "StreamingConfig.consumer_cpu"
 python = true
 typescript = true
 cpp = true
-
-# `StreamingConfig.wait_mode` consumer idle-wait mode, exposed on every
-# binding (Python `Config.wait_mode`
-# `Literal["spin","busyspin","park","backoff"]`, TypeScript `waitMode` /
-# `setWaitMode`, C++ `set_wait_mode` / `get_wait_mode`, C ABI
-# `thetadatadx_config_set_wait_mode` as an i32 enum). `Spin` and `BusySpin`
-# are both ~100% CPU and differ only in jitter; only `Park` / `Backoff`
-# lower idle CPU.
-[[class]]
-name = "StreamingConfig.wait_mode"
-python = true
-typescript = true
-cpp = true
-
-# `StreamingConfig.park_interval_us` park / backoff idle sleep length (us),
-# exposed on every binding (Python `Config.park_interval_us` `int`,
-# TypeScript `parkIntervalUs` / `setParkIntervalUs` `bigint`, C++
-# `set_park_interval_us` / `get_park_interval_us`, C ABI
-# `thetadatadx_config_set_park_interval_us` `u64`).
-[[class]]
-name = "StreamingConfig.park_interval_us"
-python = true
-typescript = true
-cpp = true
-
-# ─── AuthConfig cross-binding setters ─────────────────────────────────
-#
-# Operator-tuning knobs on `DirectConfig.auth`.
-# Bound on every binding: Python via `Config.nexus_url` /
-# `Config.client_type` setters/getters,
-# TypeScript via `Config.setNexusUrl` / `setClientType`,
-# C++ via `thetadatadx::Config::set_nexus_url` /
-# `set_client_type` (which forward to the FFI
-# `thetadatadx_config_set_nexus_url` / `_client_type`
-# symbols). The two `AuthConfig` fields are `String` — the FFI
-# setter takes a `*const c_char` (validated UTF-8) and the getter
-# returns a heap-owned `*mut c_char` released via `thetadatadx_string_free`.
 
 # `MetricsConfig.port` is Rust-only. It is read by the Prometheus
 # exporter alone, whose body is behind the `metrics-prometheus` cargo
@@ -756,18 +390,6 @@ typescript = false
 cpp = false
 rust_only = true
 issue = "#1317"
-
-[[class]]
-name = "AuthConfig.nexus_url"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "AuthConfig.client_type"
-python = true
-typescript = true
-cpp = true
 
 
 # ─── Free-function (utility) parity matrix ─────────────────────────────

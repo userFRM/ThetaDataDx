@@ -20,10 +20,12 @@ Class-level rows (no dot in `name`):
   `thetadatadx-cpp/include/thetadatadx.hpp`. The `.h` header is C-only and not
   considered for parity.
 
-Field-level rows (dotted `name`, e.g. `ReconnectConfig.wait_ms`):
+Field-level rows (dotted `name`, e.g. `ReconnectConfig.policy`) declare the
+config fields whose accessors each binding writes by hand; a field the config
+table writes needs no row:
 - Python: `#[setter] fn set_<canonical>` and `#[getter] fn <canonical>`
   parsed from `thetadatadx-py/src/*.rs`. The canonical name composes the
-  struct prefix (e.g. `reconnect_`) with the row suffix (`wait_ms`).
+  struct prefix (e.g. `reconnect_`) with the row suffix (`policy`).
 - TypeScript napi: `#[napi(js_name = "set<CamelCase>")]` and the
   matching getter declaration in `thetadatadx-ts/src/*.rs`. The
   CamelCase form lifts the snake_case canonical name.
@@ -1965,46 +1967,18 @@ def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
     return out
 
 
-# Some Rust pub field names differ from the binding-side setter
-# suffix:
-#
-#   - `ReconnectConfig.stable_window: Duration` → setter
-#     `set_reconnect_stable_window_secs` (the binding takes a `u64`
-#     seconds value; the row name carries the unit suffix).
-#   - `FlatFilesConfig.initial_backoff: Duration` →
-#     `set_flatfiles_initial_backoff_secs`.
-#   - `RetryPolicy.initial_delay: Duration` →
-#     `set_retry_initial_delay_ms`.
-#
-# The table below records the rust-field → binding-suffix renames.
-# Fields not listed are 1:1.
+# A row names the field by its binding-side setter suffix where that differs
+# from the Rust field name. Fields not listed are 1:1.
 RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     # The async worker-thread count is stored internally on
-    # `RuntimeConfig.tokio_worker_threads`, but the public client setter
-    # is named `worker_threads` on every binding (the implementation
-    # runtime name never reaches the user surface). The parity row is
-    # keyed by the public concept; this mapping bridges the internal
-    # storage field to that row for the reverse-direction orphan check.
+    # `RuntimeConfig.tokio_worker_threads`, but the public client setter is
+    # named `worker_threads` on every binding (the implementation runtime
+    # name never reaches the user surface).
     ("RuntimeConfig", "tokio_worker_threads"): "worker_threads",
-    ("ReconnectConfig", "stable_window"): "stable_window_secs",
-    ("ReconnectAttemptLimits", "stable_window"): "stable_window_secs",
-    ("ReconnectAttemptLimits", "max_elapsed"): "max_elapsed_secs",
-    ("FlatFilesConfig", "initial_backoff"): "initial_backoff_secs",
-    ("FlatFilesConfig", "max_backoff"): "max_backoff_secs",
-    ("RetryPolicy", "initial_delay"): "initial_delay_ms",
-    ("RetryPolicy", "max_delay"): "max_delay_ms",
-    ("RetryPolicy", "max_elapsed"): "max_elapsed_secs",
-    # StreamingConfig scalar knobs carry a `streaming_` prefix at the
-    # binding surface so the generic field names (`timeout_ms`, `ring_size`)
-    # stay unambiguous against sibling sub-configs.
-    ("StreamingConfig", "timeout_ms"): "streaming_timeout_ms",
+    # The streaming scalar knobs carry a `streaming_` prefix at the binding
+    # surface so the generic field name stays unambiguous against sibling
+    # sub-configs.
     ("StreamingConfig", "ring_size"): "streaming_ring_size",
-    ("StreamingConfig", "ping_interval_ms"): "streaming_ping_interval_ms",
-    ("StreamingConfig", "connect_timeout_ms"): "streaming_connect_timeout_ms",
-    ("StreamingConfig", "io_read_slice_ms"): "streaming_io_read_slice_ms",
-    ("StreamingConfig", "keepalive_idle_secs"): "streaming_keepalive_idle_secs",
-    ("StreamingConfig", "keepalive_interval_secs"): "streaming_keepalive_interval_secs",
-    ("StreamingConfig", "keepalive_retries"): "streaming_keepalive_retries",
 }
 
 
@@ -5436,28 +5410,12 @@ def _check_credentials_factory_rows(
 # ─── Main gate ──────────────────────────────────────────────────────
 
 
-# Recognized suffixes for a dotted "documentation anchor" row — a row
-# whose struct prefix is NOT a field-bearing config struct
-# (`STRUCT_TO_PREFIX`). These rows record a cross-binding fact about a
-# whole class (a tick wrapper tracked by the `*Tick` catch-all, or a known
-# name divergence) rather than a per-field setter. The suffix must be one
-# of these AND the struct part must name a real binding class, or the row
-# is treated as a typo and fails the gate.
-ANCHOR_ROW_SUFFIXES: frozenset[str] = frozenset(
-    {
-        "cross_binding_anchor",
-        "cross_binding_name_divergence",
-    }
-)
-
-
 def _check_dotted_rows(
     rows: list[dict[str, Any]],
     py_setters: set[str],
     ts_setters: set[str],
     cpp_setters: set[str],
     ffi_setters: set[str],
-    anchor_classes: set[str] | None = None,
 ) -> list[str]:
     """Per-field / per-setter granularity (issue #595).
 
@@ -5465,16 +5423,6 @@ def _check_dotted_rows(
     means every dotted row in `parity.toml` matches the actual binding
     state of each SDK.
 
-    `anchor_classes` is the universe of real binding class names (every
-    pyclass / TS class / C++ class plus the implicitly-tracked tick
-    wrappers). When provided, a dotted row whose struct prefix is not a
-    field-bearing config struct is validated as a documentation-anchor row:
-    its suffix must be in `ANCHOR_ROW_SUFFIXES` AND its struct part must
-    name a class in `anchor_classes`. A row that satisfies neither is a
-    probable typo (a misspelled struct, a stray dotted name) and fails the
-    gate, closing the silent-skip blind spot. When `anchor_classes` is
-    `None` (the selftest call shape), anchor rows are skipped as before so
-    synthetic per-field matrices stay hermetic.
     """
     errors: list[str] = []
     for row in rows:
@@ -5484,35 +5432,12 @@ def _check_dotted_rows(
         struct_name, suffix = name.split(".", 1)
         prefix = STRUCT_TO_PREFIX.get(struct_name)
         if prefix is None:
-            # Not a field-bearing config struct — this must be a
-            # documentation-anchor row (a whole-class cross-binding fact,
-            # e.g. `GreeksEodTick.cross_binding_anchor`). When the class
-            # universe is known, validate it so a typo cannot slip through
-            # silently; otherwise (selftest) skip as a non-field row.
-            if anchor_classes is None:
-                continue
-            if suffix not in ANCHOR_ROW_SUFFIXES:
-                errors.append(
-                    f"  {name}: dotted row on non-config struct uses an "
-                    f"unrecognized suffix `{suffix}`. A documentation-anchor "
-                    f"row must use one of {sorted(ANCHOR_ROW_SUFFIXES)}; a "
-                    f"field-level row must name a struct in STRUCT_TO_PREFIX. "
-                    f"This is almost certainly a typo."
-                )
-                continue
-            if struct_name not in anchor_classes:
-                errors.append(
-                    f"  {name}: anchor row names struct `{struct_name}`, which "
-                    f"is not a known binding class. Fix the spelling or remove "
-                    f"the row — a typo'd anchor silently asserts nothing."
-                )
+            errors.append(
+                f"  {name}: `{struct_name}` is not a config struct in STRUCT_TO_PREFIX, "
+                f"so the row asserts nothing. Fix the spelling or remove the row."
+            )
             continue
-        # Allow rows to override the auto-derived setter name. Used
-        # when a single struct has a mix of prefixed / unprefixed
-        # binding-side names (e.g. `MarketDataConfig.host` binds as
-        # `market_data_host` because the bare `host` name would collide with
-        # nothing meaningful and the `market_data_` prefix clarifies intent).
-        canonical = row.get("setter") or f"{prefix}{suffix}"
+        canonical = f"{prefix}{suffix}"
 
         rust_only = bool(row.get("rust_only", False))
         issue = row.get("issue")
@@ -5577,29 +5502,53 @@ def _check_dotted_rows(
     return errors
 
 
+def _config_table_fields() -> set[tuple[str, str]]:
+    """`(struct, field)` of every scoped config field a `set` entry of the
+    config table writes, resolved through `DirectConfig`'s sub-config fields
+    (`[reconnect.wait_ms]` is `ReconnectConfig.wait_ms`). The C ABI, Python and
+    TypeScript expand every entry, and `generate_sdk_surfaces` renders it for
+    C++, so such a field reaches every binding by construction."""
+    direct = re.search(
+        r"pub struct DirectConfig \{(.*?)\n\}", _read_source(CONFIG_DIR / "mod.rs"), re.S
+    )
+    structs = dict(re.findall(r"^\s+pub (\w+): (\w+),", direct.group(1), re.M)) if direct else {}
+    return {
+        (structs[sub], field)
+        for sub, field in re.findall(
+            r"^\s*set thetadatadx_config_set_\w+\([^)]*\)\s*\[(\w+)\.(\w+)",
+            _read_source(CONFIG_TABLE_RS),
+            re.M,
+        )
+        if sub in structs
+    }
+
+
 def _check_orphan_rust_fields(
     rust_fields: dict[str, set[str]],
     rows: list[dict[str, Any]],
+    table_fields: set[tuple[str, str]],
 ) -> list[str]:
     """Reverse-direction check: every pub field on every scoped struct
-    must have a corresponding parity row. Adding a new pub field
-    without a parity row trips this gate so the cross-binding sweep
-    cannot be silently skipped.
+    must be written by the config table (`table_fields`) or have a parity
+    row. Adding a new pub field with neither trips this gate, so a Rust knob
+    cannot ship that no binding exposes and no row explains.
     """
     errors: list[str] = []
     declared_names: set[str] = {row["name"] for row in rows}
     for struct in SCOPED_STRUCTS:
         fields = rust_fields.get(struct, set())
         for field in sorted(fields):
+            if (struct, field) in table_fields:
+                continue
             row_suffix = _rust_field_to_row_suffix(struct, field)
             row_name = f"{struct}.{row_suffix}"
             if row_name in declared_names:
                 continue
             errors.append(
-                f"  {row_name}: pub field on `{struct}` has no "
-                f"parity-toml row. Either add a `[[class]]` row "
-                f"declaring the field's binding state, or mark the "
-                f"field as `rust_only = true, issue = \"#N\"`."
+                f"  {row_name}: pub field on `{struct}` is not written by the "
+                f"config table and has no parity-toml row. Add a config table "
+                f"entry, or a `[[class]]` row declaring its hand-written "
+                f"accessors, or mark it `rust_only = true, issue = \"#N\"`."
             )
     return errors
 
@@ -7884,13 +7833,8 @@ def main(argv: list[str] | None = None) -> int:
         ts_runtime_exports,
     )
 
-    # Field-level mismatches (dotted rows / #595). The class universe lets
-    # the dotted-row check validate documentation-anchor rows (an anchor on
-    # a typo'd / nonexistent struct fails instead of silently passing).
-    anchor_classes = py_classes | ts_classes | cpp_classes
-    field_errors = _check_dotted_rows(
-        rows, py_setters, ts_setters, cpp_setters, ffi_setters, anchor_classes
-    )
+    # Field-level mismatches (dotted rows / #595).
+    field_errors = _check_dotted_rows(rows, py_setters, ts_setters, cpp_setters, ffi_setters)
 
     # Method-level mismatches (per-method `[[method]]` rows on the
     # load-bearing user-facing classes — `Client`,
@@ -7936,7 +7880,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Orphan Rust pub fields (no parity row).
-    orphan_errors = _check_orphan_rust_fields(rust_fields, rows)
+    orphan_errors = _check_orphan_rust_fields(rust_fields, rows, _config_table_fields())
 
     # Value-field TYPE parity ([[value_field]] rows).
     value_field_errors = _check_value_field_rows(value_field_rows)
@@ -8782,7 +8726,7 @@ def _run_selftest() -> int:
                     "cpp": True,
                 }
             ]
-            errors = _check_orphan_rust_fields(rust_fields, rows)
+            errors = _check_orphan_rust_fields(rust_fields, rows, set())
             assert any("novel_field" in e for e in errors), (
                 f"undocumented pub field must trip; got {errors!r}"
             )
@@ -10549,49 +10493,6 @@ def _run_selftest() -> int:
     _case("value_field — C-ABI typedef-struct reader", _case_c_abi_struct_reader_reads_typedef_struct)
     _case("value_field — roster gap trips on missing pin", _case_value_field_roster_missing_trips)
     _case("value_field — roster silent when complete", _case_value_field_roster_complete_silent_on_roster)
-
-    # ── Dotted anchor-row typo selftests ───────────────────────────
-
-    def _case_anchor_row_valid_passes() -> None:
-        """A recognized anchor suffix on a real class passes."""
-        rows = [{"name": "GreeksEodTick.cross_binding_anchor", "python": True}]
-        errors = _check_dotted_rows(
-            rows, set(), set(), set(), set(), {"GreeksEodTick"}
-        )
-        assert errors == [], f"valid anchor must pass; got {errors!r}"
-
-    def _case_anchor_row_typod_struct_trips() -> None:
-        """An anchor on a nonexistent (typo'd) struct fails."""
-        rows = [{"name": "GreksEodTick.cross_binding_anchor", "python": True}]
-        errors = _check_dotted_rows(
-            rows, set(), set(), set(), set(), {"GreeksEodTick"}
-        )
-        assert any("not a known binding class" in e for e in errors), (
-            f"a typo'd anchor struct must trip; got {errors!r}"
-        )
-
-    def _case_anchor_row_bad_suffix_trips() -> None:
-        """A dotted row on a non-config struct with an unknown suffix fails."""
-        rows = [{"name": "GreeksEodTick.bogus_suffix", "python": True}]
-        errors = _check_dotted_rows(
-            rows, set(), set(), set(), set(), {"GreeksEodTick"}
-        )
-        assert any("unrecognized suffix" in e for e in errors), (
-            f"an unrecognized anchor suffix must trip; got {errors!r}"
-        )
-
-    def _case_anchor_row_skipped_without_universe() -> None:
-        """Without a class universe (selftest shape), anchor rows skip."""
-        rows = [{"name": "Whatever.cross_binding_anchor", "python": True}]
-        errors = _check_dotted_rows(rows, set(), set(), set(), set())
-        assert errors == [], (
-            f"anchor rows must skip when no universe is given; got {errors!r}"
-        )
-
-    _case("anchor row — valid suffix + real class passes", _case_anchor_row_valid_passes)
-    _case("anchor row — typo'd struct trips", _case_anchor_row_typod_struct_trips)
-    _case("anchor row — unrecognized suffix trips", _case_anchor_row_bad_suffix_trips)
-    _case("anchor row — skipped without class universe", _case_anchor_row_skipped_without_universe)
 
     # ── StreamingSession exemption selftests ───────────────────────
 
