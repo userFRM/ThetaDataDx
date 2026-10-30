@@ -5,7 +5,7 @@
 //! per-column `doc` sentences added for the docs site.
 
 use super::super::super::ticks::schema::{Schema, TickTypeDef};
-use super::super::model::GeneratedEndpoint;
+use super::super::table::GeneratedEndpoint;
 
 /// Singular tick-type name for a wire-collection plural
 /// (`"QuoteTicks"` → `"QuoteTick"`, `"CalendarDays"` → `"CalendarDay"`).
@@ -84,7 +84,6 @@ pub(super) fn render_response_section(
     if endpoint.return_type == "StringList" {
         let column = endpoint
             .list_column
-            .as_deref()
             .expect("list endpoint must declare list_column");
         out.push_str(&format!(
             "A list of strings, one `{column}` value per row.\n\n"
@@ -92,8 +91,8 @@ pub(super) fn render_response_section(
         return Ok(out);
     }
 
-    let type_name = schema_type_name(&endpoint.return_type);
-    let def = tick_def(schema, &endpoint.return_type);
+    let type_name = schema_type_name(endpoint.return_type);
+    let def = tick_def(schema, endpoint.return_type);
 
     out.push_str(&format!("Rows of `{type_name}`:\n\n"));
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");

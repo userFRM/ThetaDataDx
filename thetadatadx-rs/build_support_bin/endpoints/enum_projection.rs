@@ -1,97 +1,94 @@
-//! Full enum projection consumed by the per-language enum emitters.
-//!
-//! The shared `GeneratedEnum` is intentionally slim — only the fields the
-//! build-script surface validator reads (`name`, `variants[].wire`). The
-//! per-language emitters need every name (`rust_name`, `variant.rust`,
-//! `variant.python`), so the bin loader builds this richer form directly
-//! from the TOML surface spec.
+//! The wire-string enums of the endpoint parameters, with every
+//! per-language name the enum emitters need.
 
-use std::collections::HashSet;
-
-use serde::Deserialize;
-
-/// One enum from the surface spec, projected with every per-language
-/// name the emitters need (wire, Rust, Python).
-#[derive(Debug, Clone)]
+/// One enum of the endpoint parameters.
 pub(super) struct EnumProjection {
-    pub(super) name: String,
-    pub(super) rust_name: String,
-    pub(super) variants: Vec<EnumVariantProjection>,
+    pub(super) name: &'static str,
+    pub(super) variants: &'static [EnumVariantProjection],
 }
 
-/// One enum variant carrying its wire string and the matching Rust and
-/// Python identifiers.
-#[derive(Debug, Clone)]
+/// One enum variant: its wire string and its Rust and Python names.
 pub(super) struct EnumVariantProjection {
-    pub(super) wire: String,
-    pub(super) rust: String,
-    pub(super) python: String,
+    pub(super) wire: &'static str,
+    pub(super) rust: &'static str,
+    pub(super) python: &'static str,
 }
 
-#[derive(Debug, Deserialize)]
-struct SurfaceSpecFragment {
-    #[serde(default)]
-    enums: Vec<SurfaceEnumFragment>,
+const fn variant(
+    wire: &'static str,
+    rust: &'static str,
+    python: &'static str,
+) -> EnumVariantProjection {
+    EnumVariantProjection { wire, rust, python }
 }
 
-#[derive(Debug, Deserialize)]
-struct SurfaceEnumFragment {
-    name: String,
-    rust_name: String,
-    variants: Vec<SurfaceEnumVariantFragment>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SurfaceEnumVariantFragment {
-    wire: String,
-    rust: String,
-    python: String,
-}
-
-/// Read `endpoint_surface.toml` and project the `[enums]` block into the
-/// emitter-facing form. Validates that Rust and Python identifiers are
-/// unique per enum (wire-string uniqueness is enforced by the shared
-/// validator already, but the bin-only Rust / Python projections add a
-/// stricter check here so duplicates surface as the bin runs, not as a
-/// language-toolchain failure downstream).
-pub(super) fn load_enum_projections() -> Result<Vec<EnumProjection>, Box<dyn std::error::Error>> {
-    let spec_path = "endpoint_surface.toml";
-    let spec_str = std::fs::read_to_string(spec_path)?;
-    let spec: SurfaceSpecFragment = toml::from_str(&spec_str)?;
-
-    let mut out = Vec::with_capacity(spec.enums.len());
-    for enum_spec in spec.enums {
-        let mut seen_rust = HashSet::new();
-        let mut seen_python = HashSet::new();
-        for variant in &enum_spec.variants {
-            if !seen_rust.insert(variant.rust.clone()) {
-                return Err(format!(
-                    "enum '{}' has duplicate Rust variant '{}'",
-                    enum_spec.name, variant.rust
-                )
-                .into());
-            }
-            if !seen_python.insert(variant.python.clone()) {
-                return Err(format!(
-                    "enum '{}' has duplicate Python member '{}'",
-                    enum_spec.name, variant.python
-                )
-                .into());
-            }
-        }
-        out.push(EnumProjection {
-            name: enum_spec.name,
-            rust_name: enum_spec.rust_name,
-            variants: enum_spec
-                .variants
-                .into_iter()
-                .map(|variant| EnumVariantProjection {
-                    wire: variant.wire,
-                    rust: variant.rust,
-                    python: variant.python,
-                })
-                .collect(),
-        });
-    }
-    Ok(out)
-}
+pub(super) const ENUMS: &[EnumProjection] = &[
+    EnumProjection {
+        name: "Right",
+        variants: &[
+            variant("call", "Call", "CALL"),
+            variant("put", "Put", "PUT"),
+            variant("both", "Both", "BOTH"),
+        ],
+    },
+    EnumProjection {
+        name: "Venue",
+        variants: &[
+            variant("nqb", "Nqb", "NQB"),
+            variant("utp_cta", "UtpCta", "UTP_CTA"),
+        ],
+    },
+    EnumProjection {
+        name: "Interval",
+        variants: &[
+            variant("tick", "Tick", "TICK"),
+            variant("10ms", "Ms10", "MS_10"),
+            variant("100ms", "Ms100", "MS_100"),
+            variant("500ms", "Ms500", "MS_500"),
+            variant("1s", "S1", "S_1"),
+            variant("5s", "S5", "S_5"),
+            variant("10s", "S10", "S_10"),
+            variant("15s", "S15", "S_15"),
+            variant("30s", "S30", "S_30"),
+            variant("1m", "M1", "M_1"),
+            variant("5m", "M5", "M_5"),
+            variant("10m", "M10", "M_10"),
+            variant("15m", "M15", "M_15"),
+            variant("30m", "M30", "M_30"),
+            variant("1h", "H1", "H_1"),
+        ],
+    },
+    EnumProjection {
+        name: "RateType",
+        variants: &[
+            variant("sofr", "Sofr", "SOFR"),
+            variant("treasury_m1", "TreasuryM1", "TREASURY_M1"),
+            variant("treasury_m3", "TreasuryM3", "TREASURY_M3"),
+            variant("treasury_m6", "TreasuryM6", "TREASURY_M6"),
+            variant("treasury_y1", "TreasuryY1", "TREASURY_Y1"),
+            variant("treasury_y2", "TreasuryY2", "TREASURY_Y2"),
+            variant("treasury_y3", "TreasuryY3", "TREASURY_Y3"),
+            variant("treasury_y5", "TreasuryY5", "TREASURY_Y5"),
+            variant("treasury_y7", "TreasuryY7", "TREASURY_Y7"),
+            variant("treasury_y10", "TreasuryY10", "TREASURY_Y10"),
+            variant("treasury_y20", "TreasuryY20", "TREASURY_Y20"),
+            variant("treasury_y30", "TreasuryY30", "TREASURY_Y30"),
+        ],
+    },
+    EnumProjection {
+        name: "RequestType",
+        variants: &[
+            variant("trade", "Trade", "TRADE"),
+            variant("quote", "Quote", "QUOTE"),
+            variant("eod", "Eod", "EOD"),
+            variant("ohlc", "Ohlc", "OHLC"),
+        ],
+    },
+    EnumProjection {
+        name: "Version",
+        variants: &[
+            variant("latest", "Latest", "LATEST"),
+            variant("1", "V1", "V1"),
+        ],
+    },
+];

@@ -12,13 +12,13 @@ license.workspace = true
 keywords = ["thetadata", "market-data", "tick-data", "zero-copy", "low-latency"]
 categories = ["finance", "api-bindings", "network-programming", "encoding"]
 readme = "README.md"
-# `src/bin/**` is excluded: those four binaries are repository maintenance
-# tools, and `generate_sdk_surfaces` / `generate_docs_site` reach their
-# generators through `#[path = "../../build_support_bin/mod.rs"]`, which is
-# not published. Shipping the target without its module put a bin in the
-# crate that cannot compile: `cargo build --all-features` against the
-# published package fails on the missing module. The default verify build
-# never caught it because all four carry `required-features`.
+# `src/bin/**` is excluded: the binaries there are repository maintenance
+# tools, and `generate_sdk_surfaces` reaches its generators through
+# `#[path = "../../build_support_bin/mod.rs"]`, which is not published.
+# Shipping the target without its module put a bin in the crate that cannot
+# compile: `cargo build --all-features` against the published package fails
+# on the missing module. The default verify build never caught it because
+# the generator carries `required-features`.
 include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
@@ -38,7 +38,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = []
-config-file = ["dep:toml", "dep:regex", "dep:heck"]
+config-file = ["dep:toml", "dep:heck"]
 # Pulls `prost-build` into the regular dep graph for the
 # `refresh_grpc_snapshot` developer binary. Strictly off for normal
 # crate builds — the build script keeps its own `prost-build` under
@@ -197,12 +197,9 @@ metrics-exporter-prometheus = { version = "0.18", optional = true, default-featu
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
 
-# Proto parsing in the `generate_sdk_surfaces` / `generate_docs_site`
-# binaries, behind the `config-file` feature gate (see `[[bin]]
-# required-features`).
-regex = { version = "1.12.3", optional = true }
-# Case conversion for the codegen identifier emitters in the same binaries,
-# gated the same way.
+# Case conversion for the codegen identifier emitters in the
+# `generate_sdk_surfaces` binary, behind the `config-file` feature gate (see
+# `[[bin]] required-features`).
 heck = { version = "0.5.0", optional = true }
 
 # Lock-free ring buffer for FPSS event dispatch # VOCAB-OK: crate name in dep
@@ -525,15 +522,6 @@ required-features = ["polars"]
 name = "generate_sdk_surfaces"
 path = "src/bin/generate_sdk_surfaces.rs"
 required-features = ["config-file"]
-
-[[bin]]
-# Regenerates the checked-in docs-site reference tree (one page per
-# registry endpoint + streaming pages + sidebar manifests + llms.txt).
-# `__internal` is required because the sample-output renderer decodes
-# the checked-in capture fixtures through the production decode path.
-name = "generate_docs_site"
-path = "src/bin/generate_docs_site.rs"
-required-features = ["config-file", "__internal"]
 
 [[bin]]
 name = "refresh_grpc_snapshot"

@@ -7,8 +7,8 @@
 use std::fmt::Write as _;
 
 use super::super::helpers::endpoint_streams_repr_c_ticks;
-use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{c_option_value_type, ffi_option_has_flag, method_params};
+use super::super::table::{GeneratedEndpoint, GeneratedParam};
 
 /// Renders the C `typedef struct ThetaDataDxEndpointRequestOptions` header with
 /// one field (plus presence flag, where needed) per optional parameter.

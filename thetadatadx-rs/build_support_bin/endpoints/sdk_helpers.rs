@@ -8,11 +8,10 @@
 //! Cross-renderer utilities stay in `helpers.rs`; each render file imports
 //! from both modules.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use super::helpers::is_method_call_param;
-use super::model::{GeneratedEndpoint, GeneratedParam};
+use super::table::{GeneratedEndpoint, GeneratedParam};
 
 // ─────────────────────── Bin-side render-map loader ─────────────────────────
 
@@ -99,7 +98,7 @@ pub(super) fn method_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam
     endpoint
         .params
         .iter()
-        .filter(|param| is_method_call_param(param))
+        .filter(|param| param.required)
         .collect()
 }
 
@@ -123,23 +122,8 @@ pub(super) fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedPara
     endpoint
         .params
         .iter()
-        .filter(|param| !is_method_call_param(param))
+        .filter(|param| !param.required)
         .collect()
-}
-
-/// Collects the deduplicated set of builder parameters across every
-/// endpoint, preserving first-appearance order.
-pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<GeneratedParam> {
-    let mut seen = HashSet::new();
-    let mut params = Vec::new();
-    for endpoint in endpoints {
-        for param in builder_params(endpoint) {
-            if seen.insert(param.name.clone()) {
-                params.push(param.clone());
-            }
-        }
-    }
-    params
 }
 
 /// Return `true` if the endpoint is a latency-sensitive single-row (or
@@ -147,12 +131,11 @@ pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<Gen
 /// no `<T>List` wrapper, no `run_blocking` signal-check ticker, bounded
 /// `tokio::time::timeout` instead.
 ///
-/// Re-exports the shared SSOT predicate (`helpers::is_snapshot_endpoint`) so
-/// the Python / docs emitters classify snapshots identically — a single
-/// definition keyed off `endpoint_surface.toml` structure, never a
-/// hand-curated allowlist. The streaming emitters import the streaming
-/// predicates (`endpoint_streams`, `endpoint_streams_repr_c_ticks`) straight
-/// from `helpers`.
+/// Re-exports the shared predicate (`helpers::is_snapshot_endpoint`) so the
+/// Python / docs emitters classify snapshots identically: one definition
+/// keyed off the endpoint's table shape, never a hand-curated allowlist. The
+/// streaming emitters import the streaming predicates (`endpoint_streams`,
+/// `endpoint_streams_repr_c_ticks`) straight from `helpers`.
 pub(super) use super::helpers::is_snapshot_endpoint;
 
 // ───────────────────────── Casing ────────────────────────────────────────────
@@ -203,7 +186,7 @@ pub(super) fn to_camel_case(value: &str) -> String {
 /// (`start_time`, `end_time`, `min_time`, or `time_of_day`).
 pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
     matches!(
-        param.name.as_str(),
+        param.name,
         "start_time" | "end_time" | "min_time" | "time_of_day"
     )
 }
@@ -268,7 +251,7 @@ pub(super) fn python_pyclass_row_class(return_type: &str) -> String {
 /// Returns the C++ value type for a builder setter argument of the
 /// given parameter.
 pub(super) fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
+    match param.param_type {
         "Int" => "int32_t",
         "Float" => "double",
         "Bool" => "bool",
@@ -279,7 +262,7 @@ pub(super) fn builder_value_type_name(param: &GeneratedParam) -> &'static str {
 /// Returns the C++ assignment expression storing `source` into the
 /// builder field, moving for string types and copying for scalars.
 pub(super) fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String {
-    match param.param_type.as_str() {
+    match param.param_type {
         "Int" => format!("{} = {}", param.name, source),
         "Float" => format!("{} = {}", param.name, source),
         "Bool" => format!("{} = {}", param.name, source),
@@ -290,7 +273,7 @@ pub(super) fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String 
 /// Returns the C field type for an optional builder parameter in the
 /// generated `ThetaDataDxEndpointRequestOptions` struct.
 pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
+    match param.param_type {
         "Int" => "int32_t",
         "Bool" => "int32_t",
         "Float" => "double",
@@ -301,7 +284,7 @@ pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
 /// Returns `true` if the parameter needs a companion `has_<name>`
 /// presence flag in the FFI options struct (scalar types).
 pub(super) fn ffi_option_has_flag(param: &GeneratedParam) -> bool {
-    matches!(param.param_type.as_str(), "Int" | "Float" | "Bool")
+    matches!(param.param_type, "Int" | "Float" | "Bool")
 }
 
 // ───────────────────────── SDK method arg declarations ─────────────────────
@@ -312,7 +295,7 @@ pub(super) fn sdk_method_arg_name(param: &GeneratedParam) -> String {
     if param.param_type == "Symbols" {
         "symbols".into()
     } else {
-        param.name.clone()
+        param.name.to_string()
     }
 }
 
@@ -332,7 +315,7 @@ pub(super) fn cpp_method_arg_decl(param: &GeneratedParam) -> String {
 /// Render a single arg string as a Python literal expression, taking the
 /// param's wire type into account so `Symbols` becomes a list.
 pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String {
-    match param.param_type.as_str() {
+    match param.param_type {
         "Symbols" => format!("[\"{value}\"]"),
         _ => format!("\"{value}\""),
     }
@@ -340,7 +323,7 @@ pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String 
 
 /// Render a single arg string as a C++ literal expression.
 pub(super) fn cpp_arg_literal(param: &GeneratedParam, value: &str) -> String {
-    match param.param_type.as_str() {
+    match param.param_type {
         "Symbols" => format!("std::vector<std::string>{{\"{value}\"}}"),
         _ => format!("\"{value}\""),
     }
@@ -354,7 +337,7 @@ fn builder_param_for<'a>(
     endpoint
         .params
         .iter()
-        .find(|p| p.name == name && !is_method_call_param(p))
+        .find(|p| p.name == name && !p.required)
 }
 
 /// Render a Python kwarg value (`key=value`) for a builder-bound param,
@@ -366,7 +349,7 @@ pub(super) fn python_builder_kwarg(
     value: &str,
 ) -> Option<String> {
     let param = builder_param_for(endpoint, name)?;
-    let literal = match param.param_type.as_str() {
+    let literal = match param.param_type {
         "Bool" => match value {
             "true" => "True".to_string(),
             "false" => "False".to_string(),
@@ -385,7 +368,7 @@ pub(super) fn cpp_builder_setter(
     value: &str,
 ) -> Option<String> {
     let param = builder_param_for(endpoint, name)?;
-    let literal = match param.param_type.as_str() {
+    let literal = match param.param_type {
         "Bool" => value.to_string(),
         "Int" => value.to_string(),
         "Float" => value.to_string(),
