@@ -363,75 +363,46 @@ pub(crate) fn set_wire_str<T: WireParam>(field: &mut T, v: &str) {
 
 // ─── Shardable endpoints ─────────────────────────────────────────────────
 
-/// The generated endpoint methods that may shard.
-///
-/// Only intraday (tick / bar / greeks) bulk history endpoints qualify:
-/// snapshots, lists, at-time queries, and the daily-only EOD /
-/// open-interest / greeks-EOD families return bounded responses that a
-/// fan-out cannot help. Endpoints not listed here always run on the
-/// single-stream path.
-///
-/// The defining property is machine-checkable against the endpoint
-/// registry. An endpoint belongs here when either:
-/// - its registry entry has a `history*` subcategory AND carries the
-///   intraday `start_time` / `end_time` window filters (bands split the
-///   window); or
-/// - its registry entry has an `at_time` subcategory over a date range
-///   with no per-contract identity — a whole-market as-of series whose
-///   per-day server compute parallelizes across date bands (bands split
-///   the range). Single-contract option at_time carries a contract
-///   identity, is sparse over a wide range, and is excluded.
-///
-/// The daily-only families — EOD, open interest, greeks-EOD — have no
-/// intraday window to band and return <= 1 row/day, so they are absent.
-/// `shardable_set_matches_registry_bandable` in this module's tests
-/// enforces the equality, so a new bandable endpoint added to
-/// `endpoint_surface.toml` cannot silently never-shard.
-const SHARDABLE_HISTORY_ENDPOINTS: &[&str] = &[
-    "option_history_trade",
-    "option_history_ohlc",
-    "option_history_trade_quote",
-    "option_history_quote",
-    "option_history_trade_greeks_all",
-    "option_history_binomial_trade_greeks_all",
-    "option_history_trade_greeks_first_order",
-    "option_history_binomial_trade_greeks_first_order",
-    "option_history_trade_greeks_second_order",
-    "option_history_binomial_trade_greeks_second_order",
-    "option_history_trade_greeks_third_order",
-    "option_history_binomial_trade_greeks_third_order",
-    "option_history_trade_greeks_implied_volatility",
-    "option_history_greeks_all",
-    "option_history_binomial_greeks_all",
-    "option_history_greeks_first_order",
-    "option_history_binomial_greeks_first_order",
-    "option_history_greeks_second_order",
-    "option_history_binomial_greeks_second_order",
-    "option_history_greeks_third_order",
-    "option_history_binomial_greeks_third_order",
-    "option_history_greeks_implied_volatility",
-    "stock_history_trade",
-    "stock_history_trade_quote",
-    "stock_history_ohlc",
-    "stock_history_quote",
-    "index_history_price",
-    "index_history_ohlc",
-    // As-of over a date range: per-day compute parallelizes across date
-    // bands (measured ~10x on a one-year stock at_time pull). Whole-market
-    // stock / index carry no contract identity; the option families band
-    // the same way for a `*` chain, while a concrete single-contract option
-    // at_time is sparse and declined at runtime in `plan_query`.
-    "stock_at_time_trade",
-    "stock_at_time_quote",
-    "index_at_time_price",
-    "option_at_time_trade",
-    "option_at_time_quote",
-];
-
-/// Whether the generated endpoint method named `endpoint` may shard.
-fn is_shardable_history_endpoint(endpoint: &str) -> bool {
-    SHARDABLE_HISTORY_ENDPOINTS.contains(&endpoint)
+/// Expands the endpoint table into `is_shardable_history_endpoint`: an
+/// endpoint may shard when its entry is marked `#[bands]`.
+macro_rules! shardable {
+    ($( $(#[$attr:ident])* $shape:ident $name:ident { $($body:tt)* } )*) => {
+        /// Whether the endpoint method named `endpoint` may shard.
+        ///
+        /// An endpoint may shard when a fan-out can split its pull: intraday
+        /// history (tick / bar / greeks) carrying the `start_time` /
+        /// `end_time` window, whose bands split the window, and every
+        /// `at_time` family over a date range, whose per-day compute
+        /// parallelizes across date bands (measured ~10x on a one-year stock
+        /// at_time pull). A concrete single-contract option at_time is sparse
+        /// and is declined at runtime in `plan_query`; a `*` chain shards.
+        /// Snapshots, lists and the daily-only EOD / open-interest /
+        /// greeks-EOD families return bounded responses that a fan-out cannot
+        /// help, and always run on the single-stream path.
+        ///
+        /// `shardable_set_matches_registry_bandable` in this module's tests
+        /// ties the marks to that property, so a bandable endpoint added to
+        /// the table without `#[bands]` cannot silently never-shard.
+        fn is_shardable_history_endpoint(endpoint: &str) -> bool {
+            match endpoint {
+                $( stringify!($name) => bands!($($attr)*), )*
+                _ => false,
+            }
+        }
+    };
 }
+
+/// Whether an entry's attributes mark it `#[bands]`.
+macro_rules! bands {
+    () => {
+        false
+    };
+    (bands) => {
+        true
+    };
+}
+
+crate::__endpoints! { shardable {} }
 
 /// Why a query did not shard. Logged at `debug` by [`auto_plan`] so an
 /// operator wondering why a pull ran on a single stream can see the
@@ -439,7 +410,7 @@ fn is_shardable_history_endpoint(endpoint: &str) -> bool {
 /// `Option`, with `None` for a query that stays a single stream).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShardDecline {
-    /// Endpoint is outside [`SHARDABLE_HISTORY_ENDPOINTS`].
+    /// Endpoint is not marked `#[bands]` in the endpoint table.
     UnlistedEndpoint,
     /// The request shape offers no cut axis (no multi-day range and no
     /// single-day intraday window).
@@ -2642,49 +2613,41 @@ mod tests {
         assert_eq!(shard_width(None, 0), 1);
     }
 
-    /// Machine tie between [`SHARDABLE_HISTORY_ENDPOINTS`] and the
-    /// endpoint registry generated from `endpoint_surface.toml`: the
-    /// shardable set must equal, exactly, the registry's bandable
-    /// endpoints. Two families qualify:
+    /// Machine tie between the `#[bands]` marks of the endpoint table and
+    /// the endpoint registry: an endpoint may shard exactly when the
+    /// registry shows it bandable. Two families qualify:
     /// - intraday `history*` endpoints carrying a `start_time` /
-    ///   `end_time` window — bands split the window;
-    /// - whole-market `at_time` endpoints (category not `option`, so no
-    ///   per-contract identity) — bands split the date range.
+    ///   `end_time` window: bands split the window;
+    /// - `at_time` endpoints over a date range: bands split the range (a
+    ///   concrete single-contract option at_time is admitted here and
+    ///   declined at runtime).
     ///
     /// Excluded: the bounded-per-day EOD / open-interest / greeks-EOD
-    /// families (a date range but no intraday window, <= 1 row/day),
-    /// single-contract option `at_time` (sparse over a wide range), and
-    /// snapshots / lists. A new bandable endpoint added to the registry
-    /// fails this test until it is added to the shardable set, so it can
-    /// never silently never-shard; a stale entry fails it from the other
-    /// direction.
+    /// families (a date range but no intraday window, <= 1 row/day) and
+    /// snapshots / lists. A bandable endpoint added to the table without
+    /// the mark fails this test, so it can never silently never-shard; a
+    /// stale mark fails it from the other direction.
     ///
-    /// Gated on `__internal` because the registry table only exists
-    /// under that feature; the CI test job enables it (via
-    /// `__test-helpers`), so the tie is enforced on every CI run.
+    /// Gated on `__internal` because the registry only exists under that
+    /// feature; the CI test job enables it (via `__test-helpers`), so the
+    /// tie is enforced on every CI run.
     #[cfg(feature = "__internal")]
     #[test]
     fn shardable_set_matches_registry_bandable() {
-        let mut derived: Vec<&str> = crate::mdds::registry::ENDPOINTS
-            .iter()
-            .filter(|e| {
-                (e.subcategory.starts_with("history")
-                    && e.params.iter().any(|p| p.name == "start_time")
-                    && e.params.iter().any(|p| p.name == "end_time"))
-                    || e.subcategory == "at_time"
-            })
-            .map(|e| e.name)
-            .collect();
-        derived.sort_unstable();
-        let mut listed = SHARDABLE_HISTORY_ENDPOINTS.to_vec();
-        listed.sort_unstable();
-        assert_eq!(
-            listed, derived,
-            "SHARDABLE_HISTORY_ENDPOINTS must equal the registry's \
-             bandable set (intraday `history*` with start_time/end_time, \
-             plus every `at_time` family over a date range; a concrete \
-             option at_time is admitted here but declined at runtime)"
-        );
+        for e in crate::mdds::registry::ENDPOINTS {
+            let bandable = (e.subcategory.starts_with("history")
+                && e.params.iter().any(|p| p.name == "start_time")
+                && e.params.iter().any(|p| p.name == "end_time"))
+                || e.subcategory == "at_time";
+            assert_eq!(
+                is_shardable_history_endpoint(e.name),
+                bandable,
+                "`{}`: `#[bands]` must mark exactly the registry's bandable \
+                 set (intraday `history*` with start_time/end_time, plus \
+                 every `at_time` family over a date range)",
+                e.name
+            );
+        }
     }
 
     #[test]
