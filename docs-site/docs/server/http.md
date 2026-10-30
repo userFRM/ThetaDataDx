@@ -62,6 +62,8 @@ The CSV and NDJSON forms carry the contract columns inline on every row instead.
 
 Each price is written at the precision the vendor sent it with, in every format, as the terminal writes it: a strike reads `570.000` and a greek `0.5800`.
 
+Each response is written as its rows arrive from the vendor, as the terminal writes it. A response that ends within 8 KiB is sent whole, with its `Content-Length`; a longer one is sent with chunked transfer encoding from the moment it outgrows that, so its first rows leave before its last arrive and server memory stays flat at any response size. `json_legacy` is one array per column, so no column is complete before the last row arrives, and it is held whole until then. A failure after a response has begun aborts the transfer, so a truncated response cannot pass for a complete one.
+
 A failed request is answered with an HTTP status and a plain-text description; see [server errors](/articles/error-codes#server-errors).
 
 ## Flat files

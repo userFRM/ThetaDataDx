@@ -1,21 +1,24 @@
 //! Generic endpoint handler and shared-runtime dispatch for all registry endpoints.
 //!
 //! A single handler function receives endpoint metadata via closure capture,
-//! validates query params, invokes the shared endpoint runtime in
-//! `thetadatadx`, and returns the JVM terminal JSON envelope (or CSV when
-//! `format=csv`).
+//! validates query params, calls the endpoint through the shared runtime in
+//! `thetadatadx`, and writes the negotiated format from the vendor's table as
+//! its chunks arrive.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::ops::ControlFlow;
 
+use axum::body::{Body, Bytes};
 use axum::extract::{FromRequestParts, State};
-use axum::http::StatusCode;
 use axum::http::request::Parts;
+use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use sonic_rs::prelude::*;
-
-use thetadatadx::endpoint::{EndpointArgs, EndpointError, invoke_endpoint};
+use thetadatadx::endpoint::{EndpointArgs, EndpointError, invoke_endpoint_tables};
+use thetadatadx::wire::DataValueList;
 use thetadatadx::{EndpointMeta, MarketDataClient, ParamType};
+use tokio::sync::{mpsc, oneshot};
+use tokio_stream::wrappers::ReceiverStream;
 
 use crate::format;
 use crate::state::AppState;
@@ -153,31 +156,6 @@ pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) ->
         json_bytes,
     )
         .into_response()
-}
-
-/// Serialize a `sonic_rs::Value` to an axum JSON response body.
-///
-/// A non-finite f64 cannot reach the tree (see `json_canon`), so it already
-/// serialises as JSON `null`. If serialisation fails anyway (a logic bug, not
-/// a data bug), surface it as a structured `500` carrying the underlying error
-/// message rather than an empty `200 OK` body.
-fn json_response(val: &sonic_rs::Value) -> Response {
-    match sonic_rs::to_string(val) {
-        Ok(json_bytes) => (
-            StatusCode::OK,
-            [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
-            json_bytes,
-        )
-            .into_response(),
-        Err(err) => {
-            tracing::error!(error = %err, "response serialisation failed");
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "serialization_error",
-                &err.to_string(),
-            )
-        }
-    }
 }
 
 /// Max query parameter count per request. The widest legitimate endpoint in
@@ -588,49 +566,6 @@ pub(crate) fn csv_attachment_filename(
     format!("{}.csv", ep.name)
 }
 
-/// Render the `response` rows of an envelope as NDJSON.
-///
-/// One JSON object per row, `\n`-delimited — the line-at-a-time framing
-/// Pandas / Polars / DuckDB ingest natively. An empty response renders
-/// as an empty body (zero lines), mirroring the CSV branch.
-fn ndjson_response(json_val: &sonic_rs::Value) -> Response {
-    let rows = json_val
-        .get("response")
-        .and_then(|v: &sonic_rs::Value| v.as_array());
-    let Some(rows) = rows else {
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "serialization_error",
-            "response envelope is missing the response array",
-        );
-    };
-
-    let mut body = String::with_capacity(rows.len() * 128);
-    for row in rows.iter() {
-        match sonic_rs::to_string(row) {
-            Ok(line) => {
-                body.push_str(&line);
-                body.push('\n');
-            }
-            Err(err) => {
-                tracing::error!(error = %err, "NDJSON row serialisation failed");
-                return error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "serialization_error",
-                    &err.to_string(),
-                );
-            }
-        }
-    }
-
-    (
-        StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)],
-        body,
-    )
-        .into_response()
-}
-
 /// Generic handler invoked for all registry endpoints.
 ///
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
@@ -677,16 +612,46 @@ pub async fn generic_with_overrides(
     for (key, value) in overrides {
         params.insert((*key).to_string(), value.clone());
     }
-    respond(state.client().market_data(), ep, &params).await
+    respond(state, ep, &params).await
+}
+
+/// A response that ends within this many bytes is sent whole, with its length.
+/// A longer one is sent as it is written, from the moment it outgrows this, so
+/// its first rows leave before its last arrive. The terminal frames its
+/// responses the same way, at the same size.
+const WHOLE_RESPONSE_LIMIT: usize = 8 * 1024;
+
+/// Written chunks held between the upstream and a slower client. One entry is
+/// one upstream chunk, so this bounds what a response holds in memory.
+const CHUNKS_IN_FLIGHT: usize = 4;
+
+type Chunk = Result<Bytes, std::io::Error>;
+
+/// How a response begins.
+enum Start {
+    /// The whole body, which ended within [`WHOLE_RESPONSE_LIMIT`].
+    Whole(Vec<u8>),
+    /// The body follows as it is written.
+    Streamed,
 }
 
 /// Answer one registry request from its folded query parameters: validate
-/// them, call the endpoint through `client`, and render the negotiated format.
-pub(crate) async fn respond(
-    client: &MarketDataClient,
+/// them, call the endpoint through `client`, and write the negotiated format
+/// from the vendor's table as its chunks arrive.
+///
+/// The status waits until the body has either ended or outgrown
+/// [`WHOLE_RESPONSE_LIMIT`], so a refusal or a failure before then answers
+/// with its own status. A failure after the body has begun aborts it rather
+/// than ending it, so a client cannot mistake a truncated response for a
+/// complete one.
+pub(crate) async fn respond<C>(
+    client: C,
     ep: &EndpointMeta,
     params: &HashMap<String, String>,
-) -> Response {
+) -> Response
+where
+    C: AsRef<MarketDataClient> + Send + Sync + 'static,
+{
     // v2 → v3 parameter migration gate. A request carrying a deprecated v2
     // parameter name is rejected with `410 Gone` naming the v3 replacement,
     // matching the terminal's pre-matching filter. Runs before any
@@ -710,64 +675,199 @@ pub(crate) async fn respond(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let mut price_types = thetadatadx::decode::PriceTypes::default();
-    let output = match invoke_endpoint(client, ep.name, &args, Some(&mut price_types)).await {
-        Ok(output) => output,
-        Err(error) => return endpoint_error_response(ep, error),
-    };
-
-    // Build the flat v3 rows once. The CSV / NDJSON renderers consume them
-    // directly (contract identity inline per row); the JSON renderer groups
-    // option rows under their `contract`.
-    let rows = format::response_rows(
+    let table = format::TableWriter::new(
         ep,
+        response_format,
         params.get("symbol").map(String::as_str),
-        &output,
-        &price_types,
     );
+    let (chunks, body) = mpsc::channel(CHUNKS_IN_FLIGHT);
+    let (started, start) = oneshot::channel();
+    tokio::spawn(write_body(client, ep.name, args, table, chunks, started));
+    let body = match start.await {
+        Ok(Ok(Start::Whole(body))) => Body::from(body),
+        Ok(Ok(Start::Streamed)) => Body::from_stream(ReceiverStream::new(body)),
+        Ok(Err(error)) => return endpoint_error_response(ep, error),
+        Err(_) => {
+            return plain_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "the response ended before it began",
+            );
+        }
+    };
     match response_format {
-        ResponseFormat::Json => {
-            let json_val = format::json_envelope(ep, rows);
-            json_response(&json_val)
-        }
-        ResponseFormat::JsonLegacy => {
-            // The legacy shape is columnar and carries no envelope: one array
-            // per column, in the order the columns appear on the rows.
-            let json_val = format::json_legacy(ep, &rows);
-            json_response(&json_val)
-        }
-        ResponseFormat::Ndjson => {
-            // NDJSON stays flat (one contract-inline row per line) — only the
-            // JSON envelope groups under `contract`.
-            let json_val = format::ok_envelope(rows);
-            ndjson_response(&json_val)
-        }
         ResponseFormat::Csv => {
             let disposition = format!(
                 "attachment; filename=\"{}\"",
                 csv_attachment_filename(ep, params)
             );
-            let body = format::json_to_csv(ep, &rows).unwrap_or_default();
             (
                 StatusCode::OK,
                 [
-                    ("content-type", "text/csv; charset=utf-8"),
-                    ("content-disposition", disposition.as_str()),
+                    (header::CONTENT_TYPE, "text/csv; charset=utf-8"),
+                    (header::CONTENT_DISPOSITION, disposition.as_str()),
                 ],
                 body,
             )
                 .into_response()
         }
-        ResponseFormat::Html => {
-            // Inline, browser-viewable: no content-disposition, so the table
-            // renders in the tab rather than downloading.
-            let body = format::json_to_html(ep, &rows).unwrap_or_default();
-            (
-                StatusCode::OK,
-                [("content-type", "text/html; charset=utf-8")],
-                body,
-            )
-                .into_response()
+        ResponseFormat::Json | ResponseFormat::JsonLegacy => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
+            body,
+        )
+            .into_response(),
+        ResponseFormat::Ndjson => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)],
+            body,
+        )
+            .into_response(),
+        // Inline, browser-viewable: no content-disposition, so the table
+        // renders in the tab rather than downloading.
+        ResponseFormat::Html => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            body,
+        )
+            .into_response(),
+    }
+}
+
+/// Call `endpoint` and write its response, reporting on `started` how the
+/// response begins and sending the rest of a streamed body into `chunks`.
+async fn write_body(
+    client: impl AsRef<MarketDataClient>,
+    endpoint: &'static str,
+    args: EndpointArgs,
+    table: format::TableWriter,
+    chunks: mpsc::Sender<Chunk>,
+    started: oneshot::Sender<Result<Start, EndpointError>>,
+) {
+    let mut body = BodyWriter {
+        endpoint,
+        table,
+        held: Vec::new(),
+        chunks: chunks.clone(),
+        started: Some(started),
+        failed: false,
+    };
+    let call = invoke_endpoint_tables(client.as_ref(), endpoint, &args, |headers, rows| {
+        body.chunk(&headers, &rows)
+    });
+    // The call ends, and is cancelled upstream, as soon as the client stops
+    // waiting for the response or reading it.
+    let outcome = tokio::select! {
+        outcome = call => outcome,
+        () = chunks.closed() => Ok(()),
+    };
+    body.finish(outcome).await;
+}
+
+/// Writes one response's body: held while it may still end within
+/// [`WHOLE_RESPONSE_LIMIT`], sent on chunk by chunk once it cannot.
+struct BodyWriter {
+    endpoint: &'static str,
+    table: format::TableWriter,
+    /// The body so far, until the response begins.
+    held: Vec<u8>,
+    chunks: mpsc::Sender<Chunk>,
+    /// Present until the response begins.
+    started: Option<oneshot::Sender<Result<Start, EndpointError>>>,
+    failed: bool,
+}
+
+impl BodyWriter {
+    /// Write one chunk's rows and pass them on. Breaks the call once the
+    /// client has gone, or on a cell the response cannot carry.
+    fn chunk(
+        &mut self,
+        headers: &[String],
+        rows: &[DataValueList],
+    ) -> impl Future<Output = ControlFlow<()>> + Send + 'static + use<> {
+        let mut piece = Vec::new();
+        let out = if self.started.is_some() {
+            &mut self.held
+        } else {
+            &mut piece
+        };
+        let chunk = match self.table.write(headers, rows, out) {
+            Ok(()) => self.pass_on(piece, false),
+            Err(error) => self.fail(thetadatadx::Error::from(error).into()),
+        };
+        let failed = self.failed;
+        let chunks = self.chunks.clone();
+        async move {
+            let sent = match chunk {
+                Some(chunk) => chunks.send(chunk).await.is_ok(),
+                None => true,
+            };
+            if sent && !failed {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            }
+        }
+    }
+
+    /// Close the body once the call has ended with `outcome`.
+    async fn finish(mut self, outcome: Result<(), EndpointError>) {
+        if self.failed {
+            return;
+        }
+        let chunk = match outcome {
+            Ok(()) => {
+                let mut piece = Vec::new();
+                let out = if self.started.is_some() {
+                    &mut self.held
+                } else {
+                    &mut piece
+                };
+                self.table.finish(out);
+                self.pass_on(piece, true)
+            }
+            Err(error) => self.fail(error),
+        };
+        if let Some(chunk) = chunk {
+            let _ = self.chunks.send(chunk).await;
+        }
+    }
+
+    /// What to send of the body just written, to `piece` once the response
+    /// has begun and to the held body before. The response begins streamed
+    /// once the held body outgrows [`WHOLE_RESPONSE_LIMIT`], and whole when it
+    /// is `last` within it.
+    fn pass_on(&mut self, piece: Vec<u8>, last: bool) -> Option<Chunk> {
+        let outgrown = self.held.len() > WHOLE_RESPONSE_LIMIT;
+        match self.started.take() {
+            None => (!piece.is_empty()).then(|| Ok(Bytes::from(piece))),
+            Some(started) if outgrown => {
+                let _ = started.send(Ok(Start::Streamed));
+                Some(Ok(Bytes::from(std::mem::take(&mut self.held))))
+            }
+            Some(started) if last => {
+                let _ = started.send(Ok(Start::Whole(std::mem::take(&mut self.held))));
+                None
+            }
+            started => {
+                self.started = started;
+                None
+            }
+        }
+    }
+
+    /// Report `error`: as the response itself while it has not begun, by
+    /// aborting the body once it has.
+    fn fail(&mut self, error: EndpointError) -> Option<Chunk> {
+        self.failed = true;
+        match self.started.take() {
+            Some(started) => {
+                let _ = started.send(Err(error));
+                None
+            }
+            None => {
+                tracing::warn!(endpoint = self.endpoint, %error, "response aborted");
+                Some(Err(std::io::Error::other(error.to_string())))
+            }
         }
     }
 }
@@ -860,7 +960,7 @@ pub async fn terminal_market_data_status(State(state): State<AppState>) -> Respo
 mod tests {
     use super::*;
     use axum::http::Request;
-    use sonic_rs::Value;
+    use sonic_rs::{JsonContainerTrait, JsonValueTrait, Value};
     use thetadatadx::ENDPOINTS;
 
     /// Grab any registered endpoint as a stand-in for the per-endpoint
@@ -1300,12 +1400,7 @@ mod tests {
         assert_eq!(params["format"], "json");
     }
 
-    // -----------------------------------------------------------------------
-    //  non-finite f64 must not collapse to an empty body
-    // -----------------------------------------------------------------------
-
-    /// Read the body of an axum `Response` to a `String` synchronously inside
-    /// a tokio runtime. Used by the NaN-cell regression tests below.
+    /// Read the body of an axum `Response` to a `String`.
     async fn read_body(resp: Response) -> String {
         use axum::body::to_bytes;
         let body = resp.into_body();
@@ -1314,7 +1409,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  Response-format negotiation + NDJSON rendering
+    //  Response-format negotiation
     // -----------------------------------------------------------------------
 
     #[test]
@@ -1377,62 +1472,6 @@ mod tests {
                 other => panic!("expected InvalidParams, got {other:?}"),
             }
         }
-    }
-
-    #[tokio::test]
-    async fn ndjson_response_emits_one_object_per_row() {
-        let envelope = format::ok_envelope(vec![
-            sonic_rs::json!({"symbol": "AAPL", "close": 200.5}),
-            sonic_rs::json!({"symbol": "MSFT", "close": 470.0}),
-        ]);
-        let resp = ndjson_response(&envelope);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers()
-                .get(axum::http::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("application/x-ndjson; charset=utf-8")
-        );
-
-        let body = read_body(resp).await;
-        assert!(body.ends_with('\n'), "every row line is newline-terminated");
-        let lines: Vec<&str> = body.lines().collect();
-        assert_eq!(lines.len(), 2, "one line per response row: {body}");
-        for line in &lines {
-            let row: Value = sonic_rs::from_str(line).expect("each line is standalone JSON");
-            assert!(
-                row.get("symbol").is_some(),
-                "row carries its fields: {line}"
-            );
-        }
-        assert!(
-            !body.contains("\"header\""),
-            "NDJSON body must not carry the envelope wrapper: {body}"
-        );
-    }
-
-    #[tokio::test]
-    async fn ndjson_response_renders_empty_response_as_empty_body() {
-        let envelope = format::ok_envelope(vec![]);
-        let resp = ndjson_response(&envelope);
-        assert_eq!(resp.status(), StatusCode::OK);
-        let body = read_body(resp).await;
-        assert!(body.is_empty(), "zero rows render zero lines, got {body:?}");
-    }
-
-    #[tokio::test]
-    async fn ndjson_response_collapses_non_finite_cells_to_null() {
-        let mut row = sonic_rs::json!({"symbol": "AAPL", "vega": Value::new_null()});
-        if let Some(o) = row.as_object_mut() {
-            o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
-        }
-        let envelope = format::ok_envelope(vec![row]);
-        let resp = ndjson_response(&envelope);
-        let body = read_body(resp).await;
-        assert!(
-            body.contains("\"vega\":null"),
-            "non-finite cells collapse to null on the NDJSON path too: {body}"
-        );
     }
 
     // -----------------------------------------------------------------------
@@ -1662,87 +1701,78 @@ mod tests {
         assert_eq!(body, "no such endpoint: 'frobnicate'");
     }
 
-    #[tokio::test]
-    async fn json_response_uses_bare_json_content_type() {
-        let envelope = format::ok_envelope(vec![Value::from("AAPL")]);
-        let resp = json_response(&envelope);
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(
-            resp.headers()
-                .get(axum::http::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("application/json"),
-            "JSON envelope responses must use the bare media type"
-        );
-    }
+    /// The status waits until the body has ended or outgrown
+    /// `WHOLE_RESPONSE_LIMIT`: an upstream failure before then answers with
+    /// its own status, and one after it aborts the body already begun, so a
+    /// truncated response never reads as a complete one.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_failure_answers_with_its_status_until_the_body_has_begun() {
+        use crate::golden_responses::mock;
+        use prost::Message as _;
+        use std::sync::Arc;
+        use thetadatadx::grpc::{Channel, ChannelPool};
+        use thetadatadx::wire::{
+            CompressionAlgo, CompressionDescription, DataTable, DataValue, ResponseData,
+            data_value::DataType,
+        };
+        use tokio_stream::StreamExt as _;
 
-    #[tokio::test]
-    async fn json_response_emits_non_empty_body_for_nan_payload() {
-        // Construct a payload that mimics a Greeks-style row where one cell
-        // came back non-finite from the upstream solver. A naive
-        // `sonic_rs::to_string(...).unwrap_or_default()` round-trip would hand
-        // the client a 200 OK with an empty body; canonicalisation must not.
-        let mut row = sonic_rs::json!({
-            "symbol": "AAPL",
-            "delta": 0.5_f64,
-            // `vega` slot is filled in below from a NaN through the single
-            // conversion point.
-            "vega": Value::new_null(),
-        });
-        if let Some(o) = row.as_object_mut() {
-            o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
+        let ep = thetadatadx::find("stock_list_symbols").expect("registered endpoint");
+        // `symbol\r\n` and seven bytes a row: 78 bytes, then 14,008.
+        for (symbols, begun) in [(10, false), (2_000, true)] {
+            let table = DataTable {
+                headers: vec!["symbol".into()],
+                data_table: (0..symbols)
+                    .map(|i| DataValueList {
+                        values: vec![DataValue {
+                            data_type: Some(DataType::Text(format!("S{i:04}"))),
+                        }],
+                    })
+                    .collect(),
+            };
+            let compressed_data = table.encode_to_vec();
+            let chunk = ResponseData {
+                compression_description: Some(CompressionDescription {
+                    algo: CompressionAlgo::None as i32,
+                    level: 0,
+                }),
+                original_size: i32::try_from(compressed_data.len()).expect("small table"),
+                compressed_data,
+            };
+            // The rows, then a failure with no status of the service's own.
+            let upstream =
+                mock::MockServer::spawn_with_message(vec![chunk], 13, "upstream fault".into())
+                    .await;
+            let channel = Channel::connect_h2c("127.0.0.1", upstream.addr.port())
+                .await
+                .expect("connect to the mock");
+            let client = Arc::new(MarketDataClient::for_endpoint_routing_test(
+                thetadatadx::DirectConfig::production(),
+                ChannelPool::from_channels(vec![channel]),
+                Arc::new(tokio::sync::Semaphore::new(1)),
+            ));
+
+            let response = respond(client, ep, &HashMap::new()).await;
+            if !begun {
+                assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+                assert_eq!(read_body(response).await, "upstream fault");
+                continue;
+            }
+            assert_eq!(response.status(), StatusCode::OK);
+            let mut body = response.into_body().into_data_stream();
+            let mut received = Vec::new();
+            let aborted = loop {
+                match body.next().await {
+                    Some(Ok(bytes)) => received.extend_from_slice(&bytes),
+                    Some(Err(_)) => break true,
+                    None => break false,
+                }
+            };
+            assert!(aborted, "the body ended as though complete");
+            assert!(
+                received.starts_with(b"symbol\r\nS0000\r\n"),
+                "the rows written before the failure are sent"
+            );
         }
-        let envelope = format::ok_envelope(vec![row]);
-
-        let resp = json_response(&envelope);
-        assert_eq!(resp.status(), StatusCode::OK);
-
-        let body = read_body(resp).await;
-        assert!(
-            !body.is_empty(),
-            "issue #459: NaN cell must not collapse the response to an empty body"
-        );
-        // Non-finite cell must serialise as JSON null — exact byte assertion.
-        assert!(
-            body.contains("\"vega\":null"),
-            "vega must canonicalise to null in the wire body, got {body}"
-        );
-        // Sibling finite cells must round-trip unchanged.
-        assert!(
-            body.contains("\"delta\":0.5"),
-            "delta must round-trip unchanged, got {body}"
-        );
-        assert!(
-            body.contains("\"symbol\":\"AAPL\""),
-            "symbol must round-trip unchanged, got {body}"
-        );
-        // The v3 success envelope is `{"response": [...]}` with NO `header`
-        // key (v3 carries no header on any path). Assert the real shape: no
-        // header, a `response` array, and the row's actual values inside it.
-        let parsed: Value = sonic_rs::from_str(&body).expect("body must be valid JSON");
-        assert!(
-            parsed.get("header").is_none(),
-            "v3 success envelope must not carry a header: {body}"
-        );
-        let rows = parsed
-            .get("response")
-            .and_then(|r: &Value| r.as_array())
-            .expect("v3 envelope must carry a response array");
-        assert_eq!(rows.len(), 1, "exactly one row was supplied: {body}");
-        let row = &rows[0];
-        assert_eq!(
-            row.get("symbol").and_then(Value::as_str),
-            Some("AAPL"),
-            "symbol must round-trip in the response row: {body}"
-        );
-        assert_eq!(
-            row.get("delta").and_then(Value::as_f64),
-            Some(0.5),
-            "delta must round-trip in the response row: {body}"
-        );
-        assert!(
-            row.get("vega").is_some_and(Value::is_null),
-            "non-finite vega must canonicalise to JSON null in the row: {body}"
-        );
     }
 }

@@ -25,7 +25,6 @@ mod format;
 mod handler;
 mod logging;
 mod router;
-mod row;
 mod state;
 mod validation;
 mod ws;
@@ -42,7 +41,7 @@ use clap::Parser;
 use tower_http::cors::CorsLayer;
 use zeroize::Zeroizing;
 
-use thetadatadx::config::{BulkFetchPolicy, MarketDataEnvironment, StreamingEnvironment, WaitMode};
+use thetadatadx::config::{MarketDataEnvironment, StreamingEnvironment, WaitMode};
 use thetadatadx::{Client, Credentials, DirectConfig};
 
 use crate::state::{AppState, StrikeFormat};
@@ -358,11 +357,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         let mut config = DirectConfig::production();
         // A long-running process beside the user's other programs: back off
-        // when the stream is idle rather than hold a core. Each request goes
-        // upstream once, as the terminal sends it, so a large option chain
-        // keeps the vendor's row order instead of the sharded merge's.
+        // when the stream is idle rather than hold a core.
         config.streaming.wait_mode = WaitMode::Backoff;
-        config.market_data.bulk_fetch = BulkFetchPolicy::Off;
         if args.market_data_region == "stage" {
             config = config.with_market_data_environment(MarketDataEnvironment::Stage);
         }
