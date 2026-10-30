@@ -35,13 +35,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root = repo_root();
     if check_only {
         build_support_bin::check_endpoint_sdk_generated_files(&root)?;
-        build_support_bin::check_sdk_surface_generated_files(&root)?;
         build_support_bin::check_tick_sdk_generated_files(&root)?;
         build_support_bin::check_fpss_event_sdk_generated_files(&root)?;
         build_support_bin::check_docs_site_files(&root)?;
     } else {
         build_support_bin::write_endpoint_sdk_generated_files(&root)?;
-        build_support_bin::write_sdk_surface_generated_files(&root)?;
         build_support_bin::write_tick_sdk_generated_files(&root)?;
         build_support_bin::write_fpss_event_sdk_generated_files(&root)?;
         build_support_bin::write_docs_site_files(&root)?;

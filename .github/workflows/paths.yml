@@ -179,8 +179,8 @@ jobs:
       # pair; `A`/`M`/`D` carry a single path. Every path on every record —
       # both sides of a rename or copy — must fall inside the doc set
       # (build_support_bin/endpoints/docs_render, docs-site). The
-      # code-emitting generators (sdk_surface / sdk_render / fpss_events /
-      # ticks) are deliberately NOT in the set: they change
+      # code-emitting generators (sdk_render / fpss_events / ticks) are
+      # deliberately NOT in the set: they change
       # the compiled SDK binding surface and must still fire the full
       # matrix. A rename of any real source INTO docs-site keeps its old
       # path outside the set, so the value is false and the matrix runs.

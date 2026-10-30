@@ -1106,7 +1106,22 @@ using StreamEvent = ThetaDataDxStreamEvent;
 
 class StreamingClient {
 public:
-    #include "fpss.hpp.inc"
+    /** Get a snapshot of currently active subscriptions. */
+    std::vector<Subscription> active_subscriptions() const;
+    /** Reconnect streaming and re-subscribe all previous subscriptions. */
+    void reconnect();
+    /**
+     * Shut down the streaming connection.
+     *
+     * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
+     */
+    void shutdown();
+    /** Return true if the streaming client is currently authenticated. */
+    bool is_authenticated() const;
+    /** Connect to streaming servers. Throws on failure. */
+    StreamingClient(const Credentials& creds, const Config& config);
+    /** Connect to streaming servers, loading credentials from a file (line 1 = email, line 2 = password), defaulting to the production configuration. Throws on failure. */
+    static StreamingClient from_file(const std::string& path, const Config& config = Config::production());
 
     /// Polymorphic subscribe — primary fluent entry point. Forward
     /// declared here; the inline implementation appears below the

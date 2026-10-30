@@ -2289,11 +2289,8 @@ def _collect_ts_wrapper_class_methods(ts_pkg_dir: pathlib.Path) -> dict[str, set
 def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
     """Inline every `#include "<name>.inc"` directive against the
     matching file under `include_dir`. The `*.inc` files extend a
-    class body with generator-emitted member declarations
-    (`thetadatadx-cpp/include/fpss.hpp.inc` adds `StreamingClient` methods that
-    live in `thetadatadx-rs/sdk_surface.toml`), and the parity
-    gate must see those declarations as part of the surrounding
-    class body.
+    class body with generator-emitted member declarations, and the parity
+    gate must see those declarations as part of the surrounding class body.
 
     Falls back to leaving the directive in place when the included
     file is missing, so a malformed `#include` cannot wedge the gate.
@@ -2358,8 +2355,8 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
 
     Honors `#include "<file>.inc"` inside a class body by inlining the
     included file's contents before parsing — generator-emitted method
-    declarations (`fpss.hpp.inc`) extend the surrounding class body
-    and must count toward parity.
+    declarations extend the surrounding class body and must count toward
+    parity.
     """
     out: dict[str, set[str]] = {}
     if not cpp_hpp.is_file():

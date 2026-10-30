@@ -783,14 +783,184 @@ use stream_events::{StreamEvent, buffered_event_to_typed, fpss_event_to_buffered
 #[cfg(not(test))]
 mod bench_streaming;
 
-// ── Cross-language lookup-table helpers (generated from sdk_surface.toml) ──
-//
-// Emits the `Util` napi class of static condition / exchange / calendar /
-// timestamp / sequence helpers, mirroring the Python `thetadatadx.util`
-// submodule. Change `sdk_surface.toml` and regenerate, never hand-edit the
-// generated file.
+// ── Cross-language lookup-table helpers ──
 
-include!("_generated/utility_functions.rs");
+/// Cross-language lookup-table namespace. Exposes the static condition,
+/// exchange, calendar, timestamp, and sequence helpers as `Util.*` static
+/// methods so the JS surface mirrors the Python / C++ / C ABI utility sets.
+#[napi(js_name = "Util")]
+pub struct Util;
+
+#[napi]
+impl Util {
+    /// Symbolic name for a trade `condition` code (e.g. `0` -> `"REGULAR"`).
+    /// Returns `"UNKNOWN"` for codes outside the table.
+    #[napi(js_name = "conditionName")]
+    pub fn condition_name(code: i32) -> String {
+        thetadatadx::utils::conditions::condition_name(code).to_string()
+    }
+
+    /// Human-readable description for a trade `condition` code.
+    #[napi(js_name = "conditionDescription")]
+    pub fn condition_description(code: i32) -> String {
+        thetadatadx::utils::conditions::condition_description(code).to_string()
+    }
+
+    /// Whether a trade `condition` code marks a trade cancellation.
+    #[napi(js_name = "isCancel")]
+    pub fn is_cancel(code: i32) -> bool {
+        thetadatadx::utils::conditions::is_cancel(code)
+    }
+
+    /// Whether a trade with this `condition` code contributes to the
+    /// running session volume.
+    #[napi(js_name = "updatesVolume")]
+    pub fn updates_volume(code: i32) -> bool {
+        thetadatadx::utils::conditions::updates_volume(code)
+    }
+
+    /// Symbolic name for a quote `condition` code.
+    #[napi(js_name = "quoteConditionName")]
+    pub fn quote_condition_name(code: i32) -> String {
+        thetadatadx::utils::conditions::quote_condition_name(code).to_string()
+    }
+
+    /// Human-readable description for a quote `condition` code.
+    #[napi(js_name = "quoteConditionDescription")]
+    pub fn quote_condition_description(code: i32) -> String {
+        thetadatadx::utils::conditions::quote_condition_description(code).to_string()
+    }
+
+    /// Whether a quote `condition` code marks a firm (binding) quote.
+    #[napi(js_name = "isFirm")]
+    pub fn is_firm(code: i32) -> bool {
+        thetadatadx::utils::conditions::is_firm(code)
+    }
+
+    /// Whether a quote `condition` code marks a trading halt.
+    #[napi(js_name = "isHalted")]
+    pub fn is_halted(code: i32) -> bool {
+        thetadatadx::utils::conditions::is_halted(code)
+    }
+
+    /// Symbolic name for an `exchange` code (e.g. `3` ->
+    /// `"NewYorkStockExchange"`).
+    #[napi(js_name = "exchangeName")]
+    pub fn exchange_name(code: i32) -> String {
+        thetadatadx::utils::exchange::exchange_name(code).to_string()
+    }
+
+    /// Short exchange symbol for an `exchange` code (e.g. `3` ->
+    /// `"NYSE"`).
+    #[napi(js_name = "exchangeSymbol")]
+    pub fn exchange_symbol(code: i32) -> String {
+        thetadatadx::utils::exchange::exchange_symbol(code).to_string()
+    }
+
+    /// Vendor vocabulary text for a calendar-day `status` code (`0` ->
+    /// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
+    /// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside
+    /// the table.
+    #[napi(js_name = "calendarStatusName")]
+    pub fn calendar_status_name(code: i32) -> String {
+        thetadatadx::CalendarStatus::from_code(code)
+            .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str)
+            .to_string()
+    }
+
+    /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
+    /// into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
+    /// Usable with any `(date, *_ms_of_day)` pair on the tick structs.
+    /// Returns `null` when `date` is absent (`0`) or either input is out
+    /// of domain. BigInt matches the `*TimestampMs` tick accessors so the
+    /// epoch domain is uniform.
+    #[napi(js_name = "timestampMs")]
+    pub fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<napi::bindgen_prelude::BigInt> {
+        thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)
+            .map(napi::bindgen_prelude::BigInt::from)
+    }
+
+    /// Convert a signed wire-encoded trade-sequence value to its unsigned
+    /// monotonic form. Accepts a JS BigInt in the **32-bit signed wire
+    /// range** (`-2_147_483_648 ..= 2_147_483_647`); the upstream feed
+    /// encodes trade sequences as a 32-bit signed integer. Returns a JS
+    /// BigInt because the unsigned monotonic sequence id can exceed
+    /// `Number.MAX_SAFE_INTEGER`. Inputs outside the wire range throw so
+    /// silent coercion cannot produce a look-correct-but-wrong sequence id
+    /// downstream.
+    #[napi(js_name = "sequenceSignedToUnsigned")]
+    pub fn sequence_signed_to_unsigned(
+        signed_value: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let signed: i64 = bigint_to_i32(&signed_value).map(i64::from).ok_or_else(|| {
+            crate::invalid_parameter_err(
+                "sequenceSignedToUnsigned: BigInt outside the i32 wire range \
+                 (-2_147_483_648 ..= 2_147_483_647)",
+            )
+        })?;
+        Ok(napi::bindgen_prelude::BigInt::from(
+            thetadatadx::utils::sequences::signed_to_unsigned(signed),
+        ))
+    }
+
+    /// Convert an unsigned monotonic trade-sequence value back to its
+    /// signed wire encoding. Accepts a JS BigInt in the unsigned wire
+    /// range (`0 ..= 2^32 - 1`); returns a JS BigInt for symmetry with
+    /// `sequenceSignedToUnsigned`. Negative inputs and inputs above the
+    /// wire range throw; the unsigned monotonic sequence id is always
+    /// non-negative and never wider than the 32-bit wire range.
+    #[napi(js_name = "sequenceUnsignedToSigned")]
+    pub fn sequence_unsigned_to_signed(
+        unsigned_value: napi::bindgen_prelude::BigInt,
+    ) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        if unsigned_value.sign_bit && !unsigned_value.words.iter().all(|w| *w == 0) {
+            return Err(crate::invalid_parameter_err(
+                "sequenceUnsignedToSigned: negative BigInt rejected; the unsigned \
+                 monotonic sequence id is always non-negative",
+            ));
+        }
+        if unsigned_value.words.len() > 1 {
+            return Err(crate::invalid_parameter_err(
+                "sequenceUnsignedToSigned: BigInt above the wire range \
+                 (0 ..= 2^32 - 1)",
+            ));
+        }
+        let value = unsigned_value.words.first().copied().unwrap_or(0);
+        if value > u32::MAX as u64 {
+            return Err(crate::invalid_parameter_err(
+                "sequenceUnsignedToSigned: BigInt above the wire range \
+                 (0 ..= 2^32 - 1)",
+            ));
+        }
+        Ok(napi::bindgen_prelude::BigInt::from(
+            thetadatadx::utils::sequences::unsigned_to_signed(value),
+        ))
+    }
+}
+
+/// Decode a napi `BigInt` into the i32 wire range, accepting the
+/// asymmetric `i32::MIN` boundary. Returns `None` for any value
+/// outside `[i32::MIN, i32::MAX]`.
+fn bigint_to_i32(value: &napi::bindgen_prelude::BigInt) -> Option<i32> {
+    if value.words.len() > 1 {
+        return None;
+    }
+    let magnitude = value.words.first().copied().unwrap_or(0);
+    if value.sign_bit {
+        if magnitude == 0 {
+            Some(0)
+        } else if magnitude <= i32::MAX as u64 {
+            // SAFETY: `magnitude` fits in i32 here.
+            Some(-(magnitude as i32))
+        } else if magnitude == (i32::MAX as u64) + 1 {
+            Some(i32::MIN)
+        } else {
+            None
+        }
+    } else {
+        i32::try_from(magnitude).ok()
+    }
+}
 
 // ── Unified Client client ──
 
@@ -1382,8 +1552,406 @@ impl MarketDataClient {
 // bodies compile against either.
 mod market_data;
 
-// Generated streaming methods.
-include!("_generated/streaming_methods.rs");
+#[napi]
+impl StreamView {
+    /// Start streaming and register a JS callback for incoming events.
+    ///
+    /// Each typed streaming event is delivered to your
+    /// `callback(event)` on the Node main thread, so the
+    /// callback may use any JS API safely. Rust-side delivery
+    /// panics are isolated and counted by `panicCount()`; a
+    /// JavaScript exception follows Node's normal exception
+    /// handling.
+    ///
+    /// Backpressure: a slow callback first fills a bounded
+    /// delivery queue and then the event ring behind it, at
+    /// which point the newest incoming events are dropped and counted by
+    /// `droppedEventCount()` while `ringOccupancy()` reports the
+    /// in-flight depth. Watch those two signals to detect a
+    /// callback that cannot keep up. The receive path is never
+    /// blocked by a slow callback, so the upstream connection
+    /// stays healthy regardless of callback speed.
+    #[napi(js_name = "startStreaming")]
+    pub async fn start_streaming(
+        &self,
+        callback: napi::threadsafe_function::ThreadsafeFunction<
+            StreamEvent,
+            (),
+            StreamEvent,
+            napi::Status,
+            false,
+            false,
+            { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
+        >,
+    ) -> napi::Result<()> {
+        // Bind the callback behind a cheap `Arc` so the FPSS callback
+        // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
+        // handle into each per-event invocation. `ThreadsafeFunction`
+        // is `Send + Sync` but does not implement `Clone` in napi-rs
+        // 3.x; the outer `Arc` is the canonical way to share the
+        // handle between the closure and the stored copy on `self`.
+        let callback_arc: Arc<TsfnCallback> = Arc::new(callback);
+        {
+            // Reserve the registration slot before yielding to the
+            // blocking handshake. Holding the `Mutex<Option<Arc<...>>>`
+            // guard across an `.await` is not allowed (the guard is
+            // `!Send`), so we take the lock in this inner scope, reject a
+            // double-registration, and store the handle eagerly. A
+            // handshake failure below clears the slot again. This keeps
+            // the double-registration check correct even though two
+            // `startStreaming` calls could otherwise both pass it while
+            // the first is still awaiting.
+            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            // Reject double-registration with a clear napi error. The
+            // underlying `Client::start_streaming` would also error,
+            // but matching the napi binding's own state first gives a
+            // language-idiomatic message.
+            if cb_guard.is_some() {
+                return Err(napi::Error::from_reason(
+                    "streaming already started -- call stopStreaming() before startStreaming() again",
+                ));
+            }
+            *cb_guard = Some(Arc::clone(&callback_arc));
+        }
+        // Own the reservation until the handshake succeeds. On any non-success
+        // exit -- the panic branch or the handshake `Err` below -- the guard
+        // clears the slot, but ONLY if it still holds THIS reservation
+        // (`Arc::ptr_eq`). The lock is released across the awaited connect, so a
+        // concurrent stop + restart may have replaced the slot with a newer
+        // callback that must keep its registration; clearing unconditionally
+        // would strand that live session with no registration. Disarmed on
+        // success.
+        let mut reservation =
+            crate::fpss_client::CallbackReservation::armed(&self.callback, &callback_arc);
+        let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_closing_expected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        // Teardown wake hook. The dispatcher does NOT park only on the
+        // event ring: once the bounded callback queue is full it blocks inside
+        // the `Blocking` `dispatch_cb.call(...)` below, waiting for the Node
+        // main thread to drain the queue. On `stopStreaming()` the main thread
+        // is itself inside the dispatcher join, so it can never drain the queue,
+        // so the consumer would block forever and the join would hang. The hook
+        // aborts the threadsafe function so the in-flight `Blocking` call
+        // returns `Status::Closing`, the consumer resumes, observes the client
+        // shutdown, exits `for_each_scoped`, and the join completes. It is
+        // built from `callback_arc` (a shared-handle clone, NOT the stored
+        // slot) so installing it consumes nothing the dispatcher needs.
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+            self.js_thread,
+        );
+
+        // The FPSS connect and authentication handshake are network-bound
+        // and run synchronously inside `start_streaming`. Move that work
+        // onto a blocking worker so the single libuv thread stays free to
+        // service timers, IO, and queued promises for the whole handshake.
+        // The dispatcher closure and the `Arc<thetadatadx::Client>` are
+        // both `Send + 'static`, so the closure satisfies the
+        // `spawn_blocking` bound.
+        let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
+        let join_result = tokio::task::spawn_blocking(move || {
+            client.stream().start_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
+                    // Convert to the typed `StreamEvent` napi object on the
+                    // dispatcher thread, then hand the value
+                    // to `ThreadsafeFunction::call`. napi-rs' internal
+                    // `uv_async_t` queue routes the call onto the Node
+                    // main thread, which is the only thread allowed to
+                    // execute V8 (libuv invariant). The FPSS TLS reader
+                    // thread itself never touches V8: the streaming ring
+                    // sits between the reader and the consumer that runs
+                    // this closure.
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = buffered_event_to_typed(buffered);
+                    // `Blocking`, paired with the bounded
+                    // `STREAMING_CALLBACK_QUEUE_DEPTH` on `TsfnCallback`,
+                    // makes this consumer wait once the call queue is full
+                    // rather than parking an unbounded backlog of events
+                    // behind a slow JS callback. While the consumer waits it
+                    // stops draining the ring, so the ring fills and the FPSS
+                    // reader accounts the overflow on `droppedEventCount()`;
+                    // the reader itself is never blocked, so the upstream
+                    // connection stays healthy.
+                    //
+                    // `ErrorStrategy::Fatal` (the fifth `false` const generic
+                    // on `TsfnCallback`) means we pass `T` directly, not
+                    // `Result<T, _>`; exceptions in the JS callback are
+                    // the JS side's problem, surfaced through Node's own
+                    // `uncaughtException`.
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                },
+                move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                },
+                Some(teardown_hook),
+            )
+        })
+        .await;
+
+        let result = match join_result {
+            Ok(result) => result,
+            Err(e) => {
+                // The connect task itself panicked. The `reservation` clears
+                // the slot on drop, but only when this start still owns it, so
+                // a concurrent stop + restart's newer registration survives.
+                return Err(napi::Error::from_reason(format!(
+                    "start_streaming task panicked: {e}"
+                )));
+            }
+        };
+
+        if let Err(e) = result {
+            // The handshake failed -- the `reservation` clears the slot on
+            // drop, but only when this start still owns it.
+            return Err(to_napi_err(e));
+        }
+        // Connect succeeded: hand the reservation off to the live session so the
+        // guard does not clear it on return. No post-connect ownership re-check
+        // is needed: the core holds its dispatcher lock from before the connect
+        // through the install, and every core teardown takes that lock, so a
+        // concurrent stop runs either wholly before the connect, which then
+        // installs normally, or after the install, retiring the fresh session.
+        // Either way the core is left consistent, so the binding must not
+        // itself call the shared `stopStreaming` here -- doing so would tear down
+        // a DIFFERENT session a concurrent restart had already installed. The
+        // standalone client shuts down its OWN unpublished client on
+        // supersession; the unified client has no own client to discard, only
+        // the shared core the gate governs.
+        reservation.disarm();
+        Ok(())
+    }
+
+    /// Whether the streaming connection is active.
+    #[napi(js_name = "isStreaming")]
+    pub fn is_streaming(&self) -> bool {
+        self.client.stream().is_streaming()
+    }
+
+    /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
+    /// Open a pull-based columnar reader over the live stream.
+    ///
+    /// Returns a reader handle, a sibling to the per-event
+    /// `startStreaming(callback)`. The same subscriptions feed it,
+    /// but market-data events arrive as apache-arrow `RecordBatch`
+    /// values under a fixed schema, consumed with `for await`. The
+    /// reader closes (unsubscribes + tears down) on `close()` or
+    /// `Symbol.asyncDispose`. Open the reader first (that starts the
+    /// session), then subscribe on this same surface.
+    ///
+    /// `batchSize` rows per batch (default 65536); `lingerMs`
+    /// flushes a partial batch on a quiet stream (default 50);
+    /// `backpressure` is `"block"` (default; no queue-side drops) or
+    /// `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
+    #[napi(js_name = "batches", skip_typescript)]
+    pub async fn batches(
+        &self,
+        options: Option<crate::streaming_batches::BatchesOptions>,
+    ) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
+        let options = options.unwrap_or_default();
+        crate::streaming_batches::open_handle(
+            std::sync::Arc::clone(&self.client),
+            options.batch_size,
+            options.linger_ms,
+            options.backpressure,
+            options.capacity,
+        )
+        .await
+    }
+
+    /// Get a snapshot of currently active subscriptions.
+    #[napi(js_name = "activeSubscriptions")]
+    pub fn active_subscriptions(&self) -> napi::Result<serde_json::Value> {
+        self.client
+            .stream()
+            .active_subscriptions()
+            .map(|subs| {
+                serde_json::json!(subs.into_iter()
+                    .map(|(kind, contract)| {
+                        serde_json::json!({ "kind": format!("{kind:?}"), "contract": format!("{contract}") })
+                    })
+                    .collect::<Vec<_>>())
+            })
+            .map_err(to_napi_err)
+    }
+
+    /// Reconnect streaming and re-register the previously installed callback.
+    ///
+    /// Requires a prior `startStreaming(callback)`; throws if
+    /// no callback is registered. All active subscriptions are
+    /// restored on the new connection. If some subscriptions
+    /// cannot be restored, the reconnect still completes for
+    /// the rest and the failures are reported through the
+    /// callback.
+    ///
+    /// # Callback lifetime across `stopStreaming`
+    ///
+    /// `stopStreaming()` and `shutdown()` clear the registered
+    /// callback. To resume streaming on this client after
+    /// `stopStreaming()`, you MUST call `startStreaming(callback)`
+    /// again with a freshly bound function; `reconnect()` throws
+    /// because no callback is held.
+    ///
+    /// This explicit-handoff model matches the C++ wrapper's RAII
+    /// destructor and the Python `with` block's `__exit__`: the
+    /// resource (the JS callback handle) is cleared at the same
+    /// scope boundary the application observes. The unified C API
+    /// preserves the callback across stop/reconnect, but the
+    /// TypeScript and Python bindings deliberately diverge to enforce
+    /// the explicit handoff and avoid retaining captured references
+    /// past a teardown the caller has already observed.
+    #[napi(js_name = "reconnect")]
+    pub async fn reconnect(&self) -> napi::Result<()> {
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. Require a prior
+        // `startStreaming(callback)` so the napi surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        let callback_arc: Arc<TsfnCallback> = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => Arc::clone(cb),
+                None => {
+                    return Err(napi::Error::from_reason(
+                        "no callback registered -- call startStreaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        crate::fpss_client::ensure_callback_open(&callback_arc)?;
+        let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_for_result = Arc::clone(&callback_arc);
+        let callback_closing_expected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // Fresh teardown wake hook for the reconnected session. The
+        // reconnect re-uses the same `ThreadsafeFunction`, but the hook is
+        // `FnOnce`, so a new one is built from the persistent callback handle
+        // per reconnect to wake a dispatcher blocked in the full callback queue
+        // when the NEW session tears down. See `startStreaming`.
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+            self.js_thread,
+        );
+
+        // The reconnect re-runs the FPSS connect and authentication
+        // handshake plus a paced subscription restore, all network-bound.
+        // Move it onto a blocking worker so the single libuv thread stays
+        // free for timers, IO, and queued promises. The stored callback
+        // handle stays in place; `reconnect_streaming` re-uses the same
+        // `ThreadsafeFunction`, so there is no state shape change.
+        let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let callback_closing_expected_for_result = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
+        tokio::task::spawn_blocking(move || {
+            let stream = client.stream();
+            let result = stream.reconnect_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
+                    let buffered = fpss_event_to_buffered(event);
+                    let typed = buffered_event_to_typed(buffered);
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                },
+                move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                },
+                Some(teardown_hook),
+            );
+            if callback_closing_expected_for_result.load(std::sync::atomic::Ordering::Acquire) {
+                stream.stop_streaming();
+                return Err(crate::fpss_client::aborted_callback_error());
+            }
+            if let Err(err) = crate::fpss_client::ensure_callback_open(&callback_for_result) {
+                stream.stop_streaming();
+                return Err(err);
+            }
+            result.map_err(to_napi_err)
+        })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
+    }
+
+    /// Stop streaming while keeping the market-data client usable.
+    ///
+    /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
+    #[napi(js_name = "stopStreaming")]
+    pub fn stop_streaming(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
+        self.client.stream().stop_streaming();
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard
+                .as_ref()
+                .is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback))
+            {
+                *guard = None;
+            }
+        }
+    }
+
+    /// Shut down the streaming connection.
+    ///
+    /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
+    #[napi(js_name = "shutdown")]
+    pub fn shutdown(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
+        self.client.stream().stop_streaming();
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard
+                .as_ref()
+                .is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback))
+            {
+                *guard = None;
+            }
+        }
+    }
+
+    /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
+    #[napi(js_name = "awaitDrain")]
+    pub async fn await_drain(&self, timeout_ms: f64) -> napi::Result<bool> {
+        let timeout_ms = crate::validate_u32_arg("timeoutMs", timeout_ms)?;
+        let client = self.client.clone();
+        let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));
+        tokio::task::spawn_blocking(move || client.stream().await_drain(timeout))
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("await_drain task panicked: {e}")))
+    }
+}
 
 // `startStreaming(cb)` is the sole streaming entry point. Callers that
 // want a for-await shape can wrap a queue inside the callback.

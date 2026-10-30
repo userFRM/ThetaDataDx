@@ -56,23 +56,13 @@ use crate::{Client, Config, Credentials};
 /// new market-data endpoint to `Client` is automatically
 /// available on `MarketDataClient` with zero edit here.
 ///
-/// Drift guard: the compile-time assertion below pins the generator-emitted
-/// streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`, generated from
-/// `thetadatadx-rs/sdk_surface.toml`) as a strict subset of
-/// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted streaming method
-/// without also extending this list fails the build, so the block-list
-/// cannot silently fall behind. Hand-written streaming methods on the unified
-/// pyclass (`subscribe`, `streaming`, …) are
-/// covered by the offline coverage test in
+/// Drift guard: the streaming methods are covered by the offline coverage
+/// test in
 /// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
 /// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
 /// `_blocked_fpss_methods()` introspection helper exposed below.
 pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
-    // Generator-emitted streaming methods (declared in
-    // `thetadatadx-rs/sdk_surface.toml`). The compile-time guard
-    // below asserts every name in `PYTHON_UNIFIED_FPSS_METHODS` is
-    // present here — adding a new generator-emitted streaming method
-    // without extending this list fails the build.
+    // Streaming lifecycle and subscription methods on `StreamView`.
     "start_streaming",
     "stop_streaming",
     "shutdown",
@@ -104,36 +94,6 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // surface around the per-method block-list.
     "stream",
 ];
-
-/// Compile-time drift check: every name in
-/// `PYTHON_UNIFIED_FPSS_METHODS` (emitted by
-/// `thetadatadx-rs/build_support_bin/sdk_surface/python.rs` from
-/// `sdk_surface.toml`) must appear in `FPSS_TOUCHING_METHODS`. Adding
-/// a new generator-emitted streaming method without extending the
-/// hand-written block-list above fails the build.
-const _: () = {
-    let mut i = 0;
-    while i < crate::PYTHON_UNIFIED_FPSS_METHODS.len() {
-        let needle = crate::PYTHON_UNIFIED_FPSS_METHODS[i].as_bytes();
-        let mut found = false;
-        let mut j = 0;
-        while j < FPSS_TOUCHING_METHODS.len() {
-            if crate::const_bytes_eq(FPSS_TOUCHING_METHODS[j].as_bytes(), needle) {
-                found = true;
-                break;
-            }
-            j += 1;
-        }
-        assert!(
-            found,
-            "PYTHON_UNIFIED_FPSS_METHODS contains a name not in \
-             `mdds_client::FPSS_TOUCHING_METHODS` — extend the \
-             block-list (and the offline-coverage test) so the market-data \
-             surface stays streaming-free."
-        );
-        i += 1;
-    }
-};
 
 /// Standalone market-data-only client.
 ///

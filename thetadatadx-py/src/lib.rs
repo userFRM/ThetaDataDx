@@ -28,10 +28,8 @@ mod logging_bridge;
 mod mdds_client;
 mod streaming_batches;
 
-// These imports look unused at source level: the
-// `include!("_generated/streaming_methods.rs")` block below and the
-// `market_data` module reference these names without their own `use`
-// declarations.
+// These imports look unused at source level: the `market_data` module
+// references these names without its own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
 use errors::{config_err, to_py_err};
@@ -585,7 +583,154 @@ mod config_accessors;
 mod ticks;
 pub(crate) use ticks::*;
 
-include!("_generated/utility_functions.rs");
+#[pyfunction]
+fn condition_name(code: i32) -> &'static str {
+    thetadatadx::utils::conditions::condition_name(code)
+}
+
+#[pyfunction]
+fn condition_description(code: i32) -> &'static str {
+    thetadatadx::utils::conditions::condition_description(code)
+}
+
+#[pyfunction]
+fn is_cancel(code: i32) -> bool {
+    thetadatadx::utils::conditions::is_cancel(code)
+}
+
+#[pyfunction]
+fn updates_volume(code: i32) -> bool {
+    thetadatadx::utils::conditions::updates_volume(code)
+}
+
+#[pyfunction]
+fn quote_condition_name(code: i32) -> &'static str {
+    thetadatadx::utils::conditions::quote_condition_name(code)
+}
+
+#[pyfunction]
+fn quote_condition_description(code: i32) -> &'static str {
+    thetadatadx::utils::conditions::quote_condition_description(code)
+}
+
+#[pyfunction]
+fn is_firm(code: i32) -> bool {
+    thetadatadx::utils::conditions::is_firm(code)
+}
+
+#[pyfunction]
+fn is_halted(code: i32) -> bool {
+    thetadatadx::utils::conditions::is_halted(code)
+}
+
+#[pyfunction]
+fn exchange_name(code: i32) -> &'static str {
+    thetadatadx::utils::exchange::exchange_name(code)
+}
+
+#[pyfunction]
+fn exchange_symbol(code: i32) -> &'static str {
+    thetadatadx::utils::exchange::exchange_symbol(code)
+}
+
+/// Vendor vocabulary text for a calendar-day `status` code (`0` ->
+/// `"open"`, `1` -> `"early_close"`, `2` -> `"full_close"`, `3` ->
+/// `"weekend"`). Returns the literal `"UNKNOWN"` for codes outside the
+/// table. Mirrors the C++ `thetadatadx::calendar_status_name` and the C ABI
+/// `thetadatadx_calendar_status_name`.
+#[pyfunction]
+fn calendar_status_name(code: i32) -> &'static str {
+    thetadatadx::CalendarStatus::from_code(code)
+        .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str)
+}
+
+/// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
+/// Unix epoch milliseconds (UTC, DST-aware). Usable with any
+/// `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when
+/// `date` is absent (`0`) or either input is out of domain, the same
+/// `std::nullopt` contract the C++ `thetadatadx::timestamp_ms` returns (the C
+/// ABI `thetadatadx_timestamp_ms` encodes that absence as the `-1` sentinel).
+#[pyfunction]
+fn timestamp_ms(date: i32, ms_of_day: i32) -> Option<i64> {
+    thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)
+}
+
+/// Convert a signed wire-encoded trade-sequence value to its unsigned
+/// monotonic form. `signed_value` must lie in the i32 wire range
+/// (`-2_147_483_648 ..= 2_147_483_647`): the upstream terminal encodes
+/// trade sequences as i32, so a value outside that domain is not a wire
+/// sequence and is rejected with `ValueError` rather than silently
+/// reinterpreted into a look-correct-but-wrong id. A value that does not
+/// fit the `i64` parameter type still surfaces as the built-in
+/// `OverflowError` from argument coercion, unchanged.
+#[pyfunction]
+fn sequence_signed_to_unsigned(signed_value: i64) -> PyResult<u64> {
+    if !(thetadatadx::utils::sequences::SEQUENCE_MIN..=thetadatadx::utils::sequences::SEQUENCE_MAX)
+        .contains(&signed_value)
+    {
+        return Err(PyValueError::new_err(format!(
+            "sequence_signed_to_unsigned: {signed_value} is outside the i32 wire range \
+             (-2_147_483_648 ..= 2_147_483_647)"
+        )));
+    }
+    Ok(thetadatadx::utils::sequences::signed_to_unsigned(
+        signed_value,
+    ))
+}
+
+/// Convert an unsigned monotonic trade-sequence value back to its signed
+/// wire encoding. `unsigned_value` must lie in the unsigned wire range
+/// (`0 ..= 2^32 - 1`): the monotonic sequence id is never wider than one
+/// i32 cycle, so a value above that domain is rejected with `ValueError`
+/// rather than silently reinterpreted. A negative argument still
+/// surfaces as the built-in `OverflowError` from `u64` coercion,
+/// unchanged.
+#[pyfunction]
+fn sequence_unsigned_to_signed(unsigned_value: u64) -> PyResult<i64> {
+    if unsigned_value > u64::from(u32::MAX) {
+        return Err(PyValueError::new_err(format!(
+            "sequence_unsigned_to_signed: {unsigned_value} is above the unsigned wire range \
+             (0 ..= 2^32 - 1)"
+        )));
+    }
+    Ok(thetadatadx::utils::sequences::unsigned_to_signed(
+        unsigned_value,
+    ))
+}
+
+/// Register the `thetadatadx.util` submodule on the parent module.
+///
+/// All functions are added to a child PyModule named `util`, then that
+/// child is registered both as a submodule of the parent and (so
+/// `import thetadatadx.util` works) inserted into `sys.modules` under
+/// the dotted name. This is the standard pyo3 idiom for native Python
+/// submodules.
+pub(crate) fn register_util_submodule(parent: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = parent.py();
+    let util = PyModule::new(py, "util")?;
+    util.add_function(wrap_pyfunction!(condition_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(condition_description, &util)?)?;
+    util.add_function(wrap_pyfunction!(is_cancel, &util)?)?;
+    util.add_function(wrap_pyfunction!(updates_volume, &util)?)?;
+    util.add_function(wrap_pyfunction!(quote_condition_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(quote_condition_description, &util)?)?;
+    util.add_function(wrap_pyfunction!(is_firm, &util)?)?;
+    util.add_function(wrap_pyfunction!(is_halted, &util)?)?;
+    util.add_function(wrap_pyfunction!(exchange_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(exchange_symbol, &util)?)?;
+    util.add_function(wrap_pyfunction!(calendar_status_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(timestamp_ms, &util)?)?;
+    util.add_function(wrap_pyfunction!(sequence_signed_to_unsigned, &util)?)?;
+    util.add_function(wrap_pyfunction!(sequence_unsigned_to_signed, &util)?)?;
+
+    // Insert under the dotted name so `import thetadatadx.util` works
+    // identically to a pure-Python submodule.
+    let sys_modules = py.import("sys")?.getattr("modules")?;
+    sys_modules.set_item("thetadatadx.util", &util)?;
+
+    parent.add_submodule(&util)?;
+    Ok(())
+}
 
 // ── Streaming client ──
 
@@ -1383,8 +1528,7 @@ impl StreamView {
 //
 // Polymorphic `subscribe(Subscription)` / `unsubscribe(Subscription)` /
 // `subscribe_many([Subscription, ...])`. Routes through the same Rust
-// core paths used by the typed compat helpers in
-// `streaming_methods.rs`, but takes the typed `Subscription` value
+// core paths used by the streaming lifecycle methods below, but takes the typed `Subscription` value
 // returned by `Contract.quote()` / `SecType.OPTION.full_trades()` —
 // no string parsing, no kwarg gymnastics.
 //
@@ -1537,13 +1681,20 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// inline in `AsyncClient.__getattr__` so the lists cannot drift.
 const DIRECT_ON_CLIENT: [&str; 2] = ["streaming", "flat_files"];
 
-/// Hand-written `#[pymethods]` entries on `Client` outside
-/// the generator-emitted streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`).
-/// Pairs with the generator-emitted set in the
-/// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below — every
-/// name in `ALLOWED_UNIFIED_PROXY_METHODS` must appear in either this
-/// list or `PYTHON_UNIFIED_FPSS_METHODS`, otherwise the build fails.
+/// Hand-written `#[pymethods]` entries reachable through `Client`. The
+/// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below requires every
+/// name in `ALLOWED_UNIFIED_PROXY_METHODS` to appear in this list, otherwise
+/// the build fails.
 const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
+    // Streaming lifecycle on the `client.stream` `StreamView` surface (lib.rs).
+    "start_streaming",
+    "is_streaming",
+    "batches",
+    "active_subscriptions",
+    "reconnect",
+    "stop_streaming",
+    "shutdown",
+    "await_drain",
     // Hand-written streaming-session factory (stays on `Client`).
     "streaming",
     // FLATFILES namespace getter (lives in `flatfile_methods.rs`,
@@ -1614,21 +1765,10 @@ const _: () = {
             }
             j += 1;
         }
-        if !found {
-            let mut k = 0;
-            while k < PYTHON_UNIFIED_FPSS_METHODS.len() {
-                if const_bytes_eq(PYTHON_UNIFIED_FPSS_METHODS[k].as_bytes(), needle.as_bytes()) {
-                    found = true;
-                    break;
-                }
-                k += 1;
-            }
-        }
         assert!(
             found,
             "ALLOWED_UNIFIED_PROXY_METHODS contains a name not present \
-             in `PYTHON_UNIFIED_FPSS_METHODS` (generated) nor in \
-             `HANDWRITTEN_UNIFIED_PYMETHODS` — the AsyncClient \
+             in `HANDWRITTEN_UNIFIED_PYMETHODS`; the AsyncClient \
              would promise a method Client does not implement."
         );
         i += 1;
@@ -1852,7 +1992,408 @@ impl AsyncClient {
 mod stream_events;
 use stream_events::{fpss_event_to_typed, register_fpss_event_classes};
 
-include!("_generated/streaming_methods.rs");
+#[pymethods]
+impl StreamView {
+    /// Start streaming and register a Python callback for incoming events.
+    ///
+    /// The dispatcher thread acquires the GIL
+    /// via `Python::attach` to call `callback(event)` for
+    /// every typed streaming event, with each invocation wrapped
+    /// in `catch_unwind`. `callback` must accept exactly one
+    /// positional argument, a typed streaming event class
+    /// (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`,
+    /// `LoginSuccess`, `ContractAssigned`, `ReqResponse`,
+    /// `MarketOpen`, `MarketClose`, `ServerError`,
+    /// `Disconnected`, `Reconnecting`, `Reconnected`, `Error`,
+    /// `UnknownFrame`, `Connected`, `Ping`, `ReconnectedServer`,
+    /// `Restart`, `UnknownControl`). Dispatch via
+    /// `match event: case Quote(): ...`. Truncated / unrecognised
+    /// wire frames are filtered before the callback fires and
+    /// accounted on the `thetadatadx.fpss.decode_failures` metric.
+    ///
+    /// Events flow from the streaming reader thread into the
+    /// streaming ring (`Producer::try_publish`) and out
+    /// to the consumer thread that runs `callback`. The
+    /// reader never blocks on user code; if the callback
+    /// falls behind, ring-overflow events are dropped and
+    /// counted via `dropped_event_count()`.
+    ///
+    /// Exceptions raised inside `callback` are caught by the
+    /// `catch_unwind` boundary and routed through
+    /// `PyErr::write_unraisable` (visible in `sys.stderr` and
+    /// the unraisable hook); each one bumps `panic_count()`.
+    pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
+        // Reject a non-callable up front: otherwise the dispatcher fails on
+        // the first event, off the calling thread, as an unraisable TypeError.
+        if !callback.bind(py).is_callable() {
+            return Err(crate::errors::invalid_parameter_err(
+                "start_streaming callback must be callable",
+            ));
+        }
+        // Bind the callable behind a cheap `Arc` so the FPSS callback
+        // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
+        // handle into each per-event invocation. `Py<PyAny>` itself is
+        // `Send + Sync` once the GIL is released, so the Arc is purely
+        // a reference-count lifetime aid.
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
+        {
+            // Reserve the registration slot before releasing the GIL for the
+            // blocking handshake, then DROP the guard. `close()` parks on this
+            // same `Mutex<Option<Arc<Py<PyAny>>>>` WITH the GIL held; a guard
+            // held across the `py.detach` connect below (whose dispatcher
+            // re-acquires the GIL) would let a concurrent `close()` take the GIL
+            // and block on the mutex while this thread blocks on the GIL -- a
+            // whole-interpreter deadlock. Take the lock in this inner scope,
+            // reject a double-registration, store the handle eagerly, and release
+            // before connecting. The stop-generation guard plus this
+            // double-start rejection make the wide critical section unnecessary;
+            // the `CallbackReservation` armed below clears the slot again on a
+            // handshake failure.
+            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            // Reject double-registration with a clear PyRuntimeError. The
+            // underlying `Client::start_streaming` would also error,
+            // but matching the PyO3 binding's own state first gives a
+            // language-idiomatic message.
+            if cb_guard.is_some() {
+                return Err(PyRuntimeError::new_err(
+                    "streaming already started -- call stop_streaming() before start_streaming() again",
+                ));
+            }
+            *cb_guard = Some(Arc::clone(&callback_arc));
+        }
+        // Own the reservation until the connect succeeds. On any non-success exit
+        // -- the `?` on a handshake failure below, or a panic before the connect
+        // completes -- the guard clears the slot, but ONLY if it still holds THIS
+        // reservation (`Arc::ptr_eq`). The lock is dropped across the detached
+        // connect, so a concurrent stop + restart may have replaced the slot with
+        // a newer callback that must keep its registration. Disarmed on success.
+        let mut reservation = CallbackReservation::armed(&self.callback, &callback_arc);
+        let dispatch_cb = Arc::clone(&callback_arc);
+        // Capture a WEAK handle to the Rust client so the dispatcher closure
+        // can call `record_panic()` when the Python callback raises an
+        // exception (a `PyErr` is not a Rust panic; it does not unwind through
+        // `catch_unwind`, so the core counter is only bumped here). It MUST be
+        // weak: a strong `Arc<Client>` held by the long-lived dispatcher
+        // closure would keep the core `Client` alive after the user drops
+        // their Python handle, so `Client::Drop` (which detaches the streaming
+        // teardown off the GIL thread) would never run and the session would
+        // leak until process exit. Upgrading only for the `record_panic()`
+        // call, and skipping it when the upgrade fails (the client is gone,
+        // so there is nothing to record on), keeps the cycle broken.
+        let panic_recorder = Arc::downgrade(&self.client);
+
+        // Never hold the GIL across the blocking network connect.
+        // `start_streaming_scoped` performs the FPSS TLS socket connect
+        // and the `CREDENTIALS` handshake synchronously on the calling
+        // thread before it spawns the dispatcher, so the whole call is
+        // released from the interpreter lock via `py.detach`. A sibling
+        // Python thread keeps running while the handshake is in flight.
+        // The connect path and the resulting `Result` are pure Rust: no
+        // Python object is touched inside the detached region; the typed
+        // exception mapping (`to_py_err`) runs AFTER the GIL is
+        // re-acquired, leaving the error surface unchanged.
+        //
+        // GIL once per batch, not per event. The dispatcher scope below
+        // re-acquires the GIL via `Python::attach` for each consumer
+        // batch drain, holds it across every event in the batch, then
+        // releases it across the idle inter-batch wait. The per-event
+        // `Python::attach` is the cheap reentrant fast path (the GIL is
+        // already held by the scope), not a full acquire-from-detached
+        // every event, which is what lifts sustained drain throughput.
+        // The no-GIL discipline holds: the lock never spans the blocking
+        // connect and never spans the idle wait.
+        //
+        // The consumer is not the FPSS TLS reader thread; a slow Python
+        // callback at most fills the streaming ring and bumps
+        // `dropped_event_count()`, it cannot back-pressure the TLS reader
+        // and trigger a vendor-side disconnect. The core SDK wraps the
+        // user callback in `catch_unwind`, so a Rust panic is counted on
+        // `panic_count()` and written to `sys.stderr` via
+        // `PyErr::write_unraisable` rather than killing the consumer.
+        // Python exceptions raised by the callback are caught via `call1`
+        // returning `Err` and are also counted on `panic_count()` via
+        // `panic_recorder.record_panic()` below.
+        py.detach(|| {
+            self.client.stream().start_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
+                    Python::attach(|py| {
+                        // Convert the borrowed `&StreamEvent` straight to its
+                        // typed pyclass, with no owned intermediate. The
+                        // contract is stored inline on the event; the
+                        // nested `ContractRef` Python object is built only
+                        // if the callback reads `event.contract`. `call1`
+                        // with a 1-tuple takes pyo3's vectorcall fast path
+                        // (no heap argument tuple).
+                        let typed = match fpss_event_to_typed(py, event) {
+                            Ok(obj) => obj,
+                            Err(err) => {
+                                // Don't propagate from the dispatcher
+                                // thread: there's no Python frame to
+                                // raise into. Surface via the standard
+                                // PyErr -> sys.stderr writer so logging
+                                // pipelines and Jupyter both see it.
+                                err.write_unraisable(py, None);
+                                return;
+                            }
+                        };
+                        if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                            err.write_unraisable(py, None);
+                            // Weak upgrade: record the callback failure only
+                            // while the client is still alive. If the user has
+                            // dropped it, teardown is already under way and
+                            // there is no counter to bump.
+                            if let Some(client) = panic_recorder.upgrade() {
+                                client.stream().record_panic();
+                            }
+                        }
+                    });
+                },
+                |drain| Python::attach(|_py| drain()),
+                // No teardown wake hook: the dispatcher parks only on the
+                // event ring (the `call1` GIL acquire never blocks waiting on
+                // the teardown thread), which `client.shutdown()` already
+                // signals. The bounded-queue wake hook is a TypeScript
+                // `ThreadsafeFunction` concern.
+                None,
+            )
+        })
+        .map_err(to_py_err)?;
+        // Connect succeeded: hand the reservation off to the live session so the
+        // guard does not clear it on return. No post-connect ownership re-check
+        // is needed: the core holds its dispatcher lock from before the connect
+        // through the install, and every core teardown takes that lock, so a
+        // concurrent stop runs either wholly before the connect, which then
+        // installs normally, or after the install, retiring the fresh session.
+        // Either way the core is left consistent, so the binding must not
+        // itself call the shared `stop_streaming` here -- doing so would tear down
+        // a DIFFERENT session a concurrent restart had already installed. The
+        // standalone client shuts down its OWN unpublished client on
+        // supersession; the unified client has no own client to discard, only
+        // the shared core the gate governs.
+        reservation.disarm();
+        Ok(())
+    }
+
+    /// Whether the streaming connection is active.
+    fn is_streaming(&self) -> bool {
+        self.client.stream().is_streaming()
+    }
+
+    /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
+    /// Open a pull-based columnar reader over the live stream.
+    ///
+    /// Returns a `RecordBatchStream`, a sibling to the per-event
+    /// `start_streaming(callback)`. The same subscriptions feed it,
+    /// but market-data events arrive as `pyarrow.RecordBatch`
+    /// values under a fixed schema. The reader is both a
+    /// synchronous `Iterable` (the blocking pull releases the GIL)
+    /// and an `AsyncIterable` (`async for`), and a sync / async
+    /// context manager that closes the stream on exit. Open the
+    /// reader first (that starts the session), then subscribe on
+    /// this same surface.
+    ///
+    /// `batch_size` rows per batch (default 65536); `linger_ms`
+    /// flushes a partial batch on a quiet stream (default 50);
+    /// `backpressure` is `"block"` (default; no queue-side drops) or
+    /// `"drop_oldest"`; `capacity` bounds the drop-oldest buffer.
+    #[pyo3(signature = (*, batch_size=None, linger_ms=None, backpressure=None, capacity=None))]
+    fn batches(
+        &self,
+        py: Python<'_>,
+        batch_size: Option<usize>,
+        linger_ms: Option<u64>,
+        backpressure: Option<&str>,
+        capacity: Option<usize>,
+    ) -> PyResult<crate::streaming_batches::RecordBatchStream> {
+        crate::streaming_batches::open_reader(
+            py,
+            &self.client,
+            batch_size,
+            linger_ms,
+            backpressure,
+            capacity,
+        )
+    }
+
+    /// Get a snapshot of currently active subscriptions.
+    fn active_subscriptions(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {
+        self.client
+            .stream()
+            .active_subscriptions()
+            .map(|subs| {
+                subs.into_iter()
+                    .map(|(kind, contract)| crate::fluent::PySubscription {
+                        inner: fpss::protocol::Subscription::Contract { contract, kind },
+                    })
+                    .collect()
+            })
+            .map_err(to_py_err)
+    }
+
+    /// Reconnect streaming and re-register the previously installed callback.
+    ///
+    /// Requires a prior `start_streaming(callback)`; raises
+    /// `RuntimeError` if no callback is registered. All
+    /// active subscriptions are restored on the new
+    /// connection; see `thetadatadx::Client::reconnect_streaming`
+    /// for partial-failure semantics.
+    ///
+    /// # Callback lifetime across `stop_streaming`
+    ///
+    /// `stop_streaming()` and `shutdown()` clear the registered
+    /// callback. To resume streaming on this client after
+    /// `stop_streaming()`, you MUST call `start_streaming(callback)`
+    /// again with a freshly bound callable; `reconnect()` raises
+    /// `RuntimeError` because no callback is held.
+    ///
+    /// This explicit-handoff model matches the C++ wrapper's RAII
+    /// destructor and the Python `with` block's `__exit__`: the
+    /// resource (the callback closure plus its captured environment)
+    /// is cleared at the same scope boundary the user observes. The
+    /// unified C API preserves the callback across stop/reconnect,
+    /// but the Python and TypeScript bindings deliberately diverge
+    /// to enforce the explicit handoff and avoid retaining captured
+    /// references past a teardown the application has already
+    /// observed.
+    fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
+        // `reconnect` re-registers the previously installed callback
+        // on a fresh FPSS connection. We require a prior
+        // `start_streaming(callback)` so the Python surface stays
+        // consistent: there is no implicit zero-callback streaming
+        // mode on this binding.
+        // Snapshot BOTH the slot's current `Arc` identity (`prev_arc`, for the
+        // ownership-checked store below) and a fresh `clone_ref` for the
+        // reconnected dispatcher. The lock is dropped across the GIL-released
+        // reconnect, so a concurrent stop (clears to `None`) or restart
+        // (installs a newer `Arc`) can replace the slot mid-reconnect.
+        let (prev_arc, stored) = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            match guard.as_ref() {
+                Some(cb) => (Arc::clone(cb), Python::attach(|py| cb.clone_ref(py))),
+                None => {
+                    return Err(PyRuntimeError::new_err(
+                        "no callback registered -- call start_streaming(callback) before reconnect()",
+                    ));
+                }
+            }
+        };
+        let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
+        let dispatch_cb = Arc::clone(&callback_arc);
+        // WEAK, not strong (see `start_streaming`): a strong `Arc<Client>` in
+        // the long-lived dispatcher closure would pin the core client alive
+        // past the user's drop and defeat `Client::Drop`'s teardown.
+        let panic_recorder = Arc::downgrade(&self.client);
+
+        // Never hold the GIL across the blocking network reconnect.
+        // `reconnect_streaming_scoped` tears the old session down, opens a
+        // fresh FPSS TLS connection, re-runs the `CREDENTIALS` handshake,
+        // and paces the saved-subscription replay (sleeping
+        // `replay_pace_ms` between bursts), all synchronously on the
+        // calling thread. The whole call is released from the interpreter
+        // lock via `py.detach` so a sibling Python thread keeps running
+        // while the reconnect is in flight. The reconnect path and its
+        // `Result` are pure Rust; `to_py_err` maps the failure AFTER the
+        // GIL is re-acquired.
+        //
+        // GIL once per batch, not per event; see `start_streaming`. The
+        // dispatcher scope holds the GIL across each batch drain and
+        // releases it across the idle wait; the per-event
+        // `Python::attach` is the cheap reentrant fast path.
+        py.detach(|| {
+            self.client.stream().reconnect_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
+                    Python::attach(|py| {
+                        // Borrowed `&StreamEvent` → typed pyclass in one
+                        // pass; contract stored inline, ContractRef built
+                        // only on `event.contract` access. `call1` with a
+                        // 1-tuple uses pyo3's vectorcall fast path.
+                        let typed = match fpss_event_to_typed(py, event) {
+                            Ok(obj) => obj,
+                            Err(err) => {
+                                err.write_unraisable(py, None);
+                                return;
+                            }
+                        };
+                        if let Err(err) = dispatch_cb.call1(py, (typed,)) {
+                            err.write_unraisable(py, None);
+                            // Weak upgrade; see `start_streaming`.
+                            if let Some(client) = panic_recorder.upgrade() {
+                                client.stream().record_panic();
+                            }
+                        }
+                    });
+                },
+                |drain| Python::attach(|_py| drain()),
+                // No teardown wake hook; see `start_streaming` above.
+                None,
+            )
+        })
+        .map_err(to_py_err)?;
+
+        // Ownership-checked store: install the reconnected handle ONLY if the
+        // slot still holds the registration this reconnect started from
+        // (`Arc::ptr_eq` against `prev_arc`). The callback lock is dropped across
+        // the GIL-released reconnect, so a concurrent stop (`None`) or restart
+        // (newer `Arc`) must win -- overwriting would strand their session with
+        // the wrong callback. The dispatcher closure already captured a clone of
+        // `callback_arc` (via `dispatch_cb`), so this Arc clone shares the same
+        // callable.
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &prev_arc)) {
+            *guard = Some(Arc::clone(&callback_arc));
+        }
+        Ok(())
+    }
+
+    /// Stop streaming while keeping the market-data client usable.
+    ///
+    /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
+    pub(crate) fn stop_streaming(&self, py: Python<'_>) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
+        py.detach(|| self.client.stream().stop_streaming());
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard
+                .as_ref()
+                .is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback))
+            {
+                *guard = None;
+            }
+        }
+    }
+
+    /// Shut down the streaming connection.
+    ///
+    /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
+    pub(crate) fn shutdown(&self, py: Python<'_>) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
+        py.detach(|| self.client.stream().stop_streaming());
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard
+                .as_ref()
+                .is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback))
+            {
+                *guard = None;
+            }
+        }
+    }
+
+    /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
+    pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
+        py.detach(|| {
+            self.client
+                .stream()
+                .await_drain(std::time::Duration::from_millis(timeout_ms))
+        })
+    }
+}
 
 mod streaming_session;
 use streaming_session::StreamingSession;
@@ -2001,7 +2542,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_tick_classes(m)?;
     market_data::register_market_data_builders(m)?;
     coerce::register_string_enums(m)?;
-    register_generated_util_submodule(m)?;
+    register_util_submodule(m)?;
 
     // Typed exception hierarchy — exports `thetadatadx.ThetaDataError`,
     // `thetadatadx.AuthenticationError`, etc. See [`errors`] for the

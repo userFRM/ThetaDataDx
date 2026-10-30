@@ -154,7 +154,6 @@ The endpoint table expands at compile time into the registry, the shared endpoin
 
 5. **Regenerate downstream SDK/tool surfaces**
    - Endpoint wrappers, the live validators and the docs site's endpoint pages project from the endpoint table
-   - Non-endpoint SDK/tool surfaces project from `thetadatadx-rs/sdk_surface.toml`
    - The C++ tick helpers and the docs site's response tables project from the tick table
    - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces`
    - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
