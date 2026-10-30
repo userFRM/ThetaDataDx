@@ -1,11 +1,12 @@
-//! The C declarations and C++ `Config` accessors, rendered from the core
-//! config table.
+//! The C declarations, the C++ `Config` accessors and the Python stub's
+//! `Config` properties, rendered from the core config table.
 //!
 //! `thetadatadx::__config!` calls back into `config_records!`, which turns
 //! each entry into a [`ConfigAccessor`]. The C declarations are those of the
 //! entry points the FFI crate expands from the same table; the C++ methods
 //! forward to them and are spliced into the `Config` class body of
-//! `thetadatadx.hpp`.
+//! `thetadatadx.hpp`; the Python properties are those the Python binding
+//! expands from the table.
 
 use std::fmt::Write as _;
 
@@ -18,13 +19,15 @@ struct ConfigAccessor {
     kind: Kind,
     doc: &'static [&'static str],
     cpp_doc: &'static [&'static str],
+    py_doc: &'static [&'static str],
 }
 
 /// How a value crosses the C ABI. The scalar and optional kinds carry the
-/// value's C and C++ types.
+/// value's types.
 enum Kind {
-    /// An enum, as its `int` code.
-    Enum,
+    /// An enum, as its `int` code; Python reads and writes the lowercase
+    /// variant name.
+    Enum(&'static [&'static str]),
     /// An `Option`, as a `has_value` flag beside the value.
     Optional(Type),
     /// A UTF-8 string.
@@ -32,10 +35,11 @@ enum Kind {
     Scalar(Type),
 }
 
-/// A value's C and C++ type names.
+/// A value's C, C++ and Python type names.
 struct Type {
     c: &'static str,
     cpp: &'static str,
+    py: &'static str,
 }
 
 macro_rules! config_records {
@@ -47,22 +51,26 @@ macro_rules! config_records {
             kind: config_records!(@kind [$($ty)+] $($body)*),
             doc: config_records!(@doc doc $($body)*),
             cpp_doc: config_records!(@doc cpp_doc $($body)*),
+            py_doc: config_records!(@doc py_doc $($body)*),
         }),*]
     };
     (@setter set) => { true };
     (@setter get) => { false };
-    (@kind [$($ty:tt)+] $(param: $bp:ident,)? values: $($rest:tt)*) => { Kind::Enum };
+    (@kind [$($ty:tt)+] $(param: $bp:ident,)? values: $enum:ident { $($code:literal $variant:ident),* $(,)? }, $($rest:tt)*) => {
+        Kind::Enum(&[$(stringify!($variant)),*])
+    };
     (@kind [String] $($rest:tt)*) => { Kind::String };
     (@kind [Option<$t:ident>] $($rest:tt)*) => { Kind::Optional(config_records!(@type $t)) };
     (@kind [$t:ident] $($rest:tt)*) => { Kind::Scalar(config_records!(@type $t)) };
-    (@type u64) => { Type { c: "uint64_t", cpp: "std::uint64_t" } };
-    (@type u32) => { Type { c: "uint32_t", cpp: "std::uint32_t" } };
-    (@type u16) => { Type { c: "uint16_t", cpp: "std::uint16_t" } };
-    (@type usize) => { Type { c: "size_t", cpp: "std::size_t" } };
-    (@type bool) => { Type { c: "bool", cpp: "bool" } };
+    (@type u64) => { Type { c: "uint64_t", cpp: "std::uint64_t", py: "int" } };
+    (@type u32) => { Type { c: "uint32_t", cpp: "std::uint32_t", py: "int" } };
+    (@type u16) => { Type { c: "uint16_t", cpp: "std::uint16_t", py: "int" } };
+    (@type usize) => { Type { c: "size_t", cpp: "std::size_t", py: "int" } };
+    (@type bool) => { Type { c: "bool", cpp: "bool", py: "bool" } };
     // The documentation under `key`.
     (@doc doc doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
     (@doc cpp_doc cpp_doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
+    (@doc py_doc py_doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
     (@doc $want:ident values: $enum:ident $values:tt, $($rest:tt)*) => { config_records!(@doc $want $($rest)*) };
     (@doc $want:ident $key:ident: $value:tt, $($rest:tt)*) => { config_records!(@doc $want $($rest)*) };
 }
@@ -89,11 +97,11 @@ pub(super) fn render_cpp_config_accessors() -> String {
         // A setter that reports errors throws the FFI's last error; a scalar
         // setter ignores a null handle, and a getter returns the default.
         match (&a.kind, a.setter) {
-            (Kind::Enum, true) => write!(
+            (Kind::Enum(_), true) => write!(
                 out,
                 "    void {method}(int {p}) {{\n        if ({sym}(handle_.get(), {p}) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n    }}\n"
             ),
-            (Kind::Enum, false) => write!(
+            (Kind::Enum(_), false) => write!(
                 out,
                 "    int {method}() const {{\n        int32_t out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n"
             ),
@@ -152,11 +160,11 @@ pub(super) fn render_c_config_accessors() -> String {
         }
         out.push_str(" */\n");
         match (&a.kind, a.setter) {
-            (Kind::Enum, true) => writeln!(
+            (Kind::Enum(_), true) => writeln!(
                 out,
                 "int32_t {sym}(ThetaDataDxConfig* config, int32_t {p});"
             ),
-            (Kind::Enum, false) => writeln!(
+            (Kind::Enum(_), false) => writeln!(
                 out,
                 "int32_t {sym}(const ThetaDataDxConfig* config, int32_t* {p});"
             ),
@@ -187,5 +195,51 @@ pub(super) fn render_c_config_accessors() -> String {
         }
         .unwrap();
     }
+    out
+}
+
+pub(super) const PY_BEGIN_MARKER: &str =
+    "# --- BEGIN GENERATED CONFIG PROPERTIES (config table) ---";
+pub(super) const PY_END_MARKER: &str = "# --- END GENERATED CONFIG PROPERTIES ---";
+
+/// The region of the Python stub's `Config` class holding one property per
+/// table setter, with the type and documentation the runtime property has: a
+/// property takes the documentation of its setter, which comes first.
+pub(super) fn render_python_config_properties() -> String {
+    let mut out =
+        format!("{PY_BEGIN_MARKER}\n    # Generated from the config table; do not edit by hand.\n");
+    for a in ACCESSORS.iter().filter(|a| a.setter) {
+        let name = a.symbol.strip_prefix("thetadatadx_config_set_").unwrap();
+        let ty = match &a.kind {
+            Kind::Enum(variants) => format!(
+                "Literal[{}]",
+                variants
+                    .iter()
+                    .map(|v| format!("\"{}\"", v.to_lowercase()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Kind::Optional(Type { py, .. }) => format!("Optional[{py}]"),
+            Kind::String => "str".to_string(),
+            Kind::Scalar(Type { py, .. }) => py.to_string(),
+        };
+        writeln!(out, "    {name}: {ty}").unwrap();
+        let (first, rest) = a.py_doc.split_first().expect("every setter is documented");
+        if rest.is_empty() {
+            writeln!(out, "    \"\"\"{first}\"\"\"").unwrap();
+            continue;
+        }
+        writeln!(out, "    \"\"\"{first}").unwrap();
+        for line in rest {
+            if line.is_empty() {
+                out.push('\n');
+            } else {
+                writeln!(out, "    {line}").unwrap();
+            }
+        }
+        out.push_str("    \"\"\"\n");
+    }
+    out.push_str("    ");
+    out.push_str(PY_END_MARKER);
     out
 }

@@ -48,11 +48,11 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
         "# Generated from the endpoint table; do not edit by hand. Run\n\
          # `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.\n\
          #\n\
-         # The typed list wrappers and fluent builder classes returned below are\n\
+         # The fluent builder classes and `StringList` returned below are\n\
          # registered at runtime by the compiled extension and resolve through\n\
          # the module-level `__getattr__`; they are aliased to `Any` here so the\n\
-         # method signatures stay precise without re-enumerating every wrapper's\n\
-         # converter surface.\n",
+         # method signatures stay precise without re-enumerating their surface.\n\
+         # The tick rows and their typed lists are stubbed above.\n",
     );
 
     for alias in collect_result_type_aliases(endpoints) {
@@ -95,11 +95,14 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
 }
 
 /// Distinct return / builder class names referenced by the generated
-/// signatures, in first-appearance order. Each name is aliased to `Any` so
-/// the precise method signatures compile without enumerating every
-/// wrapper's converter surface.
+/// signatures, in first-appearance order, other than the tick rows and
+/// lists the stub declares. Each name is aliased to `Any` so the precise
+/// method signatures compile without enumerating every class's surface.
 fn collect_result_type_aliases(endpoints: &[GeneratedEndpoint]) -> Vec<String> {
-    let mut seen = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<String> = crate::ticks::table::TICKS
+        .iter()
+        .flat_map(|tick| [tick.name.to_string(), format!("{}List", tick.name)])
+        .collect();
     let mut aliases = Vec::new();
     for endpoint in endpoints
         .iter()

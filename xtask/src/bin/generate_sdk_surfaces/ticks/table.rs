@@ -17,6 +17,9 @@ pub(crate) struct Tick {
     /// option response fills.
     pub(crate) contract_id: bool,
     pub(crate) columns: &'static [Column],
+    /// The epoch-millisecond accessors, each joining a date and a
+    /// milliseconds-of-day column.
+    pub(crate) timestamps: &'static [Timestamp],
     pub(crate) flags: &'static [Flag],
     /// The C layout of a `Copy` row. An `#[owned]` row holds a `String` and
     /// has none.
@@ -29,7 +32,17 @@ pub(crate) struct Column {
     pub(crate) field: &'static str,
     /// The column type as the table writes it.
     pub(crate) ty: &'static str,
+    /// The row tells a reported zero from an absent value.
+    pub(crate) nullable: bool,
     pub(crate) doc: &'static str,
+}
+
+/// An accessor joining a date column and a milliseconds-of-day column into
+/// Unix epoch milliseconds.
+pub(crate) struct Timestamp {
+    pub(crate) name: &'static str,
+    pub(crate) date: &'static str,
+    pub(crate) ms: &'static str,
 }
 
 /// A boolean accessor, true when `field` is within `lo..=hi`.
@@ -60,17 +73,26 @@ macro_rules! tick_record {
     ($name:ident $kind:ident contract [$($exp:ident $strike:ident $right:ident)?]
         doc $doc:tt summary [$($summary:tt)*] more [$($more:tt)*] required $required:tt
         columns [$({ $field:ident $wire:ident $ty:ident [$($has:ident)?] $d:tt })*]
-        timestamps $timestamps:tt flags [$({ $flag:ident $ffield:ident $lo:tt $hi:tt $fdoc:tt })*]) => {
+        timestamps [$({ $acc:ident $date:ident $ms:ident })*]
+        flags [$({ $flag:ident $ffield:ident $lo:tt $hi:tt $fdoc:tt })*]) => {
         Tick {
             name: stringify!($name),
             summary: concat!($($summary),*),
             more: &[$($more),*],
             contract_id: tick_record!(@contract_id $($exp)?),
-            columns: &[$(Column { field: stringify!($field), ty: stringify!($ty), doc: $d }),*],
+            columns: &[$(Column {
+                field: stringify!($field),
+                ty: stringify!($ty),
+                nullable: tick_record!(@nullable $($has)?),
+                doc: $d,
+            }),*],
+            timestamps: &[$(Timestamp { name: stringify!($acc), date: stringify!($date), ms: stringify!($ms) }),*],
             flags: &[$(Flag { name: stringify!($flag), field: stringify!($ffield), lo: $lo, hi: $hi, doc: $fdoc }),*],
             layout: tick_record!(@layout $kind $name [$($field [$($has)?])* $($exp [] $strike [] $right [])?]),
         }
     };
+    (@nullable) => { false };
+    (@nullable $has:ident) => { true };
     (@contract_id) => { false };
     (@contract_id $exp:ident) => { true };
     (@layout owned $name:ident $fields:tt) => { None };

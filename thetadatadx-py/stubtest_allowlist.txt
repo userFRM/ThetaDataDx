@@ -1,16 +1,13 @@
 # Stubtest allowlist for the `thetadatadx` Python wheel (Gate 6 / #549).
 #
-# The hand-written `__init__.pyi` covers the load-bearing public
-# surface — clients, credentials, the fluent `Contract` /
-# `Subscription` / `SecType` types, the typed FPSS event payload
-# classes, streaming context managers, the typed exception
-# hierarchy. Generator-emitted classes (100+
-# market-data builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
-# wrappers, every enum produced by
-# `coerce::register_string_enums`, etc.) are exposed via the
-# module-level `__getattr__` fallback to `Any` because a hand-typed
-# mirror would be high-maintenance noise that drifts on every
-# codegen pass.
+# `__init__.pyi` covers the public surface: clients, credentials, the
+# fluent `Contract` / `Subscription` / `SecType` types, the string enums,
+# streaming context managers and the typed exception hierarchy by hand,
+# and the streaming event classes, the `Config` properties, the tick rows
+# and their `<Tick>List` wrappers and the market-data methods generated
+# from the tables the runtime is built from. The market-data builders and
+# the `<Tick>ListIter` iterators are exposed via the module-level
+# `__getattr__` fallback to `Any`.
 #
 # The CI gate runs::
 #
