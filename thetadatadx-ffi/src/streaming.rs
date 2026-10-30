@@ -286,18 +286,13 @@ fn streaming_builder(
 // ═══════════════════════════════════════════════════════════════════════
 //  #[repr(C)] FPSS streaming event types — zero-copy across FFI
 //
-//  All of the kind-enum / per-variant struct / ZERO_* const definitions
-//  are generated from `thetadatadx-rs/fpss_event_schema.toml`. The
-//  hand-written wrapper `FfiBufferedEvent` below owns the backing memory
-//  for every borrowed pointer the generated `ThetaDataDxStreamEvent` exposes
-//  (the `Contract.symbol` C strings, the typed control variants'
-//  `permissions` / `message` strings, and the `Ping` / `UnknownFrame`
-//  byte payloads). Split into two include points so the
-//  converter (which names `FfiBufferedEvent`) is compiled AFTER the
-//  wrapper itself.
+//  The kind tag, the per-event structs, the tagged `ThetaDataDxStreamEvent`
+//  and the converter are expanded from the core event table in
+//  `stream_events.rs`. `FfiBufferedEvent` below owns the backing memory for
+//  every borrowed pointer the tagged event exposes (the `Contract.symbol`
+//  C strings, the control events' strings, and the `Ping` / `UnknownFrame`
+//  byte payloads).
 // ═══════════════════════════════════════════════════════════════════════
-
-include!("fpss_event_structs.rs");
 
 /// Internal buffered event — owns heap data that backs the `ThetaDataDxStreamEvent`.
 ///
@@ -305,35 +300,28 @@ include!("fpss_event_structs.rs");
 /// boundary (see `FfiCallback::invoke`); lives only for the duration of
 /// the user's `extern "C" fn` call and is dropped immediately after.
 ///
-/// Each backing-storage `Option<...>` slot owns one variant's borrowed
-/// pointer payload — `_contract_symbol` for any data event's
-/// `Contract.symbol` (or `ContractAssigned.contract.symbol`),
-/// `_login_permissions` for `LoginSuccess.permissions`,
-/// `_control_string` for the single string any other control variant
-/// carries (`ServerError.message` / `Error.message`, and the
-/// `cause_io_error_kind` on `Disconnected` / `Reconnecting` /
-/// `ReconnectsExhausted`: all mutually exclusive variants), and
-/// `_payload_bytes` for `UnknownFrame.payload` / `Ping.payload`. The
-/// borrowed `*const c_char` / `*const u8` pointers in the public
-/// `ThetaDataDxStreamEvent` reference INTO these slots; users MUST NOT retain
-/// those pointers past the callback boundary.
+/// Each backing-storage `Option<...>` slot owns one kind of borrowed
+/// pointer payload: `_contract_symbol` for the `Contract.symbol` of any
+/// event that carries a contract, `_string` for the single string a control
+/// event carries (`LoginSuccess.permissions`, `ServerError.message`,
+/// `ParseError.message`, and the `cause_io_error_kind` on `Disconnected` /
+/// `Reconnecting` / `ReconnectsExhausted`), and `_payload_bytes` for
+/// `UnknownFrame.payload` / `Ping.payload`. The borrowed `*const c_char` /
+/// `*const u8` pointers in the public `ThetaDataDxStreamEvent` reference
+/// INTO these slots; users MUST NOT retain those pointers past the callback
+/// boundary.
 #[repr(C)]
 pub(crate) struct FfiBufferedEvent {
     pub(crate) event: ThetaDataDxStreamEvent,
-    /// Owns the `CString` backing every data event's `Contract.symbol`
-    /// pointer and `ContractAssigned.contract.symbol`.
+    /// Owns the `CString` backing the event's `Contract.symbol` pointer.
     _contract_symbol: Option<CString>,
-    /// Owns the `CString` backing `LoginSuccess.permissions`.
-    _login_permissions: Option<CString>,
-    /// Owns the `CString` backing the single string any control variant
-    /// other than `LoginSuccess` carries.
-    _control_string: Option<CString>,
-    /// Owns the byte payload backing `UnknownFrame.payload` /
-    /// `Ping.payload` / `RawData.payload`.
+    /// Owns the `CString` backing the event's one string field.
+    _string: Option<CString>,
+    /// Owns the byte payload backing `UnknownFrame.payload` / `Ping.payload`.
     _payload_bytes: Option<Vec<u8>>,
 }
 
-include!("fpss_event_converter.rs");
+include!("stream_events.rs");
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Subscription types — used by both unified and FPSS active_subscriptions

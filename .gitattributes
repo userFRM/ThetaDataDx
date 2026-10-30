@@ -12,13 +12,9 @@ thetadatadx-cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 thetadatadx-cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
 thetadatadx-py/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/ci/check_python.py           text eol=lf linguist-generated=true
-thetadatadx-py/src/fpss_event_classes.rs text eol=lf linguist-generated=true
-thetadatadx-py/src/buffered_event.rs    text eol=lf linguist-generated=true
 thetadatadx-py/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
 thetadatadx-ts/src/streaming_methods.rs text eol=lf linguist-generated=true
-thetadatadx-ts/src/fpss_event_classes.rs text eol=lf linguist-generated=true
-thetadatadx-ts/src/buffered_event.rs text eol=lf linguist-generated=true
 thetadatadx-cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.

@@ -1,7 +1,6 @@
 //! Shared C-layout helpers for FPSS generator outputs.
 
-use super::common::snake_case;
-use super::schema::{ColumnDef, Schema, sorted_control_events, sorted_data_events};
+use super::{Column, data_then_control};
 
 /// Size and alignment, in bytes, of a single emitted C field.
 #[derive(Clone, Copy)]
@@ -10,8 +9,8 @@ pub(super) struct CFieldLayout {
     pub(super) align: usize,
 }
 
-/// Layout of a single emitted C field, given the schema column's logical
-/// type. `Vec<u8>` is the special case that splits into TWO physical C
+/// Layout of a single emitted C field, given the table column's logical
+/// type. `Bytes` is the special case that splits into TWO physical C
 /// fields: `<name>` (pointer, 8 bytes) and `<name>_len` (size_t, 8
 /// bytes); the caller is expected to call `expand_columns` to materialise
 /// the pair before computing offsets.
@@ -36,7 +35,7 @@ pub(super) fn c_field_layout(ty: &str) -> CFieldLayout {
 /// numbers are computed by the same `next_multiple_of` walk that places every
 /// other FPSS field, never hand-typed. Order and widths mirror the C mirror in
 /// `ffi_c.rs::render_contract_struct_c` and the Rust `#[repr(C)]` struct in
-/// `ffi_rust.rs::render_contract_struct_rust`.
+/// `thetadatadx-ffi/src/stream_events.rs`.
 fn contract_fields() -> [(&'static str, CFieldLayout); 9] {
     [
         // `const char* symbol` — borrowed NUL-terminated string pointer.
@@ -78,27 +77,27 @@ pub(super) fn contract_size() -> usize {
     c_layout(contract_fields().into_iter().map(|(_, layout)| layout))
 }
 
-/// Expand a schema column list into the physical C field layout. The
-/// only column type that splits into >1 physical fields is `Vec<u8>`
-/// which becomes `(<name>: *const u8, <name>_len: size_t)`.
-pub(super) fn expand_columns(columns: &[ColumnDef]) -> Vec<(String, CFieldLayout)> {
+/// Expand a column list into the physical C field layout. The only column
+/// type that splits into >1 physical fields is `Bytes`, which becomes
+/// `(<name>: *const u8, <name>_len: size_t)`.
+pub(super) fn expand_columns(columns: &[Column]) -> Vec<(String, CFieldLayout)> {
     let mut out = Vec::with_capacity(columns.len());
     for column in columns {
-        if column.r#type == "Vec<u8>" {
-            out.push((column.name.clone(), CFieldLayout { size: 8, align: 8 }));
+        if column.ty == "Bytes" {
+            out.push((column.name.to_string(), CFieldLayout { size: 8, align: 8 }));
             out.push((
                 format!("{}_len", column.name),
                 CFieldLayout { size: 8, align: 8 },
             ));
         } else {
-            out.push((column.name.clone(), c_field_layout(&column.r#type)));
+            out.push((column.name.to_string(), c_field_layout(column.ty)));
         }
     }
     out
 }
 
 /// Returns the total C struct size, in bytes, for a variant's columns, padded to at least one byte.
-pub(super) fn c_struct_size(columns: &[ColumnDef]) -> usize {
+pub(super) fn c_struct_size(columns: &[Column]) -> usize {
     let expanded = expand_columns(columns);
     let size = c_layout(expanded.iter().map(|(_, l)| *l));
     // Empty C structs are not portable: GCC/Clang give them size 0,
@@ -110,7 +109,7 @@ pub(super) fn c_struct_size(columns: &[ColumnDef]) -> usize {
 }
 
 /// Returns the byte offset of each physical C field for a variant's columns.
-pub(super) fn c_struct_offsets(columns: &[ColumnDef]) -> Vec<(String, usize)> {
+pub(super) fn c_struct_offsets(columns: &[Column]) -> Vec<(String, usize)> {
     let expanded = expand_columns(columns);
     let mut offsets = Vec::with_capacity(expanded.len());
     let mut size: usize = 0;
@@ -124,10 +123,8 @@ pub(super) fn c_struct_offsets(columns: &[ColumnDef]) -> Vec<(String, usize)> {
 
 /// Alignment requirement of any emitted event struct, computed from the
 /// widest field in its expanded column list. An empty column list is a
-/// `_padding: u8` placeholder, hence align 1. Shared by the Rust-side
-/// `align_of!` asserts and the control-variant placement walk so the
-/// asserted alignment is never hand-typed.
-pub(super) fn struct_align(columns: &[ColumnDef]) -> usize {
+/// `_padding: u8` placeholder, hence align 1.
+fn struct_align(columns: &[Column]) -> usize {
     if columns.is_empty() {
         1
     } else {
@@ -139,31 +136,16 @@ pub(super) fn struct_align(columns: &[ColumnDef]) -> usize {
     }
 }
 
-/// Alignment requirement of the shared `ThetaDataDxContract` struct,
-/// computed from its widest field so the Rust-side `align_of!` assert
-/// tracks the same layout walk that places every embedding event.
-pub(super) fn contract_align() -> usize {
-    contract_fields()
-        .iter()
-        .map(|(_, l)| l.align)
-        .max()
-        .unwrap_or(1)
-}
-
 /// Returns the total C struct size, in bytes, of the tagged `ThetaDataDxStreamEvent` wrapper.
-pub(super) fn fpss_event_size(schema: &Schema) -> usize {
-    c_layout(
-        fpss_event_fields(schema)
-            .into_iter()
-            .map(|(_, layout)| layout),
-    )
+pub(super) fn fpss_event_size() -> usize {
+    c_layout(fpss_event_fields().into_iter().map(|(_, layout)| layout))
 }
 
 /// Returns the byte offset of each field on the tagged `ThetaDataDxStreamEvent` wrapper.
-pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
+pub(super) fn fpss_event_offsets() -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size: usize = 0;
-    for (field_name, layout) in fpss_event_fields(schema) {
+    for (field_name, layout) in fpss_event_fields() {
         size = size.next_multiple_of(layout.align);
         offsets.push((field_name, size));
         size += layout.size;
@@ -171,38 +153,16 @@ pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
     offsets
 }
 
-/// Alignment requirement of the tagged `ThetaDataDxStreamEvent` wrapper,
-/// taken as the widest embedded field so the Rust-side `align_of!` assert
-/// tracks the same walk that sizes the wrapper.
-pub(super) fn fpss_event_align(schema: &Schema) -> usize {
-    fpss_event_fields(schema)
-        .into_iter()
-        .map(|(_, layout)| layout.align)
-        .max()
-        .unwrap_or(1)
-}
-
-fn fpss_event_fields(schema: &Schema) -> Vec<(String, CFieldLayout)> {
-    let mut fields = Vec::new();
-    fields.push((String::from("kind"), CFieldLayout { size: 4, align: 4 }));
-    for (event_name, def) in sorted_data_events(schema) {
+/// The tagged event's fields: the kind tag, then every event struct
+/// embedded by value, data events first.
+fn fpss_event_fields() -> Vec<(String, CFieldLayout)> {
+    let mut fields = vec![(String::from("kind"), CFieldLayout { size: 4, align: 4 })];
+    for event in data_then_control() {
         fields.push((
-            snake_case(event_name),
+            event.field(),
             CFieldLayout {
-                size: c_struct_size(&def.columns),
-                align: 8,
-            },
-        ));
-    }
-    // Per-variant typed control payloads — one struct per
-    // `kind = "control"` schema entry, embedded by value. The schema
-    // ordering matches `sorted_control_events`.
-    for (event_name, def) in sorted_control_events(schema) {
-        fields.push((
-            snake_case(event_name),
-            CFieldLayout {
-                size: c_struct_size(&def.columns),
-                align: struct_align(&def.columns),
+                size: c_struct_size(event.columns),
+                align: struct_align(event.columns),
             },
         ));
     }

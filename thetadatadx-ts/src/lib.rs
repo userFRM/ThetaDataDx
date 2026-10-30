@@ -761,18 +761,10 @@ use napi::bindgen_prelude::BigInt;
 mod ticks;
 pub use ticks::*;
 
-// ── Typed streaming event classes (generated from fpss_event_schema.toml) ──
+// ── Typed streaming events, expanded from the core event table ──
 
-include!("_generated/fpss_event_classes.rs");
-
-// ── Buffered streaming events ──
-
-//
-// Generator-emitted from `fpss_event_schema.toml`. Same file content as
-// the Python SDK copy — single source of truth. Change the schema and
-// regenerate, never hand-edit the generated `buffered_event.rs`.
-
-include!("_generated/buffered_event.rs");
+mod stream_events;
+use stream_events::{StreamEvent, buffered_event_to_typed, fpss_event_to_buffered};
 
 // ── Offline streaming-saturation bench hook (no network) ──
 //
@@ -1416,7 +1408,7 @@ pub use streaming_batches::RecordBatchStreamHandle;
 // `Subscription`, `SecType` napi classes and the polymorphic
 // `subscribe(sub)` / `subscribeMany([sub, ...])` methods on the
 // unified client. The `Contract` name on the JS side is taken by the
-// streaming-event payload object in `_generated/fpss_event_classes.rs`; the package
+// streaming-event payload object in `stream_events.rs`; the package
 // `index.ts` re-exports the fluent class under both `ContractRef` and
 // `Contract` so users write `Contract.stock("AAPL")` per the
 // documented surface.

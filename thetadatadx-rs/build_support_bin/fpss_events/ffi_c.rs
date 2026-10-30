@@ -1,20 +1,33 @@
 //! C mirror header emitter (`thetadatadx-cpp/include/fpss_event_structs.h.inc`).
 //!
-//! Emits one C struct per `kind = "control"` schema entry, alongside the
-//! data-variant structs. The tagged `ThetaDataDxStreamEvent` embeds all of them by
-//! value; consumers dispatch on `event.kind` and read the matching
-//! `event.<variant>` field.
+//! Emits one C struct per event. The tagged `ThetaDataDxStreamEvent` embeds
+//! all of them by value; consumers dispatch on `event.kind` and read the
+//! matching `event.<variant>` field.
 
 use std::fmt::Write as _;
 
-use super::common::{c_ffi_scalar, is_byte_buffer, snake_case};
-use super::schema::{
-    EventDef, Schema, sorted_control_events, sorted_data_events, sorted_event_names,
-};
+use super::{EVENTS, Event, data_then_control};
 
-/// Emit the `ThetaDataDxStreamEventKind` C enum. One discriminant per variant,
-/// schema-driven.
-fn render_kind_enum_c(schema: &Schema) -> String {
+/// Table column type to the C type of its field. A `Bytes` column is a
+/// pointer and a length, written out by the caller.
+fn c_type(ty: &str) -> &'static str {
+    match ty {
+        "i32" => "int32_t",
+        "i64" => "int64_t",
+        "u64" => "uint64_t",
+        "u8" => "uint8_t",
+        "f64" => "double",
+        "Contract" => "ThetaDataDxContract",
+        // Borrowed C string, NUL-terminated. May be null on inactive
+        // variants. Never freed by the consumer.
+        "String" => "const char *",
+        other => panic!("no C type for event column type '{other}'"),
+    }
+}
+
+/// Emit the `ThetaDataDxStreamEventKind` C enum. One discriminant per event,
+/// numbered in table order like the Rust tag.
+fn render_kind_enum_c() -> String {
     let mut out = String::new();
     out.push_str(
         "/* Stream event kind tag. Schema-driven from fpss_event_schema.toml.\n\
@@ -23,9 +36,9 @@ fn render_kind_enum_c(schema: &Schema) -> String {
  * renumber on a future major bump. */\n",
     );
     out.push_str("typedef enum {\n");
-    for (idx, name) in sorted_event_names(schema).iter().enumerate() {
+    for (idx, event) in EVENTS.iter().enumerate() {
         // C-side identifier: `THETADATADX_STREAM_<SCREAMING_SNAKE>`.
-        let upper = snake_case(name).to_uppercase();
+        let upper = event.field().to_uppercase();
         writeln!(out, "    THETADATADX_STREAM_{upper} = {idx},").unwrap();
     }
     out.push_str("} ThetaDataDxStreamEventKind;\n\n");
@@ -33,8 +46,8 @@ fn render_kind_enum_c(schema: &Schema) -> String {
 }
 
 /// Emit the C `ThetaDataDxContract` struct mirrored from the Rust
-/// `#[repr(C)] ThetaDataDxContract`. Layout must match field-for-field with
-/// `render_contract_struct_rust` in `ffi_rust.rs`.
+/// `#[repr(C)] ThetaDataDxContract` in `thetadatadx-ffi/src/stream_events.rs`.
+/// Layout must match field-for-field.
 fn render_contract_struct_c() -> &'static str {
     "/* Streaming Contract shared across every data event. `symbol` is a\n\
  * NUL-terminated C string (may be null when not yet resolved);\n\
@@ -60,35 +73,30 @@ typedef struct {\n\
 /// Emit one `typedef struct { ... } ThetaDataDxStream<Variant>;` for a data or
 /// control variant. Empty (unit) control variants get a single
 /// `uint8_t _padding;` so MSVC / Clang / GCC all agree on `sizeof == 1`.
-fn render_event_struct_c(out: &mut String, event_name: &str, def: &EventDef) {
-    if !def.doc.is_empty() {
-        for line in def.doc.lines() {
-            writeln!(out, "/* {line} */").unwrap();
-        }
-    }
+fn render_event_struct_c(out: &mut String, event: &Event) {
+    writeln!(out, "/* {} */", event.doc).unwrap();
     out.push_str("typedef struct {\n");
-    if def.columns.is_empty() {
+    if event.columns.is_empty() {
         out.push_str("    /* Placeholder so the struct has portable size 1. */\n");
         out.push_str("    uint8_t _padding;\n");
     } else {
-        for column in &def.columns {
-            if is_byte_buffer(&column.r#type) {
+        for column in event.columns {
+            if column.ty == "Bytes" {
                 writeln!(out, "    const uint8_t *{};", column.name).unwrap();
                 writeln!(out, "    size_t {}_len;", column.name).unwrap();
             } else {
-                let ty = c_ffi_scalar(&column.r#type, event_name, &column.name);
-                writeln!(out, "    {ty} {};", column.name).unwrap();
+                writeln!(out, "    {} {};", c_type(column.ty), column.name).unwrap();
             }
         }
     }
-    writeln!(out, "}} ThetaDataDxStream{event_name};\n").unwrap();
+    writeln!(out, "}} ThetaDataDxStream{};\n", event.name).unwrap();
 }
 
 /// Emit the C mirror of the Rust FFI event structs. `#include`'d from
 /// `thetadatadx-cpp/include/thetadatadx.h` for the C++ SDK. Keeps field order and
 /// padding identical to the Rust `#[repr(C)]` layout by using the same
-/// schema column ordering on both sides.
-pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
+/// table column order on both sides.
+pub(super) fn render_c_fpss_event_header() -> String {
     let mut out = String::new();
     out.push_str(
         "/* @generated DO NOT EDIT: regenerated by build.rs from fpss_event_schema.toml */\n",
@@ -102,14 +110,11 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
     // at the `.h.inc` level — `<stdbool.h>` is idempotent.
     out.push_str("#include <stdbool.h>\n\n");
 
-    out.push_str(&render_kind_enum_c(schema));
+    out.push_str(&render_kind_enum_c());
     out.push_str(render_contract_struct_c());
 
-    for (event_name, def) in sorted_data_events(schema) {
-        render_event_struct_c(&mut out, event_name, def);
-    }
-    for (event_name, def) in sorted_control_events(schema) {
-        render_event_struct_c(&mut out, event_name, def);
+    for event in data_then_control() {
+        render_event_struct_c(&mut out, event);
     }
 
     out.push_str("/* Tagged streaming event. Read `kind` first, then access only the\n");
@@ -117,13 +122,14 @@ pub(super) fn render_c_fpss_event_header(schema: &Schema) -> String {
     out.push_str(" * mirror the Rust `StreamControl::*` enum one-for-one. */\n");
     out.push_str("typedef struct {\n");
     out.push_str("    ThetaDataDxStreamEventKind kind;\n");
-    for (event_name, _) in sorted_data_events(schema) {
-        let field = snake_case(event_name);
-        writeln!(out, "    ThetaDataDxStream{event_name} {field};").unwrap();
-    }
-    for (event_name, _) in sorted_control_events(schema) {
-        let field = snake_case(event_name);
-        writeln!(out, "    ThetaDataDxStream{event_name} {field};").unwrap();
+    for event in data_then_control() {
+        writeln!(
+            out,
+            "    ThetaDataDxStream{} {};",
+            event.name,
+            event.field()
+        )
+        .unwrap();
     }
     out.push_str("} ThetaDataDxStreamEvent;\n");
 

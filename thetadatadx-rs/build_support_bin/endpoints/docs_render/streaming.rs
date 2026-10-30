@@ -1,37 +1,18 @@
 //! Streaming reference pages: one page per stream type, language tabs
 //! for subscribe / callback / unsubscribe code, plus the event field
-//! table from `fpss_event_schema.toml`.
+//! table from the streaming event table.
 
-use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use serde::Deserialize;
+use super::super::super::fpss_events::EVENTS;
 
-// ───────────────────────── Event schema (field tables) ──────────────────────
-
-#[derive(Deserialize)]
-struct EventSchema {
-    events: HashMap<String, EventDef>,
-}
-
-#[derive(Deserialize)]
-struct EventDef {
-    columns: Vec<EventColumn>,
-}
-
-#[derive(Deserialize)]
-struct EventColumn {
-    name: String,
-    #[serde(rename = "type")]
-    ty: String,
-}
+// ───────────────────────── Event field tables ───────────────────────────────
 
 /// One-sentence docs for streaming event fields. The tick-field names
 /// reuse the same sentences as the tick table; the streaming-only
 /// fields (`contract`, `received_at_ns`, …) are declared here. Kept in
-/// the generator rather than `fpss_event_schema.toml` because that
-/// registry also drives generated SDK structs — annotating it would
-/// reshape every binding surface for a docs-only need.
+/// the docs renderer rather than the event table because they are written
+/// for the reference pages, which name the order book a quote comes from.
 fn event_field_doc(name: &str, book: &str) -> String {
     // The quote bid/ask sentences name the order book for the page's
     // security type: stocks carry the BBO on the Nasdaq Basic feed, options
@@ -89,21 +70,16 @@ fn event_field_type(ty: &str) -> &'static str {
     }
 }
 
-fn load_event_schema() -> Result<EventSchema, Box<dyn std::error::Error>> {
-    let raw = std::fs::read_to_string("fpss_event_schema.toml")?;
-    Ok(toml::from_str(&raw)?)
-}
-
 /// Renders the "Event fields" table for the full event schema — the
 /// native SDK callbacks receive every column. Returns `(markdown,
 /// rendered field names)` so the caller can compare the table against
 /// the WebSocket-frame subset.
-fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String, Vec<String>) {
-    let def = schema
-        .events
-        .get(event)
-        .unwrap_or_else(|| panic!("event {event} not found in fpss_event_schema.toml"));
-    let cols: Vec<&EventColumn> = def.columns.iter().collect();
+fn render_event_table(event: &str, book: &str) -> (String, Vec<String>) {
+    let cols = EVENTS
+        .iter()
+        .find(|e| e.name == event)
+        .unwrap_or_else(|| panic!("event {event} not found in the event table"))
+        .columns;
     let mut out = String::new();
     let _ = writeln!(out, "## `{event}` event fields\n");
     let _ = writeln!(
@@ -111,9 +87,9 @@ fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String,
         "Each update arrives as a `{event}` event with these fields:\n"
     );
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");
-    for col in &cols {
-        let ty = event_field_type(&col.ty);
-        let doc = event_field_doc(&col.name, book);
+    for col in cols {
+        let ty = event_field_type(col.ty);
+        let doc = event_field_doc(col.name, book);
         let _ = writeln!(out, "| `{}` | {ty} | {doc} |", col.name);
     }
     out.push_str(
@@ -121,7 +97,7 @@ fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String,
          `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) \
          for the full event catalogue and per-language field shapes.\n\n",
     );
-    (out, cols.iter().map(|c| c.name.clone()).collect())
+    (out, cols.iter().map(|c| c.name.to_string()).collect())
 }
 
 // ───────────────────────── Stream-type matrix ───────────────────────────────
@@ -710,7 +686,6 @@ fn ws_frame_fields(event: &str) -> Option<&'static [&'static str]> {
 /// `(path, contents)` pair: title, prose, per-language tabs, and the
 /// event field table.
 pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std::error::Error>> {
-    let schema = load_event_schema()?;
     let mut pages = Vec::new();
     for spec in STREAMS {
         let mut out = String::new();
@@ -779,12 +754,12 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         // pages also render the Quote and Ohlcvc tables, since the stream
         // delivers those events too.
         if is_full_trade {
-            let (quote_table, _) = render_event_table(&schema, "Quote", book);
+            let (quote_table, _) = render_event_table("Quote", book);
             out.push_str(&quote_table);
-            let (ohlcvc_table, _) = render_event_table(&schema, "Ohlcvc", book);
+            let (ohlcvc_table, _) = render_event_table("Ohlcvc", book);
             out.push_str(&ohlcvc_table);
         }
-        let (table, table_fields) = render_event_table(&schema, spec.event, book);
+        let (table, table_fields) = render_event_table(spec.event, book);
         out.push_str(&table);
         // The WebSocket-frame note only earns its place when the table
         // lists more fields than the raw frame carries.

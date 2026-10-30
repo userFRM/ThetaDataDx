@@ -1860,14 +1860,12 @@ impl AsyncClient {
 
 // ── Typed-pyclass streaming event path ─────────────────────────────────────────
 //
-// All streaming `#[pyclass]` definitions and the `fpss_event_to_typed`
-// dispatcher (borrowed `&StreamEvent` → pyclass, single pass, no
-// intermediate) live in a generated file whose SSOT is
-// `thetadatadx-rs/fpss_event_schema.toml`. The generator is
-// `thetadatadx-rs/build_support/fpss_events/`; regenerate via
-// `cargo run --bin generate_sdk_surfaces --features config-file -- --write`.
+// The streaming `#[pyclass]` definitions and the `fpss_event_to_typed`
+// conversion (borrowed `&StreamEvent` to pyclass, single pass, no
+// intermediate) are expanded from the core event table.
 
-include!("_generated/fpss_event_classes.rs");
+mod stream_events;
+use stream_events::{fpss_event_to_typed, register_fpss_event_classes};
 
 include!("_generated/streaming_methods.rs");
 
