@@ -155,6 +155,14 @@ pub(crate) mod tdbe;
 
 pub(crate) mod util;
 
+mod surface;
+
+/// Identifier pasting for the binding crates that expand the surface tables,
+/// so they need no `pastey` dependency of their own.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use pastey::paste as __paste;
+
 // `mdds/` holds the macros, registry, validate, wire_semantics, and the
 // shared endpoint runtime (`endpoint_args`).
 //
