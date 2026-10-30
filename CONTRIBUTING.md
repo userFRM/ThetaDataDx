@@ -129,7 +129,7 @@ feat(core)!: replace MarketDataClient with the unified Client
 ## How to Add a New Endpoint
 
 The endpoint-facing source of truth is split across:
-- `thetadatadx-rs/proto/mdds.proto` for the wire contract
+- `thetadatadx-rs/proto/mdds.proto`, the wire contract. ThetaData provides it; do not hand-edit it, and do not rename its `BetaEndpoints` package, which production routes on.
 - `thetadatadx-rs/src/surface/endpoints.rs`, the endpoint table, for every binding surface and the docs
 - `thetadatadx-rs/src/surface/ticks.rs`, the tick table, for the tick types the endpoints return
 
@@ -137,30 +137,30 @@ The endpoint table expands at compile time into the registry, the shared endpoin
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`
-   - Regenerate the committed message types and client stubs at `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` and commit the resulting diff alongside the proto change. CI runs the same command and fails when it changes the snapshot.
+   - Regenerate the committed message types and client stubs at `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` (the only step that needs `protoc`) and commit the resulting diff alongside the proto change. CI runs the same command and fails when it changes the snapshot.
 
 2. **Add or update the endpoint surface**
    - Add an entry to the endpoint table in `thetadatadx-rs/src/surface/endpoints.rs`, reusing the parameter definitions and groups in `__param!` where possible; its module documentation describes the entry grammar
-   - `cargo build` checks the entry against the request messages of `mdds.proto`, and `generate_sdk_surfaces` fails while an RPC of `mdds.proto` has no entry
+   - `cargo build` checks the entry against the request messages of `mdds.proto`. `generate_sdk_surfaces` fails while an RPC of `mdds.proto` has no entry, and rejects an unknown shape, a list entry that does not return `StringList` (or a non-list entry that does), a default its type does not accept, and an enum parameter whose description does not list exactly the values of its enum
 
-3. **Add the tick type** (if the response has a new layout)
-   - Add an entry to the tick table in `thetadatadx-rs/src/surface/ticks.rs`; its module documentation describes the entry grammar
-   - The entry expands at compile time into the tick struct, its decoder, its Arrow and Polars builders and the Python and TypeScript row classes
-   - Note: `Price`, enums, codecs, and Greeks live in the internal data-format module `thetadatadx-rs/src/tdbe/`.
+3. **Add the tick type** (if the response has a new layout; reuse an existing tick otherwise)
+   - Add an entry to the tick table in `thetadatadx-rs/src/surface/ticks.rs`; its module documentation describes the entry grammar and the column types
+   - The entry expands at compile time into the tick struct, its decoder, its Arrow and Polars builders and the Python and TypeScript row classes, and `generate_sdk_surfaces` renders the C++ layout asserts, flag accessors and Arrow IPC helpers from it
+   - A few projections are still written by hand per tick: the `EndpointOutput` and `ReturnType` variants and the tick imports in the core, the per-tick macro calls in `thetadatadx-ffi/src/types.rs`, the C struct, array typedef and `_array_free` / `_to_arrow_ipc` declarations in `thetadatadx-cpp/include/thetadatadx.h`, the C++ alias in `thetadatadx.hpp`, and the JSON rows in `tools/server/src/format.rs` and `tools/mcp/src/main.rs`. Exhaustive matches and the generated C++ layout asserts fail the build until each one is there
+   - `Price`, enums, codecs, and Greeks live in the internal data-format module `thetadatadx-rs/src/tdbe/`
+
+   To add a column to an existing tick, add one line to its `columns` list and raise the field count in its first `doc` line, which the compiler checks.
 
 4. **Review the generated mdds/runtime surfaces**
    - Most endpoint additions should not require hand-editing files under `mdds/`
    - Only change the macro layer (`mdds/endpoints.rs`, `mdds/macros.rs`) if the new endpoint shape cannot be expressed by the table's grammar
 
 5. **Regenerate downstream SDK/tool surfaces**
-   - Endpoint wrappers, the live validators and the docs site's endpoint pages project from the endpoint table
-   - The C++ tick helpers and the docs site's response tables project from the tick table
-   - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces`
+   - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` and commit the result; CI runs it with `--check`
+   - Rebuild the TypeScript declarations with `npm run build` in `thetadatadx-ts` (or `python3 scripts/dev/check_napi_drift.py`) and commit `index.d.ts` and `index.js`
    - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
 
 6. **Update CHANGELOG.md** under `[Unreleased]`
-
-See `thetadatadx-rs/proto/MAINTENANCE.md` for the full step-by-step guide.
 
 ## Pull Request Process
 
@@ -196,10 +196,10 @@ breakage.
 When ThetaData ships a new proto revision:
 
 1. Replace `thetadatadx-rs/proto/mdds.proto`
-2. Update the endpoint table (`src/surface/endpoints.rs`) when the normalized SDK surface changes
-3. Update the tick table (`src/surface/ticks.rs`) if DataTable column layouts changed
-4. Run the relevant checks from the sections above
-5. See `thetadatadx-rs/proto/MAINTENANCE.md` for the detailed guide
+2. Regenerate and commit the gRPC snapshot as in step 1 above
+3. Entries whose request messages were renamed or removed no longer compile; fix them in the endpoint table. New RPCs need entries; `generate_sdk_surfaces` fails until every RPC has one
+4. Update the tick table (`src/surface/ticks.rs`) if DataTable column layouts changed
+5. Run the relevant checks from the sections above
 
 ## Community
 

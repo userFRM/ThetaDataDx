@@ -98,7 +98,6 @@ EXEMPT_PATH_FRAGMENTS = (
     # Contributor / internal documentation (not the product-usage surface).
     "/CONTRIBUTING.md",
     "/SECURITY.md",
-    "/thetadatadx-rs/proto/MAINTENANCE.md",
     "/thetadatadx-rs/benches/README.md",
     # CI config, internal source trees, generated wire includes, build output.
     "/.github/workflows/",

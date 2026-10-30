@@ -159,11 +159,6 @@ def test_contributor_and_internal_docs_exempt() -> None:
         _write(root, "SECURITY.md", "The FPSS TLS connection pins the SPKI.\n")
         _write(
             root,
-            "thetadatadx-rs/proto/MAINTENANCE.md",
-            "The mdds.proto wire contract.\n",
-        )
-        _write(
-            root,
             "thetadatadx-rs/benches/README.md",
             "FPSS Framing (`fpss/framing.rs`) benchmarks.\n",
         )
