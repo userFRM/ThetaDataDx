@@ -27,14 +27,10 @@ use thetadatadx::{EndpointMeta, MarketDataClient};
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::handler::{self, BoundedQuery, MAX_QUERY_PARAMS, ResponseFormat};
+use crate::handler::{
+    self, BoundedQuery, CHUNKS_IN_FLIGHT, Chunk, MAX_QUERY_PARAMS, ResponseFormat,
+};
 use crate::state::AppState;
-
-/// Rendered chunks held between the upstream and a slower client. One entry is
-/// one gRPC chunk, so this bounds what a download holds in memory.
-const CHUNKS_IN_FLIGHT: usize = 4;
-
-type Chunk = Result<Bytes, std::io::Error>;
 
 /// Serve the flat-file endpoint `ep` for one request.
 pub(crate) async fn serve(
@@ -198,19 +194,7 @@ impl FileWriter {
                 }
             }
         };
-        let failed = self.failed;
-        let chunks = self.chunks.clone();
-        async move {
-            let sent = match rendered {
-                Some(chunk) => chunks.send(chunk).await.is_ok(),
-                None => true,
-            };
-            if sent && !failed {
-                ControlFlow::Continue(())
-            } else {
-                ControlFlow::Break(())
-            }
-        }
+        handler::send_chunk(&self.chunks, rendered, self.failed)
     }
 
     /// Close the file once the download ends: write what remains of it, or

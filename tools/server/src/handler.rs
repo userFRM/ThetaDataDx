@@ -623,9 +623,9 @@ const WHOLE_RESPONSE_LIMIT: usize = 8 * 1024;
 
 /// Written chunks held between the upstream and a slower client. One entry is
 /// one upstream chunk, so this bounds what a response holds in memory.
-const CHUNKS_IN_FLIGHT: usize = 4;
+pub(crate) const CHUNKS_IN_FLIGHT: usize = 4;
 
-type Chunk = Result<Bytes, std::io::Error>;
+pub(crate) type Chunk = Result<Bytes, std::io::Error>;
 
 /// How a response begins.
 enum Start {
@@ -794,19 +794,7 @@ impl BodyWriter {
             Ok(()) => self.pass_on(piece, false),
             Err(error) => self.fail(thetadatadx::Error::from(error).into()),
         };
-        let failed = self.failed;
-        let chunks = self.chunks.clone();
-        async move {
-            let sent = match chunk {
-                Some(chunk) => chunks.send(chunk).await.is_ok(),
-                None => true,
-            };
-            if sent && !failed {
-                ControlFlow::Continue(())
-            } else {
-                ControlFlow::Break(())
-            }
-        }
+        send_chunk(&self.chunks, chunk, self.failed)
     }
 
     /// Close the body once the call has ended with `outcome`.
@@ -868,6 +856,27 @@ impl BodyWriter {
                 tracing::warn!(endpoint = self.endpoint, %error, "response aborted");
                 Some(Err(std::io::Error::other(error.to_string())))
             }
+        }
+    }
+}
+
+/// Send `chunk`, if there is one, into the response body. The call goes on
+/// while the client still reads and nothing has `failed`.
+pub(crate) fn send_chunk(
+    chunks: &mpsc::Sender<Chunk>,
+    chunk: Option<Chunk>,
+    failed: bool,
+) -> impl Future<Output = ControlFlow<()>> + Send + 'static + use<> {
+    let chunks = chunks.clone();
+    async move {
+        let sent = match chunk {
+            Some(chunk) => chunks.send(chunk).await.is_ok(),
+            None => true,
+        };
+        if sent && !failed {
+            ControlFlow::Continue(())
+        } else {
+            ControlFlow::Break(())
         }
     }
 }
