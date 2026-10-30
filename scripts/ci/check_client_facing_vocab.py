@@ -65,11 +65,11 @@ SWEEP_GLOBS = (
     # Published type declarations (the IDE-hover surface).
     "thetadatadx-py/**/*.pyi",
     "thetadatadx-ts/**/*.d.ts",
-    # Every file under the public include dir: 14 of the 16 end in `.h.inc`
-    # or `.hpp.inc` and are included directly by the two that do not, so they
-    # reach every C++ consumer through the CMake PUBLIC include path. Globbing
-    # only `*.h` / `*.hpp` reached two of sixteen. The sibling leak gate globs
-    # `*.inc` here for the same reason.
+    # Every file under the public include dir: all but `thetadatadx.h` and
+    # `thetadatadx.hpp` end in `.h.inc` or `.hpp.inc` and are included
+    # directly by those two, so they reach every C++ consumer through the
+    # CMake PUBLIC include path. Globbing only `*.h` / `*.hpp` reached two of
+    # them. The sibling leak gate globs `*.inc` here for the same reason.
     "thetadatadx-cpp/include/**/*.h",
     "thetadatadx-cpp/include/**/*.hpp",
     "thetadatadx-cpp/include/**/*.inc",

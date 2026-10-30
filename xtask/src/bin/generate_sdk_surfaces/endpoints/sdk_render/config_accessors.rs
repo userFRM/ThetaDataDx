@@ -1,9 +1,11 @@
-//! The C++ `Config` accessors, rendered from the core config table.
+//! The C declarations and C++ `Config` accessors, rendered from the core
+//! config table.
 //!
 //! `thetadatadx::__config!` calls back into `config_records!`, which turns
-//! each entry into a [`ConfigAccessor`]. The methods forward to the C entry
-//! points the FFI crate expands from the same table, and are spliced into the
-//! `Config` class body of `thetadatadx.hpp`.
+//! each entry into a [`ConfigAccessor`]. The C declarations are those of the
+//! entry points the FFI crate expands from the same table; the C++ methods
+//! forward to them and are spliced into the `Config` class body of
+//! `thetadatadx.hpp`.
 
 use std::fmt::Write as _;
 
@@ -14,19 +16,26 @@ struct ConfigAccessor {
     /// The C parameter: the value for a setter, the out-parameter for a getter.
     param: &'static str,
     kind: Kind,
+    doc: &'static [&'static str],
     cpp_doc: &'static [&'static str],
 }
 
-/// How a value crosses the C ABI. The scalar and optional kinds carry the C++
-/// type of the value.
+/// How a value crosses the C ABI. The scalar and optional kinds carry the
+/// value's C and C++ types.
 enum Kind {
     /// An enum, as its `int` code.
     Enum,
     /// An `Option`, as a `has_value` flag beside the value.
-    Optional(&'static str),
+    Optional(Type),
     /// A UTF-8 string.
     String,
-    Scalar(&'static str),
+    Scalar(Type),
+}
+
+/// A value's C and C++ type names.
+struct Type {
+    c: &'static str,
+    cpp: &'static str,
 }
 
 macro_rules! config_records {
@@ -36,23 +45,26 @@ macro_rules! config_records {
             setter: config_records!(@setter $dir),
             param: stringify!($p),
             kind: config_records!(@kind [$($ty)+] $($body)*),
-            cpp_doc: config_records!(@cpp_doc $($body)*),
+            doc: config_records!(@doc doc $($body)*),
+            cpp_doc: config_records!(@doc cpp_doc $($body)*),
         }),*]
     };
     (@setter set) => { true };
     (@setter get) => { false };
     (@kind [$($ty:tt)+] $(param: $bp:ident,)? values: $($rest:tt)*) => { Kind::Enum };
     (@kind [String] $($rest:tt)*) => { Kind::String };
-    (@kind [Option<$t:ident>] $($rest:tt)*) => { Kind::Optional(config_records!(@cpp $t)) };
-    (@kind [$t:ident] $($rest:tt)*) => { Kind::Scalar(config_records!(@cpp $t)) };
-    (@cpp u64) => { "std::uint64_t" };
-    (@cpp u32) => { "std::uint32_t" };
-    (@cpp u16) => { "std::uint16_t" };
-    (@cpp usize) => { "std::size_t" };
-    (@cpp bool) => { "bool" };
-    (@cpp_doc cpp_doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
-    (@cpp_doc values: $enum:ident $values:tt, $($rest:tt)*) => { config_records!(@cpp_doc $($rest)*) };
-    (@cpp_doc $key:ident: $value:tt, $($rest:tt)*) => { config_records!(@cpp_doc $($rest)*) };
+    (@kind [Option<$t:ident>] $($rest:tt)*) => { Kind::Optional(config_records!(@type $t)) };
+    (@kind [$t:ident] $($rest:tt)*) => { Kind::Scalar(config_records!(@type $t)) };
+    (@type u64) => { Type { c: "uint64_t", cpp: "std::uint64_t" } };
+    (@type u32) => { Type { c: "uint32_t", cpp: "std::uint32_t" } };
+    (@type u16) => { Type { c: "uint16_t", cpp: "std::uint16_t" } };
+    (@type usize) => { Type { c: "size_t", cpp: "std::size_t" } };
+    (@type bool) => { Type { c: "bool", cpp: "bool" } };
+    // The documentation under `key`.
+    (@doc doc doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
+    (@doc cpp_doc cpp_doc: [$($line:literal),* $(,)?], $($rest:tt)*) => { &[$($line),*] };
+    (@doc $want:ident values: $enum:ident $values:tt, $($rest:tt)*) => { config_records!(@doc $want $($rest)*) };
+    (@doc $want:ident $key:ident: $value:tt, $($rest:tt)*) => { config_records!(@doc $want $($rest)*) };
 }
 
 const ACCESSORS: &[ConfigAccessor] = thetadatadx::__config! { config_records {} };
@@ -85,11 +97,11 @@ pub(super) fn render_cpp_config_accessors() -> String {
                 out,
                 "    int {method}() const {{\n        int32_t out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n"
             ),
-            (Kind::Optional(ty), true) => write!(
+            (Kind::Optional(Type { cpp: ty, .. }), true) => write!(
                 out,
                 "    void {method}(std::optional<{ty}> {p}) {{\n        const bool has_value = {p}.has_value();\n        const {ty} arg = {p}.value_or(0);\n        if ({sym}(handle_.get(), has_value, arg) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n    }}\n"
             ),
-            (Kind::Optional(ty), false) => {
+            (Kind::Optional(Type { cpp: ty, .. }), false) => {
                 let val = p.strip_prefix("out_").unwrap_or(p);
                 write!(
                     out,
@@ -104,14 +116,74 @@ pub(super) fn render_cpp_config_accessors() -> String {
                 out,
                 "    std::string {method}() const {{\n        detail::FfiString s({sym}(handle_.get()));\n        return s.str();\n    }}\n"
             ),
-            (Kind::Scalar(ty), true) => write!(
+            (Kind::Scalar(Type { cpp: ty, .. }), true) => write!(
                 out,
                 "    void {method}({ty} {p}) {{\n        {sym}(handle_.get(), {p});\n    }}\n"
             ),
-            (Kind::Scalar(ty), false) => write!(
+            (Kind::Scalar(Type { cpp: ty, .. }), false) => write!(
                 out,
                 "    {ty} {method}() const {{\n        {ty} out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n"
             ),
+        }
+        .unwrap();
+    }
+    out
+}
+
+/// The C include: the declaration of every table entry point, with the
+/// table's documentation of the C accessor.
+pub(super) fn render_c_config_accessors() -> String {
+    let mut out = String::from(
+        "/* @generated DO NOT EDIT: regenerated by generate_sdk_surfaces from the config table */\n\
+         /* A setter that returns void ignores a NULL config handle. Every other\n\
+         \x20* accessor returns -1 (a string getter NULL) and sets\n\
+         \x20* thetadatadx_last_error() when a pointer it needs is NULL. */\n",
+    );
+    for a in ACCESSORS {
+        let (sym, p) = (a.symbol, a.param);
+        out.push('\n');
+        for (i, line) in a.doc.iter().enumerate() {
+            let lead = if i == 0 { "/**" } else { " *" };
+            if line.is_empty() {
+                writeln!(out, "{lead}").unwrap();
+            } else {
+                writeln!(out, "{lead} {line}").unwrap();
+            }
+        }
+        out.push_str(" */\n");
+        match (&a.kind, a.setter) {
+            (Kind::Enum, true) => writeln!(
+                out,
+                "int32_t {sym}(ThetaDataDxConfig* config, int32_t {p});"
+            ),
+            (Kind::Enum, false) => writeln!(
+                out,
+                "int32_t {sym}(const ThetaDataDxConfig* config, int32_t* {p});"
+            ),
+            (Kind::Optional(Type { c, .. }), true) => {
+                writeln!(
+                    out,
+                    "int32_t {sym}(ThetaDataDxConfig* config, bool has_value, {c} {p});"
+                )
+            }
+            (Kind::Optional(Type { c, .. }), false) => writeln!(
+                out,
+                "int32_t {sym}(const ThetaDataDxConfig* config, bool* out_has_value, {c}* {p});"
+            ),
+            (Kind::String, true) => writeln!(
+                out,
+                "int32_t {sym}(ThetaDataDxConfig* config, const char* {p});"
+            ),
+            (Kind::String, false) => writeln!(out, "char* {sym}(const ThetaDataDxConfig* config);"),
+            (Kind::Scalar(Type { c, .. }), true) => {
+                writeln!(out, "void {sym}(ThetaDataDxConfig* config, {c} {p});")
+            }
+            (Kind::Scalar(Type { c, .. }), false) => {
+                writeln!(
+                    out,
+                    "int32_t {sym}(const ThetaDataDxConfig* config, {c}* {p});"
+                )
+            }
         }
         .unwrap();
     }

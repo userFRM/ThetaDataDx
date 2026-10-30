@@ -4,7 +4,8 @@
 //! `DirectConfig` value is written once, in `__config!`. The C ABI expands it
 //! into its entry points, Python into the `Config` properties, TypeScript
 //! into the `Config` setters and getters, and `generate_sdk_surfaces` into the
-//! C++ `Config` methods. Accessors with their own logic (the ring size, the
+//! C header's declarations and the C++ `Config` methods. Accessors with their
+//! own logic (the ring size, the
 //! worker threads, the consumer CPU, the reconnect policy and callback) are
 //! written by hand in each binding.
 //!
@@ -124,9 +125,8 @@ macro_rules! __config {
                 param: ms,
                 doc: [
                     "Set the reconnect delay (ms) honoured for generic transient",
-                    "disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed",
-                    "through to the streaming I/O loop at connect time and consumed by the",
-                    "`Auto` reconnect arm via `reconnect_delay_for`. Default `250`.",
+                    "disconnects (TimedOut, ServerRestarting, Unspecified, …). Applied to",
+                    "the streaming session at connect time. Default `250`.",
                 ],
                 cpp_doc: [
                     "Set the reconnect delay (ms) honoured for generic transient",
@@ -170,10 +170,9 @@ macro_rules! __config {
                 param: ms,
                 doc: [
                     "Set the reconnect delay (ms) honoured for `TooManyRequests`",
-                    "rate-limited disconnects. Plumbed through to the streaming I/O loop at",
-                    "connect time and consumed by the `Auto` reconnect arm via",
-                    "`reconnect_delay_for`. Default `130_000` (matches the JVM terminal's",
-                    "130 s rate-limit cooldown).",
+                    "rate-limited disconnects. Applied to the streaming session at connect",
+                    "time. Default `130_000` (matches the JVM terminal's 130 s rate-limit",
+                    "cooldown).",
                 ],
                 cpp_doc: [
                     "Set the reconnect delay (ms) honoured for `TooManyRequests`",
@@ -192,7 +191,7 @@ macro_rules! __config {
             get thetadatadx_config_get_reconnect_wait_rate_limited_ms(out_ms: u64) [reconnect.wait_rate_limited_ms] {
                 doc: [
                     "Read the current reconnect `wait_rate_limited_ms` setting. Same",
-                    "shape as [`thetadatadx_config_get_reconnect_wait_ms`].",
+                    "shape as `thetadatadx_config_get_reconnect_wait_ms`.",
                 ],
                 cpp_doc: [
                     "Current reconnect wait_rate_limited_ms (default 130_000).",
@@ -356,7 +355,7 @@ macro_rules! __config {
             set thetadatadx_config_set_streaming_timeout_ms(v: u64) [streaming.timeout_ms] {
                 param: ms,
                 doc: [
-                    "Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000`; validated to `[100, 60_000]` at connect.",
+                    "Set the streaming read timeout (ms): the no-frames deadline after which the streaming session is declared dead and reconnects. Default `10_000`; validated to `[100, 60_000]` at connect.",
                 ],
                 cpp_doc: [
                     "Set the streaming read timeout (ms): the no-frames deadline after",
@@ -934,11 +933,10 @@ macro_rules! __config {
                 param: n,
                 doc: [
                     "Set the `warn_on_buffered_threshold_bytes` ceiling on a config",
-                    "handle. Streaming endpoints log a `tracing::warn!` when a",
-                    "pre-stream-API caller receives a buffered response whose decoded",
-                    "total size exceeds this threshold (default 100 MiB). The warning",
-                    "guides users towards the `.stream()` surface on large pulls; the",
-                    "data is still delivered.",
+                    "handle. A buffered (non-streaming) endpoint logs a warning when a",
+                    "response's decoded total size exceeds this threshold (default",
+                    "100 MiB), pointing large pulls at the streaming variant; the data is",
+                    "still delivered.",
                     "",
                     "`n = 0` disables the warning entirely.",
                 ],
@@ -1004,13 +1002,12 @@ macro_rules! __config {
                     "Set the default per-request deadline (seconds) for market-data queries",
                     "on a config handle.",
                     "",
-                    "Bounds every request that did not call `with_deadline(...)`, so a",
+                    "Bounds every request that did not set its own deadline, so a",
                     "live-but-silent stream resolves to a timeout instead of blocking",
                     "forever (the gRPC keepalive PING only detects a fully dead peer).",
                     "`secs = 0` no longer disables the default: it is floored to the",
                     "`300`-second default at request time, so the deadline always applies.",
-                    "Reach for the per-call `with_deadline(...)` opt-out to run a single",
-                    "request with no deadline. Default `300`.",
+                    "Default `300`.",
                 ],
                 cpp_doc: [
                     "Set the default per-request deadline (seconds) for market-data queries.",
@@ -1076,8 +1073,8 @@ macro_rules! __config {
                     "Set the initial per-stream HTTP/2 flow-control window, in KB, for the",
                     "market-data gRPC channel on a config handle. A larger window raises the",
                     "throughput ceiling on bulk streaming pulls before HTTP/2 backpressure",
-                    "kicks in. Default `8192` (8 MiB); `DirectConfig` validation (and the",
-                    "connect path) clamps the applied value into `[64, 2_097_151]` KB.",
+                    "kicks in. Default `8192` (8 MiB); the value is clamped into",
+                    "`[64, 2_097_151]` KB at connect.",
                 ],
                 cpp_doc: [
                     "Set the initial per-stream HTTP/2 flow-control window, in KB, for the",
@@ -1137,9 +1134,8 @@ macro_rules! __config {
                     "Set the initial connection-level HTTP/2 flow-control window, in KB, for",
                     "the market-data gRPC channel on a config handle. A larger window raises",
                     "the throughput ceiling on bulk streaming pulls before HTTP/2",
-                    "backpressure kicks in. Default `16384` (16 MiB); `DirectConfig`",
-                    "validation (and the connect path) clamps the applied value into",
-                    "`[64, 2_097_151]` KB.",
+                    "backpressure kicks in. Default `16384` (16 MiB); the value is clamped",
+                    "into `[64, 2_097_151]` KB at connect.",
                 ],
                 cpp_doc: [
                     "Set the initial connection-level HTTP/2 flow-control window, in KB, for",

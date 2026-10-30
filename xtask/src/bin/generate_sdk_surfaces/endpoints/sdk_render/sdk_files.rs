@@ -114,6 +114,10 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
     Ok(vec![
         GeneratedSourceFile {
+            relative_path: "thetadatadx-cpp/include/config_accessors.h.inc",
+            contents: config_accessors::render_c_config_accessors(),
+        },
+        GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/config_accessors.hpp.inc",
             contents: config_accessors::render_cpp_config_accessors(),
         },
