@@ -7927,8 +7927,10 @@ def decode_response_bytes(endpoint: str, chunks: List[bytes]) -> Any:
     """Decode raw response chunks for ``endpoint`` into the typed result.
 
     ``chunks`` are the wire-frame byte buffers for one market-data
-    response in order; ``endpoint`` selects the decoder. Returns the
-    endpoint's typed ``<Tick>List`` wrapper.
+    response in order; ``endpoint`` selects the decoder and names a
+    market-data endpoint that returns typed rows, which is every endpoint
+    except those returning a list of strings. Returns the endpoint's typed
+    ``<Tick>List`` wrapper.
     """
     ...
 
