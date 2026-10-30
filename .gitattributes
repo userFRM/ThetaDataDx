@@ -1,20 +1,9 @@
-# Force LF line endings on generated SDK surfaces so that
-# `generate_sdk_surfaces --check` doesn't false-positive on Windows.
-thetadatadx-cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
-thetadatadx-cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
-thetadatadx-cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true
-thetadatadx-cpp/include/market_data.hpp.inc  text eol=lf linguist-generated=true
-thetadatadx-cpp/include/utilities.hpp.inc   text eol=lf linguist-generated=true
-thetadatadx-cpp/src/market_data.cpp.inc      text eol=lf linguist-generated=true
-thetadatadx-cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
-scripts/ci/check_python.py           text eol=lf linguist-generated=true
-thetadatadx-cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
-
-# Generated validator surfaces that were missed from the original list.
-thetadatadx-cpp/examples/validate.cpp       text eol=lf linguist-generated=true
-
-# Generated config-accessor surface (the core config table -> generate_sdk_surfaces).
-thetadatadx-cpp/include/config_accessors.hpp.inc text eol=lf linguist-generated=true
+# Generated SDK surfaces. LF on every checkout so `generate_sdk_surfaces --check`
+# compares the same bytes on Windows as on Linux.
+*.inc                                   text eol=lf linguist-generated=true
+thetadatadx-cpp/include/abi_struct_layout_asserts.hpp.inc -linguist-generated
+thetadatadx-cpp/examples/validate.cpp   text eol=lf linguist-generated=true
+scripts/ci/check_python.py              text eol=lf linguist-generated=true
 
 # include_str! templates for the code generators. Must stay LF on every
 # checkout so Windows builds emit the same bytes as Linux and
@@ -24,9 +13,8 @@ thetadatadx-cpp/include/config_accessors.hpp.inc text eol=lf linguist-generated=
 thetadatadx-ts/index.js                 text eol=lf linguist-generated=true
 thetadatadx-ts/index.d.ts               text eol=lf linguist-generated=true
 
-# Codegen drift snapshot. Must stay LF on every checkout so Windows
-# builds emit the same bytes as Linux and the build-time drift check
-# does not false-positive.
+# Codegen drift snapshot. Must stay LF on every checkout so the drift
+# check compares the same bytes on Windows as on Linux.
 thetadatadx-rs/proto/beta_endpoints.snapshot.rs text eol=lf linguist-generated=true
 
 # The local server's golden responses are compared byte for byte, line endings

@@ -37,7 +37,7 @@ struct CellRecord {
     std::string endpoint;
     std::string mode;
     // rationale is the one-sentence cell description from the generator
-    // (rationale_for_mode in build_support/endpoints/modes.rs); surfaces
+    // (rationale_for_mode in build_support_bin/endpoints/modes.rs); surfaces
     // in scripts/ci/check_agreement.py disagreement output.
     std::string rationale;
     std::string status;

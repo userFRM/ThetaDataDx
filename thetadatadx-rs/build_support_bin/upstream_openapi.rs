@@ -224,7 +224,7 @@ impl UpstreamOpenApi {
                              \"expiration\" but is not one of the two known \
                              variants (expiration, expiration_no_star). \
                              Upstream likely renamed or split the expiration \
-                             parameter; teach `build_support/upstream_openapi.rs` \
+                             parameter; teach `build_support_bin/upstream_openapi.rs` \
                              how to classify {name:?} before proceeding."
                     ));
                 }
@@ -248,7 +248,7 @@ impl UpstreamOpenApi {
                         "endpoint {op}: inline parameter named {inline_name:?} \
                          contains \"expiration\". Upstream inlined the expiration \
                          parameter (rather than using `$ref` to a known \
-                         component); teach `build_support/upstream_openapi.rs` \
+                         component); teach `build_support_bin/upstream_openapi.rs` \
                          how to classify this inline form before proceeding."
                     ));
                 }
@@ -282,7 +282,7 @@ impl UpstreamOpenApi {
             return Err("parsed the snapshot but found zero references to either \
                  #/components/parameters/expiration or expiration_no_star. \
                  Upstream likely renamed the expiration parameter component; \
-                 update build_support/upstream_openapi.rs to match the new \
+                 update build_support_bin/upstream_openapi.rs to match the new \
                  shape and refresh the snapshot."
                 .into());
         }
