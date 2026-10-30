@@ -4,9 +4,9 @@
 #
 # Validates the Python and C++ SDKs against live traffic and checks that they
 # agree:
-#   1. Python     — generated check_python.py       (PyO3 bridge, live)
-#   2. C++        — generated validate.cpp          (C FFI bridge, live)
-#   3. Agreement  — cross-language artifact diff    (scripts/ci/check_agreement.py)
+#   1. Python    : scripts/ci/check_python.py      (PyO3 bridge, live)
+#   2. C++       : thetadatadx_validate            (C FFI bridge, live)
+#   3. Agreement : cross-language artifact diff    (scripts/ci/check_agreement.py)
 #
 # Each surface writes a per-cell JSON artifact to
 # `artifacts/validator_<lang>.json`. The agreement step asserts that every

@@ -243,6 +243,15 @@ pub(super) fn python_arg_literal(param: &GeneratedParam, value: &str) -> String 
     }
 }
 
+/// A method argument as the Python validator passes it: a list for
+/// `Symbols`, a string otherwise.
+pub(super) fn json_arg(param: &GeneratedParam, value: &str) -> serde_json::Value {
+    match param.param_type {
+        "Symbols" => serde_json::json!([value]),
+        _ => value.into(),
+    }
+}
+
 /// Render a single arg string as a C++ literal expression.
 pub(super) fn cpp_arg_literal(param: &GeneratedParam, value: &str) -> String {
     match param.param_type {
@@ -262,25 +271,28 @@ fn builder_param_for<'a>(
         .find(|p| p.name == name && !p.required)
 }
 
-/// Render a Python kwarg value (`key=value`) for a builder-bound param,
-/// preserving the param's wire type (Bool → `True`/`False`, Int/Float → bare,
-/// Str → quoted).
-pub(super) fn python_builder_kwarg(
+/// A builder-bound param's value as the Python validator passes the keyword
+/// argument, typed by the param's wire type.
+pub(super) fn json_builder_value(
     endpoint: &GeneratedEndpoint,
     name: &str,
     value: &str,
-) -> Option<String> {
+) -> Option<serde_json::Value> {
+    fn parse<T: std::str::FromStr>(param: &GeneratedParam, value: &str) -> T {
+        value.parse().unwrap_or_else(|_| {
+            panic!(
+                "{}: fixture {value:?} is not a {}",
+                param.name, param.param_type
+            )
+        })
+    }
     let param = builder_param_for(endpoint, name)?;
-    let literal = match param.param_type {
-        "Bool" => match value {
-            "true" => "True".to_string(),
-            "false" => "False".to_string(),
-            other => panic!("python_builder_kwarg: bool override {other:?} must be true/false"),
-        },
-        "Int" | "Float" => value.to_string(),
-        _ => format!("\"{value}\""),
-    };
-    Some(format!("{name}={literal}"))
+    Some(match param.param_type {
+        "Bool" => parse::<bool>(param, value).into(),
+        "Int" => parse::<i64>(param, value).into(),
+        "Float" => parse::<f64>(param, value).into(),
+        _ => value.into(),
+    })
 }
 
 /// Render a C++ `.with_<name>(value)` chained setter for a builder-bound param.

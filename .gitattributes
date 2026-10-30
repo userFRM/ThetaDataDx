@@ -2,8 +2,7 @@
 # compares the same bytes on Windows as on Linux.
 *.inc                                   text eol=lf linguist-generated=true
 thetadatadx-cpp/include/abi_struct_layout_asserts.hpp.inc -linguist-generated
-thetadatadx-cpp/examples/validate.cpp   text eol=lf linguist-generated=true
-scripts/ci/check_python.py              text eol=lf linguist-generated=true
+scripts/ci/data/live_cells.json         text eol=lf linguist-generated=true
 
 # include_str! templates for the code generators. Must stay LF on every
 # checkout so Windows builds emit the same bytes as Linux and
