@@ -272,6 +272,9 @@ pub mod wire {
 
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
+pub use client::StreamService;
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub use lifecycle::DispatcherSession;
 #[cfg(feature = "__internal")]
 #[doc(hidden)]

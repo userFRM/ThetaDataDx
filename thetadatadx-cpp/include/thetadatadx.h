@@ -810,7 +810,10 @@ bool thetadatadx_contract_strike_dollars(const ThetaDataDxContract* contract, do
 /*  Real-time streaming client                                            */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/** Connect to the real-time streaming servers.
+/** Allocate a streaming-only handle. Opens nothing and issues no
+ *  authentication request: the streaming connection is opened by
+ *  thetadatadx_streaming_set_callback. Every thetadatadx_streaming_* call
+ *  follows the contract of its thetadatadx_client_* counterpart.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A streaming handle the caller must release with thetadatadx_streaming_free, or
@@ -843,7 +846,8 @@ int thetadatadx_streaming_is_authenticated(const ThetaDataDxStreamHandle* h);
 /** Read the active subscriptions as a typed array.
  *  @param h The streaming handle.
  *  @return A subscription array the caller MUST free with
- *          thetadatadx_subscription_array_free. */
+ *          thetadatadx_subscription_array_free, or NULL (check
+ *          thetadatadx_last_error()) when streaming is not active. */
 ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_subscriptions(const ThetaDataDxStreamHandle* h);
 
 /** Read the active full-stream subscriptions as a typed array. Each
@@ -870,6 +874,7 @@ ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_full_subscriptions(co
 typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, void* ctx);
 
 /** Register a streaming callback and open the streaming connection.
+ *  Same contract as thetadatadx_client_set_callback.
  *
  *  Events flow from the streaming reader through a bounded ring to a
  *  dedicated consumer thread, which invokes the callback inside an
@@ -884,22 +889,22 @@ typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, v
  *  thetadatadx_streaming_reconnect() returns AND thetadatadx_streaming_await_drain() has
  *  returned 1. The consumer thread accesses ctx on every event and on
  *  every thetadatadx_streaming_reconnect(), serially on a single thread. Freeing ctx
- *  without one of these barriers is undefined behavior.
+ *  without one of these barriers is undefined behavior. Do not call
+ *  thetadatadx_streaming_shutdown() while a thetadatadx_streaming_reconnect()
+ *  is running on another thread: a reconnect the shutdown lands in still binds
+ *  a fresh session to the same ctx.
  *
  *  The consumer thread invokes `callback(event, ctx)` serially on
  *  a single thread. The user does NOT need internal locks for callback-
  *  private state.
  *
- *  ## Lifecycle contract (one-shot rule)
+ *  ## Lifecycle contract (replacement after shutdown)
  *
- *  Must be called exactly ONCE per handle. After thetadatadx_streaming_shutdown() this
- *  handle is terminal: a second register, a register-after-shutdown, or a
- *  reconnect-after-shutdown all return -1 with a clear thetadatadx_last_error()
- *  string ("streaming callback already installed -- ..."
- *  or "streaming handle has already been shut down -- this is terminal").
- *
- *  This is intentionally stricter than thetadatadx_client_set_callback(), where
- *  set-after-stop is supported as a normal user flow.
+ *  Calling this while streaming is active returns -1 with "streaming already
+ *  started". After thetadatadx_streaming_shutdown() the handle accepts a fresh
+ *  registration, which REPLACES the saved (callback, ctx) and starts a session
+ *  with nothing subscribed: the shutdown dropped the subscriptions, so
+ *  subscribe again.
  *
  *  @param h        The streaming handle.
  *  @param callback The callback invoked once per streaming event.
@@ -907,13 +912,18 @@ typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, v
  *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
 int thetadatadx_streaming_set_callback(const ThetaDataDxStreamHandle* h, ThetaDataDxStreamCallback callback, void* ctx);
 
-/** Reconnect the streaming session using the previously-registered
- *  callback. A retry after a failed reconnect replays the subscriptions
- *  the failed attempt saved.
+/** Reconnect the live streaming session under the registered callback,
+ *  replaying its subscriptions. A retry after a failed reconnect replays the
+ *  subscriptions the failed attempt saved. Before
+ *  thetadatadx_streaming_set_callback, and after
+ *  thetadatadx_streaming_shutdown (which drops the subscriptions), there is
+ *  nothing to reconnect: resume with thetadatadx_streaming_set_callback and
+ *  subscribe again.
  *  @param h The streaming handle.
- *  @return 0 on success, -1 on error; -1 with "streaming handle has already
- *          been shut down -- this is terminal" if the handle is past
- *          thetadatadx_streaming_shutdown; -1 with THETADATADX_ERR_STREAM if
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()); -1
+ *          with THETADATADX_ERR_NETWORK when no session is live and no
+ *          failed reconnect is waiting to be retried; -1 with
+ *          THETADATADX_ERR_STREAM if
  *          the session reconnected but some subscriptions failed to restore
  *          (the stream stays live and
  *          thetadatadx_streaming_active_subscriptions lists what was
@@ -933,16 +943,16 @@ uint64_t thetadatadx_streaming_dropped_events(const ThetaDataDxStreamHandle* h);
  *  thetadatadx_streaming_ring_capacity predicts drops before thetadatadx_streaming_dropped_events
  *  moves; sampling never blocks the feed and is safe from any thread.
  *  @param h The streaming handle.
- *  @return The current ring occupancy, or 0 if the handle is null or has
- *          been shut down. */
+ *  @return The current ring occupancy, or 0 if the handle is null or no
+ *          session is live. */
 uint64_t thetadatadx_streaming_ring_occupancy(const ThetaDataDxStreamHandle* h);
 
 /** Configured capacity of the streaming event ring in slots (the
  *  streaming_ring_size setting, a power of two) — the fixed denominator for
  *  thetadatadx_streaming_ring_occupancy.
  *  @param h The streaming handle.
- *  @return The ring capacity in slots, or 0 if the handle is null or has
- *          been shut down. */
+ *  @return The ring capacity in slots, or 0 if the handle is null or no
+ *          session is live. */
 uint64_t thetadatadx_streaming_ring_capacity(const ThetaDataDxStreamHandle* h);
 
 /** Milliseconds since the most recent inbound streaming frame of any kind
@@ -970,23 +980,21 @@ char* thetadatadx_streaming_last_connected_addr(const ThetaDataDxStreamHandle* h
 
 
 /** Cumulative count of user-callback failures contained by the
- *  per-invocation isolation boundary since the current stream started. If
- *  the callback aborts on a given event, the failure is contained, recorded
- *  here, and does not stop event delivery — the next event continues
+ *  per-invocation isolation boundary, across every session this handle has
+ *  run. If the callback aborts on a given event, the failure is contained,
+ *  recorded here, and does not stop event delivery: the next event continues
  *  normally. Safe to call from any thread.
  *  @param h The streaming handle.
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
 uint64_t thetadatadx_streaming_panic_count(const ThetaDataDxStreamHandle* h);
 
-/** Shut down the streaming client. Terminal: every subsequent
- *  set_callback / reconnect call on this handle returns -1 with a clear
- *  thetadatadx_last_error() string. This function itself returns void, so a
- *  repeated shutdown is a safe no-op that sets thetadatadx_last_error() but has
- *  no return value to check. The handle remains valid for
- *  thetadatadx_streaming_free() only. Returns asynchronously: in-flight events
- *  continue draining through the registered callback until the shutdown
- *  signal is observed.
+/** Stop streaming. Same contract as thetadatadx_client_stop_streaming:
+ *  idempotent, and returns once the consumer thread has exited, except when
+ *  called from inside the callback. The shutdown drops the subscriptions, so
+ *  thetadatadx_streaming_reconnect after it returns -1 with
+ *  THETADATADX_ERR_NETWORK; resume with thetadatadx_streaming_set_callback
+ *  and subscribe again.
  *  @param h The streaming handle.
  *  @note Pair with thetadatadx_streaming_await_drain() (or use thetadatadx_streaming_free(), which
  *        applies the drain barrier internally) before freeing the callback
@@ -996,17 +1004,17 @@ void thetadatadx_streaming_shutdown(const ThetaDataDxStreamHandle* h);
 /** Wait for the previously-superseded streaming session to quiesce.
  *  @param h The streaming handle.
  *  @param timeout_ms Maximum time to wait, in milliseconds.
- *  @return 1 once the previous thetadatadx_streaming_reconnect / thetadatadx_streaming_shutdown
- *          session has finished firing the registered callback; 0 on timeout
- *          or when no session has been superseded on this handle.
+ *  @return 1 once every previous thetadatadx_streaming_reconnect / thetadatadx_streaming_shutdown
+ *          session has finished firing the registered callback, and also when
+ *          no session was ever stopped on this handle (nothing to drain); 0
+ *          on timeout or a NULL handle.
  *  @note Must be called from a thread other than the streaming consumer;
  *        calling it from inside the user callback would block the very work
  *        it waits on and always time out. */
 int thetadatadx_streaming_await_drain(const ThetaDataDxStreamHandle* h, uint64_t timeout_ms);
 
-/** Free the streaming handle. Accepts the handle in either lifecycle state:
- *  if shutdown has not yet been called, this performs the shutdown sequence
- *  itself. Returns only after the registered callback has finished firing
+/** Free the streaming handle. If streaming is still live, this stops it
+ *  first. Returns only after the registered callback has finished firing
  *  (internal 5-second drain barrier). On drain timeout it logs an error and
  *  proceeds with destruction; in that diagnostic case the callback may still
  *  be firing, so user code must keep ctx valid past return. Under normal
@@ -1059,12 +1067,14 @@ ThetaDataDxClient* thetadatadx_client_connect_from_file(const char* path, const 
  *  has returned AND thetadatadx_client_await_drain() has returned 1 for the
  *  prior session. The consumer thread accesses ctx on every event and
  *  reconnect, serially on a single thread. Freeing ctx without one of
- *  these barriers is undefined behavior.
+ *  these barriers is undefined behavior. Do not call
+ *  thetadatadx_client_stop_streaming() while a thetadatadx_client_reconnect()
+ *  is running on another thread: a reconnect the stop lands in still binds a
+ *  fresh session to the same ctx.
  *
  *  ## Lifecycle contract (REPLACEMENT after stop)
  *
- *  Unlike thetadatadx_streaming_set_callback (one-shot), the unified path supports
- *  stop+register as a normal user flow: after thetadatadx_client_stop_streaming
+ *  Stop+register is a normal user flow: after thetadatadx_client_stop_streaming
  *  another thetadatadx_client_set_callback REPLACES the saved (callback, ctx).
  *  thetadatadx_client_reconnect is built on top of this. Calling set_callback
  *  while streaming is already active returns -1 with "streaming already
@@ -1129,8 +1139,13 @@ int thetadatadx_streaming_subscribe(const ThetaDataDxStreamHandle* h, const Thet
 int thetadatadx_streaming_unsubscribe(const ThetaDataDxStreamHandle* h, const ThetaDataDxSubscriptionRequest* request);
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions.
+ *  After thetadatadx_client_stop_streaming, which drops the subscriptions,
+ *  there is nothing to reconnect: resume with thetadatadx_client_set_callback
+ *  and subscribe again.
  *  @param handle The unified handle.
  *  @return 0 on success, -1 on error (check thetadatadx_last_error()); -1
+ *          with THETADATADX_ERR_NETWORK when no session is live and no
+ *          failed reconnect is waiting to be retried; -1
  *          with THETADATADX_ERR_STREAM if the session reconnected but some
  *          subscriptions failed to restore (the stream stays live and
  *          thetadatadx_client_active_subscriptions lists what was
@@ -1173,8 +1188,9 @@ ThetaDataDxSubscriptionArray* thetadatadx_client_active_full_subscriptions(const
 const ThetaDataDxMarketDataClient* thetadatadx_client_market_data(const ThetaDataDxClient* handle);
 
 /** Stop streaming on the unified client. Market-data remains available.
- *  Returns asynchronously: in-flight events continue draining through the
- *  registered callback until the shutdown signal is observed.
+ *  Returns once the consumer thread has exited, except when called from
+ *  inside the callback. The stop drops the subscriptions; resume with
+ *  thetadatadx_client_set_callback and subscribe again.
  *  @param handle The unified handle.
  *  @note Pair with thetadatadx_client_await_drain() (or use thetadatadx_client_free(),
  *        which applies the drain barrier internally) before freeing the
@@ -1186,9 +1202,8 @@ void thetadatadx_client_stop_streaming(const ThetaDataDxClient* handle);
  *  @param timeout_ms Maximum time to wait, in milliseconds.
  *  @return 1 once the previous session has finished firing the registered
  *          callback, or when no stream has ever been started or stopped on
- *          this handle (an idle handle is already quiesced); 0 only on
- *          timeout. Note the standalone thetadatadx_streaming_await_drain
- *          returns 0 for the idle case instead.
+ *          this handle (an idle handle is already quiesced); 0 on timeout
+ *          or a NULL handle.
  *  @note Must be called from a thread other than the streaming consumer. */
 int thetadatadx_client_await_drain(const ThetaDataDxClient* handle, uint64_t timeout_ms);
 
@@ -1243,9 +1258,9 @@ char* thetadatadx_client_last_connected_addr(const ThetaDataDxClient* handle);
 
 
 /** Cumulative count of user-callback failures contained by the
- *  per-invocation isolation boundary since the current stream started. If
- *  the callback aborts on a given event, the failure is contained, recorded
- *  here, and does not stop event delivery — the next event continues
+ *  per-invocation isolation boundary, across every session this handle has
+ *  run. If the callback aborts on a given event, the failure is contained,
+ *  recorded here, and does not stop event delivery: the next event continues
  *  normally. Safe to call from any thread.
  *  @param handle The unified handle.
  *  @return The contained-failure count, or 0 if the handle is null or no

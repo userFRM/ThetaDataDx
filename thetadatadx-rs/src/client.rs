@@ -139,7 +139,7 @@ pub enum ConnectionStatus {
 /// What a live streaming slot reports, given what its client knows about
 /// itself.
 ///
-/// Pulled out of [`Client::connection_status`] so the distinction it exists
+/// Pulled out of [`StreamService::connection_status`] so the distinction it exists
 /// for is reachable without a network credential: a session still trying to
 /// reconnect and one that has stopped trying both follow a disconnect and
 /// want opposite responses from a caller.
@@ -181,11 +181,27 @@ fn live_status(
 /// streaming lifecycle.
 pub struct Client {
     market_data: MarketDataClient,
+    /// The streaming lifecycle, shared by `Arc` so a binding's stream view can
+    /// co-own it past the client handle that vended it.
+    stream: Arc<StreamService>,
+}
+
+/// The streaming lifecycle behind [`Client::stream`], ownable without a
+/// market-data connection.
+///
+/// A [`Client`] owns one; a binding's streaming-only client constructs one
+/// with [`Self::new`], which opens nothing and issues no authentication
+/// request. The streaming connection opens on the first start, through the
+/// vendor's own streaming handshake. Dropping the last owner retires a live
+/// session off the dropping thread.
+#[doc(hidden)]
+pub struct StreamService {
     creds: Credentials,
+    config: DirectConfig,
     /// Streaming lifecycle state, held behind an `Arc` so a teardown that
     /// outlives the borrowed [`StreamSurface`] — notably the pull-based
     /// [`crate::streaming::RecordBatchStream`], whose `close` / drop
-    /// fire after the `&Client` borrow has ended — can quiesce the same state
+    /// fire after the borrow has ended, can quiesce the same state
     /// cells [`Self::stop_streaming`] does, through a [`std::sync::Weak`]. The
     /// callback path reaches it through `&self`; both routes funnel through
     /// [`StreamingState::quiesce`], so the two delivery modes leave the client
@@ -197,7 +213,7 @@ pub struct Client {
 ///
 /// Factored out of [`Client`] so it can be shared (via `Arc`) with a
 /// pull-based reader whose teardown outlives the `&Client` borrow that opened
-/// it. Both [`Client::stop_streaming`] and the batch reader's close drive
+/// it. Both [`StreamService::stop_streaming`] and the batch reader's close drive
 /// [`Self::quiesce`], the single transition that swaps the slot to `Stopped`,
 /// retires the dispatcher session, and records the drain flag — so streaming
 /// status stays truthful and the client stays reusable regardless of which
@@ -210,9 +226,9 @@ pub(crate) struct StreamingState {
     /// took two `Mutex` locks plus an `AtomicBool` for the same answer.
     state: ArcSwap<StreamingSlot>,
     /// Quiescence flags of every superseded streaming session that has
-    /// not yet drained, captured during [`Client::stop_streaming`] /
-    /// [`Client::reconnect_streaming`] before the `Live → Stopped` swap
-    /// drops the previous `Arc<StreamingClient>`. [`Client::await_drain`]
+    /// not yet drained, captured during [`StreamService::stop_streaming`] /
+    /// [`StreamService::reconnect_streaming`] before the `Live → Stopped` swap
+    /// drops the previous `Arc<StreamingClient>`. [`StreamService::await_drain`]
     /// waits for **every** entry to flip to `true` before reporting
     /// quiescence; completed flags are GC'd lazily on each poll.
     ///
@@ -259,7 +275,7 @@ pub(crate) struct StreamingState {
     /// same reason as [`Self::retired_panics`].
     retired_dropped: AtomicU64,
     /// The per-contract and full-stream subscriptions of a session that
-    /// [`Client::reconnect_streaming_scoped`] tore down but could not
+    /// [`StreamService::reconnect_streaming_scoped`] tore down but could not
     /// replay, because the fresh session failed to start.
     ///
     /// Tearing the old session down clears its subscription lists, so
@@ -341,7 +357,7 @@ impl StreamingState {
     /// dispatcher session, and record the previous generation's drain flag.
     ///
     /// This is the single teardown both delivery modes share —
-    /// [`Client::stop_streaming`] (callback path) and the pull reader's close
+    /// [`StreamService::stop_streaming`] (callback path) and the pull reader's close
     /// (columnar path) both call it — so after either one the slot is
     /// `Stopped`, the dispatcher is `Idle` (or `Failed` if it panicked), and
     /// `is_streaming` / `connection_status` report the truth. Idempotent:
@@ -360,7 +376,7 @@ impl StreamingState {
     /// FPSS client shutdown and the dispatcher join — on a detached helper
     /// thread.
     ///
-    /// This is the [`Client::drop`] path. A plain [`Self::quiesce`] would run
+    /// This is the [`StreamService`] drop path. A plain [`Self::quiesce`] would run
     /// [`Self::run_teardown`], whose cross-thread dispatcher join blocks the
     /// calling thread. When the last `Arc<Client>` is dropped while a binding
     /// runtime lock is held — the Python GIL, most importantly, since the
@@ -721,12 +737,60 @@ impl Client {
         // covered. No-op when the feature is disabled or `metrics_port`
         // is `None` (the default).
         crate::observability::try_install_exporter(&config)?;
+        let stream = Arc::new(StreamService::validated(creds, config.clone()));
         let market_data = MarketDataClient::connect(creds, config).await?;
         Ok(Self {
             market_data,
-            creds: creds.clone(),
-            streaming: Arc::new(StreamingState::new()),
+            stream,
         })
+    }
+}
+
+/// The streaming-only entry points of the bindings' stream views and
+/// standalone clients. A default build keeps the service crate-private, so
+/// its lifecycle stays off the public API.
+#[cfg(feature = "__internal")]
+impl Client {
+    /// The streaming lifecycle this client's [`Self::stream`] view forwards
+    /// to, for a binding's stream view to co-own.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn stream_service(&self) -> &Arc<StreamService> {
+        &self.stream
+    }
+}
+
+#[cfg(feature = "__internal")]
+impl StreamService {
+    /// A streaming-only owner. Validates `config` and opens nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when `config` fails validation.
+    pub fn new(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
+        Ok(Self::validated(creds, config.validate()?))
+    }
+
+    /// The streaming surface over this lifecycle.
+    #[must_use]
+    pub fn stream(&self) -> StreamSurface<'_> {
+        StreamSurface(self)
+    }
+
+    /// The validated config this lifecycle connects with.
+    #[must_use]
+    pub fn config(&self) -> &DirectConfig {
+        &self.config
+    }
+}
+
+impl StreamService {
+    fn validated(creds: &Credentials, config: DirectConfig) -> Self {
+        Self {
+            creds: creds.clone(),
+            config,
+            streaming: Arc::new(StreamingState::new()),
+        }
     }
 
     /// Helper: error returned when `start_streaming*` is called while
@@ -950,7 +1014,7 @@ impl Client {
 
         let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
-        let config = self.market_data.config();
+        let config = &self.config;
         let client = crate::fpss::StreamingClientBuilder::from_config(
             &self.creds,
             &config.streaming,
@@ -1736,7 +1800,7 @@ impl Client {
         per_contract: &[(SubscriptionKind, Contract)],
         full_type: &[(SubscriptionKind, SecType)],
     ) -> Result<(), Error> {
-        let reconnect = &self.market_data.config().reconnect;
+        let reconnect = &self.config.reconnect;
         let pacing = ReplayPacing {
             burst_size: reconnect.replay_burst_size,
             pace_ms: reconnect.replay_pace_ms,
@@ -1812,7 +1876,9 @@ impl Client {
             }
         }
     }
+}
 
+impl Client {
     /// Access the current MDDS session UUID.
     ///
     /// Returns an owned `String` rather than `&str` because the UUID
@@ -1845,7 +1911,7 @@ impl Client {
     }
 }
 
-impl Drop for Client {
+impl Drop for StreamService {
     /// Final cleanup: idempotently stops the streaming connection, off the
     /// dropping thread.
     ///
@@ -1854,7 +1920,7 @@ impl Drop for Client {
     /// The actual TLS reader + event-dispatch consumer join happens when
     /// the last `Arc<StreamingClient>` is dropped via `StreamingClient::Drop`.
     /// Calling once from `Drop` after the user already called
-    /// [`Self::close`] / `stop_streaming` is therefore a no-op — the state
+    /// [`Client::close`] / `stop_streaming` is therefore a no-op: the state
     /// machine guarantees the shutdown signal runs exactly once.
     ///
     /// The teardown is **detached** onto a helper thread
@@ -1866,7 +1932,7 @@ impl Drop for Client {
     /// drop thread blocks on the dispatcher, the dispatcher blocks on the lock.
     /// Detaching lets the drop return immediately (releasing that lock) while
     /// the helper finishes the join once the callback drains. Callers that need
-    /// a synchronous quiescence barrier use [`Self::close`] (or `stop_streaming`
+    /// a synchronous quiescence barrier use [`Client::close`] (or `stop_streaming`
     /// + `await_drain`), which the bindings wrap in a lock-releasing region.
     fn drop(&mut self) {
         self.streaming.quiesce_detached();
@@ -1923,7 +1989,7 @@ impl Client {
     /// performs the stop but not the post-stop drain wait, matching the
     /// non-blocking `stop_streaming` contract.
     pub fn close(&self) {
-        self.stop_streaming();
+        self.stream.stop_streaming();
     }
 
     /// Streaming surface — subscribe / unsubscribe, the dispatcher
@@ -1948,7 +2014,7 @@ impl Client {
     /// ```
     #[must_use]
     pub fn stream(&self) -> StreamSurface<'_> {
-        StreamSurface(self)
+        StreamSurface(&self.stream)
     }
 }
 
@@ -1959,7 +2025,7 @@ impl Client {
 /// the unified client owns — no duplicated state, no behavior change.
 /// The view is `Copy`; take it per call site rather than storing it.
 #[derive(Clone, Copy)]
-pub struct StreamSurface<'a>(&'a Client);
+pub struct StreamSurface<'a>(&'a StreamService);
 
 impl StreamSurface<'_> {
     /// Start the FPSS streaming connection with a callback handler.
@@ -3473,7 +3539,7 @@ mod tests {
     // Live-network routing is covered by the streaming integration
     // tests under `thetadatadx-rs/tests/`.
 
-    /// Mirror of [`Client::subscribe`]'s `match` shape. Returns
+    /// Mirror of [`StreamService::subscribe`]'s `match` shape. Returns
     /// the routed (kind, contract-or-sec-type) tuple so the test can
     /// assert the dispatch reached the right arm without a real FPSS
     /// connection.
