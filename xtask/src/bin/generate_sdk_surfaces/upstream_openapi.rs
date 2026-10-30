@@ -54,8 +54,8 @@ impl UpstreamOpenApi {
     /// Load and parse the snapshot, caching the result across callers.
     ///
     /// The caller is the `generate_sdk_surfaces` binary, which runs from the
-    /// crate root, so the snapshot path is resolved relative to it at
-    /// `../scripts/ci/data/upstream_openapi.yaml`.
+    /// core crate's directory, so the snapshot path is resolved relative to it
+    /// at `../scripts/ci/data/upstream_openapi.yaml`.
     pub fn load() -> &'static Self {
         static CACHE: OnceLock<UpstreamOpenApi> = OnceLock::new();
         CACHE.get_or_init(|| {
@@ -224,7 +224,7 @@ impl UpstreamOpenApi {
                              \"expiration\" but is not one of the two known \
                              variants (expiration, expiration_no_star). \
                              Upstream likely renamed or split the expiration \
-                             parameter; teach `build_support_bin/upstream_openapi.rs` \
+                             parameter; teach `upstream_openapi.rs` in the generator \
                              how to classify {name:?} before proceeding."
                     ));
                 }
@@ -248,7 +248,7 @@ impl UpstreamOpenApi {
                         "endpoint {op}: inline parameter named {inline_name:?} \
                          contains \"expiration\". Upstream inlined the expiration \
                          parameter (rather than using `$ref` to a known \
-                         component); teach `build_support_bin/upstream_openapi.rs` \
+                         component); teach `upstream_openapi.rs` in the generator \
                          how to classify this inline form before proceeding."
                     ));
                 }
@@ -282,7 +282,7 @@ impl UpstreamOpenApi {
             return Err("parsed the snapshot but found zero references to either \
                  #/components/parameters/expiration or expiration_no_star. \
                  Upstream likely renamed the expiration parameter component; \
-                 update build_support_bin/upstream_openapi.rs to match the new \
+                 update the generator's upstream_openapi.rs to match the new \
                  shape and refresh the snapshot."
                 .into());
         }

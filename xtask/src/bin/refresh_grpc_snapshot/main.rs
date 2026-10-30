@@ -4,9 +4,7 @@
 //! `codegen.rs`) changes intentionally:
 //!
 //! ```sh
-//! cargo run -p thetadatadx-rs \
-//!     --bin refresh_grpc_snapshot \
-//!     --features grpc-codegen
+//! cargo run -p xtask --features grpc-codegen --bin refresh_grpc_snapshot
 //! ```
 //!
 //! Commit the resulting `proto/beta_endpoints.snapshot.rs` diff
@@ -17,12 +15,12 @@ mod codegen;
 
 use std::fs;
 use std::io::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // prost-build resolves `proto/mdds.proto` against the current directory.
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    std::env::set_current_dir(&manifest_dir)?;
+    // prost-build resolves `proto/mdds.proto` against the current directory,
+    // and the snapshot and scratch paths are relative to the core crate too.
+    std::env::set_current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../thetadatadx-rs"))?;
 
     let fresh_bytes = codegen::regenerate_into_scratch()?;
     let written = codegen::snapshot_path();

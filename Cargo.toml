@@ -6,6 +6,7 @@ members = [
     "thetadatadx-ts",
     "tools/server",
     "tools/mcp",
+    "xtask",
 ]
 resolver = "3"
 

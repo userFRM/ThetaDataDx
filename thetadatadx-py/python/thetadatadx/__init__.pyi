@@ -1323,7 +1323,7 @@ EventCallback = Callable[[Any], None]
 
 # --- BEGIN GENERATED MARKET DATA VIEW (endpoint table) ---
 # Generated from the endpoint table; do not edit by hand. Run
-# `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh.
+# `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.
 #
 # The typed list wrappers and fluent builder classes returned below are
 # registered at runtime by the compiled extension and resolve through
