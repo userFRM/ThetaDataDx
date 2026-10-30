@@ -1,16 +1,14 @@
 //! Checked-in tick projections emitted by `generate_sdk_surfaces`.
 //!
-//! The per-language SDK projections (Python pyclass + Arrow, TypeScript
-//! napi, C++ layout asserts) rendered from `tick_schema.toml`. The Rust tick
-//! structs, decoders and frames expand from the tick table instead.
+//! The TypeScript napi classes and the C++ layout asserts, flag accessors and
+//! Arrow IPC helpers rendered from `tick_schema.toml`. The Rust and Python
+//! tick types expand from the tick table instead.
 
 pub(super) mod schema;
 
 mod cpp;
 pub(super) mod idents;
 mod layout;
-mod python_arrow;
-pub(super) mod python_classes;
 mod tdbe_structs;
 mod typescript;
 
@@ -26,8 +24,7 @@ pub(super) struct GeneratedSourceFile {
 
 /// Renders every SDK surface from the schema and writes each to its output path under `repo_root`, creating parent directories as needed.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let snapshot_return_types = super::endpoints::snapshot_return_types();
-    for file in render_sdk_generated_files(&snapshot_return_types)? {
+    for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -39,8 +36,7 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 /// Re-renders every SDK surface and compares it against the checked-in file under `repo_root`, returning an error naming the first stale surface.
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let snapshot_return_types = super::endpoints::snapshot_return_types();
-    for file in render_sdk_generated_files(&snapshot_return_types)? {
+    for file in render_sdk_generated_files()? {
         let path = repo_root.join(file.relative_path);
         let actual = std::fs::read_to_string(&path)?;
         if actual.replace("\r\n", "\n") != file.contents {
@@ -54,24 +50,9 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn render_sdk_generated_files(
-    snapshot_return_types: &std::collections::HashSet<String>,
-) -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
+fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let schema = schema::load_schema()?;
-    // Note: `tick_columnar.rs` is intentionally NOT emitted — see the
-    // `python_classes` module doc-comment for the audit trail.
     Ok(vec![
-        GeneratedSourceFile {
-            // Arrow columnar pipeline: `pyclass_list_to_arrow_table` dispatcher
-            // + typed Arrow schema map. Single alloc per column, zero-copy to
-            // pyarrow via the Arrow C Data Interface.
-            relative_path: "thetadatadx-py/src/_generated/tick_arrow.rs",
-            contents: python_arrow::render_python_tick_arrow(&schema),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/tick_classes.rs",
-            contents: python_classes::render_python_tick_classes(&schema, snapshot_return_types),
-        },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/tick_layout_asserts.hpp.inc",
             contents: cpp::render_cpp_tick_layout_asserts(&schema),
@@ -104,41 +85,4 @@ pub(super) fn sorted_type_names(schema: &Schema) -> Vec<&str> {
     let mut names = schema.types.keys().map(String::as_str).collect::<Vec<_>>();
     names.sort();
     names
-}
-
-/// Stable pyclass / typed-struct name for a schema type. Shared across
-/// the Python emitters (struct, Arrow reader, and list converter) so all
-/// surfaces see the same class identifier.
-///
-/// TOML-driven via `[types.X.render].pyclass` -- adding a tick type means
-/// adding the schema row, not editing this helper. The OnceLock makes the
-/// lookup `'static` because the schema is closed at build time.
-pub(super) fn pyclass_name(type_name: &str) -> &'static str {
-    use std::collections::HashMap;
-    use std::sync::OnceLock;
-    static MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
-    let map = MAP.get_or_init(|| {
-        let schema = schema::load_schema()
-            .unwrap_or_else(|e| panic!("failed to load tick_schema.toml for pyclass_name: {e}"));
-        // Leak the strings -- build-time only, bounded by the closed set of
-        // tick types in tick_schema.toml. Avoids returning borrowed refs out
-        // of the closure.
-        schema
-            .types
-            .into_iter()
-            .map(|(name, def)| {
-                let key: &'static str = Box::leak(name.into_boxed_str());
-                let value: &'static str = Box::leak(def.render.pyclass.into_boxed_str());
-                (key, value)
-            })
-            .collect()
-    });
-    map.get(type_name).copied().unwrap_or_else(|| {
-        let mut keys: Vec<&str> = map.keys().copied().collect();
-        keys.sort();
-        panic!(
-            "unsupported Python pyclass type '{type_name}'; available: {}",
-            keys.join(", ")
-        )
-    })
 }

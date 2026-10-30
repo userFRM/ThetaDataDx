@@ -37,23 +37,3 @@ pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
     sdk_render::check_sdk_generated_files(repo_root)
 }
-
-/// Compute the set of tick return-type names (e.g. `"OhlcTicks"`,
-/// `"CalendarDays"`) that need a `<tick>_vec_to_pylist` fast-path
-/// converter emitted into `thetadatadx-py/src/_generated/tick_classes.rs`.
-/// Consumed by the `ticks` generator to decide emission per tick type.
-///
-/// The only caller is a snapshot / calendar endpoint that returns a plain
-/// list ([`sdk_helpers::snapshot_returns_plain_pylist`]): the converter
-/// skips the `<TickName>List` wrapper on that latency-sensitive path. Every
-/// other endpoint, the `.stream(handler)` chunks included, returns the
-/// wrapper, which carries the column presence and so each row's root. Keying
-/// emission on the same predicate the endpoint emitter uses keeps a tick type
-/// no plain-list snapshot returns from landing as a dead-code function.
-pub fn snapshot_return_types() -> std::collections::HashSet<String> {
-    table::endpoints()
-        .iter()
-        .filter(|e| sdk_helpers::snapshot_returns_plain_pylist(e))
-        .map(|e| e.return_type.to_string())
-        .collect()
-}

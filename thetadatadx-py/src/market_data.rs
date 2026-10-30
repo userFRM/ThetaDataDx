@@ -403,7 +403,7 @@ macro_rules! py_endpoint {
                         request = request.with_deadline(std::time::Duration::from_millis(ms));
                     }
                     let ticks = run_blocking(py, async move { request.await })?;
-                    [<$item:snake s_ $conv>](py, ticks)
+                    py_endpoint!(@convert $conv $item)(py, ticks)
                 }
 
                 $(#[doc = concat!($doc)])*
@@ -439,7 +439,7 @@ macro_rules! py_endpoint {
                             request = request.with_deadline(std::time::Duration::from_millis(ms));
                         }
                         request.await
-                    }, |py, ticks| [<$item:snake s_ $conv>](py, ticks).map(|p| p.into_any()))
+                    }, |py, ticks| py_endpoint!(@convert $conv $item)(py, ticks).map(|p| p.into_any()))
                 }
 
                 #[doc = concat!("Create a fluent-builder for `", stringify!($name), "`. Chain setters then call `.list()`")]
@@ -671,6 +671,8 @@ macro_rules! py_endpoint {
     };
     (@ret to_pyclass_list $item:ident) => { thetadatadx::__paste!([<$item List>]) };
     (@ret vec_to_pylist $item:ident) => { pyo3::types::PyList };
+    (@convert to_pyclass_list $item:ident) => { thetadatadx::__paste!([<$item:snake s_to_pyclass_list>]) };
+    (@convert vec_to_pylist $item:ident) => { ticks_to_pylist::<_, $item> };
     (@stored_req Symbols) => { Vec<String> };
     (@stored_req $t:ident) => { String };
 }

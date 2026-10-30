@@ -64,9 +64,7 @@ fn ohlc_tick_to_polars_emits_contract_tail() {
     assert!(cols.contains(&"expiration".to_string()));
     assert!(cols.contains(&"strike".to_string()));
     assert!(cols.contains(&"right".to_string()));
-    // Schema dtype spot-check: volume / count are widened to i64 even
-    // though they stay i32 on the OhlcTick struct, matching the Python
-    // slice_arrow schema.
+    // Schema dtype spot-check: volume / count are i64 columns.
     assert_eq!(dtype_of(&df, "volume"), DataType::Int64);
     assert_eq!(dtype_of(&df, "count"), DataType::Int64);
     assert_eq!(dtype_of(&df, "strike"), DataType::Float64);
@@ -100,7 +98,7 @@ fn empty_slice_produces_empty_dataframe() {
     let ticks: Vec<tick::OhlcTick> = vec![];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 0);
-    // Schema preserved on empty slices — same as the Python slice_arrow path.
+    // Schema preserved on empty slices.
     assert!(df.width() > 0);
 }
 

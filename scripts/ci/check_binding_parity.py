@@ -141,6 +141,10 @@ CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
 # (`thetadatadx-py/src/market_data.rs`), so no source file names them and the
 # gate reads the table instead.
 ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
+# The tick table. The Python tick classes are expanded from it at compile time
+# (`thetadatadx-py/src/ticks.rs`), so no source file spells their structs or
+# methods and the gate reads the table instead.
+TICK_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "ticks.rs"
 # The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
 # declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
 # buffered endpoint. Reading the SHIPPED header (not just the `thetadatadx-ffi/src`
@@ -247,7 +251,110 @@ def collect_python_classes(py_src: pathlib.Path) -> set[str]:
     if errors_rs.is_file():
         for m in re.finditer(r'm\.add\(\s*"(\w+)"\s*,', _read_source(errors_rs)):
             out.add(m.group(1))
-    return out
+    return out | _python_tick_surface(py_src)[0]
+
+
+_RUST_STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+_TICK_ENTRY_RE = re.compile(r"((?:#\[\w+\]\s*)*)\b([A-Z]\w*)\s*\{\s*doc:")
+_TICK_SECTIONS_RE = re.compile(
+    r"columns:\s*\[(.*?)\],\s*timestamps:\s*\[(.*?)\],\s*flags:\s*\[(.*?)\]", re.S
+)
+_TICK_COLUMN_RE = re.compile(r'(#\[nullable\]\s*)?(\w+)(?:\((\w+)\))?:\s*(\w+)\s*""')
+
+
+def _tick_table_entries(table_rs: pathlib.Path) -> dict[str, dict[str, Any]]:
+    """Every `__ticks!` entry keyed by tick name: whether it carries the
+    contract triple, its columns as `(field, type, nullable)` and the names
+    of its timestamp and flag accessors. Raises when the table cannot be
+    read, so a reshaped table fails the gate instead of emptying the tick
+    surface."""
+    text = table_rs.read_text(encoding="utf-8")
+    start = text.find("macro_rules! __ticks")
+    end = text.find("macro_rules!", start + 1)
+    if start < 0 or end < 0:
+        raise ValueError(f"{table_rs}: no `__ticks!` table")
+    body = _RUST_STRING_RE.sub('""', text[start:end])
+    heads = list(_TICK_ENTRY_RE.finditer(body))
+    entries: dict[str, dict[str, Any]] = {}
+    for head, nxt in zip(heads, heads[1:] + [None]):
+        sections = _TICK_SECTIONS_RE.search(body, head.end(), nxt.start() if nxt else len(body))
+        if sections is None:
+            raise ValueError(f"{table_rs}: `{head.group(2)}` has no columns, timestamps and flags")
+        columns, timestamps, flags = sections.groups()
+        entries[head.group(2)] = {
+            "contract": "#[contract_id]" in head.group(1),
+            "columns": [
+                (c.group(3) or c.group(2), c.group(4), bool(c.group(1)))
+                for c in _TICK_COLUMN_RE.finditer(columns)
+            ],
+            "accessors": re.findall(r"(\w+)\(", timestamps) + re.findall(r"(\w+):", flags),
+        }
+    if not entries:
+        raise ValueError(f"{table_rs}: the `__ticks!` table has no entries")
+    return entries
+
+
+# How `thetadatadx-py/src/ticks.rs` expands a tick table entry: the row class
+# with one field per column (`lambda` spelled `lambda_`) typed as below,
+# `Option` when nullable, plus the contract triple; the `<Tick>List` wrapper;
+# and the wrapper's iterator.
+_PY_TICK_COLUMN_TYPES = {
+    "i32": "i32",
+    "eod_num": "i32",
+    "eod_date": "i32",
+    "i64": "i64",
+    "eod_num64": "i64",
+    "f64": "f64",
+    "price": "f64",
+    "eod_price": "f64",
+    "String": "String",
+    "right": "String",
+    "calendar_status": "String",
+}
+_PY_TICK_CONTRACT_FIELDS = {
+    "expiration": "Option<i32>",
+    "strike": "Option<f64>",
+    "right": "Option<String>",
+}
+_PY_TICK_LIST_METHODS = (
+    "__bool__",
+    "__getitem__",
+    "__iter__",
+    "__len__",
+    "py_new",
+    "to_arrow",
+    "to_list",
+    "to_pandas",
+    "to_polars",
+)
+
+
+def _python_tick_surface(
+    py_src: pathlib.Path,
+) -> tuple[set[str], dict[str, set[str]], dict[str, dict[str, str]]]:
+    """The classes, the methods per class (dunder lifecycle and `new`
+    excluded, as `_collect_python_class_methods` reports them) and the field
+    types per row class that the crate at `py_src` expands from the tick
+    table. Empty for a tree without the expanding `ticks.rs`."""
+    classes: set[str] = set()
+    methods: dict[str, set[str]] = {}
+    fields: dict[str, dict[str, str]] = {}
+    if not (py_src / "ticks.rs").is_file():
+        return classes, methods, fields
+    for name, entry in _tick_table_entries(TICK_TABLE_RS).items():
+        classes |= {name, f"{name}List", f"{name}ListIter"}
+        if entry["accessors"]:
+            methods[name] = set(entry["accessors"])
+        methods[f"{name}List"] = set(_PY_TICK_LIST_METHODS)
+        methods[f"{name}ListIter"] = {"__iter__", "__next__"}
+        row = {}
+        for field, ty, nullable in entry["columns"]:
+            py_ty = _PY_TICK_COLUMN_TYPES[ty]
+            row["lambda_" if field == "lambda" else field] = f"Option<{py_ty}>" if nullable else py_ty
+        if entry["contract"]:
+            row.update(_PY_TICK_CONTRACT_FIELDS)
+        fields[name] = row
+    return classes, methods, fields
 
 
 # `export class X` / `export declare class X` (the `declare` keyword is
@@ -1898,7 +2005,7 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
                 if name in skip_names:
                     continue
                 out.setdefault(class_name, set()).add(name)
-    return out
+    return out | _python_tick_surface(py_src)[1]
 
 
 def _collect_typescript_class_methods(
@@ -5438,6 +5545,9 @@ def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | 
     is absent. Generated and hand-written sources are treated alike —
     the declared type IS the binding surface either way.
     """
+    expanded = _python_tick_surface(src_dir)[2]
+    if struct in expanded:
+        return expanded[struct].get(field)
     struct_re = re.compile(
         r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
         re.S,
@@ -5652,6 +5762,9 @@ def _collect_value_struct_fields(
     out: set[str] = set()
     if not src_dir.is_dir():
         return out
+    expanded = _python_tick_surface(src_dir)[2]
+    if struct in expanded:
+        return set(expanded[struct])
     struct_re = re.compile(
         r"(?:pub(?:\(crate\))?\s+)?struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
         re.S,

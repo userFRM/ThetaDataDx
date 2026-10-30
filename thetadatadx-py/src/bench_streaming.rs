@@ -59,8 +59,7 @@ use thetadatadx::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 
-use crate::fpss_event_to_typed;
-use crate::slice_arrow::trade_tick_slice_to_arrow_table;
+use crate::{fpss_event_to_typed, record_batch_to_pyarrow_table};
 
 /// Disruptor ring size. Matches the production default
 /// `FpssConfig::ring_size = 131_072` (see `thetadatadx-rs/src/config/fpss.rs`)
@@ -382,6 +381,20 @@ pub(crate) fn __bench_flood_events_arrow(
         emit_batch_arrow(&mut v, &flush_cb);
     };
     Ok(run_pipeline(py, n, body, flush))
+}
+
+/// The rows as a `pyarrow.Table` with every `TradeTick` column, built with
+/// the GIL released.
+fn trade_tick_slice_to_arrow_table(
+    py: Python<'_>,
+    rows: &[thetadatadx::TradeTick],
+) -> PyResult<Py<PyAny>> {
+    use thetadatadx::frames_api::TicksArrowExt;
+
+    let batch = py
+        .detach(|| rows.to_arrow())
+        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+    record_batch_to_pyarrow_table(py, batch)
 }
 
 /// Build one Arrow `RecordBatch` from a buffered `TradeTick` slice and hand

@@ -592,17 +592,13 @@ impl Config {
 // assign/read pairs are projected from the SSOT.
 include!("_generated/config_accessors.rs");
 
-// ── Typed-pyclass tick definitions (generated from tick_schema.toml) ──
+// ── Tick row classes, expanded from the core tick table ──
 //
-// `tick_arrow.rs` is the schema-generated Arrow pipeline used by the
-// DataFrame adapter -- zero-copy handoff to pyarrow via the Arrow C
-// Data Interface. `tick_classes.rs` is the primary return path for
-// all market-data endpoints -- matches the typed-struct approach used
-// by Rust core, TypeScript, and C++ FFI.
+// The primary return path of every market-data endpoint, with the
+// `StringList` wrapper and the zero-copy handoff to pyarrow.
 
-include!("_generated/tick_classes.rs");
-
-include!("_generated/tick_arrow.rs");
+mod ticks;
+pub(crate) use ticks::*;
 
 include!("_generated/utility_functions.rs");
 
@@ -1886,20 +1882,20 @@ mod market_data;
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
 // Every market-data endpoint returns a typed `<TickName>List` (or
-// `StringList` for list endpoints), generated from `tick_schema.toml`
-// and the endpoint table. Terminals live on the
+// `StringList` for list endpoints), expanded from the core tick and
+// endpoint tables. Terminals live on the
 // wrapper: `ticks.to_list()`, `ticks.to_arrow()`, `ticks.to_pandas()`,
-// `ticks.to_polars()` — one surface, no free-function round-trip.
+// `ticks.to_polars()`: one surface, no free-function round-trip.
 //
 // This file owns only the thin pyarrow -> {pandas, polars} bridges
-// consumed by the generated terminals; the conversion machinery itself
-// (schema, per-tick Arrow builders, `StringList`, and the list wrappers)
-// lives in `tick_arrow.rs` + `tick_classes.rs`.
+// consumed by those terminals; the list wrappers, `StringList` and the
+// pyarrow handoff live in `ticks.rs`, and the Arrow builders are the
+// core's `TicksArrowExt` impls.
 //
 // Zero-copy path:
 //   Vec<tick::T>     -- Rust-side (market-data endpoints)
 //     -> `<TickName>List` (decoder-owned Vec, no copy)
-//     -> RecordBatch  -- schema-generated arrow builders
+//     -> RecordBatch  -- the core's Arrow builders
 //     -> FFI_ArrowArrayStream  -- Arrow C Stream Interface export
 //     -> pyarrow.Table (imported via RecordBatchReader._import_from_c, zero-copy buffers)
 //     -> pandas.DataFrame | polars.DataFrame | user code
