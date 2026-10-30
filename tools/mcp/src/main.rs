@@ -576,7 +576,16 @@ fn tool_definitions() -> Vec<Value> {
         }));
     }
 
-    push_generated_utility_tool_definitions(&mut tools);
+    tools.push(json!({
+        "name": "ping",
+        "description": "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers.",
+        "inputSchema": { "type": "object", "properties": {}, "required": [] }
+    }));
+    tools.push(json!({
+        "name": "entitlements",
+        "description": "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools are advertised per asset class: a class this account holds no tier for is withheld from tools/list entirely, so a whole family of missing tools usually means a class you are not subscribed to. Within a class every tool is advertised, so an individual endpoint can still refuse a call when it needs a higher tier than the one held. Check here before concluding an endpoint is missing, and read the tier back from the error when a call is refused.",
+        "inputSchema": { "type": "object", "properties": {}, "required": [] }
+    }));
     flatfile_tools::push_flatfile_tool_definitions(&mut tools);
 
     tools
@@ -1274,8 +1283,6 @@ macro_rules! param {
     };
 }
 
-include!("utilities.rs");
-
 mod flatfile_tools;
 
 async fn execute_tool(
@@ -1284,8 +1291,29 @@ async fn execute_tool(
     args: &Value,
     start_time: std::time::Instant,
 ) -> Result<Value, ToolError> {
-    if let Some(result) = try_execute_generated_utility(client, name, args, start_time).await {
-        return result;
+    match name {
+        "ping" => {
+            return Ok(json!({
+                "status": "ok",
+                "server": "thetadatadx-mcp-server",
+                "version": VERSION,
+                "uptime_secs": start_time.elapsed().as_secs(),
+                "connected": client.is_some(),
+            }));
+        }
+        "entitlements" => {
+            let client = client.ok_or_else(|| {
+                ToolError::ServerError("not connected to ThetaData yet; retry shortly".into())
+            })?;
+            let info = client.subscription_info();
+            return Ok(json!({
+                "stock": info.stock,
+                "options": info.options,
+                "indices": info.indices,
+                "interest_rate": info.interest_rate,
+            }));
+        }
+        _ => {}
     }
     if let Some(result) = flatfile_tools::try_execute_flatfile_tool(client, name, args).await {
         return result;

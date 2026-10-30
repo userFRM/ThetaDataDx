@@ -2,7 +2,6 @@
 
 mod endpoints;
 mod fpss_events;
-mod sdk_surface;
 mod ticks;
 mod upstream_openapi;
 #[path = "../src/mdds/wire_semantics.rs"]
@@ -15,10 +14,6 @@ pub use endpoints::{
 pub use fpss_events::{
     check_sdk_generated_files as check_fpss_event_sdk_generated_files,
     write_sdk_generated_files as write_fpss_event_sdk_generated_files,
-};
-pub use sdk_surface::{
-    check_sdk_generated_files as check_sdk_surface_generated_files,
-    write_sdk_generated_files as write_sdk_surface_generated_files,
 };
 pub use ticks::{
     check_sdk_generated_files as check_tick_sdk_generated_files,

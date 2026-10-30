@@ -1,4 +1,0 @@
-void StreamingClient::reconnect() {
-    int rc = thetadatadx_streaming_reconnect(handle_.get());
-    if (rc < 0) detail::throw_last_ffi_error();
-}

@@ -3,18 +3,11 @@
 thetadatadx-cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
 thetadatadx-cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
 thetadatadx-cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true
-thetadatadx-cpp/include/fpss.hpp.inc        text eol=lf linguist-generated=true
 thetadatadx-cpp/include/market_data.hpp.inc  text eol=lf linguist-generated=true
 thetadatadx-cpp/include/utilities.hpp.inc   text eol=lf linguist-generated=true
-thetadatadx-cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
 thetadatadx-cpp/src/market_data.cpp.inc      text eol=lf linguist-generated=true
-thetadatadx-cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
 thetadatadx-cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
-thetadatadx-py/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/ci/check_python.py           text eol=lf linguist-generated=true
-thetadatadx-py/src/utility_functions.rs text eol=lf linguist-generated=true
-tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
-thetadatadx-ts/src/streaming_methods.rs text eol=lf linguist-generated=true
 thetadatadx-cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.

@@ -85,7 +85,6 @@ EXPIRATION_WILDCARD_NOTE = "Pass `*` to select all expirations for the underlyin
 # than the docs carrying a hand-maintained count that silently drifts.
 MCP_MAIN_RS = ROOT / "tools/mcp/src/main.rs"
 MCP_FLATFILE_TOOLS_RS = ROOT / "tools/mcp/src/flatfile_tools.rs"
-MCP_UTILITIES_RS = ROOT / "tools/mcp/src/utilities.rs"
 
 # Docs that must enumerate the connection-only MCP tools by name, each paired
 # with the `##` heading of the section that carries the tool listing. The
@@ -1281,9 +1280,9 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
       ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
     - ``flatfile``: the flat-file tools advertised by
       ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
-    - ``utility``: the generated utility tools in ``utilities.rs``, which
-      include the offline ones; the offline set is subtracted so a tool is
-      reported under one origin only.
+    - ``utility``: the utility tools ``tool_definitions`` in ``main.rs``
+      advertises, which include the offline ones; the offline set is
+      subtracted so a tool is reported under one origin only.
 
     A connected `tools/list` returns the union; the docs gate asserts the docs
     enumerate it, so a tool added in code but absent from the docs fails here.
@@ -1300,9 +1299,7 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
         fail(f"{MCP_MAIN_RS.relative_to(ROOT)} OFFLINE_TOOL_NAMES parsed to no tools")
 
     utility_body = _rust_fn_body(
-        MCP_UTILITIES_RS.read_text(),
-        r"fn push_generated_utility_tool_definitions\b",
-        MCP_UTILITIES_RS,
+        MCP_MAIN_RS.read_text(), r"fn tool_definitions\b", MCP_MAIN_RS
     )
     utility = [
         name

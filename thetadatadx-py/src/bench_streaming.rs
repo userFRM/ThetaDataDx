@@ -9,7 +9,7 @@
 //!
 //! - [`__bench_flood_events`] — PER-EVENT baseline. For every delivered
 //!   event: `Python::attach` (per-event, the production granularity — see
-//!   `_generated/streaming_methods.rs`), `fpss_event_to_typed` (the exact
+//!   `StreamView::start_streaming`), `fpss_event_to_typed` (the exact
 //!   production marshal, reused), `call1((typed,))` (the production
 //!   1-tuple vectorcall).
 //!

@@ -47,8 +47,7 @@ import pytest
 
 # Block-list inventory mirrored from ``thetadatadx-py/src/mdds_client.rs``.
 # Source of truth for cross-class drift: the Rust ``FPSS_TOUCHING_METHODS``
-# const plus the compile-time guard against the generator-emitted
-# ``PYTHON_UNIFIED_FPSS_METHODS``. This Python copy lets the offline
+# const. This Python copy lets the offline
 # coverage test enumerate every blocked name without needing a live
 # ``MarketDataClient`` instance.
 BLOCKED_FPSS_METHODS = (

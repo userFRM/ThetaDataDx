@@ -194,10 +194,9 @@ def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
     until process exit. Capturing `Arc::downgrade(&self.client)` and
     upgrading only for the `record_panic()` bump keeps the cycle broken.
 
-    Asserted against the generated source (no credentials needed) so a
-    regression of the generator template fails here even offline — the
-    live thread-teardown test above is the end-to-end proof but is gated on
-    a real FPSS handshake.
+    Asserted against the source (no credentials needed) so a regression
+    fails here even offline. The live thread-teardown test above is the
+    end-to-end proof but is gated on a real FPSS handshake.
     """
     from pathlib import Path
 
@@ -210,23 +209,23 @@ def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
             break
     assert src_root is not None, "could not locate thetadatadx-py/src"
 
-    generated = (src_root / "_generated" / "streaming_methods.rs").read_text()
+    source = (src_root / "lib.rs").read_text()
     # The dispatcher's client handle is bound to `panic_recorder`. It MUST be
     # a weak downgrade, and there must be no strong clone of the client
     # captured for the dispatcher.
-    assert "let panic_recorder = Arc::downgrade(&self.client);" in generated, (
+    assert "let panic_recorder = Arc::downgrade(&self.client);" in source, (
         "the streaming dispatcher must capture a WEAK client handle "
         "(`Arc::downgrade(&self.client)`) so a forgetful drop still runs "
         "Client::Drop and tears the session down"
     )
-    assert "let panic_recorder = Arc::clone(&self.client);" not in generated, (
+    assert "let panic_recorder = Arc::clone(&self.client);" not in source, (
         "the streaming dispatcher must NOT capture a strong `Arc<Client>` "
         "(`Arc::clone(&self.client)`): it would pin the core client alive "
         "past the user's drop and leak the streaming session"
     )
     # Both the start_streaming and reconnect dispatchers carry the capture,
     # so the weak downgrade must appear on both paths.
-    assert generated.count("Arc::downgrade(&self.client)") >= 2, (
+    assert source.count("Arc::downgrade(&self.client)") >= 2, (
         "both the start_streaming and reconnect dispatcher closures must "
         "hold a weak client reference"
     )
@@ -341,10 +340,10 @@ def test_start_streaming_releases_callback_lock_before_connect() -> None:
     connect deadlocks the whole interpreter -- `close()` blocks on the mutex,
     the connecting thread blocks re-acquiring the GIL. The fix reserves the slot
     in an inner scope, stores the handle, drops the guard, then connects, and
-    clears the slot on a handshake failure. Pinned against the generated source
+    clears the slot on a handshake failure. Pinned against the source
     so a revert to the wide critical section fails without live credentials.
     """
-    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    gen = (_py_src_root() / "lib.rs").read_text()
     start = gen.index("fn start_streaming(")
     end = gen.index("fn ", start + 1)
     body = gen[start:end]
@@ -371,7 +370,7 @@ def test_start_streaming_failure_clear_is_ownership_checked() -> None:
     `CallbackReservation` that clears only its OWN slot (`Arc::ptr_eq`) and
     covers both the error return and a panic before the connect completes.
     """
-    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    gen = (_py_src_root() / "lib.rs").read_text()
     start = gen.index("fn start_streaming(")
     body = gen[start : gen.index("fn ", start + 1)]
     detach_at = body.index("py.detach(")

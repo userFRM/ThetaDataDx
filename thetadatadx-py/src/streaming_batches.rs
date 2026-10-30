@@ -1,6 +1,6 @@
 //! Hand-written support for the pull-based Arrow `RecordBatch` reader.
 //!
-//! The generated `StreamView.batches(..)` entry (from `sdk_surface.toml`)
+//! The `StreamView.batches(..)` entry
 //! constructs the [`RecordBatchStream`] pyclass defined here. The reader is
 //! the columnar sibling of the per-event callback: one object that is both a
 //! synchronous `Iterable` and an `AsyncIterable`, doubles as a sync/async

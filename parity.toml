@@ -781,8 +781,8 @@ cpp = true
 # carries:
 #
 #   name        — the canonical snake_case function name as declared in
-#                 `thetadatadx-rs/sdk_surface.toml`. The checker derives the
-#                 per-binding spelling: Python `#[pyfunction] fn <name>`,
+#                 the Python binding. The checker derives the per-binding
+#                 spelling: Python `#[pyfunction] fn <name>`,
 #                 TypeScript `#[napi(js_name = "<camelCase>")]`, C++
 #                 `<name>(` in the wrapper header, FFI `thetadatadx_<name>`.
 #   python      — `true` iff the `#[pyfunction]` is emitted on the
@@ -796,9 +796,8 @@ cpp = true
 #                 TypeScript (which call the Rust core directly) forwards
 #                 through this symbol.
 #
-# These surfaces are generated from the one `sdk_surface.toml` SSOT, so
-# they stay in lockstep by construction; the `generate_sdk_surfaces
-# --check` drift gate and these rows guard a regression.
+# Each binding writes these functions by hand, so these rows are what
+# keeps the four surfaces in lockstep.
 
 # Conditions / exchange / calendar / sequence lookups. Exposed as the
 # `thetadatadx.util` submodule (Python), the `Util` namespace class

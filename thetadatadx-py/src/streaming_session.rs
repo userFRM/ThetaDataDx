@@ -148,9 +148,8 @@ impl StreamingSession {
         let _ = (exc_type, exc_value, traceback);
 
         self.client.stop_streaming(py);
-        // `await_drain` releases the GIL internally (see the
-        // generated `streaming_methods.rs` and the StreamingClient
-        // hand-written equivalent), so the Disruptor consumer can
+        // `await_drain` releases the GIL internally (see `StreamView` in
+        // `lib.rs` and the StreamingClient equivalent), so the Disruptor consumer can
         // acquire the GIL to finish firing any in-flight callback
         // before flipping the drain bit.
         let drained = self.client.await_drain(py, EXIT_DRAIN_TIMEOUT_MS);
@@ -228,10 +227,9 @@ impl StreamingSession {
 
 /// Factory method on `Client` -- second `#[pymethods]` impl block
 /// enabled by the `multiple-pymethods` PyO3 feature flag (see
-/// `Cargo.toml`). The generated `streaming_methods.rs` owns the
-/// rest of the streaming surface; the context-manager constructor lives
-/// here because it is hand-written and references the hand-written
-/// `StreamingSession` pyclass.
+/// `Cargo.toml`). `StreamView` in `lib.rs` owns the rest of the
+/// streaming surface; the context-manager constructor lives here because
+/// it references the `StreamingSession` pyclass.
 #[pymethods]
 impl crate::Client {
     /// Open a context-managed streaming session.
