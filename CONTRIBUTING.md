@@ -133,7 +133,7 @@ The endpoint-facing source of truth is split across:
 - `thetadatadx-rs/src/surface/endpoints.rs`, the endpoint table, for every binding surface and the docs
 - `thetadatadx-rs/src/surface/ticks.rs`, the tick table, for the tick types the endpoints return
 
-The endpoint table expands at compile time into the registry, the shared endpoint dispatch, the `MarketDataClient` methods and builders, and the Python, TypeScript and C ABI endpoint surfaces. `generate_sdk_surfaces` renders the Python type stub, the C and C++ headers, the live validators and the docs site's endpoint pages from it.
+The endpoint table expands at compile time into the registry, the shared endpoint dispatch, the `MarketDataClient` methods and builders, and the Python, TypeScript and C ABI endpoint surfaces. `generate_sdk_surfaces` renders the Python type stub, the C and C++ headers, the live validators, the docs site's endpoint pages and the routes of its OpenAPI document from it.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`

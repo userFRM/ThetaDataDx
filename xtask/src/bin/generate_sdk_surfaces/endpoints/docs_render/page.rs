@@ -76,7 +76,7 @@ pub(super) fn endpoint_title(endpoint: &GeneratedEndpoint) -> String {
 /// vendor links become absolute links to the vendor's documentation
 /// (or to our own article when one covers the topic), and RST-style
 /// double-backtick code spans become Markdown single-backtick spans.
-fn rewrite_vendor_docstring(text: &str) -> String {
+pub(super) fn rewrite_vendor_docstring(text: &str) -> String {
     let mut out = text.replace("``", "`");
     // Articles we cover ourselves.
     for (vendor, ours) in [

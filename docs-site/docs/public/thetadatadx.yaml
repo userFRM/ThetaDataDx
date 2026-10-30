@@ -228,6 +228,15 @@ x-anchors:
       default: '16:00:00'
     description: End of the time-of-day window, inclusive, Eastern Time HH:MM:SS
 
+  year-param: &year-param
+    name: year
+    in: query
+    required: true
+    schema:
+      type: string
+      pattern: '^\d{4}$'
+    description: Four-digit year (e.g. "2024")
+
   request_type-param: &request_type-param
     name: request_type
     in: query
@@ -367,7 +376,7 @@ x-anchors:
       format: double
     description: Override underlying stock price for Greeks calculation
 
-  greeks_version-param: &greeks_version-param
+  version-param: &version-param
     name: version
     in: query
     required: false
@@ -590,17 +599,16 @@ x-anchors:
 # ---------------------------------------------------------------------------
 paths:
 
-  # =========================================================================
-  # STOCK / LIST
-  # =========================================================================
+  # --- BEGIN GENERATED ROUTES (endpoint table) ---
 
   /v3/stock/list/symbols:
     x-min-subscription: free
     get:
       operationId: stockListSymbols
-      summary: List all stock symbols
+      summary: "List all available stock ticker symbols."
       description: |
-        Returns all traded stock symbols. Updated overnight.
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
+
         gRPC: GetStockListSymbols
       tags: [Stock / List]
       parameters:
@@ -625,10 +633,10 @@ paths:
     x-min-subscription: free
     get:
       operationId: stockListDates
-      summary: List available dates for a stock
+      summary: "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.)."
       description: |
-        Lists all dates of data available for a stock by request type (EOD, TRADE, QUOTE, etc.).
-        Updated overnight.
+        Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
+
         gRPC: GetStockListDates
       tags: [Stock / List]
       parameters:
@@ -655,11 +663,12 @@ paths:
     x-min-subscription: free
     get:
       operationId: stockListDatesByRequestType
-      summary: List available dates for a stock (path form)
+      summary: "List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.)."
       description: |
-        Path-segment form of `/v3/stock/list/dates`: the request type rides the
-        URL path instead of a query parameter. Same endpoint and response; this
-        is the terminal-compatible `/v3/stock/list/dates/{request_type}` spelling.
+        The path form of `/v3/stock/list/dates`: the request type is the last path segment rather than a query parameter. Same endpoint, same response.
+
+        Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
+
         gRPC: GetStockListDates
       tags: [Stock / List]
       parameters:
@@ -682,19 +691,17 @@ paths:
           source: |
             auto dates = client.market_data().stock_list_dates("trade", "AAPL");
 
-  # =========================================================================
-  # STOCK / SNAPSHOT
-  # =========================================================================
-
   /v3/stock/snapshot/ohlc:
     x-min-subscription: value
     get:
       operationId: stockSnapshotOhlc
-      summary: Stock OHLC snapshot
+      summary: "Get the latest OHLC snapshot for one or more stocks."
       description: |
-        Real-time Open, High, Low, Close for the current trading day.
-        Returns real-time data with standard/pro subscription, 15-minute delayed with value subscription.
-        Snapshot cache resets at midnight ET daily.
+        Provides a real-time Open, High, Low, Close for the current day.
+        * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
+        * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
         gRPC: GetStockSnapshotOhlc
       tags: [Stock / Snapshot]
       parameters:
@@ -723,11 +730,12 @@ paths:
     x-min-subscription: standard
     get:
       operationId: stockSnapshotTrade
-      summary: Stock trade snapshot
+      summary: "Get the latest trade snapshot for one or more stocks."
       description: |
-        Real-time last trade from the Nasdaq Basic feed.
-        Requires stocks standard or pro subscription.
-        Snapshot cache resets at midnight ET daily.
+        Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
         gRPC: GetStockSnapshotTrade
       tags: [Stock / Snapshot]
       parameters:
@@ -756,11 +764,12 @@ paths:
     x-min-subscription: value
     get:
       operationId: stockSnapshotQuote
-      summary: Stock quote snapshot
+      summary: "Get the latest NBBO quote snapshot for one or more stocks."
       description: |
-        Real-time last BBO quote from the Nasdaq Basic feed (standard/pro) or
-        15-minute delayed NBBO quote from UTP/CTA feeds (value subscription).
-        Snapshot cache resets at midnight ET daily.
+        * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
         gRPC: GetStockSnapshotQuote
       tags: [Stock / Snapshot]
       parameters:
@@ -789,9 +798,12 @@ paths:
     x-min-subscription: standard
     get:
       operationId: stockSnapshotMarketValue
-      summary: Stock market value snapshot
+      summary: "Get the latest market value snapshot for one or more stocks."
       description: |
-        Latest market value snapshot for one or more stocks.
+        * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
         gRPC: GetStockSnapshotMarketValue
       tags: [Stock / Snapshot]
       parameters:
@@ -816,17 +828,14 @@ paths:
           source: |
             auto market_value = client.market_data().stock_snapshot_market_value(std::vector<std::string>{"AAPL"});
 
-  # =========================================================================
-  # STOCK / HISTORY
-  # =========================================================================
-
   /v3/stock/history/eod:
     x-min-subscription: free
     get:
       operationId: stockHistoryEod
-      summary: Stock end-of-day history
+      summary: "Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day."
       description: |
-        End-of-day stock data for a date range including OHLC + closing quote.
+        Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. `created` represents the datetime the report was generated and `last_trade` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
+
         gRPC: GetStockHistoryEod
       tags: [Stock / History]
       parameters:
@@ -854,21 +863,23 @@ paths:
     x-min-subscription: value
     get:
       operationId: stockHistoryOhlc
-      summary: Stock intraday OHLC bars
+      summary: "Fetch intraday OHLC bars for a stock on a single date."
       description: |
-        Intraday OHLC bars. Supply `date` for a single day, or `start_date`/`end_date` for a date range on the same route.
-        Interval is one of the presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
+        - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar time` <= `trade time` < `bar timestamp + ivl`, where ivl is the specified interval size in milliseconds.
+        - Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetStockHistoryOhlc
       tags: [Stock / History]
       parameters:
         - *symbol-param
         - *date-optional-param
-        - *start_date-optional-param
-        - *end_date-optional-param
         - *interval-param
         - *start_time-param
         - *end_time-param
         - *venue-param
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -890,9 +901,11 @@ paths:
     x-min-subscription: standard
     get:
       operationId: stockHistoryTrade
-      summary: Stock trade history
+      summary: "Fetch all trades for a stock on a given date."
       description: |
-        All trades for a stock on a given date or date range.
+        Returns every trade reported by UTP & CTA. Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetStockHistoryTrade
       tags: [Stock / History]
       parameters:
@@ -901,18 +914,8 @@ paths:
         - *start_time-param
         - *end_time-param
         - *venue-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date for multi-day range (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date for multi-day range (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -929,13 +932,18 @@ paths:
           label: C++
           source: |
             auto trade = client.market_data().stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303"));
+
   /v3/stock/history/quote:
     x-min-subscription: value
     get:
       operationId: stockHistoryQuote
-      summary: Stock quote history
+      summary: "Fetch NBBO quotes for a stock on a given date at a given interval."
       description: |
-        NBBO quotes at a given interval. Use "tick" for every quote change.
+        - Returns every NBBO quote reported by UTP and CTA.
+        - If the `interval` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp.
+        - Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetStockHistoryQuote
       tags: [Stock / History]
       parameters:
@@ -945,18 +953,8 @@ paths:
         - *start_time-param
         - *end_time-param
         - *venue-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date for multi-day range (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date for multi-day range (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -973,14 +971,16 @@ paths:
           label: C++
           source: |
             auto quote = client.market_data().stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m"));
+
   /v3/stock/history/trade_quote:
     x-min-subscription: standard
     get:
       operationId: stockHistoryTradeQuote
-      summary: Stock combined trade + quote history
+      summary: "Fetch combined trade + quote ticks for a stock on a given date."
       description: |
-        Combined trade and quote ticks for a stock on a given date.
-        Returns typed TradeQuoteTick data with both trade and quote fields.
+        Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp `<=` the trade timestamp. If you prefer to match quotes with timestamps that are `<` the trade timestamp, specify the `exclusive` parameter to `true`. Set the `venue` parameter to `nqb` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetStockHistoryTradeQuote
       tags: [Stock / History]
       parameters:
@@ -990,18 +990,8 @@ paths:
         - *end_time-param
         - *exclusive-param
         - *venue-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date for multi-day range (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date for multi-day range (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *use_time_based_trade_quote-param
         - *format-param
       responses:
@@ -1020,18 +1010,20 @@ paths:
           source: |
             auto trade_quote = client.market_data().stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20250303"));
 
-  # =========================================================================
-  # STOCK / AT-TIME
-  # =========================================================================
-
   /v3/stock/at_time/trade:
     x-min-subscription: standard
     get:
       operationId: stockAtTimeTrade
-      summary: Stock trade at specific time
+      summary: "Fetch the trade at a specific time of day across a date range."
       description: |
-        Trade at a specific time of day across a date range.
-        time_of_day uses ET wall-clock format HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET). Legacy millisecond strings such as "34200000" are also accepted.
+        #### Real-time request:
+        - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
+
+        #### Historical request:
+        Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+        Trade condition mappings can be found here.
+
         gRPC: GetStockAtTimeTrade
       tags: [Stock / AtTime]
       parameters:
@@ -1061,9 +1053,16 @@ paths:
     x-min-subscription: value
     get:
       operationId: stockAtTimeQuote
-      summary: Stock quote at specific time
+      summary: "Fetch the quote at a specific time of day across a date range."
       description: |
-        Quote at a specific time of day across a date range.
+        #### Real-time request:
+          - Subscription tier standard or higher will default to NQB.
+          - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+          - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
+
+        #### Historical request:
+          Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
+
         gRPC: GetStockAtTimeQuote
       tags: [Stock / AtTime]
       parameters:
@@ -1089,17 +1088,95 @@ paths:
           source: |
             auto quote = client.market_data().stock_at_time_quote("AAPL", "20250303", "20250303", "12:00:00.000");
 
-  # =========================================================================
-  # OPTION / LIST
-  # =========================================================================
+  /v3/stock/flat_file/eod:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileEod
+      summary: "Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetStockFlatFileEod
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().stock_flat_file_eod("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.stock_flat_file_eod("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().stock_flat_file_eod("YYYYMMDD");
+
+  /v3/stock/flat_file/trade_quote:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileTradeQuote
+      summary: "Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetStockFlatFileTradeQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            trade_quote = client.market_data.stock_flat_file_trade_quote("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD");
+
+  /v3/stock/flat_file/quote:
+    x-min-subscription: professional
+    get:
+      operationId: stockFlatFileQuote
+      summary: "Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetStockFlatFileQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            interval_quote = client.market_data.stock_flat_file_quote("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD");
 
   /v3/option/list/symbols:
     x-min-subscription: free
     get:
       operationId: optionListSymbols
-      summary: List all option underlying symbols
+      summary: "List all available option underlying symbols."
       description: |
-        Returns all option underlying symbols. Updated overnight.
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+
         gRPC: GetOptionListSymbols
       tags: [Option / List]
       parameters:
@@ -1124,9 +1201,11 @@ paths:
     x-min-subscription: free
     get:
       operationId: optionListDates
-      summary: List available dates for an option contract
+      summary: "List available dates for an option contract by request type."
       description: |
-        Lists all dates of data available for an option contract by request type.
+        Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+        This endpoint is updated overnight.
+
         gRPC: GetOptionListDates
       tags: [Option / List]
       parameters:
@@ -1156,11 +1235,13 @@ paths:
     x-min-subscription: free
     get:
       operationId: optionListDatesByRequestType
-      summary: List available dates for an option contract (path form)
+      summary: "List available dates for an option contract by request type."
       description: |
-        Path-segment form of `/v3/option/list/dates`: the request type rides the
-        URL path instead of a query parameter. Same endpoint and response; this
-        is the terminal-compatible `/v3/option/list/dates/{request_type}` spelling.
+        The path form of `/v3/option/list/dates`: the request type is the last path segment rather than a query parameter. Same endpoint, same response.
+
+        Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+        This endpoint is updated overnight.
+
         gRPC: GetOptionListDates
       tags: [Option / List]
       parameters:
@@ -1190,9 +1271,11 @@ paths:
     x-min-subscription: free
     get:
       operationId: optionListExpirations
-      summary: List option expiration dates
+      summary: "List available expiration dates for an option underlying."
       description: |
-        Returns all expiration dates for an underlying symbol as YYYYMMDD strings.
+        Lists all dates of expirations that are available for an option with a given symbol.
+        This endpoint is updated overnight.
+
         gRPC: GetOptionListExpirations
       tags: [Option / List]
       parameters:
@@ -1218,9 +1301,11 @@ paths:
     x-min-subscription: free
     get:
       operationId: optionListStrikes
-      summary: List option strike prices
+      summary: "List available strike prices for an option at a given expiration."
       description: |
-        Returns all strike prices for a given underlying + expiration.
+        Lists all strikes that are available for an option with a given symbol and expiration date.
+        This endpoint is updated overnight.
+
         gRPC: GetOptionListStrikes
       tags: [Option / List]
       parameters:
@@ -1247,10 +1332,14 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionListContracts
-      summary: List all option contracts for a date
+      summary: "List all option contracts traded or quoted on a given date, optionally filtered to a symbol."
       description: |
-        Returns all option contracts for a symbol on a given date. Returns typed
-        OptionContract data with root, expiration, strike, and right fields.
+        Lists all contracts that were traded or quoted on a particular date.
+
+        If the `symbol` parameter is specified, the returned contracts will be filtered to match the symbol.
+        When `symbol` is omitted the full universe of contracts for that date is returned.
+        This endpoint is updated real-time.
+
         gRPC: GetOptionListContracts
       tags: [Option / List]
       parameters:
@@ -1279,12 +1368,16 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionListContractsByRequestType
-      summary: List all option contracts for a date (path form)
+      summary: "List all option contracts traded or quoted on a given date, optionally filtered to a symbol."
       description: |
-        Path-segment form of `/v3/option/list/contracts`: the request type rides
-        the URL path instead of a query parameter. Same endpoint and response;
-        this is the terminal-compatible
-        `/v3/option/list/contracts/{request_type}` spelling.
+        The path form of `/v3/option/list/contracts`: the request type is the last path segment rather than a query parameter. Same endpoint, same response.
+
+        Lists all contracts that were traded or quoted on a particular date.
+
+        If the `symbol` parameter is specified, the returned contracts will be filtered to match the symbol.
+        When `symbol` is omitted the full universe of contracts for that date is returned.
+        This endpoint is updated real-time.
+
         gRPC: GetOptionListContracts
       tags: [Option / List]
       parameters:
@@ -1309,17 +1402,14 @@ paths:
           source: |
             auto option_contracts = client.market_data().option_list_contracts("trade", "20250303");
 
-  # =========================================================================
-  # OPTION / SNAPSHOT
-  # =========================================================================
-
   /v3/option/snapshot/ohlc:
     x-min-subscription: value
     get:
       operationId: optionSnapshotOhlc
-      summary: Option OHLC snapshot
+      summary: "Get the latest OHLC snapshot for an option contract."
       description: |
-        Latest OHLC snapshot for option contracts.
+        - Retrieve a real-time last ohlc of an option contract for the trading day.
+
         gRPC: GetOptionSnapshotOhlc
       tags: [Option / Snapshot]
       parameters:
@@ -1352,9 +1442,11 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotTrade
-      summary: Option trade snapshot
+      summary: "Get the latest trade snapshot for an option contract."
       description: |
-        Latest trade snapshot for option contracts.
+        - Retrieve the real-time last trade of an option contract.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotTrade
       tags: [Option / Snapshot]
       parameters:
@@ -1386,9 +1478,11 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionSnapshotQuote
-      summary: Option quote snapshot
+      summary: "Get the latest NBBO quote snapshot for an option contract."
       description: |
-        Latest NBBO quote snapshot for option contracts.
+        - Retrieve a real-time last NBBO quote of an option contract.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotQuote
       tags: [Option / Snapshot]
       parameters:
@@ -1421,9 +1515,12 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionSnapshotOpenInterest
-      summary: Option open interest snapshot
+      summary: "Get the latest open interest snapshot for an option contract."
       description: |
-        Latest open interest snapshot for option contracts.
+        - Retrieve the last open interest message of an option contract.
+        - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotOpenInterest
       tags: [Option / Snapshot]
       parameters:
@@ -1456,9 +1553,10 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotMarketValue
-      summary: Option market value snapshot
+      summary: "Get the latest market value snapshot for an option contract."
       description: |
-        Latest market value snapshot for option contracts.
+        * Returns a real-time market value derived from the last NBBO quote of an option contract.
+
         gRPC: GetOptionSnapshotMarketValue
       tags: [Option / Snapshot]
       parameters:
@@ -1487,17 +1585,16 @@ paths:
           source: |
             auto market_value = client.market_data().option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 
-  # =========================================================================
-  # OPTION / SNAPSHOT GREEKS
-  # =========================================================================
-
   /v3/option/snapshot/greeks/implied_volatility:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksImpliedVolatility
-      summary: Option implied volatility snapshot
+      summary: "Get implied volatility snapshot for an option contract (from ThetaData server)."
       description: |
-        Real-time implied volatility snapshot for option contracts.
+        Returns implied volatilies calculated using the national best bid, mid, and ask price
+        of the option respectively. The underlying price represents whatever the last underlying price was at the
+        `underlying_timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+
         gRPC: GetOptionSnapshotGreeksImpliedVolatility
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1505,17 +1602,17 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1537,10 +1634,11 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksAll
-      summary: Option all Greeks snapshot
+      summary: "Get all Greeks snapshot for an option contract (from ThetaData server)."
       description: |
-        Snapshot of all 22 Greeks (delta, gamma, theta, vega, rho, vanna, charm, vomma,
-        veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, IV, value).
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotGreeksAll
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1548,17 +1646,17 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1580,9 +1678,12 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotBinomialGreeksAll
-      summary: Option all binomial Greeks snapshot
+      summary: "Get all binomial Greeks snapshot for an option contract (from ThetaData server)."
       description: |
-        Snapshot of all 22 binomial Greeks, computed on a Leisen-Reimer tree that allows early exercise at every node.
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotBinomialGreeksAll
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1590,18 +1691,18 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1623,9 +1724,11 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksFirstOrder
-      summary: Option first-order Greeks snapshot
+      summary: "Get first-order Greeks snapshot (delta, theta, rho) for an option contract."
       description: |
-        First-order Greeks snapshot (delta, theta, vega, rho, epsilon, lambda).
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotGreeksFirstOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1633,17 +1736,17 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1665,9 +1768,12 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotBinomialGreeksFirstOrder
-      summary: Option first-order binomial Greeks snapshot
+      summary: "Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract."
       description: |
-        First-order binomial Greeks snapshot (delta, theta, vega, rho, epsilon, lambda).
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotBinomialGreeksFirstOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1675,18 +1781,18 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1708,9 +1814,11 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksSecondOrder
-      summary: Option second-order Greeks snapshot
+      summary: "Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract."
       description: |
-        Second-order Greeks snapshot (gamma, vanna, charm, vomma, veta, dual_delta, dual_gamma).
+        - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotGreeksSecondOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1718,17 +1826,17 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1750,9 +1858,12 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotBinomialGreeksSecondOrder
-      summary: Option second-order binomial Greeks snapshot
+      summary: "Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract."
       description: |
-        Second-order binomial Greeks snapshot (gamma, vanna, charm, vomma, veta, dual_delta, dual_gamma).
+        - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotBinomialGreeksSecondOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1760,18 +1871,18 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1793,9 +1904,11 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksThirdOrder
-      summary: Option third-order Greeks snapshot
+      summary: "Get third-order Greeks snapshot (speed, color, ultima) for an option contract."
       description: |
-        Third-order Greeks snapshot (speed, zomma, color, ultima).
+        - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotGreeksThirdOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1803,17 +1916,17 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1831,17 +1944,16 @@ paths:
           source: |
             auto greeks_third_order = client.market_data().option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 
-  # =========================================================================
-  # OPTION / HISTORY
-  # =========================================================================
-
   /v3/option/snapshot/binomial_greeks/third_order:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotBinomialGreeksThirdOrder
-      summary: Option third-order binomial Greeks snapshot
+      summary: "Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract."
       description: |
-        Third-order binomial Greeks snapshot (speed, zomma, color, ultima).
+        - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
         gRPC: GetOptionSnapshotBinomialGreeksThirdOrder
       tags: [Option / Snapshot Greeks]
       parameters:
@@ -1849,18 +1961,18 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
-        - *max_dte-param
-        - *strike_range-param
-        - *min_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *stock_price-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
         - *use_market_value-param
         - *current_day_only-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1882,9 +1994,13 @@ paths:
     x-min-subscription: free
     get:
       operationId: optionHistoryEod
-      summary: Option end-of-day history
+      summary: "Fetch end-of-day option data for a contract over a date range."
       description: |
-        End-of-day option data for a date range. Includes OHLC + closing quote.
+        - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+        - `created` represents the datetime the report was generated and `last_trade` represents the datetime of the last trade.
+        - The quote in the response represents the last NBBO reported by OPRA at the time of report generation.
+        - You can read more about EOD & OHLC data here.
+
         gRPC: GetOptionHistoryEod
       tags: [Option / History]
       parameters:
@@ -1917,9 +2033,12 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionHistoryOhlc
-      summary: Option intraday OHLC bars
+      summary: "Fetch intraday OHLC bars for an option contract."
       description: |
-        Intraday option OHLC bars for a given date and interval.
+        - Aggregated OHLC bars that use SIP rules for each bar.
+        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar timestamp` <= `trade time` < `bar timestamp + interval`.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetOptionHistoryOhlc
       tags: [Option / History]
       parameters:
@@ -1932,18 +2051,8 @@ paths:
         - *start_time-param
         - *end_time-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date for multi-day range (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date for multi-day range (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -1965,9 +2074,13 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionHistoryTrade
-      summary: Option trade history
+      summary: "Fetch all trades for an option contract on a given date."
       description: |
-        All trades for an option contract on a given date.
+        - Returns every trade reported by OPRA.
+        - Trade condition mappings can be found here.
+        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTrade
       tags: [Option / History]
       parameters:
@@ -1980,18 +2093,8 @@ paths:
         - *end_time-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2008,13 +2111,17 @@ paths:
           label: C++
           source: |
             auto trade = client.market_data().option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
+
   /v3/option/history/quote:
     x-min-subscription: value
     get:
       operationId: optionHistoryQuote
-      summary: Option quote history
+      summary: "Fetch NBBO quotes for an option contract on a given date."
       description: |
-        NBBO quotes for an option contract at a given interval.
+        - Returns every NBBO quote reported by OPRA.
+        - If the `interval` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryQuote
       tags: [Option / History]
       parameters:
@@ -2028,18 +2135,8 @@ paths:
         - *end_time-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2056,13 +2153,18 @@ paths:
           label: C++
           source: |
             auto quote = client.market_data().option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
   /v3/option/history/trade_quote:
     x-min-subscription: standard
     get:
       operationId: optionHistoryTradeQuote
-      summary: Option combined trade + quote history
+      summary: "Fetch combined trade + quote ticks for an option contract."
       description: |
-        Combined trade and quote ticks for an option contract.
+        - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
+        - A quote is matched with a trade if its timestamp `<=` the trade timestamp.
+        - To match trades with quotes timestamps that are `<` the trade timestamp, specify the `exclusive`parameter to `true`. After thorough testing, we have determined that using `exclusive=true` might yield better results for various applications.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeQuote
       tags: [Option / History]
       parameters:
@@ -2076,18 +2178,8 @@ paths:
         - *exclusive-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *use_time_based_trade_quote-param
         - *format-param
       responses:
@@ -2110,9 +2202,12 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionHistoryOpenInterest
-      summary: Option open interest history
+      summary: "Fetch open interest history for an option contract."
       description: |
-        Open interest history for an option contract.
+        - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+        - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
+        - The reported open interest represents the open interest at the end of the previous trading day.
+
         gRPC: GetOptionHistoryOpenInterest
       tags: [Option / History]
       parameters:
@@ -2123,18 +2218,8 @@ paths:
         - *date-optional-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2152,17 +2237,16 @@ paths:
           source: |
             auto open_interest = client.market_data().option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
-  # =========================================================================
-  # OPTION / HISTORY GREEKS
-  # =========================================================================
-
   /v3/option/history/greeks/eod:
     x-min-subscription: standard
     get:
       operationId: optionHistoryGreeksEod
-      summary: Option EOD Greeks history
+      summary: "Fetch end-of-day Greeks history for an option contract."
       description: |
-        End-of-day Greeks history for an option contract.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any `expiration=*` request must be made day by day.**
+
         gRPC: GetOptionHistoryGreeksEod
       tags: [Option / History Greeks]
       parameters:
@@ -2173,13 +2257,13 @@ paths:
         - *start_date-param
         - *end_date-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *underlyer_use_nbbo-param
         - *max_dte-param
         - *strike_range-param
-        - *annual_dividend_amount-param
         - *option_use_nbbo-param
         - *format-param
       responses:
@@ -2202,9 +2286,13 @@ paths:
     x-min-subscription: standard
     get:
       operationId: optionHistoryBinomialGreeksEod
-      summary: Option EOD binomial Greeks history
+      summary: "Fetch end-of-day binomial Greeks history for an option contract."
       description: |
-        End-of-day binomial Greeks history for an option contract.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any `expiration=*` request must be made day by day.**
+
         gRPC: GetOptionHistoryBinomialGreeksEod
       tags: [Option / History Greeks]
       parameters:
@@ -2215,14 +2303,14 @@ paths:
         - *start_date-param
         - *end_date-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *underlyer_use_nbbo-param
         - *max_dte-param
         - *strike_range-param
-        - *annual_dividend_amount-param
         - *option_use_nbbo-param
         - *format-param
       responses:
@@ -2245,9 +2333,13 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryGreeksAll
-      summary: Option all Greeks history (intraday)
+      summary: "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
       description: |
-        All 22 Greeks history, sampled at a given interval.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetOptionHistoryGreeksAll
       tags: [Option / History Greeks]
       parameters:
@@ -2260,23 +2352,13 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2298,9 +2380,14 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryBinomialGreeksAll
-      summary: Option all binomial Greeks history (intraday)
+      summary: "Fetch all binomial Greeks history for an option contract (intraday, sampled by interval)."
       description: |
-        All 22 binomial Greeks history, sampled at a given interval.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetOptionHistoryBinomialGreeksAll
       tags: [Option / History Greeks]
       parameters:
@@ -2313,24 +2400,14 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2348,391 +2425,17 @@ paths:
           source: |
             auto greeks_all = client.market_data().option_history_binomial_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
 
-  /v3/option/history/greeks/first_order:
-    x-min-subscription: standard
-    get:
-      operationId: optionHistoryGreeksFirstOrder
-      summary: Option first-order Greeks history (intraday)
-      description: |
-        First-order Greeks history (delta, theta, vega, rho), sampled at a given interval.
-        gRPC: GetOptionHistoryGreeksFirstOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_first_order = client.market_data().option_history_greeks_first_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_first_order = client.market_data.option_history_greeks_first_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_first_order = client.market_data().option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/binomial_greeks/first_order:
-    x-min-subscription: standard
-    get:
-      operationId: optionHistoryBinomialGreeksFirstOrder
-      summary: Option first-order binomial Greeks history (intraday)
-      description: |
-        First-order binomial Greeks history (delta, theta, vega, rho), sampled at a given interval.
-        gRPC: GetOptionHistoryBinomialGreeksFirstOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *binomial_steps-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_first_order = client.market_data().option_history_binomial_greeks_first_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_first_order = client.market_data.option_history_binomial_greeks_first_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_first_order = client.market_data().option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/greeks/second_order:
-    x-min-subscription: professional
-    get:
-      operationId: optionHistoryGreeksSecondOrder
-      summary: Option second-order Greeks history (intraday)
-      description: |
-        Second-order Greeks history (gamma, vanna, charm, vomma, veta), sampled at a given interval.
-        gRPC: GetOptionHistoryGreeksSecondOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_second_order = client.market_data().option_history_greeks_second_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_second_order = client.market_data.option_history_greeks_second_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_second_order = client.market_data().option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/binomial_greeks/second_order:
-    x-min-subscription: professional
-    get:
-      operationId: optionHistoryBinomialGreeksSecondOrder
-      summary: Option second-order binomial Greeks history (intraday)
-      description: |
-        Second-order binomial Greeks history (gamma, vanna, charm, vomma, veta), sampled at a given interval.
-        gRPC: GetOptionHistoryBinomialGreeksSecondOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *binomial_steps-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_second_order = client.market_data().option_history_binomial_greeks_second_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_second_order = client.market_data.option_history_binomial_greeks_second_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_second_order = client.market_data().option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/greeks/third_order:
-    x-min-subscription: professional
-    get:
-      operationId: optionHistoryGreeksThirdOrder
-      summary: Option third-order Greeks history (intraday)
-      description: |
-        Third-order Greeks history (speed, zomma, color, ultima), sampled at a given interval.
-        gRPC: GetOptionHistoryGreeksThirdOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_third_order = client.market_data().option_history_greeks_third_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_third_order = client.market_data.option_history_greeks_third_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_third_order = client.market_data().option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/binomial_greeks/third_order:
-    x-min-subscription: professional
-    get:
-      operationId: optionHistoryBinomialGreeksThirdOrder
-      summary: Option third-order binomial Greeks history (intraday)
-      description: |
-        Third-order binomial Greeks history (speed, zomma, color, ultima), sampled at a given interval.
-        gRPC: GetOptionHistoryBinomialGreeksThirdOrder
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *binomial_steps-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let greeks_third_order = client.market_data().option_history_binomial_greeks_third_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            greeks_third_order = client.market_data.option_history_binomial_greeks_third_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto greeks_third_order = client.market_data().option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  /v3/option/history/greeks/implied_volatility:
-    x-min-subscription: standard
-    get:
-      operationId: optionHistoryGreeksImpliedVolatility
-      summary: Option implied volatility history (intraday)
-      description: |
-        Implied volatility history, sampled at a given interval.
-        gRPC: GetOptionHistoryGreeksImpliedVolatility
-      tags: [Option / History Greeks]
-      parameters:
-        - *symbol-param
-        - *expiration-no-star-param
-        - *strike-param
-        - *right-param
-        - *date-optional-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *annual_dividend-param
-        - *rate_type-param
-        - *rate_value-param
-        - *greeks_version-param
-        - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
-        - *annual_dividend_amount-param
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
-        - lang: python
-          label: Python
-          source: |
-            iv = client.market_data.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
-        - lang: cpp
-          label: C++
-          source: |
-            auto iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
-
-  # =========================================================================
-  # OPTION / HISTORY TRADE GREEKS
-  # =========================================================================
-
   /v3/option/history/trade_greeks/all:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksAll
-      summary: Option all Greeks on each trade
+      summary: "Fetch all Greeks on each trade for an option contract."
       description: |
-        All 22 Greeks computed on each individual trade for an option contract.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeGreeksAll
       tags: [Option / History Trade Greeks]
       parameters:
@@ -2744,25 +2447,15 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2784,9 +2477,14 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryBinomialTradeGreeksAll
-      summary: Option all binomial Greeks on each trade
+      summary: "Fetch all binomial Greeks on each trade for an option contract."
       description: |
-        All 22 binomial Greeks computed on each individual trade for an option contract.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryBinomialTradeGreeksAll
       tags: [Option / History Trade Greeks]
       parameters:
@@ -2798,26 +2496,16 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2835,13 +2523,113 @@ paths:
           source: |
             auto trade_greeks_all = client.market_data().option_history_binomial_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
+  /v3/option/history/greeks/first_order:
+    x-min-subscription: standard
+    get:
+      operationId: optionHistoryGreeksFirstOrder
+      summary: "Fetch first-order Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryGreeksFirstOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_first_order = client.market_data().option_history_greeks_first_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_first_order = client.market_data.option_history_greeks_first_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_first_order = client.market_data().option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
+  /v3/option/history/binomial_greeks/first_order:
+    x-min-subscription: standard
+    get:
+      operationId: optionHistoryBinomialGreeksFirstOrder
+      summary: "Fetch first-order binomial Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryBinomialGreeksFirstOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_first_order = client.market_data().option_history_binomial_greeks_first_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_first_order = client.market_data.option_history_binomial_greeks_first_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_first_order = client.market_data().option_history_binomial_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
   /v3/option/history/trade_greeks/first_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksFirstOrder
-      summary: Option first-order Greeks on each trade
+      summary: "Fetch first-order Greeks on each trade for an option contract."
       description: |
-        First-order Greeks (delta, theta, vega, rho) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeGreeksFirstOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -2853,25 +2641,15 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2893,9 +2671,14 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryBinomialTradeGreeksFirstOrder
-      summary: Option first-order binomial Greeks on each trade
+      summary: "Fetch first-order binomial Greeks on each trade for an option contract."
       description: |
-        First-order binomial Greeks (delta, theta, vega, rho) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryBinomialTradeGreeksFirstOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -2907,26 +2690,16 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2944,13 +2717,113 @@ paths:
           source: |
             auto trade_greeks_first_order = client.market_data().option_history_binomial_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
+  /v3/option/history/greeks/second_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryGreeksSecondOrder
+      summary: "Fetch second-order Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryGreeksSecondOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_second_order = client.market_data().option_history_greeks_second_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_second_order = client.market_data.option_history_greeks_second_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_second_order = client.market_data().option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
+  /v3/option/history/binomial_greeks/second_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialGreeksSecondOrder
+      summary: "Fetch second-order binomial Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryBinomialGreeksSecondOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_second_order = client.market_data().option_history_binomial_greeks_second_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_second_order = client.market_data.option_history_binomial_greeks_second_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_second_order = client.market_data().option_history_binomial_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
   /v3/option/history/trade_greeks/second_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksSecondOrder
-      summary: Option second-order Greeks on each trade
+      summary: "Fetch second-order Greeks on each trade for an option contract."
       description: |
-        Second-order Greeks (gamma, vanna, charm, vomma, veta) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeGreeksSecondOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -2962,25 +2835,15 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3002,9 +2865,14 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryBinomialTradeGreeksSecondOrder
-      summary: Option second-order binomial Greeks on each trade
+      summary: "Fetch second-order binomial Greeks on each trade for an option contract."
       description: |
-        Second-order binomial Greeks (gamma, vanna, charm, vomma, veta) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryBinomialTradeGreeksSecondOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -3016,26 +2884,16 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3053,13 +2911,113 @@ paths:
           source: |
             auto trade_greeks_second_order = client.market_data().option_history_binomial_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
+  /v3/option/history/greeks/third_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryGreeksThirdOrder
+      summary: "Fetch third-order Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryGreeksThirdOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_third_order = client.market_data().option_history_greeks_third_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_third_order = client.market_data.option_history_greeks_third_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_third_order = client.market_data().option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
+  /v3/option/history/binomial_greeks/third_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialGreeksThirdOrder
+      summary: "Fetch third-order binomial Greeks history (intraday, sampled by interval)."
+      description: |
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryBinomialGreeksThirdOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks_third_order = client.market_data().option_history_binomial_greeks_third_order("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks_third_order = client.market_data.option_history_binomial_greeks_third_order("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks_third_order = client.market_data().option_history_binomial_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
   /v3/option/history/trade_greeks/third_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksThirdOrder
-      summary: Option third-order Greeks on each trade
+      summary: "Fetch third-order Greeks on each trade for an option contract."
       description: |
-        Third-order Greeks (speed, zomma, color, ultima) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeGreeksThirdOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -3071,25 +3029,15 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3111,9 +3059,14 @@ paths:
     x-min-subscription: professional
     get:
       operationId: optionHistoryBinomialTradeGreeksThirdOrder
-      summary: Option third-order binomial Greeks on each trade
+      summary: "Fetch third-order binomial Greeks on each trade for an option contract."
       description: |
-        Third-order binomial Greeks (speed, zomma, color, ultima) computed on each individual trade.
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryBinomialTradeGreeksThirdOrder
       tags: [Option / History Trade Greeks]
       parameters:
@@ -3125,26 +3078,16 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
         - *binomial_steps-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3162,13 +3105,62 @@ paths:
           source: |
             auto trade_greeks_third_order = client.market_data().option_history_binomial_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
+  /v3/option/history/greeks/implied_volatility:
+    x-min-subscription: standard
+    get:
+      operationId: optionHistoryGreeksImpliedVolatility
+      summary: "Fetch implied volatility history (intraday, sampled by interval)."
+      description: |
+        - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        gRPC: GetOptionHistoryGreeksImpliedVolatility
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *annual_dividend_amount-param
+        - *rate_type-param
+        - *rate_value-param
+        - *version-param
+        - *strike_range-param
+        - *start_date-optional-param
+        - *end_date-optional-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20250321").strike("570").right("C").date("20250303").interval("1m").await?;
+        - lang: python
+          label: Python
+          source: |
+            iv = client.market_data.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", right="C", date="20250303", interval="1m")
+        - lang: cpp
+          label: C++
+          source: |
+            auto iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303").with_interval("1m"));
+
   /v3/option/history/trade_greeks/implied_volatility:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksImpliedVolatility
-      summary: Option implied volatility on each trade
+      summary: "Fetch implied volatility on each trade for an option contract."
       description: |
-        Implied volatility computed on each individual trade.
+        - Returns implied volatilies calculated using the trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
         gRPC: GetOptionHistoryTradeGreeksImpliedVolatility
       tags: [Option / History Trade Greeks]
       parameters:
@@ -3180,25 +3172,15 @@ paths:
         - *start_time-param
         - *end_time-param
         - *annual_dividend-param
+        - *annual_dividend_amount-param
         - *rate_type-param
         - *rate_value-param
-        - *greeks_version-param
+        - *version-param
         - *max_dte-param
         - *strike_range-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *perf_boost_intraday-param
-        - *annual_dividend_amount-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3216,17 +3198,17 @@ paths:
           source: |
             auto trade_greeks_implied_volatility = client.market_data().option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C").with_date("20250303"));
 
-  # =========================================================================
-  # OPTION / AT-TIME
-  # =========================================================================
-
   /v3/option/at_time/trade:
     x-min-subscription: standard
     get:
       operationId: optionAtTimeTrade
-      summary: Option trade at specific time
+      summary: "Fetch the trade at a specific time of day across a date range for an option."
       description: |
-        Trade at a specific time of day across a date range for an option contract.
+        - Returns the last trade reported by OPRA at a specified millisecond of the day.
+        - Trade condition mappings can be found here.
+        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+        - The `time_of_day`parameter represents the 00:00:00.000 ET that the trade should be provided for.
+
         gRPC: GetOptionAtTimeTrade
       tags: [Option / AtTime]
       parameters:
@@ -3260,9 +3242,11 @@ paths:
     x-min-subscription: value
     get:
       operationId: optionAtTimeQuote
-      summary: Option quote at specific time
+      summary: "Fetch the quote at a specific time of day across a date range for an option."
       description: |
-        Quote at a specific time of day across a date range for an option contract.
+        - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
+        - The `time_of_day`parameter represents the 00:00:00.000 ET that the quote should be provided for.
+
         gRPC: GetOptionAtTimeQuote
       tags: [Option / AtTime]
       parameters:
@@ -3292,17 +3276,122 @@ paths:
           source: |
             auto quote = client.market_data().option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("C"));
 
-  # =========================================================================
-  # INDEX / LIST
-  # =========================================================================
+  /v3/option/flat_file/eod:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileEod
+      summary: "Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetOptionFlatFileEod
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().option_flat_file_eod("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.option_flat_file_eod("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().option_flat_file_eod("YYYYMMDD");
+
+  /v3/option/flat_file/trade_quote:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileTradeQuote
+      summary: "Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetOptionFlatFileTradeQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            trade_quote = client.market_data.option_flat_file_trade_quote("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD");
+
+  /v3/option/flat_file/open_interest:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileOpenInterest
+      summary: "Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetOptionFlatFileOpenInterest
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            open_interest = client.market_data.option_flat_file_open_interest("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD");
+
+  /v3/option/flat_file/quote:
+    x-min-subscription: professional
+    get:
+      operationId: optionFlatFileQuote
+      summary: "Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetOptionFlatFileQuote
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            interval_quote = client.market_data.option_flat_file_quote("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD");
 
   /v3/index/list/symbols:
     x-min-subscription: free
     get:
       operationId: indexListSymbols
-      summary: List all index symbols
+      summary: "List all available index symbols."
       description: |
-        Returns all available index symbols. Updated overnight.
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
+
         gRPC: GetIndexListSymbols
       tags: [Index / List]
       parameters:
@@ -3327,9 +3416,10 @@ paths:
     x-min-subscription: free
     get:
       operationId: indexListDates
-      summary: List available dates for an index
+      summary: "List available dates for an index symbol."
       description: |
-        Lists all dates of data available for an index symbol.
+        Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
+
         gRPC: GetIndexListDates
       tags: [Index / List]
       parameters:
@@ -3351,17 +3441,15 @@ paths:
           source: |
             auto dates = client.market_data().index_list_dates("SPX");
 
-  # =========================================================================
-  # INDEX / SNAPSHOT
-  # =========================================================================
-
   /v3/index/snapshot/ohlc:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotOhlc
-      summary: Index OHLC snapshot
+      summary: "Get the latest OHLC snapshot for one or more indices."
       description: |
-        Latest OHLC snapshot for one or more indices.
+        - Retrieves the real-time current day OHLC.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
         gRPC: GetIndexSnapshotOhlc
       tags: [Index / Snapshot]
       parameters:
@@ -3389,9 +3477,11 @@ paths:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotPrice
-      summary: Index price snapshot
+      summary: "Get the latest price snapshot for one or more indices."
       description: |
-        Latest price snapshot for one or more indices.
+        - Retrieves a real-time last index price.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
         gRPC: GetIndexSnapshotPrice
       tags: [Index / Snapshot]
       parameters:
@@ -3419,9 +3509,11 @@ paths:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotMarketValue
-      summary: Index market value snapshot
+      summary: "Get the latest market value snapshot for one or more indices."
       description: |
-        Latest market value snapshot for one or more indices.
+        - Retrieves a real-time last index market value.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
         gRPC: GetIndexSnapshotMarketValue
       tags: [Index / Snapshot]
       parameters:
@@ -3445,17 +3537,14 @@ paths:
           source: |
             auto market_value = client.market_data().index_snapshot_market_value(std::vector<std::string>{"SPX"});
 
-  # =========================================================================
-  # INDEX / HISTORY
-  # =========================================================================
-
   /v3/index/history/eod:
     x-min-subscription: free
     get:
       operationId: indexHistoryEod
-      summary: Index end-of-day history
+      summary: "Fetch end-of-day index data for a date range."
       description: |
-        End-of-day index data for a date range.
+        - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+
         gRPC: GetIndexHistoryEod
       tags: [Index / History]
       parameters:
@@ -3483,9 +3572,12 @@ paths:
     x-min-subscription: standard
     get:
       operationId: indexHistoryOhlc
-      summary: Index intraday OHLC bars
+      summary: "Fetch intraday OHLC bars for an index."
       description: |
-        Intraday OHLC bars for an index across a date range.
+        - Aggregated OHLC bars that use SIP rules for each bar.
+        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  `bar timestamp` <= `trade time` < `bar timestamp + interval`.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
         gRPC: GetIndexHistoryOhlc
       tags: [Index / History]
       parameters:
@@ -3516,9 +3608,13 @@ paths:
     x-min-subscription: value
     get:
       operationId: indexHistoryPrice
-      summary: Index intraday price history
+      summary: "Fetch intraday price history for an index."
       description: |
-        Intraday price history for an index.
+        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+        - When the `interval` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
+        - A price update from the exchange is omitted if the price remained the same from the previous update.
+        - Multi-day requests are limited to 1 month of data.
+
         gRPC: GetIndexHistoryPrice
       tags: [Index / History]
       parameters:
@@ -3527,18 +3623,8 @@ paths:
         - *interval-param
         - *start_time-param
         - *end_time-param
-        - name: start_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Start date (YYYYMMDD)
-        - name: end_date
-          in: query
-          required: false
-          schema:
-            type: string
-          description: End date (YYYYMMDD)
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3556,17 +3642,15 @@ paths:
           source: |
             auto price = client.market_data().index_history_price("SPX", thetadatadx::EndpointRequestOptions{}.with_date("20250303").with_interval("1m"));
 
-  # =========================================================================
-  # INDEX / AT-TIME
-  # =========================================================================
-
   /v3/index/at_time/price:
     x-min-subscription: value
     get:
       operationId: indexAtTimePrice
-      summary: Index price at specific time
+      summary: "Fetch the index price at a specific time of day across a date range."
       description: |
-        Index price at a specific time of day across a date range.
+        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+        - The `time_of_day` parameter represents the 00:00:00.000 ET that the price should be provided for.
+
         gRPC: GetIndexAtTimePrice
       tags: [Index / AtTime]
       parameters:
@@ -3591,17 +3675,75 @@ paths:
           source: |
             auto index_price_at_time = client.market_data().index_at_time_price("SPX", "20250303", "20250303", "12:00:00.000");
 
-  # =========================================================================
-  # CALENDAR
-  # =========================================================================
+  /v3/index/flat_file/eod:
+    x-min-subscription: professional
+    get:
+      operationId: indexFlatFileEod
+      summary: "Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days."
+      description: |
+        gRPC: GetIndexFlatFileEod
+      tags: [Flat Files]
+      parameters:
+        - *date-param
+        - *format-param
+      responses:
+        '200': *flat-file-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let eod = client.market_data().index_flat_file_eod("YYYYMMDD").await?;
+        - lang: python
+          label: Python
+          source: |
+            eod = client.market_data.index_flat_file_eod("YYYYMMDD")
+        - lang: cpp
+          label: C++
+          source: |
+            auto eod = client.market_data().index_flat_file_eod("YYYYMMDD");
 
   /v3/calendar/open_today:
     x-min-subscription: free
     get:
       operationId: calendarOpenToday
-      summary: Is the market open today?
+      summary: "Check whether the market is open today."
       description: |
-        Returns whether the market is open today.
+        - Retrieves current day equity market schedule
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
+        gRPC: GetCalendarOpenToday
+      tags: [Calendar]
+      parameters:
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let calendar_days = client.market_data().calendar_open_today().await?;
+        - lang: python
+          label: Python
+          source: |
+            calendar_days = client.market_data.calendar_open_today()
+        - lang: cpp
+          label: C++
+          source: |
+            auto calendar_days = client.market_data().calendar_open_today();
+
+  /v3/calendar/today:
+    x-min-subscription: free
+    get:
+      operationId: calendarToday
+      summary: "Check whether the market is open today."
+      description: |
+        Another path to `/v3/calendar/open_today`. Same endpoint, same response.
+
+        - Retrieves current day equity market schedule
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
         gRPC: GetCalendarOpenToday
       tags: [Calendar]
       parameters:
@@ -3626,9 +3768,13 @@ paths:
     x-min-subscription: value
     get:
       operationId: calendarOnDate
-      summary: Calendar info for a specific date
+      summary: "Get calendar information for a specific date."
       description: |
-        Returns calendar information (open/close times, early close, holiday) for a specific date.
+        - Retrieves equity market schedule for a given date
+        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
         gRPC: GetCalendarOnDate
       tags: [Calendar]
       parameters:
@@ -3654,19 +3800,17 @@ paths:
     x-min-subscription: value
     get:
       operationId: calendarYear
-      summary: Calendar for an entire year
+      summary: "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day)."
       description: |
-        Returns full calendar information for all trading days in a year.
+        - Retrieves equity market holidays for a given year
+        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
         gRPC: GetCalendarYear
       tags: [Calendar]
       parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: string
-            pattern: '^\d{4}$'
-          description: Four-digit year (e.g. "2024")
+        - *year-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3683,54 +3827,24 @@ paths:
           label: C++
           source: |
             auto calendar_days = client.market_data().calendar_year("2025");
-
-  /v3/calendar/today:
-    x-min-subscription: free
-    get:
-      operationId: calendarToday
-      summary: Is the market open today?
-      description: |
-        Path alias of `/v3/calendar/open_today`: returns whether the market is
-        open today. Same endpoint, same response; this is the `/v3` path name.
-        gRPC: GetCalendarOpenToday
-      tags: [Calendar]
-      parameters:
-        - *format-param
-      responses:
-        '200': *v3-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let calendar_days = client.market_data().calendar_open_today().await?;
-        - lang: python
-          label: Python
-          source: |
-            calendar_days = client.market_data.calendar_open_today()
-        - lang: cpp
-          label: C++
-          source: |
-            auto calendar_days = client.market_data().calendar_open_today();
 
   /v3/calendar/year_holidays:
     x-min-subscription: value
     get:
       operationId: calendarYearHolidays
-      summary: Calendar for an entire year
+      summary: "Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day)."
       description: |
-        Path alias of `/v3/calendar/year`: returns full calendar information for
-        all trading days in a year. Same endpoint, same response; this is the
-        `/v3` path name.
+        Another path to `/v3/calendar/year`. Same endpoint, same response.
+
+        - Retrieves equity market holidays for a given year
+        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
         gRPC: GetCalendarYear
       tags: [Calendar]
       parameters:
-        - name: year
-          in: query
-          required: true
-          schema:
-            type: string
-            pattern: '^\d{4}$'
-          description: Four-digit year (e.g. "2024")
+        - *year-param
         - *format-param
       responses:
         '200': *v3-response
@@ -3748,17 +3862,18 @@ paths:
           source: |
             auto calendar_days = client.market_data().calendar_year("2025");
 
-  # =========================================================================
-  # INTEREST RATE
-  # =========================================================================
-
   /v3/rate/history/eod:
     x-min-subscription: free
     get:
       operationId: interestRateHistoryEod
-      summary: Interest rate EOD history
+      summary: "Fetch end-of-day interest rate history."
       description: |
-        End-of-day interest rate history for a given rate symbol (e.g. "SOFR").
+        - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+        - Valid `symbol` values per upstream `RateType` enum:
+          `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+          `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+          `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
+
         gRPC: GetInterestRateHistoryEod
       tags: [Interest Rate]
       parameters:
@@ -3786,11 +3901,16 @@ paths:
     x-min-subscription: free
     get:
       operationId: interestRateHistoryEodPath
-      summary: Interest rate EOD history
+      summary: "Fetch end-of-day interest rate history."
       description: |
-        Path alias of `/v3/rate/history/eod`: end-of-day interest rate history
-        for a given rate symbol (e.g. "SOFR"). Same endpoint, same response;
-        this is the spelled-out `/v3` path name.
+        Another path to `/v3/rate/history/eod`. Same endpoint, same response.
+
+        - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+        - Valid `symbol` values per upstream `RateType` enum:
+          `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+          `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+          `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
+
         gRPC: GetInterestRateHistoryEod
       tags: [Interest Rate]
       parameters:
@@ -3813,6 +3933,8 @@ paths:
           label: C++
           source: |
             auto interest_rate = client.market_data().interest_rate_history_eod("SOFR", "20250303", "20250303");
+
+  # --- END GENERATED ROUTES ---
 
   # =========================================================================
   # TERMINAL SYSTEM
@@ -3875,234 +3997,6 @@ paths:
                 type: string
                 enum: [CONNECTED, DISCONNECTED]
 
-
-  # =========================================================================
-  # FLAT FILES
-  # =========================================================================
-
-  /v3/option/flat_file/eod:
-    x-min-subscription: professional
-    get:
-      operationId: optionFlatFileEod
-      summary: End-of-day report of every option contract
-      description: |
-        Returns the end-of-day report of every option contract for one date as one file. The most recent 7 calendar days are available.
-        gRPC: GetOptionFlatFileEod
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let eod = client.market_data().option_flat_file_eod("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            eod = client.market_data.option_flat_file_eod("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto eod = client.market_data().option_flat_file_eod("YYYYMMDD");
-
-  /v3/option/flat_file/trade_quote:
-    x-min-subscription: professional
-    get:
-      operationId: optionFlatFileTradeQuote
-      summary: Every option trade with its NBBO quote
-      description: |
-        Returns every option trade of one date as one file, each paired with the NBBO quote at the time of the trade. The most recent 7 calendar days are available.
-        gRPC: GetOptionFlatFileTradeQuote
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            trade_quote = client.market_data.option_flat_file_trade_quote("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto trade_quote = client.market_data().option_flat_file_trade_quote("YYYYMMDD");
-
-  /v3/option/flat_file/open_interest:
-    x-min-subscription: professional
-    get:
-      operationId: optionFlatFileOpenInterest
-      summary: Open interest of every option contract
-      description: |
-        Returns the open interest of every option contract for one date as one file. The most recent 7 calendar days are available.
-        gRPC: GetOptionFlatFileOpenInterest
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            open_interest = client.market_data.option_flat_file_open_interest("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto open_interest = client.market_data().option_flat_file_open_interest("YYYYMMDD");
-
-  /v3/option/flat_file/quote:
-    x-min-subscription: professional
-    get:
-      operationId: optionFlatFileQuote
-      summary: 1-minute NBBO quote intervals of every option contract
-      description: |
-        Returns every option contract's 1-minute NBBO quote intervals for one date as one file: one row per minute in which a new quote was reported, with the interval time and the time of the quote. The most recent 7 calendar days are available.
-        gRPC: GetOptionFlatFileQuote
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            interval_quote = client.market_data.option_flat_file_quote("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto interval_quote = client.market_data().option_flat_file_quote("YYYYMMDD");
-
-  /v3/stock/flat_file/eod:
-    x-min-subscription: professional
-    get:
-      operationId: stockFlatFileEod
-      summary: End-of-day report of every stock
-      description: |
-        Returns the end-of-day report of every stock for one date as one file. The most recent 7 calendar days are available.
-        gRPC: GetStockFlatFileEod
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let eod = client.market_data().stock_flat_file_eod("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            eod = client.market_data.stock_flat_file_eod("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto eod = client.market_data().stock_flat_file_eod("YYYYMMDD");
-
-  /v3/stock/flat_file/trade_quote:
-    x-min-subscription: professional
-    get:
-      operationId: stockFlatFileTradeQuote
-      summary: Every stock trade with its NBBO quote
-      description: |
-        Returns every stock trade of one date as one file, each paired with the NBBO quote at the time of the trade. The most recent 7 calendar days are available.
-        gRPC: GetStockFlatFileTradeQuote
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            trade_quote = client.market_data.stock_flat_file_trade_quote("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto trade_quote = client.market_data().stock_flat_file_trade_quote("YYYYMMDD");
-
-  /v3/stock/flat_file/quote:
-    x-min-subscription: professional
-    get:
-      operationId: stockFlatFileQuote
-      summary: 1-minute NBBO quote intervals of every stock
-      description: |
-        Returns every stock's 1-minute NBBO quote intervals for one date as one file: one row per minute in which a new quote was reported, with the interval time and the time of the quote. The most recent 7 calendar days are available.
-        gRPC: GetStockFlatFileQuote
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            interval_quote = client.market_data.stock_flat_file_quote("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto interval_quote = client.market_data().stock_flat_file_quote("YYYYMMDD");
-
-  /v3/index/flat_file/eod:
-    x-min-subscription: professional
-    get:
-      operationId: indexFlatFileEod
-      summary: End-of-day report of every index
-      description: |
-        Returns the end-of-day report of every index for one date as one file. The most recent 7 calendar days are available.
-        gRPC: GetIndexFlatFileEod
-      tags: [Flat Files]
-      parameters:
-        - *date-param
-        - *format-param
-      responses:
-        '200': *flat-file-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let eod = client.market_data().index_flat_file_eod("YYYYMMDD").await?;
-        - lang: python
-          label: Python
-          source: |
-            eod = client.market_data.index_flat_file_eod("YYYYMMDD")
-        - lang: cpp
-          label: C++
-          source: |
-            auto eod = client.market_data().index_flat_file_eod("YYYYMMDD");
 
 # ---------------------------------------------------------------------------
 # COMPONENTS
