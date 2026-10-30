@@ -16,9 +16,9 @@ workspace = true
 grpc-codegen = ["dep:prost-build"]
 
 [dependencies]
-thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs" }
+# `__internal` makes the table resolvers' `__paste` re-export reachable.
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["__internal"] }
 heck = "0.5.0"
-pastey = "0.2.3"
 serde_json = "1.0.137"
 # The runtime `bench_latency` drives the streaming client on.
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }

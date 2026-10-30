@@ -1,9 +1,11 @@
 //! Checked-in tick projections emitted by `generate_sdk_surfaces`.
 //!
-//! The C++ layout asserts, flag accessors and Arrow IPC helpers, rendered from
-//! the tick table. The Rust, Python and TypeScript tick types expand from the
-//! table directly.
+//! The C tick structs and their entry points, and the C++ aliases, layout
+//! asserts, flag accessors and Arrow IPC helpers, rendered from the tick
+//! table. The Rust, Python and TypeScript tick types expand from the table
+//! directly.
 
+mod c;
 mod cpp;
 mod idents;
 pub(super) mod table;
@@ -46,6 +48,10 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
 
 fn render_sdk_generated_files() -> Vec<GeneratedSourceFile> {
     vec![
+        GeneratedSourceFile {
+            relative_path: "thetadatadx-cpp/include/ticks.h.inc",
+            contents: c::render_c_ticks(),
+        },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/tick_layout_asserts.hpp.inc",
             contents: cpp::render_cpp_tick_layout_asserts(),

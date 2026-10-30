@@ -3,8 +3,9 @@
 //! Every tick type the endpoints return is written once, in `__ticks!`. The
 //! engine expands it into the tick structs, their decoders and their Arrow
 //! and Polars builders; the Python and TypeScript bindings into their row
-//! classes and converters; `generate_sdk_surfaces` into the C++ layout
-//! asserts, flag accessors and Arrow IPC helpers and the documentation.
+//! classes and converters; the C ABI into its array types and entry points;
+//! `generate_sdk_surfaces` into the C tick structs and declarations, the C++
+//! layout asserts, flag accessors and Arrow IPC helpers and the documentation.
 //!
 //! A consumer passes the name of one of its own macros and receives every
 //! entry, in table order, after the tokens it passed, as `__endpoints!` does.

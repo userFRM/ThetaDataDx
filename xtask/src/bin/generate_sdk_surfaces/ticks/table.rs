@@ -1,13 +1,18 @@
 //! The tick table, expanded into plain records for the writer.
 //!
-//! `thetadatadx::__ticks!` calls back into `tick_records!`, which turns each
-//! entry into a [`Tick`]. The layout of a `Copy` row is read from the engine's
-//! own struct, so the C++ layout asserts hold the C mirrors to the layout the
-//! compiler gave the Rust row.
+//! `thetadatadx::__ticks!` calls back into `tick_records!`, which resolves
+//! each entry through `thetadatadx::__tick!` into a [`Tick`]. The layout of a
+//! `Copy` row is read from the engine's own struct, so the C structs and the
+//! C++ layout asserts hold to the layout the compiler gave the Rust row.
 
 /// One tick type of the table.
 pub(crate) struct Tick {
     pub(crate) name: &'static str,
+    /// The first doc line without the field count, as Python and TypeScript
+    /// render it.
+    pub(crate) summary: &'static str,
+    /// The doc lines after the first.
+    pub(crate) more: &'static [&'static str],
     /// The row carries the `expiration`, `strike` and `right` a wildcard
     /// option response fills.
     pub(crate) contract_id: bool,
@@ -46,54 +51,36 @@ pub(crate) struct Layout {
 }
 
 macro_rules! tick_records {
-    ($($(#[$attr:ident])* $name:ident {
-        doc: $doc:tt,
-        required: $required:tt,
-        columns: [$($columns:tt)*],
-        timestamps: $timestamps:tt,
-        flags: [$($flag:ident: $field:ident in $lo:literal..=$hi:literal $fdoc:literal),* $(,)?] $(,)?
-    })*) => {
-        &[$(tick_records!(@columns [[$($attr)*] $name [$({ $flag $field $lo $hi $fdoc })*]] [] [$($columns)*])),*]
+    ($($(#[$attr:ident])* $name:ident $body:tt)*) => {
+        &[$(thetadatadx::__tick! { [$(#[$attr])* $name $body] => tick_record {} }),*]
     };
-    // Each column as `{ field type [has_?] doc }`, `has_` marking a nullable one.
-    (@columns $entry:tt [$($done:tt)*] [#[nullable] $wire:ident($field:ident): $ty:ident $doc:literal $(, $($rest:tt)*)?]) => {
-        tick_records!(@columns $entry [$($done)* { $field $ty [has_] $doc }] [$($($rest)*)?])
-    };
-    (@columns $entry:tt [$($done:tt)*] [#[nullable] $field:ident: $ty:ident $doc:literal $(, $($rest:tt)*)?]) => {
-        tick_records!(@columns $entry [$($done)* { $field $ty [has_] $doc }] [$($($rest)*)?])
-    };
-    (@columns $entry:tt [$($done:tt)*] [$wire:ident($field:ident): $ty:ident $doc:literal $(, $($rest:tt)*)?]) => {
-        tick_records!(@columns $entry [$($done)* { $field $ty [] $doc }] [$($($rest)*)?])
-    };
-    (@columns $entry:tt [$($done:tt)*] [$field:ident: $ty:ident $doc:literal $(, $($rest:tt)*)?]) => {
-        tick_records!(@columns $entry [$($done)* { $field $ty [] $doc }] [$($($rest)*)?])
-    };
-    (@columns [[$($attr:ident)*] $name:ident [$({ $flag:ident $ffield:ident $lo:literal $hi:literal $fdoc:literal })*]]
-        [$({ $field:ident $ty:ident [$($has:ident)?] $doc:literal })*] []) => {
+}
+
+macro_rules! tick_record {
+    ($name:ident $kind:ident contract [$($exp:ident $strike:ident $right:ident)?]
+        doc $doc:tt summary [$($summary:tt)*] more [$($more:tt)*] required $required:tt
+        columns [$({ $field:ident $wire:ident $ty:ident [$($has:ident)?] $d:tt })*]
+        timestamps $timestamps:tt flags [$({ $flag:ident $ffield:ident $lo:tt $hi:tt $fdoc:tt })*]) => {
         Tick {
             name: stringify!($name),
-            contract_id: tick_records!(@contract_id $($attr)*),
-            columns: &[$(Column { field: stringify!($field), ty: stringify!($ty), doc: $doc }),*],
+            summary: concat!($($summary),*),
+            more: &[$($more),*],
+            contract_id: tick_record!(@contract_id $($exp)?),
+            columns: &[$(Column { field: stringify!($field), ty: stringify!($ty), doc: $d }),*],
             flags: &[$(Flag { name: stringify!($flag), field: stringify!($ffield), lo: $lo, hi: $hi, doc: $fdoc }),*],
-            layout: tick_records!(@layout [$($attr)*] $name [$($field [$($has)?])*]),
+            layout: tick_record!(@layout $kind $name [$($field [$($has)?])* $($exp [] $strike [] $right [])?]),
         }
     };
-    (@contract_id contract_id) => { true };
-    (@contract_id $($attr:ident)*) => { false };
-    (@layout [owned] $name:ident $fields:tt) => { None };
-    (@layout [contract_id] $name:ident [$($fields:tt)*]) => {
-        tick_records!(@layout [] $name [$($fields)* expiration [] strike [] right []])
-    };
-    (@layout [] $name:ident [$($field:ident [$($has:ident)?])*]) => {
+    (@contract_id) => { false };
+    (@contract_id $exp:ident) => { true };
+    (@layout owned $name:ident $fields:tt) => { None };
+    (@layout pod $name:ident [$($field:ident [$($has:ident)?])*]) => {
         Some(Layout {
             size: std::mem::size_of::<thetadatadx::$name>(),
             align: std::mem::align_of::<thetadatadx::$name>(),
             offsets: &[$(
                 (stringify!($field), std::mem::offset_of!(thetadatadx::$name, $field)),
-                $((
-                    concat!(stringify!($has), stringify!($field)),
-                    pastey::paste!(std::mem::offset_of!(thetadatadx::$name, [<$has $field>])),
-                ),)?
+                $((stringify!($has), std::mem::offset_of!(thetadatadx::$name, $has)),)?
             )*],
         })
     };
