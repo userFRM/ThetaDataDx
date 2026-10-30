@@ -33,7 +33,7 @@ use super::super::table::{GeneratedEndpoint, GeneratedParam};
 /// between the two markers is owned by this emitter; the rest of
 /// `__init__.pyi` stays hand-maintained.
 pub(super) const STUB_BEGIN_MARKER: &str =
-    "# --- BEGIN GENERATED MARKET DATA VIEW (endpoint_surface.toml) ---";
+    "# --- BEGIN GENERATED MARKET DATA VIEW (endpoint table) ---";
 pub(super) const STUB_END_MARKER: &str = "# --- END GENERATED MARKET DATA VIEW ---";
 
 /// Render the generated region (markers included): the result-type aliases
@@ -45,8 +45,8 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
     out.push_str(STUB_BEGIN_MARKER);
     out.push('\n');
     out.push_str(
-        "# Generated from endpoint_surface.toml; do not edit by hand. Run\n\
-         # `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces` to refresh.\n\
+        "# Generated from the endpoint table; do not edit by hand. Run\n\
+         # `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces` to refresh.\n\
          #\n\
          # The typed list wrappers and fluent builder classes returned below are\n\
          # registered at runtime by the compiled extension and resolve through\n\
