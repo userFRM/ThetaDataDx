@@ -10,13 +10,12 @@ members = [
 resolver = "3"
 
 # Shared package metadata. Member crates inherit individual fields via
-# `<field>.workspace = true` so bumping the repo URL, the Apache-2.0
-# license, or the MSRV happens in exactly one place.
-#
-# `version` is intentionally NOT hoisted: the workspace members carry
-# independent semver tracks, so each member keeps its own
-# `version = "..."`.
+# `<field>.workspace = true` so bumping the version, the repo URL, the
+# Apache-2.0 license, or the MSRV happens in exactly one place. Every
+# member ships at the same version; `scripts/release/bump_version.py`
+# moves it together with the npm, CMake and documentation pins.
 [workspace.package]
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.94"
 authors = ["userFRM"]

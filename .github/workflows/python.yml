@@ -431,7 +431,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version=$(python3 -c 'import pathlib, tomllib; data = tomllib.loads(pathlib.Path("thetadatadx-py/Cargo.toml").read_text()); print(data["package"]["version"])')
+          version=$(python3 -c 'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("Cargo.toml").read_text())["workspace"]["package"]["version"])')
           if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
             echo "::error::tag ${GITHUB_REF_NAME} does not match Python package version ${version} (expected v${version})"
             exit 1
