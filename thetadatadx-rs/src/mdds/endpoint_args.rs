@@ -679,17 +679,166 @@ fn collected_columns<T: crate::columns::WireColumns>(
     <T as crate::columns::WireColumns>::all_columns()
 }
 
-// Generated endpoint dispatch (invoke_generated_endpoint + match arms).
-// Only compiled when `__internal` is enabled because the match arms reference
-// `EndpointArgs`, `EndpointOutput`, and `EndpointError` — all gated above.
+/// Expands both endpoint tables into the two dispatch functions. A match
+/// cannot take its arms from separate macro calls, so the entries are first
+/// sorted into buffered and chunk-streaming arms, then emitted together. The
+/// first arm names the functions' parameters once and carries those tokens
+/// down, so every arm refers to the same bindings.
 #[cfg(feature = "__internal")]
-include!(concat!(env!("OUT_DIR"), "/endpoint_generated.rs"));
+macro_rules! endpoint_dispatch {
+    (@collect $($entries:tt)*) => {
+        crate::__stream_endpoints! { endpoint_dispatch { @sort { client args price_types handler } [] [] $($entries)* } }
+    };
+    // Option contract rows own a string, so they cannot cross the
+    // type-erased chunk callback: buffered dispatch only.
+    (@sort $c:tt [$($b:tt)*] $s:tt $(#[$attr:ident])* chunked $name:ident {
+        group: $g:ident / $sg:ident, rest: $r:tt, returns: OptionContract, params: $keys:tt, doc: $d:tt,
+    } $($rest:tt)*) => {
+        endpoint_dispatch! { @sort $c [$($b)* { chunked $name OptionContract $keys }] $s $($rest)* }
+    };
+    (@sort $c:tt [$($b:tt)*] [$($s:tt)*] $(#[$attr:ident])* chunked $name:ident {
+        group: $g:ident / $sg:ident, rest: $r:tt, returns: $ret:ident, params: $keys:tt, doc: $d:tt,
+    } $($rest:tt)*) => {
+        endpoint_dispatch! { @sort $c [$($b)* { chunked $name $ret $keys }] [$($s)* { $name $ret $keys }] $($rest)* }
+    };
+    (@sort $c:tt [$($b:tt)*] $s:tt $(#[$attr:ident $(($w:ident))?])* $shape:ident $name:ident {
+        group: $g:ident / $sg:ident, rest: $r:tt, returns: $ret:ident $(($col:tt))?, params: $keys:tt, doc: $d:tt,
+    } $($rest:tt)*) => {
+        endpoint_dispatch! { @sort $c [$($b)* { $shape $name $ret $keys }] $s $($rest)* }
+    };
+    (@sort { $client:ident $args:ident $pt:ident $handler:ident }
+        [$({ $shape:ident $name:ident $ret:ident [$($key:tt)*] })*]
+        [$({ $sname:ident $sret:ident [$($skey:tt)*] })*]) => {
+        /// Dispatch a validated endpoint call into the typed builder it names.
+        ///
+        /// `price_types`, when given, receives the price type of every cell of a
+        /// buffered response's rows, row for row; list and streamed responses
+        /// leave it untouched.
+        pub async fn invoke_generated_endpoint(
+            $client: &crate::mdds::MarketDataClient,
+            name: &str,
+            $args: &EndpointArgs,
+            $pt: Option<&mut crate::mdds::decode::extract::PriceTypes>,
+        ) -> Result<EndpointOutput, EndpointError> {
+            match name {
+                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $pt } $shape $name $ret } },)*
+                _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
+            }
+        }
 
-// Generated streaming dispatch (invoke_generated_endpoint_stream + match
-// arms). Same gating rationale as the buffered dispatch above — the arms
-// reference `EndpointArgs` and `EndpointError`.
+        /// Dispatch a validated endpoint call, draining the response chunk by
+        /// chunk instead of buffering it.
+        ///
+        /// The per-chunk rows are type-erased to `(*const c_void, usize)` so this
+        /// one signature serves every tick shape; the caller reconstructs the
+        /// typed pointer (the same `#[repr(C)]` tick the buffered array exposes).
+        ///
+        /// `handler` is invoked once per decoded gRPC chunk on the dispatching
+        /// task, with the chunk's rows and the columns its wire carried, each
+        /// row's root included. Both are valid only for the duration of the
+        /// call: the chunk is freed before the next is fetched, bounding peak
+        /// memory to a single chunk regardless of the full result size. A
+        /// `Break` from `handler` ends the call, every band of a fan-out
+        /// included, and it returns `Ok(())`.
+        pub async fn invoke_generated_endpoint_stream(
+            $client: &crate::mdds::MarketDataClient,
+            name: &str,
+            $args: &EndpointArgs,
+            mut $handler: impl FnMut(*const core::ffi::c_void, usize, &crate::columns::ColumnPresence) -> core::ops::ControlFlow<()> + Send,
+        ) -> Result<(), EndpointError> {
+            match name {
+                $(stringify!($sname) => crate::__resolve! { [$($skey)*] => dispatch_arm { { $client $args $handler } chunk_stream $sname $sret } },)*
+                _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
+            }
+        }
+    };
+}
+
+/// One dispatch arm: validate the arguments, build the call, run it.
 #[cfg(feature = "__internal")]
-include!(concat!(env!("OUT_DIR"), "/endpoint_stream_generated.rs"));
+macro_rules! dispatch_arm {
+    // A list endpoint without optionals: the plain method or its deadline twin.
+    ({ $client:ident $args:ident $tail:ident } list $name:ident $ret:ident params {
+        all $all:tt req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*] opt [] $($more:tt)*
+    }) => {{
+        $(dispatch_arm!(@bind $args $t $p refs);)*
+        let values = match $args.deadline_setting().builder_deadline() {
+            Some(deadline) => pastey::paste!($client.[<$name _with_deadline>]($(dispatch_arm!(@arg $t $p refs),)* deadline)).await?,
+            None => $client.$name($(dispatch_arm!(@arg $t $p refs)),*).await?,
+        };
+        Ok(EndpointOutput::StringList(values))
+    }};
+    // Every other endpoint is a builder: required arguments construct it,
+    // optional ones set it.
+    ({ $client:ident $args:ident $tail:ident } $mode:ident $name:ident $ret:ident params {
+        all $all:tt
+        req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*]
+        opt [$({ $op:ident $oa:ident opt $ot:ident [$($ov:tt)?] $od:tt })*]
+        $($more:tt)*
+    }) => {{
+        $(dispatch_arm!(@bind $args $t $p refs);)*
+        let mut builder = $client.$name($(dispatch_arm!(@arg $t $p refs)),*);
+        $(
+            if let Some(value) = dispatch_arm!(@opt $args $ot $op) {
+                builder = builder.$op(value);
+            }
+        )*
+        if let Some(deadline) = $args.deadline_setting().builder_deadline() {
+            builder = builder.with_deadline(deadline);
+        }
+        dispatch_arm!(@finish $mode $ret builder $tail)
+    }};
+
+    (@finish list $ret:ident $b:ident $tail:ident) => {{
+        let values = $b.await?;
+        Ok(EndpointOutput::StringList(values))
+    }};
+    // A raw server stream is collected; its rows carry no header, so every
+    // schema column is reported present.
+    (@finish stream $ret:ident $b:ident $tail:ident) => {{
+        let mut result = Vec::new();
+        $b.stream(|chunk| result.extend_from_slice(chunk)).await?;
+        let columns = collected_columns(&result);
+        pastey::paste!(Ok(EndpointOutput::[<$ret s>](Ticks::new(result, columns))))
+    }};
+    (@finish chunk_stream $ret:ident $b:ident $handler:ident) => {
+        $b.stream_ticks(move |chunk| $handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len(), chunk.columns()))
+            .await
+            .map_err(EndpointError::from)
+    };
+    (@finish $mode:ident $ret:ident $b:ident $pt:ident) => {{
+        let result = $b.fetch($pt).await?;
+        pastey::paste!(Ok(EndpointOutput::[<$ret s>](result)))
+    }};
+
+    (@bind $args:ident Symbols $p:ident $refs:ident) => {
+        let $p = $args.required_symbols(stringify!($p))?;
+        let $refs: Vec<&str> = $p.iter().map(String::as_str).collect();
+    };
+    (@bind $args:ident $t:ident $p:ident $refs:ident) => {
+        let $p = dispatch_arm!(@req $args $t $p);
+    };
+    (@req $args:ident Symbol $p:ident) => { $args.required_symbol(stringify!($p))? };
+    (@req $args:ident Date $p:ident) => { $args.required_date(stringify!($p))? };
+    (@req $args:ident Expiration $p:ident) => { $args.required_expiration(stringify!($p))? };
+    (@req $args:ident Year $p:ident) => { $args.required_year(stringify!($p))? };
+    // A request type and a time of day are validated by the builder.
+    (@req $args:ident $t:ident $p:ident) => { $args.required_str(stringify!($p))? };
+    (@arg Symbols $p:ident $refs:ident) => { &$refs };
+    (@arg $t:ident $p:ident $refs:ident) => { $p };
+    (@opt $args:ident Bool $p:ident) => { $args.optional_bool(stringify!($p))? };
+    (@opt $args:ident Int $p:ident) => { $args.optional_int32(stringify!($p))? };
+    (@opt $args:ident Float $p:ident) => { $args.optional_float64(stringify!($p))? };
+    (@opt $args:ident Date $p:ident) => { $args.optional_date(stringify!($p))? };
+    (@opt $args:ident Interval $p:ident) => { $args.optional_interval(stringify!($p))? };
+    (@opt $args:ident Strike $p:ident) => { $args.optional_strike(stringify!($p))? };
+    (@opt $args:ident Right $p:ident) => { $args.optional_right(stringify!($p))? };
+    (@opt $args:ident $t:ident $p:ident) => { $args.optional_str(stringify!($p))? };
+}
+// The dispatch is only compiled with `__internal`: its arms reference
+// `EndpointArgs`, `EndpointOutput` and `EndpointError`, all gated above.
+#[cfg(feature = "__internal")]
+crate::__endpoints! { endpoint_dispatch { @collect } }
 
 #[cfg(all(test, feature = "__internal"))]
 mod tests {

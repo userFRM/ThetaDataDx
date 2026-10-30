@@ -1,5 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// The endpoint tables expand through recursive macros whose depth grows with
+// an endpoint's parameter count; the default limit of 128 is too shallow.
+#![recursion_limit = "256"]
 //! # thetadatadx
 //!
 //! Native Rust SDK for [ThetaData](https://thetadata.us) market data.

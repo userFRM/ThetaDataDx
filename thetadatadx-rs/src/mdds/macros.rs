@@ -711,19 +711,19 @@ macro_rules! list_endpoint {
         grpc: $grpc:ident;
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
-        optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
+        optional { $($opt_name:ident : $opt_ty:ident [$($opt_default:literal)?]),* $(,)? }
     ) => {
         /// Builder for the [`MarketDataClient::$name`] endpoint.
         pub struct $builder_name<'a> {
             client: &'a MarketDataClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
-            $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
+            $(pub(crate) $opt_name: opt_field_type!($opt_ty [$($opt_default)?]),)*
             pub(crate) deadline: Option<std::time::Duration>,
         }
 
         impl<'a> $builder_name<'a> {
             $(
-                opt_setter!($opt_name, $opt_kind);
+                opt_setter!($opt_name, $opt_ty [$($opt_default)?]);
             )*
 
             /// Apply a per-call deadline.
@@ -784,7 +784,7 @@ macro_rules! list_endpoint {
                 $builder_name {
                     client: self,
                     $($req_arg: req_convert!($req_kind, $req_arg),)*
-                    $($opt_name: $opt_default,)*
+                    $($opt_name: opt_default!($opt_ty [$($opt_default)?]),)*
                     deadline: None,
                 }
             }
@@ -797,11 +797,10 @@ macro_rules! list_endpoint {
 /// request/collect path is written a single time; the two public methods
 /// differ only in how they resolve the `deadline` they pass in.
 ///
-/// `macro_rules!` cannot synthesize a private impl-method name (no `paste`
-/// dependency), so rather than a shared method this is a shared macro: each
-/// public method expands it inline with the already-resolved `deadline` and
-/// the per-endpoint specifics (receiver, gRPC stub, request/query types,
-/// fields, column).
+/// Rather than a private method, which would need a name of its own per
+/// endpoint, this is a shared macro: each public method expands it inline
+/// with the already-resolved `deadline` and the per-endpoint specifics
+/// (receiver, gRPC stub, request/query types, fields, column).
 macro_rules! list_endpoint_impl_body {
     (
         $client:expr, $deadline:ident, $name:ident, $grpc:ident, $req:ident,
@@ -1067,19 +1066,19 @@ macro_rules! parsed_endpoint {
         parse: $parser:expr;
         item: $item:ty;
         $(dates: $($date_arg:ident),+ ;)?
-        optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
+        optional { $($opt_name:ident : $opt_ty:ident [$($opt_default:literal)?]),* $(,)? }
     ) => {
         /// Builder for the [`MarketDataClient::$name`] endpoint.
         pub struct $builder_name<'a> {
             client: &'a MarketDataClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
-            $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
+            $(pub(crate) $opt_name: opt_field_type!($opt_ty [$($opt_default)?]),)*
             pub(crate) deadline: Option<std::time::Duration>,
         }
 
         impl<'a> $builder_name<'a> {
             $(
-                opt_setter!($opt_name, $opt_kind);
+                opt_setter!($opt_name, $opt_ty [$($opt_default)?]);
             )*
 
             /// Apply a per-call deadline.
@@ -1746,7 +1745,7 @@ macro_rules! parsed_endpoint {
                 $builder_name {
                     client: self,
                     $($req_arg: req_convert!($req_kind, $req_arg),)*
-                    $($opt_name: $opt_default,)*
+                    $($opt_name: opt_default!($opt_ty [$($opt_default)?]),)*
                     deadline: None,
                 }
             }
@@ -1754,75 +1753,80 @@ macro_rules! parsed_endpoint {
     };
 }
 
-/// Map a required-param tag to the struct field type.
+/// Stored type of a required argument, keyed by its parameter type.
 macro_rules! req_field_type {
-    (str)      => { String };
-    (str_vec)  => { Vec<String> };
+    (Symbols) => { Vec<String> };
+    ($t:ident) => { String };
 }
 
-/// Map a required-param tag to the constructor parameter type.
+/// Constructor parameter type of a required argument.
 macro_rules! req_param_type {
-    (str) => {
-        &str
-    };
-    (str_vec) => {
-        impl Into<SymbolInput>
-    };
+    (Symbols) => { impl Into<SymbolInput> };
+    ($t:ident) => { &str };
 }
 
-/// Convert a required param from the user-facing type to the stored type.
+/// Convert a required argument from its constructor type to its stored type.
 macro_rules! req_convert {
-    (str, $v:ident) => {
-        $v.to_string()
-    };
-    (str_vec, $v:ident) => {
+    (Symbols, $v:ident) => {
         $v.into().into_vec()
     };
+    ($t:ident, $v:ident) => {
+        $v.to_string()
+    };
 }
 
-/// Map a tag token to the actual Rust type for struct fields.
+/// Stored type of an optional parameter: a defaulted string is held as the
+/// value it sends, every other parameter as an `Option`.
 macro_rules! opt_field_type {
-    (opt_str)  => { Option<String> };
-    (opt_i32)  => { Option<i32> };
-    (opt_f64)  => { Option<f64> };
-    (opt_bool) => { Option<bool> };
-    (string)   => { String };
+    (Int $d:tt) => { Option<i32> };
+    (Float $d:tt) => { Option<f64> };
+    (Bool $d:tt) => { Option<bool> };
+    ($t:ident []) => { Option<String> };
+    ($t:ident [$v:literal]) => { String };
 }
 
-/// Generate a chainable setter method based on the tag token.
+/// Initial value of an optional parameter.
+macro_rules! opt_default {
+    (Int [$v:literal]) => {
+        Some($v)
+    };
+    (Float [$v:literal]) => {
+        Some($v)
+    };
+    (Bool [$v:literal]) => {
+        Some($v)
+    };
+    ($t:ident []) => {
+        None
+    };
+    ($t:ident [$v:literal]) => {
+        $v.to_string()
+    };
+}
+
+/// Chainable setter for an optional parameter.
 macro_rules! opt_setter {
-    ($opt_name:ident, opt_str) => {
+    ($n:ident, Int $d:tt) => { opt_setter!(@some $n, i32); };
+    ($n:ident, Float $d:tt) => { opt_setter!(@some $n, f64); };
+    ($n:ident, Bool $d:tt) => { opt_setter!(@some $n, bool); };
+    ($n:ident, $t:ident []) => {
         #[must_use]
-        pub fn $opt_name(mut self, v: &str) -> Self {
-            self.$opt_name = Some(v.to_string());
+        pub fn $n(mut self, v: &str) -> Self {
+            self.$n = Some(v.to_string());
             self
         }
     };
-    ($opt_name:ident, opt_i32) => {
+    ($n:ident, $t:ident [$v:literal]) => {
         #[must_use]
-        pub fn $opt_name(mut self, v: i32) -> Self {
-            self.$opt_name = Some(v);
+        pub fn $n(mut self, v: &str) -> Self {
+            self.$n = v.to_string();
             self
         }
     };
-    ($opt_name:ident, opt_f64) => {
+    (@some $n:ident, $ty:ty) => {
         #[must_use]
-        pub fn $opt_name(mut self, v: f64) -> Self {
-            self.$opt_name = Some(v);
-            self
-        }
-    };
-    ($opt_name:ident, opt_bool) => {
-        #[must_use]
-        pub fn $opt_name(mut self, v: bool) -> Self {
-            self.$opt_name = Some(v);
-            self
-        }
-    };
-    ($opt_name:ident, string) => {
-        #[must_use]
-        pub fn $opt_name(mut self, v: &str) -> Self {
-            self.$opt_name = v.to_string();
+        pub fn $n(mut self, v: $ty) -> Self {
+            self.$n = Some(v);
             self
         }
     };
