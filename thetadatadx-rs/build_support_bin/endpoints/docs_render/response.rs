@@ -1,10 +1,10 @@
 //! Response-schema rendering for the endpoint reference pages.
 //!
-//! The field tables are driven by `tick_schema.toml` (the same registry
-//! that generates every binding's tick structs), including the
-//! per-column `doc` sentences added for the docs site.
+//! The field tables are driven by the tick table (the same table every
+//! binding's tick types expand from), including the per-column description
+//! sentences.
 
-use super::super::super::ticks::schema::{Schema, TickTypeDef};
+use super::super::super::ticks::table::tick_for_collection;
 use super::super::table::GeneratedEndpoint;
 
 /// Singular tick-type name for a wire-collection plural
@@ -60,23 +60,13 @@ fn docs_field_type(column_type: &str) -> &'static str {
         // option right is a one-character string ("C" / "P"), the
         // calendar day type is the vendor vocabulary string.
         "String" | "right" | "calendar_status" => "string",
-        "bool" => "bool",
         other => panic!("unmapped tick column type {other}"),
     }
-}
-
-fn tick_def<'a>(schema: &'a Schema, collection: &str) -> &'a TickTypeDef {
-    let type_name = schema_type_name(collection);
-    schema
-        .types
-        .get(&type_name)
-        .unwrap_or_else(|| panic!("tick type {type_name} not found in tick_schema.toml"))
 }
 
 /// Render the response-schema section for an endpoint.
 pub(super) fn render_response_section(
     endpoint: &GeneratedEndpoint,
-    schema: &Schema,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let mut out = String::new();
     out.push_str("## Response\n\n");
@@ -91,32 +81,25 @@ pub(super) fn render_response_section(
         return Ok(out);
     }
 
-    let type_name = schema_type_name(endpoint.return_type);
-    let def = tick_def(schema, endpoint.return_type);
+    let tick = tick_for_collection(endpoint.return_type);
 
-    out.push_str(&format!("Rows of `{type_name}`:\n\n"));
+    out.push_str(&format!("Rows of `{}`:\n\n", tick.name));
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");
-    for col in &def.columns {
-        let doc = col.doc.as_deref().unwrap_or_else(|| {
-            panic!(
-                "tick_schema.toml column {type_name}.{} is missing its doc sentence",
-                col.name
-            )
-        });
+    for col in tick.columns {
         out.push_str(&format!(
             "| `{}` | {} | {} |\n",
             col.field,
-            docs_field_type(&col.r#type),
-            doc
+            docs_field_type(col.ty),
+            col.doc
         ));
     }
-    if def.contract_id && endpoint.category == "option" && endpoint.subcategory == "flat_file" {
+    if tick.contract_id && endpoint.category == "option" && endpoint.subcategory == "flat_file" {
         out.push_str(
             "\nEvery row carries `expiration` (YYYYMMDD), `strike` (dollars) and `right` \
              (\"C\" / \"P\"); with the row's root, which the whole result carries per row, \
              they identify the contract.\n",
         );
-    } else if def.contract_id && endpoint.category == "option" {
+    } else if tick.contract_id && endpoint.category == "option" {
         out.push_str(
             "\nWildcard requests additionally populate `expiration` (YYYYMMDD), `strike` \
              (dollars), and `right` (\"C\" / \"P\") on every row to identify the contract; \

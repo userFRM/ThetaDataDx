@@ -19,7 +19,7 @@ readme = "README.md"
 # compile: `cargo build --all-features` against the published package fails
 # on the missing module. The default verify build never caught it because
 # the generator carries `required-features`.
-include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
 name = "thetadatadx"

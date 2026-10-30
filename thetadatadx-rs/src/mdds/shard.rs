@@ -1381,11 +1381,10 @@ impl ChainKey {
 
 /// The contract-identity key a typed tick sorts chain responses by.
 ///
-/// Implemented (generated) for every tick type from `tick_schema.toml`
-/// next to its parser: `Some` for the chain-capable types
-/// (`contract_id = true`, the injected `expiration` / `strike` / `right`
-/// trio), `None` for every other type — whose sharded pulls concatenate
-/// in band order.
+/// Implemented for every tick type by the tick table's expansion, next to
+/// its decoder: `Some` for the chain-capable types (`#[contract_id]`, the
+/// injected `expiration` / `strike` / `right` trio), `None` for every other
+/// type, whose sharded pulls concatenate in band order.
 pub(crate) trait ChainSortKey {
     /// This row's ranked merge key, `None` when the tick type carries no
     /// contract identity.

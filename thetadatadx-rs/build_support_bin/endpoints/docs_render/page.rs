@@ -2,7 +2,6 @@
 
 use std::fmt::Write as _;
 
-use super::super::super::ticks::schema::Schema;
 use super::super::sdk_helpers::{builder_params, method_params, to_camel_case};
 use super::super::table::{GeneratedEndpoint, GeneratedParam};
 use super::{lang, response, samples};
@@ -298,7 +297,6 @@ pub(super) fn render_endpoint_page(
     endpoint: &GeneratedEndpoint,
     tier: &str,
     page_path: &str,
-    tick_schema: &Schema,
 ) -> Result<(String, PageMeta), Box<dyn std::error::Error>> {
     let title = endpoint_title(endpoint);
     let description = endpoint.description.replace('\n', " ");
@@ -327,7 +325,7 @@ pub(super) fn render_endpoint_page(
     out.push_str("\n<RequestBuilder :cfg=\"cfg\" />\n\n");
 
     out.push_str(&render_params_section(endpoint));
-    out.push_str(&response::render_response_section(endpoint, tick_schema)?);
+    out.push_str(&response::render_response_section(endpoint)?);
 
     let meta = PageMeta {
         category: endpoint.category.to_string(),

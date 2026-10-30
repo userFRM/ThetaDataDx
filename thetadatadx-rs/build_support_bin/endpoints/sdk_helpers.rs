@@ -8,87 +8,10 @@
 //! Cross-renderer utilities stay in `helpers.rs`; each render file imports
 //! from both modules.
 
-use std::collections::HashMap;
-use std::sync::OnceLock;
+use heck::ToSnakeCase;
 
+use super::super::ticks::table::tick_for_collection;
 use super::table::{GeneratedEndpoint, GeneratedParam};
-
-// ─────────────────────── Bin-side render-map loader ─────────────────────────
-
-/// Per-tick binding-name map keyed by wire-collection plural (e.g.
-/// `"GreeksAllTicks"`). Carries every per-language name the SDK
-/// projection emitters need. Loaded once from `tick_schema.toml` on the
-/// first call.
-#[derive(Debug, Clone)]
-struct BinTickRender {
-    ffi_array: String,
-    ffi_free_fn: String,
-    cpp_value: String,
-    pyclass: String,
-}
-
-#[derive(serde::Deserialize)]
-struct SchemaToml {
-    types: HashMap<String, TickTypeToml>,
-}
-
-#[derive(serde::Deserialize)]
-struct TickTypeToml {
-    render: TickRenderToml,
-}
-
-#[derive(serde::Deserialize)]
-struct TickRenderToml {
-    collection: String,
-    ffi_array: String,
-    ffi_free_fn: String,
-    cpp_value: String,
-    pyclass: String,
-}
-
-static RENDER_MAP: OnceLock<HashMap<String, BinTickRender>> = OnceLock::new();
-
-fn load_render_map() -> HashMap<String, BinTickRender> {
-    let schema_path = "tick_schema.toml";
-    let raw = std::fs::read_to_string(schema_path)
-        .unwrap_or_else(|e| panic!("failed to read {schema_path}: {e}"));
-    let parsed: SchemaToml =
-        toml::from_str(&raw).unwrap_or_else(|e| panic!("failed to parse {schema_path}: {e}"));
-    let mut map = HashMap::new();
-    let mut tick_to_collection: HashMap<String, String> = HashMap::new();
-    for (tick_name, def) in parsed.types {
-        let render = def.render;
-        let collection = render.collection.clone();
-        if let Some(prev) = tick_to_collection.insert(tick_name.clone(), collection.clone()) {
-            panic!("tick type '{tick_name}' duplicates collection '{prev}' / '{collection}'");
-        }
-        let entry = BinTickRender {
-            ffi_array: render.ffi_array,
-            ffi_free_fn: render.ffi_free_fn,
-            cpp_value: render.cpp_value,
-            pyclass: render.pyclass,
-        };
-        if map.insert(collection.clone(), entry).is_some() {
-            panic!("duplicate render collection '{collection}' in tick_schema.toml");
-        }
-    }
-    map
-}
-
-/// Look up the per-language render names for a wire-collection plural
-/// (e.g. `"GreeksTicks"`). Panics with the available keys when the
-/// collection name is missing -- a missing TOML row is a build-time bug.
-fn render_for(collection: &str) -> &'static BinTickRender {
-    let map = RENDER_MAP.get_or_init(load_render_map);
-    map.get(collection).unwrap_or_else(|| {
-        let mut keys: Vec<&str> = map.keys().map(String::as_str).collect();
-        keys.sort();
-        panic!(
-            "no render entry for collection '{collection}' in tick_schema.toml; available: {}",
-            keys.join(", ")
-        )
-    })
-}
 
 // ───────────────────────── Param classification ────────────────────────────
 
@@ -192,21 +115,21 @@ pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
 }
 
 /// Returns the FFI `#[repr(C)]` array type name for a return type
-/// (e.g. `ThetaDataDxStringArray`), looked up from the tick render map.
+/// (e.g. `ThetaDataDxStringArray`, `ThetaDataDxTradeTickArray`).
 pub(super) fn ffi_array_type(return_type: &str) -> String {
     if return_type == "StringList" {
         return "ThetaDataDxStringArray".into();
     }
-    render_for(return_type).ffi_array.clone()
+    format!("ThetaDataDx{}Array", tick_for_collection(return_type).name)
 }
 
-/// Returns the C++ element type for a return type's row vector, looked
-/// up from the tick render map.
+/// Returns the C++ element type for a return type's row vector: the tick
+/// type, which the C++ SDK aliases to its C mirror.
 pub(super) fn cpp_value_type(return_type: &str) -> String {
     if return_type == "StringList" {
         return "std::string".into();
     }
-    render_for(return_type).cpp_value.clone()
+    tick_for_collection(return_type).name.into()
 }
 
 /// Returns the C++ expression that converts the FFI array result for a
@@ -220,10 +143,10 @@ pub(super) fn cpp_value_type(return_type: &str) -> String {
 /// `StringList`/`OptionContracts` return types take their own early-return
 /// path in the emitter and never reach this converter.
 pub(super) fn cpp_converter_expr(return_type: &str) -> String {
-    let render = render_for(return_type);
+    let tick = tick_for_collection(return_type).name;
     format!(
-        "return detail::check_tick_array<{}>(arr, [](auto a){{ return detail::to_vector(a.data, a.len); }}, {});",
-        render.cpp_value, render.ffi_free_fn
+        "return detail::check_tick_array<{tick}>(arr, [](auto a){{ return detail::to_vector(a.data, a.len); }}, thetadatadx_{}_array_free);",
+        tick.to_snake_case()
     )
 }
 
@@ -232,10 +155,9 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
 /// directly so callers can chain `.to_polars()` / `.to_arrow()` /
 /// `.to_pandas()` / `.to_list()` off the endpoint return value.
 ///
-/// Derived from the per-language `pyclass` render name + the `List`
-/// suffix the emitter applies to every pyclass-list type.
+/// The row class name plus the `List` suffix every pyclass-list type takes.
 pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
-    format!("{}List", render_for(return_type).pyclass)
+    format!("{}List", tick_for_collection(return_type).name)
 }
 
 /// Name of the generated row `#[pyclass]` (e.g. `EodTick`) for a return
@@ -243,7 +165,7 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
 /// than the chainable `<TickName>List` wrapper, so the type-stub emitter
 /// annotates them as `List[<row pyclass>]`.
 pub(super) fn python_pyclass_row_class(return_type: &str) -> String {
-    render_for(return_type).pyclass.clone()
+    tick_for_collection(return_type).name.into()
 }
 
 // ───────────────────────── Builder / FFI option tables ─────────────────────

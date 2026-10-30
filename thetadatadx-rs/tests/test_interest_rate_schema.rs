@@ -1,6 +1,6 @@
 //! Regression test for the `InterestRateTick` schema fix.
 //!
-//! Before this PR `tick_schema.toml` declared `InterestRateTick` as 3 fields
+//! Before this PR the tick schema declared `InterestRateTick` as 3 fields
 //! (`ms_of_day`/`rate`/`date`) with a `Number` `date` column, but the
 //! upstream v3 server actually emits 2 columns: `created` as Text ISO date
 //! and `rate` as a percent Number. Every live `interest_rate_history_eod`
