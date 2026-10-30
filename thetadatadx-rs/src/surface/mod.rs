@@ -1,5 +1,6 @@
 //! The SDK surface, written once as `macro_rules!` tables.
 
+mod config;
 mod endpoints;
 mod enums;
 mod events;
