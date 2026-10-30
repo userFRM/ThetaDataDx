@@ -94,9 +94,9 @@ where
     }
 }
 
-/// Policy tick consumed by the retry / refresh loop driven from the
-/// endpoint macros. Each call returns either the completed value, a
-/// request for another attempt after backoff, or a terminal failure.
+/// Policy tick consumed by the unary retry / refresh loop. Each call
+/// returns either the completed value, a request for another attempt
+/// after backoff, or a terminal failure.
 pub(crate) enum AttemptStep<T> {
     Ok(T),
     Retry(crate::error::Error),
@@ -117,17 +117,12 @@ enum StatusClass {
     Terminal,
 }
 
-/// Single step evaluated by the macro-driven retry loop.
+/// Single step evaluated by [`run_unary_retry_loop`].
 ///
 /// `out` is the result of the last attempt (future already awaited).
 /// `refreshed_already` tracks whether this call has already consumed
 /// its session-refresh budget — a second `Unauthenticated` becomes
 /// terminal.
-///
-/// Exists as a free function so the macros can call it with a plain
-/// `Result` produced by their owned request + stream + collect chain,
-/// avoiding the higher-ranked trait bounds a closure-based helper
-/// would impose.
 pub(crate) async fn classify_attempt<T>(
     session: &crate::auth::SessionToken,
     snap: &crate::auth::session::SessionSnapshot,
@@ -176,7 +171,6 @@ pub(crate) async fn classify_attempt<T>(
 }
 
 /// Sleep between retry attempts according to the client's policy.
-/// Split out of the macros so the per-endpoint expansion stays flat.
 ///
 /// When the failed attempt carried a server-supplied
 /// `google.rpc.RetryInfo` hint (surfaced as
@@ -334,7 +328,7 @@ pub(crate) async fn classify_streaming_attempt(
 /// Drive the unary endpoint retry / refresh loop.
 ///
 /// Single source of truth for the retry / refresh control flow shared
-/// by the endpoint macro arms. The closure receives the current session
+/// by every unary request. The closure receives the current session
 /// snapshot and returns the per-attempt result; the helper handles
 /// snapshotting, classification, refresh, backoff, and the
 /// post-refresh re-attempt budget.
@@ -511,10 +505,8 @@ where
 /// Decide whether the buffered `.await` path on a parsed builder
 /// crossed the operator-visible warning threshold for response size.
 ///
-/// Pure function — no side effects, no allocation, no I/O. Lets the
-/// `parsed_endpoint!` macro keep the size check at the seam where
-/// `row_count` and `size_of::<Item>` are both already in scope and
-/// keeps the decision testable without a `tracing-subscriber` dep.
+/// Pure function: no side effects, no allocation, no I/O. Keeps the
+/// decision testable without a `tracing-subscriber` dep.
 ///
 /// `row_size` is `size_of::<Tick>` at the call site — a lower bound
 /// on the resident-memory cost since each tick may carry inline
@@ -553,10 +545,10 @@ pub(crate) fn should_warn_buffered_size(
 }
 
 /// Emit a single `tracing::warn!` event when the buffered `.await`
-/// path on a `parsed_endpoint!` builder crosses
+/// path of a tick builder crosses
 /// `mdds.warn_on_buffered_threshold_bytes`.
 ///
-/// Fires AT MOST ONCE per call — the macro invokes this helper
+/// Fires AT MOST ONCE per call: `fetch_ticks` invokes this helper
 /// immediately after the `Vec<Tick>` materializes, before returning
 /// to the caller, so a long-running operator workload sees exactly
 /// one log line per offending request rather than a per-chunk
@@ -638,18 +630,17 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 ///   call with an explicit per-call deadline. `Duration::ZERO` opts out of
 ///   any deadline (see [`effective_deadline`]).
 ///
-/// Both route through [`run_with_optional_deadline`], so the in-flight gRPC
-/// call (`<grpc>` + `collect_stream`) is dropped on expiry — the `_permit`
-/// releases its semaphore slot and the `tonic::Streaming` is dropped
-/// (RST_STREAM), returning `Err(Error::Timeout)`.
+/// Both run [`MarketDataClient::fetch_list`], which drops the in-flight gRPC
+/// call on expiry and returns `Err(Error::Timeout)`. The plain form expands
+/// inside the client's shared `impl` block, so its query's
+/// [`EndpointQuery`](crate::mdds::stream::EndpointQuery) impl comes from
+/// [`endpoint_query!`] in the table's builder pass.
 macro_rules! list_endpoint {
     (
         $(#[$meta:meta])*
         fn $name:ident( $($arg:ident : $arg_ty:ty),* ) -> $col:literal;
         with_deadline_fn: $with_deadline:ident;
         tables_fn: $tables:ident;
-        grpc: $grpc:ident;
-        request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
     ) => {
         #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
@@ -660,16 +651,8 @@ macro_rules! list_endpoint {
         /// Returns [`Error::Timeout`] when the configured request deadline
         /// elapses before the response completes.
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-            // No explicit deadline: fall back to the configured default so
-            // the request is always bounded.
-            let deadline = $crate::mdds::macros::effective_deadline(
-                None,
-                self.config().market_data.request_timeout_secs,
-            );
-            list_endpoint_impl_body!(
-                self, deadline, $name, $grpc, $req,
-                $query { $($field : $val),* }, $col
-            )
+            self.fetch_list(stringify!($name), None, &proto::$query { $($field : $val),* }, $col)
+                .await
         }
 
         #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
@@ -687,14 +670,8 @@ macro_rules! list_endpoint {
             $($arg : $arg_ty,)*
             deadline: std::time::Duration,
         ) -> Result<Vec<String>, Error> {
-            let deadline = $crate::mdds::macros::effective_deadline(
-                Some(deadline),
-                self.config().market_data.request_timeout_secs,
-            );
-            list_endpoint_impl_body!(
-                self, deadline, $name, $grpc, $req,
-                $query { $($field : $val),* }, $col
-            )
+            self.fetch_list(stringify!($name), Some(deadline), &proto::$query { $($field : $val),* }, $col)
+                .await
         }
 
         /// Send the request once and hand each chunk's column headers and
@@ -713,9 +690,8 @@ macro_rules! list_endpoint {
             F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
             Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
         {
-            let client = self;
-            let params = proto::$query { $($field : $val),* };
-            stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
+            self.stream_tables(stringify!($name), deadline, &proto::$query { $($field : $val),* }, handler)
+                .await
         }
     };
 
@@ -770,19 +746,12 @@ macro_rules! list_endpoint {
                 F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
                 Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                // The query values read the arguments by reference, as in
-                // the buffered request.
-                $(let $req_arg = &$req_arg;)*
-                $(let $opt_name = &$opt_name;)*
-                let params = proto::$query { $($field : $val),* };
-                stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
+                self.client
+                    .stream_tables(stringify!($name), self.deadline, &*self.query()?, handler)
+                    .await
             }
+
+            endpoint_builder_query!($query { $($field : $val),* } [$($req_arg)* $($opt_name)*]);
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {
@@ -791,28 +760,14 @@ macro_rules! list_endpoint {
 
             fn into_future(self) -> Self::IntoFuture {
                 Box::pin(async move {
-                    let $builder_name {
-                        client,
-                        $($req_arg,)*
-                        $($opt_name,)*
-                        deadline,
-                    } = self;
-                    let deadline = $crate::mdds::macros::effective_deadline(
-                        deadline,
-                        client.config().market_data.request_timeout_secs,
-                    );
-                    // The retry loop's closure is `FnMut`, so it must not
-                    // consume the owned arguments: every attempt rebuilds the
-                    // request from these borrows.
-                    $(let $req_arg = &$req_arg;)*
-                    $(let $opt_name = &$opt_name;)*
-                    list_endpoint_impl_body!(
-                        &client, deadline, $name, $grpc, $req,
-                        $query { $($field : $val),* }, $col
-                    )
+                    self.client
+                        .fetch_list(stringify!($name), self.deadline, &*self.query()?, $col)
+                        .await
                 })
             }
         }
+
+        endpoint_query!($name, $grpc, $req, $query { $($field : $val),* });
 
         impl MarketDataClient {
             #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
@@ -839,110 +794,70 @@ macro_rules! list_endpoint {
     };
 }
 
-/// Shared request/collect body for the [`list_endpoint!`] pair (`<name>` /
-/// `<name>_with_deadline`). Defined once so the deadline-bounded
-/// request/collect path is written a single time; the two public methods
-/// differ only in how they resolve the `deadline` they pass in.
-///
-/// Rather than a private method, which would need a name of its own per
-/// endpoint, this is a shared macro: each public method expands it inline
-/// with the already-resolved `deadline` and the per-endpoint specifics
-/// (receiver, gRPC stub, request/query types, fields, column).
-macro_rules! list_endpoint_impl_body {
-    (
-        $client:expr, $deadline:ident, $name:ident, $grpc:ident, $req:ident,
-        $query:ident { $($field:ident : $val:expr),* $(,)? }, $col:literal
-    ) => {{
-        // `&MarketDataClient` is `Copy`, so bind the receiver once and reuse
-        // it across the (possibly retried) request closure. Passing `self`
-        // through a macro parameter is required: a `self` token synthesized
-        // by the macro body cannot reach the caller's `self`.
-        let client: &MarketDataClient = $client;
-        $crate::mdds::macros::run_with_optional_deadline($deadline, async move {
-            // Build the wire parameters once, before a permit is taken: an
-            // input the request builder refuses fails here without anything
-            // being sent, and every attempt sends the same bytes.
-            let params = &proto::$query { $($field : $val),* };
-            tracing::debug!(endpoint = stringify!($name), "gRPC request");
-            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-            let _metrics_start = std::time::Instant::now();
-            let _permit = client.acquire_request_permit().await?;
-            let policy = client.config().retry;
-            let table: proto::DataTable = $crate::mdds::macros::run_unary_retry_loop(
-                client.session(),
-                &policy,
-                stringify!($name),
-                |snap| async move {
-                    let qi = client.build_query_info(snap.uuid.clone());
-                    let request = proto::$req {
-                        query_info: Some(qi),
-                        params: Some(params.clone()),
-                    };
-                    // Bind the lease to a local so it lives across
-                    // the await — the pre-dispatch reservation
-                    // must outlive `server_streaming` so the picker
-                    // counts pending opens correctly under burst
-                    // contention. Deref coercion from `&ChannelLease`
-                    // to `&Channel` satisfies the generated stub
-                    // signature.
-                    let lease = client.channel();
-                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                        &lease,
-                        request,
-                    )
-                    .await
-                    .map_err(|e| -> Error { e.into() })?;
-                    client.collect_stream(stream).await
-                },
-            ).await?;
-            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-            // List returns preserve the server's row order verbatim
-            // (terminal parity — the wire order is the contract).
-            Ok(decode::extract_text_column(&table, $col)
-                .into_iter()
-                .flatten()
-                .collect())
-        }).await
-    }};
+/// The [`EndpointQuery`](crate::mdds::stream::EndpointQuery) impl of one
+/// endpoint's proto query. `$name` is the endpoint the shard planner knows
+/// the query by; a raw stream sends the query of the endpoint it drains, so
+/// it shares that endpoint's impl.
+macro_rules! endpoint_query {
+    ($name:ident, $grpc:ident, $req:ident, $query:ident { $($field:ident : $val:expr),* $(,)? }) => {
+        impl $crate::mdds::stream::EndpointQuery for proto::$query {
+            fn plan(
+                &self,
+                client: &MarketDataClient,
+            ) -> Option<$crate::mdds::shard::ShardPlan> {
+                #[allow(unused_mut)] // Reason: queries with no shardable fields expand no projection arm.
+                let mut shard_query = $crate::mdds::shard::ShardQuery::default();
+                $(shard_read_field!(shard_query, self, $field);)*
+                $crate::mdds::shard::auto_plan(client, stringify!($name), &shard_query)
+            }
+
+            fn band(
+                &self,
+                band: &$crate::mdds::shard::ShardBand,
+            ) -> Box<dyn $crate::mdds::stream::EndpointQuery> {
+                // Queries without a given band field expand no apply arm;
+                // anchor the band so those expansions stay warning-free.
+                let _ = band;
+                #[allow(unused_mut)] // Reason: bands only override fields the query has.
+                let mut banded = self.clone();
+                $(shard_apply_field!(banded, band, $field);)*
+                Box::new(banded)
+            }
+
+            fn open<'c>(
+                &self,
+                channel: &'c $crate::grpc::Channel,
+                query_info: proto::QueryInfo,
+            ) -> $crate::mdds::stream::OpenStream<'c> {
+                Box::pin($crate::proto::beta_theta_terminal::$grpc(
+                    channel,
+                    proto::$req {
+                        query_info: Some(query_info),
+                        params: Some(self.clone()),
+                    },
+                ))
+            }
+        }
+    };
 }
 
-/// Shared body of the generated `stream_tables` methods: send the request
-/// built from `$params` through `MarketDataClient::stream_tables`, which
-/// hands each chunk to `$handler` unconverted.
-#[cfg(feature = "__internal")]
-macro_rules! stream_tables_body {
-    (
-        $client:ident, $name:ident, $deadline:ident, $grpc:ident, $req:ident,
-        $params:ident, $handler:ident
-    ) => {
-        $client
-            .stream_tables(
-                stringify!($name),
-                $deadline,
-                &|query_info| {
-                    let request = proto::$req {
-                        query_info: Some(query_info),
-                        params: Some($params.clone()),
-                    };
-                    Box::pin(async move {
-                        let lease = $client.channel();
-                        $crate::proto::beta_theta_terminal::$grpc(&lease, request)
-                            .await
-                            .map_err(Error::from)
-                    })
-                },
-                $handler,
-            )
-            .await
+/// A builder's `query` method: the wire query its arguments build, ready for
+/// the endpoint runtime. An argument the wire cannot carry, such as a right
+/// that is neither call, put nor both, is its error.
+macro_rules! endpoint_builder_query {
+    ($query:ident { $($field:ident : $val:expr),* $(,)? } [$($arg:ident)*]) => {
+        fn query(&self) -> Result<Box<dyn $crate::mdds::stream::EndpointQuery>, Error> {
+            let Self { $($arg,)* .. } = self;
+            Ok(Box::new(proto::$query { $($field : $val),* }))
+        }
     };
 }
 
 /// Project one wire-request field into the `ShardQuery`
 /// the shard planner consumes.
 ///
-/// Ident-dispatch shim for the `parsed_endpoint!` buffered arm: the macro
-/// iterates every `$field` of the endpoint's proto query, the named arms
+/// Ident-dispatch shim for [`endpoint_query!`]: the macro iterates every
+/// `$field` of the endpoint's proto query, the named arms
 /// pick off the axis-relevant fields (whatever proto spelling they use —
 /// `string` or `optional string` — erased by
 /// [`crate::mdds::shard::opt_wire_str`]), and the trailing arm ignores the
@@ -1031,80 +946,6 @@ macro_rules! shard_apply_field {
     ($params:ident, $band:ident, $other:ident) => {};
 }
 
-/// Fan one logical `.stream*` pull out across a shard plan's bands.
-///
-/// Expanded inside the streaming arms of [`parsed_endpoint!`] once
-/// `auto_plan` has produced a plan. Each band applies its override onto a
-/// clone of the built wire parameters and becomes one in-line
-/// [`crate::mdds::shard::ShardStreamFuture`]: it acquires its OWN
-/// request-semaphore permit (the joining driver holds none — the same
-/// deadlock-free contract as the buffered fan-out), runs the standard
-/// per-shard [`run_streaming_retry_loop`] with a per-shard `delivered`
-/// no-resume guard, and forwards its chunks to the shared handler
-/// through `$attempt`. Each band future resolves to
-/// `(delivered, outcome)` — the driver reads the delivered flag on
-/// failures too — and runs inside its band's `tracing` span, so retry
-/// warnings and the per-band completion line stay distinguishable
-/// across concurrent bands. `join_streaming_shards` drives the bands
-/// concurrently, folds empty (`NotFound`) bands, and reports terminal
-/// band failures after the siblings drain (see its docs).
-///
-/// `$attempt` is the per-attempt stream body, written by the calling arm
-/// with the injected bindings `$snap` (the session snapshot), `$banded`
-/// (`&` to this band's wire parameters), and `$delivered` (`&` to this
-/// shard's no-resume flag).
-macro_rules! sharded_stream_fanout {
-    (
-        $client:ident, $name:ident, $plan:ident, $params:ident,
-        [ $($field:ident),* $(,)? ],
-        |$snap:ident, $banded:ident, $delivered:ident| $attempt:expr
-    ) => {{
-        let policy = $client.config().retry;
-        let policy = &policy;
-        let mut shard_futures: Vec<$crate::mdds::shard::ShardStreamFuture<'_>> =
-            Vec::with_capacity($plan.bands.len());
-        for band in &$plan.bands {
-            // Endpoints without a given band field expand no apply arm;
-            // anchor the loop variable so those expansions stay
-            // warning-free.
-            let _ = &band;
-            #[allow(unused_mut)] // Reason: bands only override fields the endpoint has.
-            let mut banded = $params.clone();
-            $(shard_apply_field!(banded, band, $field);)*
-            let band_span = $crate::mdds::shard::band_span(band);
-            shard_futures.push(Box::pin(tracing::Instrument::instrument(async move {
-                let band_started = std::time::Instant::now();
-                let shard_delivered = std::sync::atomic::AtomicBool::new(false);
-                let outcome = async {
-                    let _permit = $client.acquire_request_permit().await?;
-                    // Per-shard no-resume guard: a shard that has handed a
-                    // non-empty chunk to the handler must not replay from
-                    // chunk zero, while a sibling's delivery leaves this
-                    // shard's pre-first-chunk retry budget intact.
-                    let $delivered = &shard_delivered;
-                    let $banded = &banded;
-                    $crate::mdds::macros::run_streaming_retry_loop(
-                        $client.session(),
-                        policy,
-                        stringify!($name),
-                        $delivered,
-                        move |$snap| $attempt,
-                    ).await
-                }.await;
-                let delivered = shard_delivered.load(std::sync::atomic::Ordering::Relaxed);
-                tracing::debug!(
-                    delivered,
-                    ok = outcome.is_ok(),
-                    elapsed_ms = band_started.elapsed().as_millis() as u64,
-                    "shard band finished"
-                );
-                (delivered, outcome)
-            }, band_span)));
-        }
-        $crate::mdds::shard::join_streaming_shards(&$plan.bands, shard_futures).await
-    }};
-}
-
 /// Generate an endpoint that returns parsed tick data (`Vec<T>`) via a builder.
 ///
 /// The endpoint method returns a builder struct that captures required params.
@@ -1131,6 +972,11 @@ macro_rules! sharded_stream_fanout {
 ///     .with_deadline(std::time::Duration::from_secs(60))
 ///     .await?;
 /// ```
+///
+/// Every terminal checks the builder's dates, then runs the endpoint runtime
+/// in [`crate::mdds::stream`]: `.await` through
+/// [`MarketDataClient::fetch_ticks`], the streamed terminals through
+/// [`MarketDataClient::stream_ticks`].
 macro_rules! parsed_endpoint {
     (
         $(#[$meta:meta])*
@@ -1282,116 +1128,20 @@ macro_rules! parsed_endpoint {
             /// a fan-out included, and the call returns `Ok(())` without
             /// calling the handler again.
             #[doc(hidden)]
-            pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
+            pub async fn stream_ticks<F>(self, mut handler: F) -> Result<(), Error>
             where
                 F: FnMut($crate::columns::Ticks<$item>) -> std::ops::ControlFlow<()> + Send,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                let _ = &client;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let deadline = $crate::mdds::macros::effective_deadline(
-                    deadline,
-                    client.config().market_data.request_timeout_secs,
-                );
-                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    // Build the wire parameters once; every dispatch below
-                    // (single stream, shard fan-out, retries) clones this
-                    // same value, so the wire bytes are identical across
-                    // paths.
-                    let params = proto::$query { $($field : $val),* };
-                    // The handler is `FnMut + Send`; wrap it in a `Mutex` so
-                    // the per-attempt closure, and under a shard plan every
-                    // concurrent band, can take a unique mutable borrow per
-                    // chunk without capturing a `&mut` whose lifetime would
-                    // escape the closure body. `Mutex<F>` where `F: Send` is
-                    // `Send + Sync`, so the future stays Send (the Python
-                    // SDK's `spawn_awaitable` requires this).
-                    let handler_mutex = std::sync::Mutex::new(handler);
-                    let handler_mutex = &handler_mutex;
-                    let stopped = std::sync::atomic::AtomicBool::new(false);
-                    let stopped = &stopped;
-                    // Bulk-fetch auto-sharding (see `mdds/shard.rs`), same
-                    // gate as the buffered `IntoFuture` arm: policy `Off`,
-                    // non-history endpoints, and small pulls all resolve to
-                    // `None`, the single-stream arm below. Chunks are
-                    // forwarded as they arrive, so bands interleave in
-                    // arrival order (see the `stream` docs).
-                    #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
-                    let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                    $(shard_read_field!(shard_query, params, $field);)*
-                    match $crate::mdds::shard::auto_plan(
-                        client,
+                $($($crate::mdds::validate::validate_date(&self.$date_arg, stringify!($date_arg))?;)+)?
+                self.client
+                    .stream_ticks(
                         stringify!($name),
-                        &shard_query,
-                    ) {
-                        Some(plan) => {
-                            sharded_stream_fanout!(
-                                client, $name, plan, params,
-                                [ $($field),* ],
-                                |snap, banded, delivered| async move {
-                                    // The handler ended the call: a band still
-                                    // waiting to start opens no request.
-                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
-                                        return Ok(());
-                                    }
-                                    let request = proto::$req {
-                                        query_info: Some(client.build_query_info(snap.uuid.clone())),
-                                        params: Some(banded.clone()),
-                                    };
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
-                                }
-                            )?;
-                        }
-                        None => {
-                            let _permit = client.acquire_request_permit().await?;
-                            let policy = client.config().retry;
-                            let delivered = std::sync::atomic::AtomicBool::new(false);
-                            let delivered = &delivered;
-                            $crate::mdds::macros::run_streaming_retry_loop(
-                                client.session(),
-                                &policy,
-                                stringify!($name),
-                                delivered,
-                                move |snap| {
-                                    let params = params.clone();
-                                    async move {
-                                        let qi = client.build_query_info(snap.uuid.clone());
-                                        let request = proto::$req {
-                                            query_info: Some(qi),
-                                            params: Some(params),
-                                        };
-                                        let lease = client.channel();
-                                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                            &lease,
-                                            request,
-                                        )
-                                        .await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
-                                    }
-                                },
-                            ).await?;
-                        }
-                    }
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok::<(), Error>(())
-                }).await
+                        self.deadline,
+                        self.query(),
+                        $parser,
+                        &mut move |ticks| Box::pin(std::future::ready(handler(ticks))),
+                    )
+                    .await
             }
 
             /// Async twin of [`stream`](Self::stream): the per-chunk
@@ -1442,107 +1192,21 @@ macro_rules! parsed_endpoint {
 
             /// Async twin of `stream_ticks`, with the same `Break` contract.
             #[doc(hidden)]
-            pub async fn stream_ticks_async<F, HFut>(self, handler: F) -> Result<(), Error>
+            pub async fn stream_ticks_async<F, HFut>(self, mut handler: F) -> Result<(), Error>
             where
                 F: FnMut($crate::columns::Ticks<$item>) -> HFut + Send,
                 HFut: std::future::Future<Output = std::ops::ControlFlow<()>> + Send,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                let _ = &client;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let deadline = $crate::mdds::macros::effective_deadline(
-                    deadline,
-                    client.config().market_data.request_timeout_secs,
-                );
-                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let params = proto::$query { $($field : $val),* };
-                    // Async-handler lock: unlike the sync path's
-                    // `std::sync::Mutex`, this guard is held across the
-                    // handler future's await, so concurrent shard bands
-                    // cannot overlap handler executions (see
-                    // `deliver_chunk_ticks_async`). `tokio::sync::Mutex<F>`
-                    // where `F: Send` keeps the future Send (the Python SDK's
-                    // `spawn_awaitable` requires this).
-                    let handler_mutex = tokio::sync::Mutex::new(handler);
-                    let handler_mutex = &handler_mutex;
-                    let stopped = std::sync::atomic::AtomicBool::new(false);
-                    let stopped = &stopped;
-                    #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
-                    let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                    $(shard_read_field!(shard_query, params, $field);)*
-                    match $crate::mdds::shard::auto_plan(
-                        client,
+                $($($crate::mdds::validate::validate_date(&self.$date_arg, stringify!($date_arg))?;)+)?
+                self.client
+                    .stream_ticks(
                         stringify!($name),
-                        &shard_query,
-                    ) {
-                        Some(plan) => {
-                            sharded_stream_fanout!(
-                                client, $name, plan, params,
-                                [ $($field),* ],
-                                |snap, banded, delivered| async move {
-                                    // The handler ended the call: a band still
-                                    // waiting to start opens no request.
-                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
-                                        return Ok(());
-                                    }
-                                    let request = proto::$req {
-                                        query_info: Some(client.build_query_info(snap.uuid.clone())),
-                                        params: Some(banded.clone()),
-                                    };
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
-                                }
-                            )?;
-                        }
-                        None => {
-                            let _permit = client.acquire_request_permit().await?;
-                            let policy = client.config().retry;
-                            let delivered = std::sync::atomic::AtomicBool::new(false);
-                            let delivered = &delivered;
-                            $crate::mdds::macros::run_streaming_retry_loop(
-                                client.session(),
-                                &policy,
-                                stringify!($name),
-                                delivered,
-                                move |snap| {
-                                    let params = params.clone();
-                                    async move {
-                                        let qi = client.build_query_info(snap.uuid.clone());
-                                        let request = proto::$req {
-                                            query_info: Some(qi),
-                                            params: Some(params),
-                                        };
-                                        let lease = client.channel();
-                                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                            &lease,
-                                            request,
-                                        )
-                                        .await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
-                                    }
-                                },
-                            ).await?;
-                        }
-                    }
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok::<(), Error>(())
-                }).await
+                        self.deadline,
+                        self.query(),
+                        $parser,
+                        &mut move |ticks| Box::pin(handler(ticks)),
+                    )
+                    .await
             }
 
             /// Send the request once, as built, and hand each chunk's column
@@ -1557,17 +1221,13 @@ macro_rules! parsed_endpoint {
                 F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
                 Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let params = proto::$query { $($field : $val),* };
-                stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
+                $($($crate::mdds::validate::validate_date(&self.$date_arg, stringify!($date_arg))?;)+)?
+                self.client
+                    .stream_tables(stringify!($name), self.deadline, &*self.query()?, handler)
+                    .await
             }
 
+            endpoint_builder_query!($query { $($field : $val),* } [$($req_arg)* $($opt_name)*]);
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {
@@ -1576,251 +1236,15 @@ macro_rules! parsed_endpoint {
 
             fn into_future(self) -> Self::IntoFuture {
                 Box::pin(async move {
-                    let $builder_name {
-                        client,
-                        $($req_arg,)*
-                        $($opt_name,)*
-                        deadline,
-                    } = self;
-                    let _ = &client;
-                    $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                    let inner = async move {
-                        tracing::debug!(endpoint = stringify!($name), "gRPC request");
-                        metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                        let _metrics_start = std::time::Instant::now();
-                        // Build the wire parameters once; every dispatch
-                        // below (single stream, shard fan-out, retries)
-                        // clones this same value, so the wire bytes are
-                        // identical across paths.
-                        let params = proto::$query { $($field : $val),* };
-                        // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
-                        // Project the axis-relevant wire fields and ask the
-                        // planner. Policy `Off`, non-history endpoints, and
-                        // small pulls all resolve to `None` — the
-                        // single-stream arm below, exactly today's
-                        // behaviour.
-                        #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
-                        let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                        $(shard_read_field!(shard_query, params, $field);)*
-                        let ticks: $ret = match $crate::mdds::shard::auto_plan(
-                            client,
-                            stringify!($name),
-                            &shard_query,
-                        ) {
-                            Some(plan) => {
-                                // N independent top-level requests, one per
-                                // band. Each spawned task acquires its OWN
-                                // request-semaphore permit; this driver
-                                // holds none while awaiting them, so the
-                                // fan-out can never deadlock the pool-sized
-                                // semaphore (worst case the shards simply
-                                // serialize through it).
-                                let mut tasks = Vec::with_capacity(plan.bands.len());
-                                for band in &plan.bands {
-                                    // Endpoints without a given band field
-                                    // expand no apply arm; anchor the loop
-                                    // variable so those expansions stay
-                                    // warning-free.
-                                    let _ = &band;
-                                    #[allow(unused_mut)] // Reason: bands only override fields the endpoint has.
-                                    let mut banded = params.clone();
-                                    $(shard_apply_field!(banded, band, $field);)*
-                                    let dispatch = client.shard_dispatch();
-                                    // The band span tags every event of
-                                    // this band's task — including the
-                                    // retry-sleep warnings — with the
-                                    // band window, so concurrent bands
-                                    // stay distinguishable in the logs.
-                                    let band_span = $crate::mdds::shard::band_span(band);
-                                    tasks.push($crate::mdds::shard::spawn_shard(tracing::Instrument::instrument(async move {
-                                        let band_started = std::time::Instant::now();
-                                        // Cross-attempt row flag: set as soon as any
-                                        // chunk parses to rows, surviving the
-                                        // attempt-local buffer's discard, so the
-                                        // join can refuse to fold a
-                                        // rows-then-NotFound band to empty.
-                                        let band_produced = std::sync::atomic::AtomicBool::new(false);
-                                        let outcome = async {
-                                            // Plain wait, not `acquire_request_permit`:
-                                            // `auto_plan` declines any pull issued
-                                            // inside a delivery handler, so a band
-                                            // only ever waits on permits whose
-                                            // holders make independent progress.
-                                            let _permit = dispatch.semaphore.acquire().await
-                                                .map_err(|_| Error::config_internal("request semaphore closed"))?;
-                                            let dispatch = &dispatch;
-                                            let banded = &banded;
-                                            let band_produced = &band_produced;
-                                            $crate::mdds::macros::run_unary_retry_loop(
-                                                &dispatch.session,
-                                                &dispatch.retry,
-                                                stringify!($name),
-                                                |snap| async move {
-                                                    let request = proto::$req {
-                                                        query_info: Some(dispatch.query_info(snap.uuid)),
-                                                        params: Some(banded.clone()),
-                                                    };
-                                                    // Bind the lease to a local so it
-                                                    // lives across the await — see the
-                                                    // single-stream arm below.
-                                                    let lease = dispatch.channel();
-                                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                                        &lease,
-                                                        request,
-                                                    )
-                                                    .await
-                                                    .map_err(|e| -> Error { e.into() })?;
-                                                    // Parse each chunk into typed
-                                                    // rows while it is decode-hot;
-                                                    // the band never materializes a
-                                                    // proto table. The accumulator
-                                                    // lives inside this attempt
-                                                    // closure, so a replayed attempt
-                                                    // — a band re-fetched from
-                                                    // scratch after a mid-collect
-                                                    // transient — starts from an
-                                                    // empty band, which is what
-                                                    // makes the replay dedup-free.
-                                                    $crate::mdds::stream::collect_stream_typed(stream, $parser, band_produced).await
-                                                },
-                                            ).await
-                                        }.await;
-                                        if let Ok(typed_band) = &outcome {
-                                            tracing::debug!(
-                                                rows = typed_band.rows.len(),
-                                                elapsed_ms = band_started.elapsed().as_millis() as u64,
-                                                "shard band finished"
-                                            );
-                                        }
-                                        (band_produced.load(std::sync::atomic::Ordering::Relaxed), outcome)
-                                    }, band_span)));
-                                }
-                                // Join in band order — an empty band
-                                // (NotFound) folds to zero rows — then
-                                // merge the typed bands into the output
-                                // row order and frame (see the NOTE on
-                                // `merge_typed_in_order`). Any other
-                                // shard error fails the whole logical
-                                // query, like a single-stream error would.
-                                let ticks = $crate::mdds::shard::merge_typed_in_order(
-                                    $crate::mdds::shard::join_shards(tasks).await?,
-                                )?;
-                                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                                ticks
-                            }
-                            None => {
-                                // Inner scope releases the request permit as
-                                // soon as the stream is drained, before the
-                                // response is parsed — same permit lifetime
-                                // as always.
-                                let table: proto::DataTable = {
-                                    let _permit = client.acquire_request_permit().await?;
-                                    let policy = client.config().retry;
-                                    $crate::mdds::macros::run_unary_retry_loop(
-                                        client.session(),
-                                        &policy,
-                                        stringify!($name),
-                                        |snap| {
-                                            // Clone per-attempt: the FnMut closure
-                                            // may run again after a refresh or
-                                            // backoff, and the proto request takes
-                                            // the params by value.
-                                            let params = params.clone();
-                                            async move {
-                                                let qi = client.build_query_info(snap.uuid.clone());
-                                                let request = proto::$req {
-                                                    query_info: Some(qi),
-                                                    params: Some(params),
-                                                };
-                                                // Bind the lease to a local so it
-                                                // lives across the await — see
-                                                // the sibling macro arm above for
-                                                // the full rationale. Deref
-                                                // coercion from `&ChannelLease`
-                                                // to `&Channel` satisfies the
-                                                // generated stub signature.
-                                                let lease = client.channel();
-                                                let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                                    &lease,
-                                                    request,
-                                                )
-                                                .await
-                                                .map_err(|e| -> Error { e.into() })?;
-                                                client.collect_stream(stream).await
-                                            }
-                                        },
-                                    ).await?
-                                };
-                                metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                                    .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                                // Strict decode: type mismatch in any cell propagates
-                                // as Error::Decode via `From<DecodeError>`.
-                                let parsed = $parser(&table).map_err(Error::from)?;
-                                // Capture which columns this response's wire carried,
-                                // resolved through the same alias-aware lookup the
-                                // parser used, so the buffered `Ticks` projects to the
-                                // terminal's exact column set at its DataFrame terminal.
-                                let present_headers: Vec<&str> =
-                                    table.headers.iter().map(String::as_str).collect();
-                                let columns = <$item as $crate::columns::WireColumns>::present_columns(
-                                    &present_headers,
-                                );
-                                // Carry the response's `symbol` (root) so the projected
-                                // frame emits it as the leading column: option/index and
-                                // single-symbol snapshots send a constant broadcast; a
-                                // multi-symbol snapshot sends a per-row `symbol` column
-                                // that attributes each row to its underlying; stock
-                                // history sends neither.
-                                use $crate::mdds::decode::extract::ResponseSymbol;
-                                // A tick that already owns a `symbol` column (the
-                                // contract universe) emits it from its own field, so skip
-                                // the root classifier entirely: for a varying-root
-                                // universe it would collect one `Box<str>` per row that no
-                                // builder reads. Only the flat POD ticks, which carry no
-                                // `symbol` field, run it and attach the result.
-                                let columns = if columns.contains("symbol") {
-                                    columns
-                                } else {
-                                    match $crate::mdds::decode::extract::response_symbol(&table) {
-                                        ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
-                                        ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
-                                        ResponseSymbol::Absent => columns,
-                                    }
-                                };
-                                $crate::columns::Ticks::new(parsed, columns)
-                            }
-                        };
-                        // Surface the wrong-API-for-this-workload
-                        // signal exactly once per request, after the buffered
-                        // rows materialized — before this point the row count
-                        // is unknown, after this point the caller has
-                        // already paid the buffered cost. `row_count` is the
-                        // length the caller is about to receive; `row_size`
-                        // is the wire-shape lower bound (`size_of::<Item>`).
-                        // Configurable via
-                        // `DirectConfig::market_data.warn_on_buffered_threshold_bytes`;
-                        // set to 0 to disable.
-                        let threshold = client
-                            .config()
-                            .market_data
-                            .warn_on_buffered_threshold_bytes;
-                        $crate::mdds::macros::warn_buffered_response_size(
-                            stringify!($name),
-                            ticks.len(),
-                            std::mem::size_of::<$item>(),
-                            threshold,
-                        );
-                        Ok(ticks)
-                    };
-                    let deadline = $crate::mdds::macros::effective_deadline(
-                        deadline,
-                        client.config().market_data.request_timeout_secs,
-                    );
-                    $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
+                    $($($crate::mdds::validate::validate_date(&self.$date_arg, stringify!($date_arg))?;)+)?
+                    self.client
+                        .fetch_ticks(stringify!($name), self.deadline, self.query(), $parser)
+                        .await
                 })
             }
         }
+
+        endpoint_query!($name, $grpc, $req, $query { $($field : $val),* });
 
         impl MarketDataClient {
             $(#[$meta])*
@@ -1840,16 +1264,14 @@ macro_rules! parsed_endpoint {
 /// server stream chunk by chunk through a handler.
 ///
 /// The builder is named after its method (`<rpc>_stream`), which is also the
-/// tracing and metrics label, while the request, the stub and the fan-out
-/// plan are those of the RPC it drains (`wire`). Unlike the `stream` of a
-/// [`parsed_endpoint!`] builder, the handler cannot end the call.
+/// tracing and metrics label, while the query, and with it the request, the
+/// stub and the fan-out plan, is that of the RPC it drains. Unlike the
+/// `stream` of a [`parsed_endpoint!`] builder, the handler cannot end the
+/// call.
 macro_rules! stream_endpoint {
     (
         builder $builder_name:ident;
         fn $name:ident( $($req_arg:ident : $req_kind:tt),* ) -> $item:ty;
-        wire: $wire:ident;
-        grpc: $grpc:ident;
-        request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
         parse: $parser:expr;
         $(dates: $($date_arg:ident),+ ;)?
@@ -1957,89 +1379,22 @@ macro_rules! stream_endpoint {
             where
                 F: FnMut(&$crate::columns::Ticks<$item>) + Send,
             {
-                let $builder_name {
-                    client,
-                    $($req_arg,)*
-                    $($opt_name,)*
-                    deadline,
-                } = self;
-                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
-                let deadline = $crate::mdds::macros::effective_deadline(
-                    deadline,
-                    client.config().market_data.request_timeout_secs,
-                );
-                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
-                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
-                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
-                    let _metrics_start = std::time::Instant::now();
-                    let params = proto::$query { $($field : $val),* };
-                    let handler_mutex = std::sync::Mutex::new(move |ticks: $crate::columns::Ticks<$item>| {
-                        handler(&ticks);
-                        std::ops::ControlFlow::Continue(())
-                    });
-                    let handler_mutex = &handler_mutex;
-                    let stopped = std::sync::atomic::AtomicBool::new(false);
-                    let stopped = &stopped;
-                    let mut shard_query = $crate::mdds::shard::ShardQuery::default();
-                    $(shard_read_field!(shard_query, params, $field);)*
-                    match $crate::mdds::shard::auto_plan(client, stringify!($wire), &shard_query) {
-                        Some(plan) => {
-                            sharded_stream_fanout!(
-                                client, $name, plan, params,
-                                [ $($field),* ],
-                                |snap, banded, delivered| async move {
-                                    let request = proto::$req {
-                                        query_info: Some(client.build_query_info(snap.uuid.clone())),
-                                        params: Some(banded.clone()),
-                                    };
-                                    let lease = client.channel();
-                                    let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                        &lease,
-                                        request,
-                                    )
-                                    .await
-                                    .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
-                                }
-                            )?;
-                        }
-                        None => {
-                            let _permit = client.request_semaphore.acquire().await
-                                .map_err(|_| Error::config_internal("request semaphore closed"))?;
-                            let policy = client.config().retry;
-                            let delivered = std::sync::atomic::AtomicBool::new(false);
-                            let delivered = &delivered;
-                            $crate::mdds::macros::run_streaming_retry_loop(
-                                client.session(),
-                                &policy,
-                                stringify!($name),
-                                delivered,
-                                move |snap| {
-                                    let params = params.clone();
-                                    async move {
-                                        let qi = client.build_query_info(snap.uuid.clone());
-                                        let request = proto::$req {
-                                            query_info: Some(qi),
-                                            params: Some(params),
-                                        };
-                                        let lease = client.channel();
-                                        let stream = $crate::proto::beta_theta_terminal::$grpc(
-                                            &lease,
-                                            request,
-                                        )
-                                        .await
-                                        .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
-                                    }
-                                },
-                            ).await?;
-                        }
-                    }
-                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
-                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-                    Ok::<(), Error>(())
-                }).await
+                $($($crate::mdds::validate::validate_date(&self.$date_arg, stringify!($date_arg))?;)+)?
+                self.client
+                    .stream_ticks(
+                        stringify!($name),
+                        self.deadline,
+                        self.query(),
+                        $parser,
+                        &mut move |ticks| {
+                            handler(&ticks);
+                            Box::pin(std::future::ready(std::ops::ControlFlow::Continue(())))
+                        },
+                    )
+                    .await
             }
+
+            endpoint_builder_query!($query { $($field : $val),* } [$($req_arg)* $($opt_name)*]);
         }
 
         impl MarketDataClient {
@@ -2551,8 +1906,8 @@ mod refresh_retry_disabled_tests {
     //! contract from transient-retry policy.
     //!
     //! These tests exercise `run_unary_retry_loop` /
-    //! `run_streaming_retry_loop` directly — the same helpers the
-    //! `list_endpoint!` / `parsed_endpoint!` macros call. No replica
+    //! `run_streaming_retry_loop` directly, the same helpers every
+    //! endpoint request runs through. No replica
     //! of the loop algorithm lives in this module, so a change to the
     //! retry control-flow can never silently bypass test coverage.
     //!

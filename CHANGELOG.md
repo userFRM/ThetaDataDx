@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The local server returns large option chains in the terminal's row order.** It split large history requests into concurrent sub-requests and merged the results, and for an option chain the merge returns the contracts sorted by expiration, strike and right, because the vendor enumerates them in an order no column reproduces. The terminal sends one request and returns the vendor's order. The server now sends each request upstream once, as the terminal does, so the rows and their order match it; a large chain pull takes about as long as it does on the terminal. The `bulk_fetch` setting no longer applies to the server.
 
+- **A raw stream builder started inside a streaming delivery handler on the same client fails fast instead of hanging.** A same-client market-data request awaited inside a delivery handler returns `Error::HandlerReentrancy` when the client's request pool is fully committed, because the only permits it could wait for are held by pulls that cannot finish until the handler returns. The four raw stream builders (`stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream` and `option_history_quote_stream`) still waited for a permit when the pull went out on a single stream, so such a call never returned. They now take the same path as every other request: with headroom in the pool the call proceeds as before, and outside a handler it keeps the ordinary wait.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

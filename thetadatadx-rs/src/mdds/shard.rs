@@ -962,8 +962,8 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
 
 // ─── Concurrent driver ───────────────────────────────────────────────────
 
-/// `tracing` span for one shard band's work. The endpoint macros
-/// instrument each band future with it, so every event inside the band
+/// `tracing` span for one shard band's work. The endpoint runtime
+/// instruments each band future with it, so every event inside the band
 /// — the retry-sleep warnings from `sleep_for_retry`, the per-band
 /// completion line, chunk-level debug — carries the band's window and
 /// concurrent bands stay distinguishable in the log stream.
@@ -1125,9 +1125,9 @@ pub(crate) type ShardStreamFuture<'a> =
 /// terminal state. `shards[i]` must be the future for `bands[i]`.
 ///
 /// All bands are polled on the caller's task, so chunks reach the shared
-/// handler in arrival order across bands; the caller (the fan-out arm in
-/// `parsed_endpoint!`) holds no request permit while this runs — each
-/// band future acquires its own, which is what keeps the fan-out
+/// handler in arrival order across bands; the caller
+/// (`MarketDataClient::stream_ticks`) holds no request permit while this
+/// runs. Each band future acquires its own, which is what keeps the fan-out
 /// deadlock-free at any pool size (worst case the bands serialize).
 /// Every completion event re-polls the remaining set; the set is bounded
 /// by the band count (in-flight requests stay capped by the pool), so the

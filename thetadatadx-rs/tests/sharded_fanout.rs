@@ -761,10 +761,10 @@ type InnerResult = Arc<Mutex<Option<Result<usize, Error>>>>;
 async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
     // Pool size 1: the streaming pull holds the only permit for its
     // whole drain, so a same-client request awaited inline inside the
-    // async handler can never acquire one. It must surface
-    // `Error::HandlerReentrancy` immediately — not wait on the
-    // semaphore, which would deadlock the stream forever — and the
-    // stream must keep delivering afterwards.
+    // async handler can never acquire one. A buffered call and a raw
+    // stream must each surface `Error::HandlerReentrancy` immediately
+    // rather than wait on the semaphore (which would deadlock the stream
+    // forever), and the stream must keep delivering afterwards.
     let script = MockScript::new(vec![(
         DAY1,
         vec![BandResponse::ok(vec![
@@ -777,6 +777,8 @@ async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
 
     let inner: InnerResult = Arc::new(Mutex::new(None));
     let inner_slot = Arc::clone(&inner);
+    let inner_stream: Arc<Mutex<Option<Result<(), Error>>>> = Arc::new(Mutex::new(None));
+    let inner_stream_slot = Arc::clone(&inner_stream);
     let rows: Arc<Mutex<Vec<i64>>> = Arc::new(Mutex::new(Vec::new()));
     let rows_sink = Arc::clone(&rows);
     let client_ref = &client;
@@ -789,6 +791,7 @@ async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
             .stream_async(move |ticks: &thetadatadx::Ticks<thetadatadx::TradeTick>| {
                 rows_sink.lock().unwrap().extend(prices(ticks));
                 let inner_slot = Arc::clone(&inner_slot);
+                let inner_stream_slot = Arc::clone(&inner_stream_slot);
                 async move {
                     let fire = inner_slot.lock().unwrap().is_none();
                     if fire {
@@ -798,6 +801,13 @@ async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
                             .end_date(DAY2)
                             .await;
                         *inner_slot.lock().unwrap() = Some(res.map(|t| t.len()));
+                        let res = client_ref
+                            .stock_history_trade_stream("AAPL")
+                            .start_date(DAY2)
+                            .end_date(DAY2)
+                            .stream(|_ticks| {})
+                            .await;
+                        *inner_stream_slot.lock().unwrap() = Some(res);
                     }
                 }
             }),
@@ -809,6 +819,10 @@ async fn handler_inline_call_fails_fast_when_the_pool_is_committed() {
     match inner.lock().unwrap().take() {
         Some(Err(Error::HandlerReentrancy)) => {}
         other => panic!("expected HandlerReentrancy for the inline call, got {other:?}"),
+    }
+    match inner_stream.lock().unwrap().take() {
+        Some(Err(Error::HandlerReentrancy)) => {}
+        other => panic!("expected HandlerReentrancy for the inline raw stream, got {other:?}"),
     }
     assert_eq!(
         *rows.lock().unwrap(),
