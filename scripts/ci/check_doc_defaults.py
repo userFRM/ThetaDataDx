@@ -485,7 +485,8 @@ def build_surfaces() -> list[Surface]:
     surfaces: list[Surface] = []
 
     # FFI doc comments (`thetadatadx_config_set_*`), written in the config
-    # table and anchored on each setter's C symbol.
+    # table and anchored on each setter's C symbol. The C header's
+    # declarations carry the same text.
     ffi = Surface("ffi", CONFIG_TABLE, table_doc="doc")
     ffi.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
@@ -537,59 +538,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("retry.max_elapsed_secs", _re(r"set_retry_max_elapsed_secs\b")),
     ]
     surfaces.append(ffi)
-
-    # C++ Doxygen — the `.h` (C ABI) header.
-    cpp_h = Surface("cpp.h", pathlib.Path("thetadatadx-cpp/include/thetadatadx.h"))
-    cpp_h.fields = [
-        SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
-        SurfaceField(
-            "reconnect.max_rate_limited_attempts",
-            _re(r"set_reconnect_max_rate_limited_attempts\b"),
-        ),
-        SurfaceField(
-            "reconnect.max_server_restart_attempts",
-            _re(r"set_reconnect_max_server_restart_attempts\b"),
-        ),
-        SurfaceField(
-            "reconnect.stable_window_secs",
-            _re(r"set_reconnect_stable_window_secs\b"),
-        ),
-        SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
-        SurfaceField(
-            "reconnect.wait_rate_limited_ms",
-            _re(r"set_reconnect_wait_rate_limited_ms\b"),
-        ),
-        SurfaceField(
-            "reconnect.max_elapsed_secs", _re(r"set_reconnect_max_elapsed_secs\b")
-        ),
-        SurfaceField("reconnect.wait_max_ms", _re(r"set_reconnect_wait_max_ms\b")),
-        SurfaceField(
-            "reconnect.wait_server_restart_ms",
-            _re(r"set_reconnect_wait_server_restart_ms\b"),
-        ),
-        SurfaceField(
-            "reconnect.replay_burst_size", _re(r"set_reconnect_replay_burst_size\b")
-        ),
-        SurfaceField(
-            "reconnect.replay_pace_ms", _re(r"set_reconnect_replay_pace_ms\b")
-        ),
-        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
-        SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
-        SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
-        SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
-        SurfaceField(
-            "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
-        ),
-        SurfaceField(
-            "streaming.keepalive_interval_secs", _re(r"set_streaming_keepalive_interval_secs\b")
-        ),
-        SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
-        SurfaceField("retry.initial_delay_ms", _re(r"set_retry_initial_delay_ms\b")),
-        SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
-        SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
-        SurfaceField("retry.max_elapsed_secs", _re(r"set_retry_max_elapsed_secs\b")),
-    ]
-    surfaces.append(cpp_h)
 
     # TypeScript NAPI docstrings (generate index.d.ts), written in the
     # config table. The anchor is the C symbol of the entry the TypeScript
