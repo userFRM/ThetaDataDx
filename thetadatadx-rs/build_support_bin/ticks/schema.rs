@@ -14,13 +14,10 @@ pub(crate) struct Schema {
     pub(crate) types: HashMap<String, TickTypeDef>,
 }
 
-/// Parsed from `tick_schema.toml`. `doc` and `align` drive the
-/// generated tick layout; `render` drives the per-language binding
-/// name lookups consumed by every renderer in
-/// `build_support_bin/endpoints/sdk_render/` and `build_support_bin/ticks`.
+/// Parsed from `tick_schema.toml`. `align` drives the generated tick layout;
+/// `render` names the collection the C++ Arrow IPC helpers take.
 #[derive(Debug, Deserialize)]
 pub(crate) struct TickTypeDef {
-    pub(crate) doc: String,
     #[serde(default)]
     pub(crate) align: Option<u32>,
     /// Wire decoder function name. Build-script-only — the bin emitters
@@ -40,13 +37,10 @@ pub(crate) struct TickTypeDef {
     pub(crate) contract_id: bool,
     pub(crate) columns: Vec<ColumnDef>,
     /// Declarative boolean flag-word accessors decoded from the tick's
-    /// integer flag / condition columns (e.g. `is_cancelled`,
-    /// `is_cancelled`). The Rust core hand-writes these in
-    /// `thetadatadx-rs/src/tdbe/types/tick.rs`; this list is the single source
-    /// the SDK emitters project into Python (computed `#[getter]`),
-    /// TypeScript (precomputed `#[napi(object)]` field), and C++ (a free
-    /// function in `thetadatadx.hpp`) so a binding caller never hand-decodes
-    /// `condition_flags` / `price_flags`. Empty for most tick types.
+    /// integer flag / condition columns (e.g. `is_cancelled`), projected into
+    /// C++ as free functions in `thetadatadx.hpp` so a caller never
+    /// hand-decodes `condition_flags` / `price_flags`. Empty for most tick
+    /// types.
     #[serde(default)]
     pub(crate) flag_accessors: Vec<FlagAccessorDef>,
     /// Per-language binding name map. Populated for every tick type so
@@ -55,13 +49,10 @@ pub(crate) struct TickTypeDef {
 }
 
 /// One boolean accessor decoded from a tick's integer flag columns. The
-/// `kind` selects the predicate shape; each emitter renders the
-/// idiomatic form for its language from the same operands so the three
-/// bindings agree by construction with the Rust core.
+/// `kind` selects the predicate shape.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct FlagAccessorDef {
-    /// Accessor name in snake_case (Python getter / C++ free function);
-    /// the TypeScript emitter camelCases it for the object key.
+    /// Accessor name in snake_case (the C++ free function).
     pub(crate) name: String,
     /// One-sentence description rendered as the accessor's doc comment.
     pub(crate) doc: String,
@@ -125,32 +116,6 @@ impl FlagAccessorDef {
             .unwrap_or_else(|| panic!("flag_accessor '{}': {} needs `value`", self.name, self.kind))
     }
 
-    /// Render the predicate as a boolean Rust expression over `cell`, an
-    /// `i32` expression naming the column the predicate reads. The caller
-    /// supplies it, so a surface that carries the column as `Option<i32>`
-    /// can test the unwrapped cell. Shared by the Python and TypeScript
-    /// emitters, which both generate Rust source.
-    pub(crate) fn rust_predicate(&self, cell: &str) -> String {
-        match self.kind.as_str() {
-            "range_inclusive" => {
-                let (lo, hi) = self.range_bounds();
-                format!("({lo}..={hi}).contains(&{cell})")
-            }
-            "bit_set" => {
-                let mask = self.operand();
-                format!("{cell} & {mask} == {mask}")
-            }
-            "eq" => {
-                let value = self.operand();
-                format!("{cell} == {value}")
-            }
-            other => panic!(
-                "unsupported flag_accessor kind '{other}' for '{}'; expected range_inclusive / bit_set / eq",
-                self.name
-            ),
-        }
-    }
-
     /// Render the predicate as a boolean C++ expression over `c.<field>`
     /// (the streaming/tick struct argument named `c`).
     pub(crate) fn cpp_predicate(&self, src: &str) -> String {
@@ -196,11 +161,11 @@ pub(crate) struct ColumnDef {
     pub(crate) doc: Option<String>,
 }
 
-/// The per-language binding names the per-tick emitters in this tree read
-/// for one tick type: the TypeScript class vec. The other binding names in
-/// the same TOML row (FFI / C++ / direct) are read by the endpoint emitters'
-/// `sdk_helpers`, which reparses the TOML independently; serde ignores the
-/// keys this struct does not name, so they are not redeclared here.
+/// The binding names the per-tick emitters in this tree read for one tick
+/// type: the collection. The other binding names in the same TOML row (FFI /
+/// C++ / direct) are read by the endpoint emitters' `sdk_helpers`, which
+/// reparses the TOML independently; serde ignores the keys this struct does
+/// not name, so they are not redeclared here.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct TickRenderDef {
     /// Wire-collection plural keying every renderer call (e.g. `"GreeksTicks"`).
@@ -208,7 +173,6 @@ pub(crate) struct TickRenderDef {
     /// (its `returns` type plus `s`). The render-map loader rejects
     /// duplicates, and an endpoint returning a collection with no entry.
     pub(crate) collection: String,
-    pub(crate) ts_class_vec: String,
 }
 
 /// Loads and parses `tick_schema.toml` from the current working directory into a [`Schema`].
@@ -217,24 +181,4 @@ pub(crate) fn load_schema() -> Result<Schema, Box<dyn std::error::Error>> {
     let schema_str = std::fs::read_to_string(schema_path)?;
     let schema: Schema = toml::from_str(&schema_str)?;
     Ok(schema)
-}
-
-/// Borrow the render block of a schema type by name. Panics with the
-/// available keys when the type is missing -- a missing tick type is a
-/// build-time bug. Used by every ticks/* emitter that previously kept a
-/// hand-coded match arm per tick type for FFI / Python / TS binding
-/// names.
-pub(crate) fn render_for_type<'a>(schema: &'a Schema, type_name: &str) -> &'a TickRenderDef {
-    schema
-        .types
-        .get(type_name)
-        .map(|d| &d.render)
-        .unwrap_or_else(|| {
-            let mut keys: Vec<&str> = schema.types.keys().map(String::as_str).collect();
-            keys.sort();
-            panic!(
-                "no render block for tick type '{type_name}' in tick_schema.toml; available: {}",
-                keys.join(", ")
-            )
-        })
 }

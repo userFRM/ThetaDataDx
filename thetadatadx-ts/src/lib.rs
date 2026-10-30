@@ -13,7 +13,6 @@ use std::io;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use napi::Either;
-use thetadatadx as tick;
 use thetadatadx::auth;
 use thetadatadx::config;
 use thetadatadx::fpss;
@@ -733,13 +732,18 @@ fn normalize_optional_time(value: Option<String>) -> Option<String> {
 // Generated string enum exports.
 include!("_generated/enums_generated.rs");
 
-// ── Typed tick classes (generated from tick_schema.toml) ──
+// ── Tick row objects, expanded from the core tick table ──
 //
-// Emits `#[napi(object)]` structs for every tick type plus
-// `{tick}_to_class_vec` factories. These back every market-data endpoint
-// return so `index.d.ts` surfaces concrete `Tick[]` types instead of `any`.
+// `#[napi(object)]` structs for every tick type plus `{tick}_to_class_vec`
+// factories and the Arrow IPC functions. These back every market-data
+// endpoint return so `index.d.ts` surfaces concrete `Tick[]` types instead of
+// `any`. `BigInt` carries their 64-bit fields and those of the streaming event
+// classes below.
 
-include!("_generated/tick_classes.rs");
+use napi::bindgen_prelude::BigInt;
+
+mod ticks;
+pub use ticks::*;
 
 // ── Typed streaming event classes (generated from fpss_event_schema.toml) ──
 

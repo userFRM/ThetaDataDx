@@ -1,42 +1,12 @@
-//! Per-language identifier escaping for schema-driven field names.
+//! C and C++ identifier escaping for schema-driven field names.
 //!
-//! Schema column names are wire vocabulary, not identifiers — a column
-//! is free to be called `lambda` (a Python keyword) or, in principle,
-//! `class` (a keyword in several targets). Every emitter that renders a
-//! schema field as a language identifier must route the name through
-//! the matching helper here so a reserved-word column can never produce
-//! an unreachable attribute (the failure mode behind the Python
-//! `tick.lambda` SyntaxError) or an uncompilable binding.
-//!
-//! Escape conventions per language:
-//!
-//! * **Rust** — raw-identifier prefix (`type` -> `r#type`). Keywords
-//!   that cannot be raw (`self`, `super`, `crate`, `Self`) get the
-//!   trailing-underscore fallback.
-//! * **TypeScript / JavaScript** — no escape needed: every generated
-//!   TS surface renders schema fields as object KEYS or property
-//!   accesses (`{ class: 1 }` and `t.class` are both legal for
-//!   reserved words), never as bare identifiers. The Rust side of each
-//!   `#[napi(object)]` struct routes through the Rust escape.
-//! * **C / C++** — trailing underscore (`register` -> `register_`).
-//!
-//! Keyword tables are deliberately broad (soft keywords included):
-//! escaping a name that did not strictly need it is a cosmetic cost,
-//! while missing one is an unusable public surface.
-
-/// Rust strict + reserved keywords (2024 edition). Names here are
-/// emitted as raw identifiers (`r#name`); the four that cannot be raw
-/// fall back to a trailing underscore.
-const RUST_RESERVED: &[&str] = &[
-    "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate",
-    "do", "dyn", "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl",
-    "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref",
-    "return", "self", "static", "struct", "super", "trait", "true", "try", "type", "typeof",
-    "unsafe", "unsized", "use", "virtual", "where", "while", "yield", "Self",
-];
-
-/// Rust keywords that cannot take the `r#` prefix.
-const RUST_NO_RAW: &[&str] = &["self", "super", "crate", "Self"];
+//! Schema column names are wire vocabulary, not identifiers: a column is free
+//! to be called `class` or `register`, keywords in C or C++. The C++ emitter
+//! routes every schema field it renders as an identifier through
+//! [`c_field_ident`], so a reserved-word column can never produce an
+//! uncompilable header. The keyword table is deliberately broad: escaping a
+//! name that did not strictly need it is a cosmetic cost, while missing one is
+//! an unusable public surface.
 
 /// C keywords (C11) + the C++ superset that matters for the generated
 /// headers. One table — the generated `.h` is compiled by both.
@@ -104,19 +74,6 @@ const C_CPP_RESERVED: &[&str] = &[
     "while",
 ];
 
-/// Rust identifier spelling for a schema field name. Keywords become
-/// raw identifiers (`r#type`); the non-raw-able four take a trailing
-/// underscore.
-pub(crate) fn rust_field_ident(field: &str) -> String {
-    if RUST_NO_RAW.contains(&field) {
-        format!("{field}_")
-    } else if RUST_RESERVED.contains(&field) {
-        format!("r#{field}")
-    } else {
-        field.to_string()
-    }
-}
-
 /// C / C++ identifier spelling for a schema field name. Keywords take
 /// a trailing underscore.
 pub(crate) fn c_field_ident(field: &str) -> String {
@@ -130,13 +87,6 @@ pub(crate) fn c_field_ident(field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rust_raw_escapes_keywords() {
-        assert_eq!(rust_field_ident("type"), "r#type");
-        assert_eq!(rust_field_ident("self"), "self_");
-        assert_eq!(rust_field_ident("lambda"), "lambda");
-    }
 
     #[test]
     fn c_escapes_its_keywords() {

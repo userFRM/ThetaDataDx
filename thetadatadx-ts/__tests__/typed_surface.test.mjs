@@ -264,25 +264,25 @@ describe('epoch-millisecond tick accessors (cross-binding parity)', () => {
     assert.match(block[0], /lastTradeMsOfDay\s*:\s*number/);
   });
 
-  it('every epoch field is computed through the one shared DST-aware core, not reimplemented', () => {
-    // The generated factory resolves each accessor by calling the same
-    // `thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)` the Python
-    // property and the `thetadatadx_timestamp_ms` FFI route through — the single
-    // DST-aware implementation. No binding reimplements the Eastern-Time
-    // offset rules, so the epoch value is identical across a DST boundary
-    // (verified at the core: `date_ms_to_epoch_ms_round_trips_edt_and_est`
-    // pins 2026-01-15 09:30 EST -> 1768487400000 and the FFI/Python
-    // bindings return the same value for the same inputs).
-    const factorySrc = readFileSync(
-      resolve(__dirname, '..', 'src', '_generated', 'tick_classes.rs'),
-      'utf8'
-    );
-    const assignments = factorySrc.match(/\w*timestamp_ms:\s*thetadatadx::time::date_ms_to_epoch_ms\([^)]*\)\.map\(BigInt::from\)/g);
-    assert.ok(assignments, 'expected generated timestamp_ms factory assignments');
+  it('every epoch field combines a date and a milliseconds-of-day column of its own row', () => {
+    // Each `*TimestampMs` field documents the (date, *_ms_of_day) pair it is
+    // computed from, and both must be columns of the same row object.
     // 1 created + 1 last_trade + 19 timestamp_ms + 11 underlying + 2 quote
-    // + 1 interval = 35 epoch-millisecond fields, one per (date, *_ms_of_day)
-    // pair.
-    assert.equal(assignments.length, 35, `expected 35 epoch-ms factory assignments, found ${assignments.length}`);
+    // + 1 interval = 35 epoch-millisecond fields, one per pair.
+    const camel = (snake) => snake.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+    let fields = 0;
+    for (const [, name, body] of dts.matchAll(/export interface (\w+) \{([\s\S]*?)\n\}/g)) {
+      const pairs = body.matchAll(
+        /combining `(\w+)` with\n\s*\* `(\w+)` \(Eastern-Time milliseconds-of-day\)[^/]*\/\n\s*(\w+)\?: bigint/g
+      );
+      for (const [, date, ms, field] of pairs) {
+        fields += 1;
+        for (const column of [date, ms]) {
+          assert.match(body, new RegExp(`\\n  ${camel(column)}: number\\n`), `${name}.${field} combines ${column}, which ${name} must carry`);
+        }
+      }
+    }
+    assert.equal(fields, 35, `expected 35 epoch-ms fields, found ${fields}`);
   });
 });
 
