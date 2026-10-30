@@ -366,6 +366,7 @@ macro_rules! market_data_endpoint {
                 #[doc = concat!("gRPC stub: `get_", stringify!($name), "`")]
                 fn $name($($a: &str),*) -> $col;
                 with_deadline_fn: [<$name _with_deadline>];
+                tables_fn: [<$name _tables>];
                 grpc: [<get_ $name>];
                 request: [<$name:camel Request>];
                 query: [<$name:camel RequestQuery>] { $($f)* };

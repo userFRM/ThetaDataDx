@@ -679,15 +679,52 @@ fn collected_columns<T: crate::columns::WireColumns>(
     <T as crate::columns::WireColumns>::all_columns()
 }
 
-/// Expands both endpoint tables into the two dispatch functions. A match
-/// cannot take its arms from separate macro calls, so the entries are first
-/// sorted into buffered and chunk-streaming arms, then emitted together. The
-/// first arm names the functions' parameters once and carries those tokens
-/// down, so every arm refers to the same bindings.
+/// Expands both endpoint tables into the dispatch functions. A match cannot
+/// take its arms from separate macro calls, so the entries are first sorted
+/// into buffered and chunk-streaming arms, then emitted together; the
+/// registry's own entries also make the table-chunk dispatch. The first arm
+/// names the functions' parameters once and carries those tokens down, so
+/// every arm refers to the same bindings.
 #[cfg(feature = "__internal")]
 macro_rules! endpoint_dispatch {
     (@collect $($entries:tt)*) => {
+        endpoint_dispatch! { @tables { client args handler } $($entries)* }
         crate::__stream_endpoints! { endpoint_dispatch { @sort { client args price_types handler } [] [] $($entries)* } }
+    };
+    (@tables { $client:ident $args:ident $handler:ident } $($(#[$attr:ident])* $shape:ident $name:ident {
+        group: $g:ident / $sg:ident, rest: $r:tt, returns: $ret:ident $(($col:tt))?, params: [$($key:tt)*], doc: $d:tt,
+    })*) => {
+        /// Transport-neutral endpoint dispatch that hands each chunk's column
+        /// headers and cells to `handler` as the vendor sends them,
+        /// unconverted.
+        ///
+        /// The local server writes its responses from these: the vendor's
+        /// table carries the terminal's column names in the terminal's order,
+        /// so a response is written row by row as it arrives rather than
+        /// decoded into typed rows first. The request goes upstream once as
+        /// built, never split into bands, and the per-call deadline resolves
+        /// as in [`invoke_endpoint`]. A `Break` from `handler` ends the call
+        /// and it returns `Ok(())`. Transient failures are retried only until
+        /// the first rows reach `handler`.
+        ///
+        /// # Errors
+        ///
+        /// Same error surface as [`invoke_endpoint`].
+        pub async fn invoke_endpoint_tables<F, Fut>(
+            $client: &crate::mdds::MarketDataClient,
+            name: &str,
+            $args: &EndpointArgs,
+            $handler: F,
+        ) -> Result<(), EndpointError>
+        where
+            F: FnMut(Vec<String>, Vec<crate::proto::DataValueList>) -> Fut,
+            Fut: core::future::Future<Output = core::ops::ControlFlow<()>>,
+        {
+            match name {
+                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $handler } tables $shape $name $ret } },)*
+                _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
+            }
+        }
     };
     // Option contract rows own a string, so they cannot cross the
     // type-erased chunk callback: buffered dispatch only.
@@ -768,6 +805,21 @@ macro_rules! dispatch_arm {
         };
         Ok(EndpointOutput::StringList(values))
     }};
+    // The table chunks of a list endpoint without optionals, through its
+    // plain `_tables` method.
+    ({ $client:ident $args:ident $handler:ident } tables list $name:ident $ret:ident params {
+        all $all:tt req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*] opt [] $($more:tt)*
+    }) => {{
+        $(dispatch_arm!(@bind $args $t $p refs);)*
+        let deadline = $args.deadline_setting().builder_deadline();
+        pastey::paste!($client.[<$name _tables>]($(dispatch_arm!(@arg $t $p refs),)* deadline, $handler))
+            .await
+            .map_err(EndpointError::from)
+    }};
+    // The table chunks of every other endpoint, through its builder.
+    ({ $client:ident $args:ident $handler:ident } tables $shape:ident $name:ident $ret:ident params $params:tt) => {
+        dispatch_arm! { { $client $args $handler } tables $name $ret params $params }
+    };
     // Every other endpoint is a builder: required arguments construct it,
     // optional ones set it.
     ({ $client:ident $args:ident $tail:ident } $mode:ident $name:ident $ret:ident params {
@@ -805,6 +857,9 @@ macro_rules! dispatch_arm {
         $b.stream_ticks(move |chunk| $handler(chunk.as_ptr().cast::<core::ffi::c_void>(), chunk.len(), chunk.columns()))
             .await
             .map_err(EndpointError::from)
+    };
+    (@finish tables $ret:ident $b:ident $handler:ident) => {
+        $b.stream_tables($handler).await.map_err(EndpointError::from)
     };
     (@finish $mode:ident $ret:ident $b:ident $pt:ident) => {{
         let result = $b.fetch($pt).await?;

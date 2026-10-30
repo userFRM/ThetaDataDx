@@ -647,6 +647,7 @@ macro_rules! list_endpoint {
         $(#[$meta:meta])*
         fn $name:ident( $($arg:ident : $arg_ty:ty),* ) -> $col:literal;
         with_deadline_fn: $with_deadline:ident;
+        tables_fn: $tables:ident;
         grpc: $grpc:ident;
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
@@ -695,6 +696,27 @@ macro_rules! list_endpoint {
                 $query { $($field : $val),* }, $col
             )
         }
+
+        /// Send the request once and hand each chunk's column headers and
+        /// cells to `handler` as the vendor sends them, unconverted: what the
+        /// local server writes its responses from. `deadline` is the per-call
+        /// deadline, `None` for the configured default.
+        #[cfg(feature = "__internal")]
+        #[doc(hidden)]
+        pub async fn $tables<F, Fut>(
+            &self,
+            $($arg : $arg_ty,)*
+            deadline: Option<std::time::Duration>,
+            handler: F,
+        ) -> Result<(), Error>
+        where
+            F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+            Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
+        {
+            let client = self;
+            let params = proto::$query { $($field : $val),* };
+            stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
+        }
     };
 
     // Builder form, for a list endpoint whose surface declares optional
@@ -736,6 +758,30 @@ macro_rules! list_endpoint {
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
                 self.deadline = Some(duration);
                 self
+            }
+
+            /// Send the request once and hand each chunk's column headers and
+            /// cells to `handler` as the vendor sends them, unconverted: what
+            /// the local server writes its responses from.
+            #[cfg(feature = "__internal")]
+            #[doc(hidden)]
+            pub async fn stream_tables<F, Fut>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+                Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                // The query values read the arguments by reference, as in
+                // the buffered request.
+                $(let $req_arg = &$req_arg;)*
+                $(let $opt_name = &$opt_name;)*
+                let params = proto::$query { $($field : $val),* };
+                stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
             }
         }
 
@@ -859,6 +905,37 @@ macro_rules! list_endpoint_impl_body {
                 .collect())
         }).await
     }};
+}
+
+/// Shared body of the generated `stream_tables` methods: send the request
+/// built from `$params` through `MarketDataClient::stream_tables`, which
+/// hands each chunk to `$handler` unconverted.
+#[cfg(feature = "__internal")]
+macro_rules! stream_tables_body {
+    (
+        $client:ident, $name:ident, $deadline:ident, $grpc:ident, $req:ident,
+        $params:ident, $handler:ident
+    ) => {
+        $client
+            .stream_tables(
+                stringify!($name),
+                $deadline,
+                &|query_info| {
+                    let request = proto::$req {
+                        query_info: Some(query_info),
+                        params: Some($params.clone()),
+                    };
+                    Box::pin(async move {
+                        let lease = $client.channel();
+                        $crate::proto::beta_theta_terminal::$grpc(&lease, request)
+                            .await
+                            .map_err(Error::from)
+                    })
+                },
+                $handler,
+            )
+            .await
+    };
 }
 
 /// Project one wire-request field into the `ShardQuery`
@@ -1466,6 +1543,29 @@ macro_rules! parsed_endpoint {
                         .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
                     Ok::<(), Error>(())
                 }).await
+            }
+
+            /// Send the request once, as built, and hand each chunk's column
+            /// headers and cells to `handler` as the vendor sends them,
+            /// unconverted: what the local server writes its responses from.
+            /// The request is never split into bands, so the rows keep the
+            /// vendor's order.
+            #[cfg(feature = "__internal")]
+            #[doc(hidden)]
+            pub async fn stream_tables<F, Fut>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+                Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
+                let params = proto::$query { $($field : $val),* };
+                stream_tables_body!(client, $name, deadline, $grpc, $req, params, handler)
             }
 
         }
