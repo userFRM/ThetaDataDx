@@ -887,7 +887,7 @@ struct Client {
     /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
     /// `MarketData` / `Stream` views co-own the `shared_ptr`).
     ///
-    /// Deadlock-safe drop: the core `Client::Drop` runs the DETACHED streaming
+    /// Deadlock-safe drop: the core streaming service's drop runs the DETACHED streaming
     /// quiesce (never a GIL-reacquiring join), so dropping the taken `Arc` on
     /// the calling thread — even with the GIL held — cannot deadlock.
     /// `close()` still stops streaming and drains synchronously (GIL released)
@@ -976,14 +976,14 @@ struct MarketDataView {
 /// User-facing real-time-streaming sub-namespace returned by
 /// `client.stream`.
 ///
-/// Shares the parent client's `Arc<thetadatadx::Client>` and the parent's
+/// Shares the parent client's streaming service and the parent's
 /// `Arc<Mutex<Option<Arc<Py<PyAny>>>>>` callback slot, so `start_streaming`,
 /// `stop_streaming`, `reconnect`, and the subscription methods observe the
 /// same registration the unified client does. Constructing it is a pair of
 /// `Arc::clone`s — no auth round-trip, no streaming state mutation.
 #[pyclass(frozen)]
 struct StreamView {
-    client: std::sync::Arc<thetadatadx::Client>,
+    stream: Arc<thetadatadx::StreamService>,
     callback: Arc<Mutex<Option<Arc<Py<PyAny>>>>>,
 }
 
@@ -1228,7 +1228,7 @@ impl Client {
     #[getter]
     fn stream(&self) -> PyResult<StreamView> {
         Ok(StreamView {
-            client: self.client_arc()?,
+            stream: Arc::clone(self.client_arc()?.stream_service()),
             callback: Arc::clone(&self.callback),
         })
     }
@@ -1315,7 +1315,7 @@ impl Client {
     /// Idempotent: the handle is taken out of its slot up front, so a second
     /// close finds `None` and returns immediately. Dropping the taken `Arc`
     /// releases the market-data gRPC channel pool once no vended surface still
-    /// co-owns it, and runs the core `Client::Drop` (the DETACHED streaming
+    /// co-owns it, and runs the core streaming service's drop (the DETACHED streaming
     /// quiesce, never a GIL-reacquiring join) — safe to drop here even with the
     /// GIL held.
     pub(crate) fn close_impl(&self, py: Python<'_>) -> PyResult<()> {
@@ -1395,7 +1395,7 @@ impl StreamView {
     /// [`crate::fpss_client::StreamingClient::is_authenticated`] and the
     /// C++ `Stream::is_authenticated()` getter.
     fn is_authenticated(&self) -> bool {
-        self.client.stream().is_authenticated()
+        self.stream.stream().is_authenticated()
     }
 
     /// Cumulative count of streaming events the TLS reader could not
@@ -1413,7 +1413,7 @@ impl StreamView {
     /// on, including after `stop_streaming`. Consumers should poll this on a
     /// periodic timer and emit a log on any non-zero delta.
     fn dropped_event_count(&self) -> u64 {
-        self.client.stream().dropped_event_count()
+        self.stream.stream().dropped_event_count()
     }
 
     /// Point-in-time count of streaming events published into the
@@ -1431,7 +1431,7 @@ impl StreamView {
     /// matches every other binding (C ABI, TypeScript, C++). Returns
     /// 0 before `start_streaming` and after `stop_streaming`.
     fn ring_occupancy(&self) -> usize {
-        self.client.stream().ring_occupancy()
+        self.stream.stream().ring_occupancy()
     }
 
     /// Configured capacity of the streaming event ring in slots (the
@@ -1443,7 +1443,7 @@ impl StreamView {
     /// :meth:`dropped_event_count`). Returns 0 before
     /// `start_streaming` and after `stop_streaming`.
     fn ring_capacity(&self) -> usize {
-        self.client.stream().ring_capacity()
+        self.stream.stream().ring_capacity()
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -1455,7 +1455,7 @@ impl StreamView {
     /// when no market data flows), so a steadily growing value is the
     /// earliest external signal of a dead or wedged connection.
     fn millis_since_last_event(&self) -> Option<u64> {
-        self.client.stream().millis_since_last_event()
+        self.stream.stream().millis_since_last_event()
     }
 
     /// UNIX-nanosecond receive timestamp of the most recent inbound
@@ -1464,14 +1464,14 @@ impl StreamView {
     /// :meth:`millis_since_last_event`, exposed for callers
     /// correlating against their own pipeline timestamps.
     fn last_event_received_at_unix_nanos(&self) -> i64 {
-        self.client.stream().last_event_received_at_unix_nanos()
+        self.stream.stream().last_event_received_at_unix_nanos()
     }
 
     /// Address (``host:port``) of the streaming server the current
     /// session is connected to, following the session across
     /// auto-reconnects. ``None`` when streaming has not started.
     fn last_connected_addr(&self) -> Option<String> {
-        self.client.stream().last_connected_addr()
+        self.stream.stream().last_connected_addr()
     }
 
     /// Snapshot of full-stream subscriptions (e.g.
@@ -1480,7 +1480,7 @@ impl StreamView {
     /// Returns the same typed `Subscription` values the caller passes
     /// to `subscribe()`. Quote is never a valid full-stream kind on
     /// the streaming wire, so any such row from the core is dropped from
-    /// the projection. Empty list when streaming has not started.
+    /// the projection. Raises `NetworkError` when streaming has not started.
     ///
     /// Mirrors the cross-binding contract on the C++
     /// `Stream::active_full_subscriptions` (see
@@ -1489,7 +1489,7 @@ impl StreamView {
     fn active_full_subscriptions(&self) -> pyo3::PyResult<Vec<crate::fluent::PySubscription>> {
         use crate::errors::to_py_err;
         use thetadatadx::fpss::protocol::{FullSubscriptionKind, SubscriptionKind};
-        self.client
+        self.stream
             .stream()
             .active_full_subscriptions()
             .map(|subs| {
@@ -1519,7 +1519,7 @@ impl StreamView {
     /// [`crate::fpss_client::StreamingClient`] and the upstream
     /// [`thetadatadx::Client::panic_count`].
     fn panic_count(&self) -> u64 {
-        self.client.stream().panic_count()
+        self.stream.stream().panic_count()
     }
 }
 
@@ -1555,7 +1555,7 @@ impl StreamView {
         // GIL is released across it. Never hold the GIL across blocking
         // network I/O.
         let inner = fluent::coerce_subscription(sub)?;
-        py.detach(|| self.client.stream().subscribe(inner))
+        py.detach(|| self.stream.stream().subscribe(inner))
             .map_err(to_py_err)
     }
 
@@ -1568,21 +1568,21 @@ impl StreamView {
         // Coerce the list under the GIL, then release it across the
         // blocking wire writes — never hold the GIL across network I/O.
         let list = fluent::coerce_subscription_list(subs)?;
-        py.detach(|| self.client.stream().subscribe_many(list))
+        py.detach(|| self.stream.stream().subscribe_many(list))
             .map_err(to_py_err)
     }
 
     /// Polymorphic unsubscribe — fluent counterpart to `subscribe(sub)`.
     fn unsubscribe(&self, py: Python<'_>, sub: &Bound<'_, PyAny>) -> PyResult<()> {
         let inner = fluent::coerce_subscription(sub)?;
-        py.detach(|| self.client.stream().unsubscribe(inner))
+        py.detach(|| self.stream.stream().unsubscribe(inner))
             .map_err(to_py_err)
     }
 
     /// Bulk-unsubscribe a list / iterable of `Subscription` values.
     fn unsubscribe_many(&self, py: Python<'_>, subs: &Bound<'_, PyAny>) -> PyResult<()> {
         let list = fluent::coerce_subscription_list(subs)?;
-        py.detach(|| self.client.stream().unsubscribe_many(list))
+        py.detach(|| self.stream.stream().unsubscribe_many(list))
             .map_err(to_py_err)
     }
 }
@@ -2060,14 +2060,14 @@ impl StreamView {
         // can call `record_panic()` when the Python callback raises an
         // exception (a `PyErr` is not a Rust panic; it does not unwind through
         // `catch_unwind`, so the core counter is only bumped here). It MUST be
-        // weak: a strong `Arc<Client>` held by the long-lived dispatcher
-        // closure would keep the core `Client` alive after the user drops
-        // their Python handle, so `Client::Drop` (which detaches the streaming
+        // weak: a strong `Arc<StreamService>` held by the long-lived dispatcher
+        // closure would keep the core streaming service alive after the user drops
+        // their Python handle, so its drop (which detaches the streaming
         // teardown off the GIL thread) would never run and the session would
         // leak until process exit. Upgrading only for the `record_panic()`
         // call, and skipping it when the upgrade fails (the client is gone,
         // so there is nothing to record on), keeps the cycle broken.
-        let panic_recorder = Arc::downgrade(&self.client);
+        let panic_recorder = Arc::downgrade(&self.stream);
 
         // Never hold the GIL across the blocking network connect.
         // `start_streaming_scoped` performs the FPSS TLS socket connect
@@ -2101,7 +2101,7 @@ impl StreamView {
         // returning `Err` and are also counted on `panic_count()` via
         // `panic_recorder.record_panic()` below.
         py.detach(|| {
-            self.client.stream().start_streaming_scoped(
+            self.stream.stream().start_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Convert the borrowed `&StreamEvent` straight to its
@@ -2163,7 +2163,7 @@ impl StreamView {
 
     /// Whether the streaming connection is active.
     fn is_streaming(&self) -> bool {
-        self.client.stream().is_streaming()
+        self.stream.stream().is_streaming()
     }
 
     /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
@@ -2194,7 +2194,7 @@ impl StreamView {
     ) -> PyResult<crate::streaming_batches::RecordBatchStream> {
         crate::streaming_batches::open_reader(
             py,
-            &self.client,
+            &self.stream,
             batch_size,
             linger_ms,
             backpressure,
@@ -2204,7 +2204,7 @@ impl StreamView {
 
     /// Get a snapshot of currently active subscriptions.
     fn active_subscriptions(&self) -> PyResult<Vec<crate::fluent::PySubscription>> {
-        self.client
+        self.stream
             .stream()
             .active_subscriptions()
             .map(|subs| {
@@ -2266,10 +2266,10 @@ impl StreamView {
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
-        // WEAK, not strong (see `start_streaming`): a strong `Arc<Client>` in
-        // the long-lived dispatcher closure would pin the core client alive
-        // past the user's drop and defeat `Client::Drop`'s teardown.
-        let panic_recorder = Arc::downgrade(&self.client);
+        // WEAK, not strong (see `start_streaming`): a strong `Arc<StreamService>` in
+        // the long-lived dispatcher closure would pin the streaming service alive
+        // past the user's drop and defeat its drop's teardown.
+        let panic_recorder = Arc::downgrade(&self.stream);
 
         // Never hold the GIL across the blocking network reconnect.
         // `reconnect_streaming_scoped` tears the old session down, opens a
@@ -2287,7 +2287,7 @@ impl StreamView {
         // releases it across the idle wait; the per-event
         // `Python::attach` is the cheap reentrant fast path.
         py.detach(|| {
-            self.client.stream().reconnect_streaming_scoped(
+            self.stream.stream().reconnect_streaming_scoped(
                 move |event: &fpss::StreamEvent| {
                     Python::attach(|py| {
                         // Borrowed `&StreamEvent` → typed pyclass in one
@@ -2340,7 +2340,7 @@ impl StreamView {
             let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().map(Arc::clone)
         };
-        py.detach(|| self.client.stream().stop_streaming());
+        py.detach(|| self.stream.stream().stop_streaming());
         if let Some(previous_callback) = previous_callback {
             let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             if guard
@@ -2360,7 +2360,7 @@ impl StreamView {
             let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             guard.as_ref().map(Arc::clone)
         };
-        py.detach(|| self.client.stream().stop_streaming());
+        py.detach(|| self.stream.stream().stop_streaming());
         if let Some(previous_callback) = previous_callback {
             let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             if guard
@@ -2375,7 +2375,7 @@ impl StreamView {
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         py.detach(|| {
-            self.client
+            self.stream
                 .stream()
                 .await_drain(std::time::Duration::from_millis(timeout_ms))
         })

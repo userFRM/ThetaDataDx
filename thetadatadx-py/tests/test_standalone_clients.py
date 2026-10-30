@@ -162,7 +162,7 @@ def test_mdds_client_requires_network_for_construction() -> None:
 
 def test_fpss_client_blocks_subscribe_before_start() -> None:
     """Subscribing on an `StreamingClient` before `start_streaming*` raises
-    `RuntimeError` -- the FPSS TLS connection is not open yet.
+    `NetworkError` -- the FPSS TLS connection is not open yet.
 
     The `SecType.OPTION.full_trades()` factory exercises the polymorphic
     `subscribe(Subscription)` dispatch via the full-stream surface. The
@@ -175,7 +175,7 @@ def test_fpss_client_blocks_subscribe_before_start() -> None:
     config = mod.Config.production()
     client = mod.StreamingClient(creds, config)
     sub = mod.SecType.OPTION.full_trades()
-    with pytest.raises(RuntimeError, match="streaming not started"):
+    with pytest.raises(mod.NetworkError, match="streaming not started"):
         client.subscribe(sub)
 
 
@@ -292,13 +292,11 @@ def test_fpss_client_no_mdds_channel() -> None:
         f"StreamingClient repr must report streaming=none before start_streaming*; "
         f"got {repr(fpss)!r}"
     )
-    # No active subscriptions before any start.
-    assert fpss.active_subscriptions() == [], (
-        "StreamingClient must report empty active_subscriptions before start_streaming*"
-    )
-    assert fpss.active_full_subscriptions() == [], (
-        "StreamingClient must report empty active_full_subscriptions before start_streaming*"
-    )
+    # No session to list subscriptions from before any start.
+    with pytest.raises(mod.NetworkError, match="streaming not started"):
+        fpss.active_subscriptions()
+    with pytest.raises(mod.NetworkError, match="streaming not started"):
+        fpss.active_full_subscriptions()
     # No drops, no panics on a never-started session.
     assert fpss.dropped_event_count() == 0
     assert fpss.panic_count() == 0

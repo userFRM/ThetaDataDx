@@ -9096,7 +9096,8 @@ class StreamView:
     def active_subscriptions(self) -> List[Subscription]:
         """Return a snapshot of the active per-contract subscriptions.
 
-        Empty when streaming has not started.
+        Raises:
+            NetworkError: If streaming has not started.
         """
         ...
 
@@ -9148,7 +9149,10 @@ class StreamView:
         (e.g. ``SecType.OPTION.full_trades()``).
 
         Returns the same typed :class:`Subscription` values passed to
-        :meth:`subscribe`. Empty when streaming has not started.
+        :meth:`subscribe`.
+
+        Raises:
+            NetworkError: If streaming has not started.
         """
         ...
 
@@ -9682,14 +9686,16 @@ class StreamingClient:
     def active_subscriptions(self) -> List[Subscription]:
         """Return a snapshot of the active per-contract subscriptions.
 
-        Empty when streaming has not started.
+        Raises:
+            NetworkError: If streaming has not started.
         """
         ...
 
     def active_full_subscriptions(self) -> List[Subscription]:
         """Return a snapshot of the active full-stream subscriptions.
 
-        Empty when streaming has not started.
+        Raises:
+            NetworkError: If streaming has not started.
         """
         ...
 

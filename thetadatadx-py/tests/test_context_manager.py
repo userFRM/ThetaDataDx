@@ -182,16 +182,16 @@ def test_double_enter_raises(client) -> None:
 
 def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
     """Offline lifecycle guard: the unified streaming dispatcher closure must
-    capture a WEAK reference to the core client, never a strong `Arc`.
+    capture a WEAK reference to the core streaming service, never a strong `Arc`.
 
     This is the invariant behind the forgetful-drop teardown. The dispatcher
     closure outlives the `start_streaming` / `reconnect` call and runs on its
     own thread for the whole session. If it captured a strong
-    `Arc<Client>` (e.g. `Arc::clone(&self.client)`) that strong reference
-    would keep the core client alive after the user drops their Python
-    handle, so `Client::Drop` — the detach that tears the streaming session
-    down off the GIL thread — would never run and the FPSS session would leak
-    until process exit. Capturing `Arc::downgrade(&self.client)` and
+    `Arc<StreamService>` (e.g. `Arc::clone(&self.stream)`) that strong reference
+    would keep the service alive after the user drops their Python
+    handle, so the service's drop, the detach that tears the streaming session
+    down off the GIL thread, would never run and the FPSS session would leak
+    until process exit. Capturing `Arc::downgrade(&self.stream)` and
     upgrading only for the `record_panic()` bump keeps the cycle broken.
 
     Asserted against the source (no credentials needed) so a regression
@@ -213,19 +213,19 @@ def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
     # The dispatcher's client handle is bound to `panic_recorder`. It MUST be
     # a weak downgrade, and there must be no strong clone of the client
     # captured for the dispatcher.
-    assert "let panic_recorder = Arc::downgrade(&self.client);" in source, (
-        "the streaming dispatcher must capture a WEAK client handle "
-        "(`Arc::downgrade(&self.client)`) so a forgetful drop still runs "
-        "Client::Drop and tears the session down"
+    assert "let panic_recorder = Arc::downgrade(&self.stream);" in source, (
+        "the streaming dispatcher must capture a WEAK streaming-service handle "
+        "(`Arc::downgrade(&self.stream)`) so a forgetful drop still runs "
+        "the service's drop and tears the session down"
     )
-    assert "let panic_recorder = Arc::clone(&self.client);" not in source, (
-        "the streaming dispatcher must NOT capture a strong `Arc<Client>` "
-        "(`Arc::clone(&self.client)`): it would pin the core client alive "
+    assert "let panic_recorder = Arc::clone(&self.stream);" not in source, (
+        "the streaming dispatcher must NOT capture a strong `Arc<StreamService>` "
+        "(`Arc::clone(&self.stream)`): it would pin the streaming service alive "
         "past the user's drop and leak the streaming session"
     )
     # Both the start_streaming and reconnect dispatchers carry the capture,
     # so the weak downgrade must appear on both paths.
-    assert source.count("Arc::downgrade(&self.client)") >= 2, (
+    assert source.count("Arc::downgrade(&self.stream)") >= 2, (
         "both the start_streaming and reconnect dispatcher closures must "
         "hold a weak client reference"
     )

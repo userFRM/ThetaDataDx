@@ -46,7 +46,7 @@ fn parse_backpressure(kind: Option<&str>, capacity: Option<usize>) -> PyResult<B
 /// a batching dispatcher and returns the reader pyclass.
 pub(crate) fn open_reader(
     py: Python<'_>,
-    client: &Arc<thetadatadx::Client>,
+    client: &Arc<thetadatadx::StreamService>,
     batch_size: Option<usize>,
     linger_ms: Option<u64>,
     backpressure: Option<&str>,
