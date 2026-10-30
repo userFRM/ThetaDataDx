@@ -1,6 +1,6 @@
 //! Docs-site generator: one reference page per registry endpoint, the
 //! streaming reference pages, the subscriptions matrix, the sidebar
-//! manifests, and the `llms.txt` machine index.
+//! manifests, the `llms.txt` machine index and the OpenAPI examples.
 //!
 //! Layout of emitted files (all under `docs-site/`):
 //!   * `docs/reference/<rest-path>.md` — one page per non-stream endpoint,
@@ -14,10 +14,13 @@
 //!   * `docs/.vitepress/generated/*.json` — sidebar manifests imported
 //!     by `config.ts` so navigation can never drift from the registry.
 //!   * `docs/public/llms.txt` — one-line-per-page machine index.
+//!   * `docs/public/thetadatadx.yaml`: the `x-code-examples` of every
+//!     route, spliced into the hand-written OpenAPI document.
 
 mod articles;
 mod lang;
 mod llms;
+mod openapi;
 mod page;
 mod response;
 mod samples;
@@ -136,6 +139,13 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
         cleaned.push('\n');
         file.contents = cleaned;
     }
+
+    // Written by hand around its examples, so spliced as it stands rather
+    // than normalized.
+    files.push(DocFile {
+        relative_path: openapi::OPENAPI_PATH.into(),
+        contents: openapi::render_openapi_document(repo_root, &endpoints)?,
+    });
 
     Ok(files)
 }
