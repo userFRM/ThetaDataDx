@@ -1367,7 +1367,7 @@ async fn execute_tool(
                 return Ok(None);
             }
         }
-        endpoint::invoke_endpoint(client.market_data(), name, &converted_args, None)
+        endpoint::invoke_endpoint(client.market_data(), name, &converted_args)
             .await
             .map(Some)
     };

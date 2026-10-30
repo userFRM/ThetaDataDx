@@ -1570,15 +1570,11 @@ macro_rules! parsed_endpoint {
 
         }
 
-        impl<'a> $builder_name<'a> {
-            /// The buffered request `.await` sends. `price_types`, when
-            /// given, receives the price type of every cell of the rows
-            /// returned, row for row: the precision the vendor wrote each
-            /// price at, which the local server writes it with.
-            pub(crate) fn fetch(
-                self,
-                price_types: Option<&'a mut $crate::mdds::decode::extract::PriceTypes>,
-            ) -> Pin<Box<dyn std::future::Future<Output = Result<$ret, Error>> + Send + 'a>> {
+        impl<'a> IntoFuture for $builder_name<'a> {
+            type Output = Result<$ret, Error>;
+            type IntoFuture = Pin<Box<dyn std::future::Future<Output = Self::Output> + Send + 'a>>;
+
+            fn into_future(self) -> Self::IntoFuture {
                 Box::pin(async move {
                     let $builder_name {
                         client,
@@ -1619,7 +1615,6 @@ macro_rules! parsed_endpoint {
                                 // fan-out can never deadlock the pool-sized
                                 // semaphore (worst case the shards simply
                                 // serialize through it).
-                                let collect_price_types = price_types.is_some();
                                 let mut tasks = Vec::with_capacity(plan.bands.len());
                                 for band in &plan.bands {
                                     // Endpoints without a given band field
@@ -1686,7 +1681,7 @@ macro_rules! parsed_endpoint {
                                                     // transient — starts from an
                                                     // empty band, which is what
                                                     // makes the replay dedup-free.
-                                                    $crate::mdds::stream::collect_stream_typed(stream, $parser, band_produced, collect_price_types).await
+                                                    $crate::mdds::stream::collect_stream_typed(stream, $parser, band_produced).await
                                                 },
                                             ).await
                                         }.await;
@@ -1709,7 +1704,6 @@ macro_rules! parsed_endpoint {
                                 // query, like a single-stream error would.
                                 let ticks = $crate::mdds::shard::merge_typed_in_order(
                                     $crate::mdds::shard::join_shards(tasks).await?,
-                                    price_types,
                                 )?;
                                 metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                                     .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
@@ -1794,9 +1788,6 @@ macro_rules! parsed_endpoint {
                                         ResponseSymbol::Absent => columns,
                                     }
                                 };
-                                if let Some(price_types) = price_types {
-                                    *price_types = $crate::mdds::decode::extract::PriceTypes::from_table(&table);
-                                }
                                 $crate::columns::Ticks::new(parsed, columns)
                             }
                         };
@@ -1828,15 +1819,6 @@ macro_rules! parsed_endpoint {
                     );
                     $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
                 })
-            }
-        }
-
-        impl<'a> IntoFuture for $builder_name<'a> {
-            type Output = Result<$ret, Error>;
-            type IntoFuture = Pin<Box<dyn std::future::Future<Output = Self::Output> + Send + 'a>>;
-
-            fn into_future(self) -> Self::IntoFuture {
-                self.fetch(None)
             }
         }
 

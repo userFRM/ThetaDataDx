@@ -152,9 +152,7 @@ fn invoke_endpoint_blocking(
     name: &str,
     args: &thetadatadx::EndpointArgs,
 ) -> Result<thetadatadx::EndpointOutput, thetadatadx::EndpointError> {
-    runtime().block_on(thetadatadx::endpoint::invoke_endpoint(
-        client, name, args, None,
-    ))
+    runtime().block_on(thetadatadx::endpoint::invoke_endpoint(client, name, args))
 }
 
 /// Streaming counterpart of [`invoke_endpoint_blocking`]. The chunk handler
