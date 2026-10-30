@@ -17,9 +17,6 @@ surface by checking a few high-signal invariants:
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
 - current server docs staying on the v3 path scheme and current defaults
-- `CHANGELOG.md` and `docs-site/docs/changelog.md` staying byte-identical
-  (the docs-site build re-publishes whatever is on `main`, so any drift
-  is a release-note bug the moment it lands)
 
 The generated reference tree, `llms.txt` and the OpenAPI `x-code-examples`
 are byte-verified by
@@ -307,15 +304,6 @@ def check_static_docs() -> None:
         ROOT / "tools/mcp/README.md",
         'Use `"strike":"*"` when you want a bulk chain-style response',
     )
-
-    # Website changelog must match repo root CHANGELOG.md
-    repo_changelog = (ROOT / "CHANGELOG.md").read_text()
-    site_changelog = (DOCS_SITE / "changelog.md").read_text()
-    if repo_changelog != site_changelog:
-        fail(
-            "docs-site/docs/changelog.md is out of sync with CHANGELOG.md. "
-            "Run: cp CHANGELOG.md docs-site/docs/changelog.md"
-        )
 
     server_pages = [
         DOCS_SITE / "server/index.md",

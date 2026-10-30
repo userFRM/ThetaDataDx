@@ -10,9 +10,8 @@ use std::path::Path;
 use super::DocFile;
 
 /// Pull `title` and `description` out of a page's frontmatter. Pages
-/// without frontmatter (the changelog mirror is byte-identical to
-/// `CHANGELOG.md`, the migration ledgers are append-only) fall back to
-/// their first `#` heading as the title.
+/// without frontmatter (the migration ledgers are append-only) fall back
+/// to their first `#` heading as the title.
 fn frontmatter(contents: &str) -> (String, String) {
     let mut title = String::new();
     let mut description = String::new();
@@ -113,8 +112,6 @@ pub(super) fn render_llms_txt(
         if seen.contains(&url) {
             continue;
         }
-        // The changelog mirror is a 300 KB release ledger — index the page,
-        // read the title from a fixed label rather than frontmatter.
         let contents = std::fs::read_to_string(&path)?;
         let (title, description) = frontmatter(&contents);
         entries.push((url, title, description));
