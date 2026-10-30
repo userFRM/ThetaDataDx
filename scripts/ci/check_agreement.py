@@ -185,9 +185,9 @@ _MS_FIELD_NAMES: frozenset[str] = frozenset(
 # zero-strike options.
 _STRIKE_FIELD_NAMES: frozenset[str] = frozenset({"strike"})
 
-# Right-shaped field names. Tick types emit `right` as `"C" / "P" / ""`
-# (`py_tick!` in `thetadatadx-py/src/ticks.rs`); `OptionContract` uses raw int
-# 67/80/0.
+# Right-shaped field names. The Python classes emit `right` as a str (`py_tick!`
+# in `thetadatadx-py/src/ticks.rs`): `"C"` or `"P"`, `""` for an unset
+# `OptionContract` right, and `None` on a row that carries no contract.
 # Empty string OR int 0 are both sentinels -> None.
 _RIGHT_FIELD_NAMES: frozenset[str] = frozenset({"right"})
 
@@ -267,8 +267,8 @@ def _canonicalize_scalar(key: str, value: Any) -> Any:
             return None
         if _is_ms_field(key) and value < 0:
             return None
-        # Right field as raw int (OptionContract emits int; tick types
-        # emit string -- handled below). 0 is the upstream "not set" code.
+        # Right field as an int code, 0 being "not set" (the Python classes
+        # emit a str, handled below).
         if _is_right_field(key) and value == 0:
             return None
         # Strike emitted as int (a producer that rounds to int) -- treat
