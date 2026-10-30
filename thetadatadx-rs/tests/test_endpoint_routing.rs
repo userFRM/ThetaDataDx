@@ -610,3 +610,71 @@ async fn list_endpoint_completes_within_deadline() {
         "prompt list call must complete within the deadline, got {result:?}"
     );
 }
+
+/// A flat file has no deadline, so a service that answers with the response
+/// head and then falls silent must not hold the call, and its request permit,
+/// for ever: a silent minute fails the attempt as a transient stall, the retry
+/// loop reconnects, and once the attempts run out the call fails with the
+/// permit back in the pool. The clock is paused, so the minutes pass at once.
+#[tokio::test]
+async fn flat_file_that_stalls_after_its_head_fails_as_a_retried_stall() {
+    let server = mock::MockServer::spawn_with_behaviour(
+        Vec::new(),
+        0,
+        String::new(),
+        mock::MockBehaviour {
+            stall_after_head: true,
+            ..mock::MockBehaviour::default()
+        },
+    )
+    .await;
+    // A keepalive ping would race the paused clock; the stall is the subject.
+    let tuning = thetadatadx::grpc::ChannelTuning {
+        keepalive_interval: Duration::from_secs(86_400),
+        ..thetadatadx::grpc::ChannelTuning::default()
+    };
+    let channel = Channel::connect_h2c_tuned(
+        "127.0.0.1",
+        server.addr.port(),
+        4 * 1024 * 1024,
+        tuning,
+        Duration::from_secs(10),
+    )
+    .await
+    .expect("h2c connect to mock");
+    let mut cfg = DirectConfig::production();
+    cfg.retry.max_attempts = 2;
+    let permits = Arc::new(Semaphore::new(4));
+    let client = MarketDataClient::for_endpoint_routing_test(
+        cfg,
+        ChannelPool::from_channels(vec![channel]),
+        Arc::clone(&permits),
+    );
+
+    tokio::time::pause();
+    let started = tokio::time::Instant::now();
+    let result = tokio::time::timeout(
+        Duration::from_secs(3_600),
+        client.stream_flat_file("stock_flat_file_eod", "20261021", |_, _| {
+            std::future::ready(std::ops::ControlFlow::Continue(()))
+        }),
+    )
+    .await
+    .expect("a stalled flat file must not hang the call");
+    assert!(
+        matches!(
+            result,
+            Err(Error::Grpc {
+                kind: thetadatadx::GrpcStatusKind::DeadlineExceeded,
+                ..
+            })
+        ),
+        "expected a DeadlineExceeded stall, got {result:?}"
+    );
+    assert!(
+        started.elapsed() >= Duration::from_secs(120),
+        "the stall was not retried: the call failed after {:?}",
+        started.elapsed()
+    );
+    assert_eq!(permits.available_permits(), 4, "the request permit leaked");
+}

@@ -17,12 +17,13 @@ use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use crate::util::stream_ext::StreamNextExt;
 
 use crate::columns::{Ticks, WireColumns};
 use crate::decode;
-use crate::error::Error;
+use crate::error::{Error, GrpcStatusKind};
 use crate::grpc::{Channel, ChannelError, ServerStreaming};
 use crate::proto;
 
@@ -61,6 +62,29 @@ pub(crate) type OpenStream<'c> = Pin<
 
 /// A tick type's response parser, as the tick table names it.
 pub(crate) type TickParser<T> = fn(&proto::DataTable) -> Result<Vec<T>, decode::DecodeError>;
+
+/// How long a flat-file download waits for the service's next message. A
+/// download that is making progress sends chunks far more often, so a longer
+/// silence means the server has stopped sending on a live connection, which
+/// the connection's keepalive never notices.
+const FLAT_FILE_IDLE: Duration = Duration::from_secs(60);
+
+/// Await `next`, failing once `idle` passes without it. The failure is a
+/// `DeadlineExceeded` status, as a gRPC client reports its own deadline, so
+/// the retry loop treats the stall as transient and reconnects.
+async fn within_idle<T>(idle: Option<Duration>, next: impl Future<Output = T>) -> Result<T, Error> {
+    let Some(idle) = idle else {
+        return Ok(next.await);
+    };
+    tokio::time::timeout(idle, next)
+        .await
+        .map_err(|_| Error::Grpc {
+            kind: GrpcStatusKind::DeadlineExceeded,
+            message: format!("the stream sent nothing for {} s", idle.as_secs()),
+            retry_after: None,
+            http_status_code: None,
+        })
+}
 
 /// The chunk callback of a streamed call: the builder's handler, taking each
 /// chunk by value and returning whether to go on. A synchronous handler
@@ -209,7 +233,7 @@ impl MarketDataClient {
         F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
         Fut: Future<Output = ()>,
     {
-        self.for_each_chunk_async_control(stream, |headers, rows| {
+        self.for_each_chunk_async_control(stream, None, |headers, rows| {
             let fut = f(headers, rows);
             async move {
                 fut.await;
@@ -219,9 +243,11 @@ impl MarketDataClient {
         .await
     }
 
+    /// `idle`, when set, bounds the wait for each chunk; see [`within_idle`].
     pub(crate) async fn for_each_chunk_async_control<F, Fut>(
         &self,
         mut stream: ServerStreaming<proto::ResponseData>,
+        idle: Option<Duration>,
         mut f: F,
     ) -> Result<(), Error>
     where
@@ -231,7 +257,7 @@ impl MarketDataClient {
         let mut saved_headers: Option<Vec<String>> = None;
         let mut chunk_index: usize = 0;
         let max_message_size = stream.max_message_size();
-        while let Some(response) = stream.next().await {
+        while let Some(response) = within_idle(idle, stream.next()).await? {
             let response = response?;
             let proto::DataTable {
                 headers,
@@ -260,8 +286,10 @@ impl MarketDataClient {
     ///
     /// `endpoint` is the registry name, such as `stock_flat_file_quote`. A
     /// whole-universe file takes as long as it takes, so there is no
-    /// deadline; a `Break` from `handler` ends the download. Transient
-    /// failures are retried only until the first rows reach `handler`.
+    /// deadline; a `Break` from `handler` ends the download. A service that
+    /// sends nothing for 60 s fails the attempt as a stall. Transient
+    /// failures, stalls included, are retried only until the first rows
+    /// reach `handler`.
     ///
     /// # Errors
     ///
@@ -287,7 +315,11 @@ impl MarketDataClient {
                     }),
                 };
                 let lease = self.channel();
-                crate::proto::beta_theta_terminal::$grpc(&lease, request).await
+                within_idle(
+                    Some(FLAT_FILE_IDLE),
+                    crate::proto::beta_theta_terminal::$grpc(&lease, request),
+                )
+                .await?
             }};
         }
         let _permit = self.acquire_request_permit().await?;
@@ -356,12 +388,16 @@ impl MarketDataClient {
                     }
                 }
                 .map_err(|e| -> Error { e.into() })?;
-                self.for_each_chunk_async_control(stream, |headers, rows| async move {
-                    if !rows.is_empty() {
-                        delivered.store(true, std::sync::atomic::Ordering::Release);
-                    }
-                    (handler.lock().await)(headers, rows).await
-                })
+                self.for_each_chunk_async_control(
+                    stream,
+                    Some(FLAT_FILE_IDLE),
+                    |headers, rows| async move {
+                        if !rows.is_empty() {
+                            delivered.store(true, std::sync::atomic::Ordering::Release);
+                        }
+                        (handler.lock().await)(headers, rows).await
+                    },
+                )
                 .await
             },
         )
@@ -725,7 +761,7 @@ impl MarketDataClient {
         // `acquire_request_permit`).
         let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
-            .for_each_chunk_async_control(stream, |headers, rows| {
+            .for_each_chunk_async_control(stream, None, |headers, rows| {
                 let mut stop_stream = decode_error.is_some();
                 let ticks = if stop_stream {
                     None
@@ -824,7 +860,7 @@ impl MarketDataClient {
                             .await
                             .map_err(Error::from)?
                     };
-                    self.for_each_chunk_async_control(stream, |headers, rows| async move {
+                    self.for_each_chunk_async_control(stream, None, |headers, rows| async move {
                         if !rows.is_empty() {
                             delivered.store(true, Ordering::Release);
                         }
