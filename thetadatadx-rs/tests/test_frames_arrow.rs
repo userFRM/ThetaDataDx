@@ -103,8 +103,8 @@ fn empty_slice_produces_zero_row_batch() {
 
 /// `GreeksFirstOrderTick` to_arrow: pin column count, exact column
 /// order, dtype per column, and one row's value for every column. The
-/// schema is generator-emitted so a row reorder or dtype regression on
-/// `thetadatadx-rs/build_support/ticks/rust_frames.rs` surfaces
+/// schema expands from the tick table, so a column reorder or dtype
+/// regression in the table or in the frames consumer surfaces
 /// here. Mirrors the per-order parser test in `decode.rs`.
 #[test]
 fn greeks_first_order_tick_to_arrow() {

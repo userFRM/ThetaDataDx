@@ -293,13 +293,6 @@ macro_rules! query_value {
     };
 }
 
-/// Decoder of a response item.
-macro_rules! parse_fn {
-    (CalendarDay) => { decode::parse_calendar_days_v3 };
-    (OptionContract) => { decode::parse_option_contracts_v3 };
-    ($item:ident) => { pastey::paste!(decode::[<parse_ $item:snake s>]) };
-}
-
 /// The guidance every tick builder carries on choosing between a buffered
 /// and a streamed call.
 macro_rules! await_vs_stream_doc {
@@ -430,7 +423,7 @@ macro_rules! market_data_endpoint {
                 grpc: [<get_ $name>];
                 request: [<$name:camel Request>];
                 query: [<$name:camel RequestQuery>] { $($f)* };
-                parse: parse_fn!($item);
+                parse: crate::__parse_fn!($item);
                 item: $item;
                 $(dates: $d0 $(, $d)*;)?
                 optional { $($oa: $ot [$($ov)?]),* }
@@ -453,7 +446,7 @@ macro_rules! market_data_endpoint {
                 grpc: [<get_ $wire>];
                 request: [<$wire:camel Request>];
                 query: [<$wire:camel RequestQuery>] { $($f)* };
-                parse: parse_fn!($item);
+                parse: crate::__parse_fn!($item);
                 $(dates: $d0 $(, $d)*;)?
                 optional { $($oa: $ot [$($ov)?]),* }
             }

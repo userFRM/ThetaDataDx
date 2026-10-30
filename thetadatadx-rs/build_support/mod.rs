@@ -1,11 +1,9 @@
 //! Build-time generator orchestration for `thetadatadx`.
 //!
-//! The build pipeline has these responsibilities:
-//! - generate tick decoders from `tick_schema.toml`.
-//!
-//! The endpoint surface is not generated here: the market-data methods,
+//! Nothing is generated here on a normal build: the market-data methods,
 //! builders, registry and dispatch expand from the endpoint table in
-//! `src/surface/endpoints.rs`.
+//! `src/surface/endpoints.rs`, and the tick structs and decoders from the
+//! tick table in `src/surface/ticks.rs`.
 //!
 //! The gRPC client stubs are NOT compiled here on a normal build: they
 //! are pre-generated and committed at `proto/beta_endpoints.snapshot.rs`
@@ -17,12 +15,10 @@
 
 #[cfg(feature = "grpc-codegen")]
 mod grpc;
-mod ticks;
 
-/// Runs the build-time generation pipeline: the tick decoders. Under the
-/// `grpc-codegen` feature it also regenerates the committed gRPC snapshot and
-/// drift-checks it (needs `protoc`); a default build skips that and uses the
-/// committed snapshot.
+/// Runs the build-time step. Under the `grpc-codegen` feature it regenerates
+/// the committed gRPC snapshot and drift-checks it (needs `protoc`); a
+/// default build skips that and uses the committed snapshot.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // gRPC stubs ship pre-generated at `proto/beta_endpoints.snapshot.rs`.
     // Only regenerate + drift-check them under `grpc-codegen`, so a normal
@@ -38,6 +34,5 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // every build, including the default one that skips the block above.
     println!("cargo:rerun-if-changed=proto/beta_endpoints.snapshot.rs");
     println!("cargo:rerun-if-changed=proto/mdds.proto");
-    ticks::generate()?;
     Ok(())
 }

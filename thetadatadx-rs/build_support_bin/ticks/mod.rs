@@ -1,9 +1,8 @@
 //! Checked-in tick projections emitted by `generate_sdk_surfaces`.
 //!
-//! Shared schema loader + wire decoder live in `build_support/ticks/`.
-//! This tree adds the per-language SDK projections (Python pyclass +
-//! Arrow, TypeScript napi, C++ layout asserts, tdbe repr structs) the
-//! build script never compiles.
+//! The per-language SDK projections (Python pyclass + Arrow, TypeScript
+//! napi, C++ layout asserts) rendered from `tick_schema.toml`. The Rust tick
+//! structs, decoders and frames expand from the tick table instead.
 
 pub(super) mod schema;
 
@@ -12,7 +11,6 @@ pub(super) mod idents;
 mod layout;
 mod python_arrow;
 pub(super) mod python_classes;
-mod rust_frames;
 mod tdbe_structs;
 mod typescript;
 
@@ -73,32 +71,6 @@ fn render_sdk_generated_files(
         GeneratedSourceFile {
             relative_path: "thetadatadx-py/src/_generated/tick_classes.rs",
             contents: python_classes::render_python_tick_classes(&schema, snapshot_return_types),
-        },
-        GeneratedSourceFile {
-            // Rust `frames/generated.rs` — per-tick-type `TicksPolarsExt` /
-            // `TicksArrowExt` impls. Feature-gated (`polars` / `arrow`),
-            // `include!`-ed from the hand-written `src/frames.rs` so the
-            // trait definitions and the per-type impls compile in the
-            // same unit.
-            relative_path: "thetadatadx-rs/src/frames/generated.rs",
-            contents: rust_frames::render_rust_frames(&schema),
-        },
-        GeneratedSourceFile {
-            // Data-layer tick structs -- `#[repr(C, align(N))]` definitions
-            // emitted from the schema. Hand-written `tick.rs` `pub use`s
-            // them and adds the macro applications + custom impls the
-            // schema cannot express.
-            relative_path: "thetadatadx-rs/src/tdbe/types/generated/tick.rs",
-            contents: tdbe_structs::render_tdbe_tick_structs(&schema),
-        },
-        GeneratedSourceFile {
-            // Data-layer layout asserts -- per-tick `size_of` / `align_of` /
-            // `offset_of!` asserts emitted from the schema. Hand-written
-            // `tick.rs` `include!`s this file inside `#[cfg(test)]`.
-            // Adding a tick type to `tick_schema.toml` therefore picks up
-            // ABI guard coverage automatically.
-            relative_path: "thetadatadx-rs/src/tdbe/types/generated/tick_layout_asserts.rs",
-            contents: tdbe_structs::render_tdbe_layout_asserts(&schema),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/include/tick_layout_asserts.hpp.inc",
