@@ -5,8 +5,8 @@
 //!         --example record_server_responses -- <creds file> <golden dir> [case ...]
 //!
 //! Reads `<golden dir>/corpus.txt` (`<case> <endpoint> <query>` per line), sends
-//! each case's request to production through the real request path with bulk
-//! fetch off, and writes what came back under `<golden dir>/<case>/`:
+//! each case's request to production through the server's own request path,
+//! and writes what came back under `<golden dir>/<case>/`:
 //!
 //! * `response.pb`: the `ResponseData` chunks, each length-delimited. A
 //!   response is cut to its first [`MAX_CHUNKS`] chunks and each chunk to its
@@ -25,9 +25,8 @@ use std::ops::ControlFlow;
 use std::path::Path;
 
 use prost::Message;
-use thetadatadx::config::BulkFetchPolicy;
 use thetadatadx::decode::{decode_data_table, record_responses};
-use thetadatadx::endpoint::{EndpointArgs, invoke_endpoint};
+use thetadatadx::endpoint::{EndpointArgs, invoke_endpoint_tables};
 use thetadatadx::wire::{CompressionAlgo, ResponseData};
 use thetadatadx::{Credentials, DirectConfig, Error, MarketDataClient};
 
@@ -49,9 +48,9 @@ async fn main() -> Result<(), BoxError> {
     let dir = Path::new(&dir);
     let corpus = std::fs::read_to_string(dir.join("corpus.txt"))?;
 
-    let mut config = DirectConfig::production();
-    config.market_data.bulk_fetch = BulkFetchPolicy::Off;
-    let client = MarketDataClient::connect(&Credentials::from_file(&creds)?, config).await?;
+    let client =
+        MarketDataClient::connect(&Credentials::from_file(&creds)?, DirectConfig::production())
+            .await?;
 
     for line in corpus.lines() {
         if line.is_empty() || line.starts_with('#') {
@@ -98,10 +97,11 @@ async fn main() -> Result<(), BoxError> {
                 })
                 .await
         } else {
-            invoke_endpoint(&client, endpoint, &call, None)
-                .await
-                .map(drop)
-                .map_err(Error::from)
+            invoke_endpoint_tables(&client, endpoint, &call, |_, _| {
+                ready(ControlFlow::Continue(()))
+            })
+            .await
+            .map_err(Error::from)
         };
         let recorded = record_responses(None).unwrap_or_default();
 

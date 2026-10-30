@@ -1,38 +1,36 @@
-//! Response formatting for the v3 REST contract.
+//! Response rendering for the v3 REST contract.
 //!
-//! Uses `sonic_rs` (SIMD-accelerated) instead of `serde_json` for all
-//! serialization. The v3 success body is `{ "response": [ ... ] }` with
-//! no `header` key. Option / contract endpoints group their rows under
-//! the owning contract:
+//! A registry response is written straight from the vendor's table, chunk by
+//! chunk, as the rows arrive ([`TableWriter`]). The table carries the
+//! terminal's column names; what it does not carry is kept here: each
+//! endpoint's columns in the terminal's order ([`Layout`]), and for each
+//! column how an empty cell is written and whether it holds a date
+//! ([`Kind`]).
+//!
+//! The JSON body is `{"response":[...]}`. Option tick rows are grouped under
+//! their contract, one block for each run of rows on one contract:
 //!
 //! ```json
 //! {
 //!     "response": [
-//!         { "contract": { "symbol": "AAPL", "strike": 550.000,
-//!                         "expiration": "2026-06-18", "right": "CALL" },
+//!         { "contract": { "symbol": "AAPL", "expiration": "2026-06-18",
+//!                         "strike": 550.000, "right": "CALL" },
 //!           "data": [ { "timestamp": "2024-01-02T17:17:53.606", ... } ] }
 //!     ]
 //! }
 //! ```
 //!
-//! Stock and index endpoints stay flat. Timestamps are ISO strings and
-//! the option `right` is spelled `CALL` / `PUT`.
+//! Every other body is flat, with the contract inline. Times are Eastern-time
+//! ISO strings, and each price is written at the precision of its cell.
 
-use crate::row::{Row, row};
-use sonic_rs::prelude::*;
-use thetadatadx::endpoint::EndpointOutput;
-use thetadatadx::*;
+use std::fmt::Write as _;
+use std::ops::Range;
 
-// ---------------------------------------------------------------------------
-//  JSON envelope
-// ---------------------------------------------------------------------------
+use thetadatadx::decode::DecodeError;
+use thetadatadx::wire::{DataValueList, data_value::DataType};
+use thetadatadx::{EndpointMeta, Price, ReturnType};
 
-/// Wrap a response array in the JVM terminal's standard envelope.
-pub fn ok_envelope(response: Vec<sonic_rs::Value>) -> sonic_rs::Value {
-    // v3 contract: the success body is `{"response": [...]}` with no
-    // `header` key (the v3 spec carries no header on any path).
-    sonic_rs::json!({ "response": response })
-}
+use crate::handler::ResponseFormat;
 
 /// Error envelope matching the JVM terminal's error format.
 ///
@@ -60,2338 +58,732 @@ pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
     })
 }
 
-/// Build the ordered per-tick [`Row`]s for an endpoint output.
-///
-/// Each shared serializer returns its fields in the exact v3 column order via
-/// the [`row!`] macro, so this is the single source of the column sequence for
-/// both the JSON body and the CSV header. `ep` is threaded in so the serializers
-/// can render the per-endpoint v3 shape (snapshot OHLC drops `vwap`, stock
-/// snapshot trade trims the extended-condition / exchange columns, index
-/// snapshot market value drops bid / ask, etc.) rather than one column set
-/// across every endpoint that happens to reuse the same tick type.
-///
-/// The `StringList` arm is handled upstream in [`response_rows`] / [`list_rows`]
-/// (the keyless variant cannot tell a symbol list from a date / strike list);
-/// this returns an empty `Vec` for it so the function stays total.
-/// The column presence the decoder attached to this response, when the output
-/// carries ticks.
-fn wire_columns(output: &EndpointOutput) -> Option<&thetadatadx::columns::ColumnPresence> {
-    match output {
-        EndpointOutput::StringList(_)
-        | EndpointOutput::CalendarDays(_)
-        | EndpointOutput::OptionContracts(_) => None,
-        EndpointOutput::EodTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::GreeksAllTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::GreeksEodTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::GreeksFirstOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::GreeksSecondOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::GreeksThirdOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::IndexPriceAtTimeTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::InterestRateTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::IvTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::MarketValueTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::OhlcTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::OpenInterestTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::PriceTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::QuoteTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeGreeksAllTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeQuoteTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::TradeTicks(ticks) => Some(ticks.columns()),
-        EndpointOutput::IntervalQuoteTicks(ticks) => Some(ticks.columns()),
-    }
-}
-
-fn serialize_rows(ep: &EndpointMeta, output: &EndpointOutput) -> Vec<Row> {
-    let shape = RowShape::for_endpoint(ep);
-    match output {
-        EndpointOutput::StringList(_) => Vec::new(),
-        EndpointOutput::EodTicks(ticks) => eod_ticks_to_json(ticks),
-        EndpointOutput::OhlcTicks(ticks) => ohlc_ticks_to_json(ticks, shape),
-        EndpointOutput::TradeTicks(ticks) => trade_ticks_to_json(ticks, shape),
-        EndpointOutput::QuoteTicks(ticks) => quote_ticks_to_json(ticks),
-        EndpointOutput::TradeQuoteTicks(ticks) => trade_quote_ticks_to_json(ticks),
-        EndpointOutput::OpenInterestTicks(ticks) => open_interest_ticks_to_json(ticks),
-        EndpointOutput::MarketValueTicks(ticks) => market_value_ticks_to_json(ticks, shape),
-        EndpointOutput::GreeksAllTicks(ticks) => greeks_all_ticks_to_json(ticks),
-        EndpointOutput::GreeksEodTicks(ticks) => greeks_eod_ticks_to_json(ticks),
-        EndpointOutput::GreeksFirstOrderTicks(ticks) => greeks_first_order_ticks_to_json(ticks),
-        EndpointOutput::GreeksSecondOrderTicks(ticks) => greeks_second_order_ticks_to_json(ticks),
-        EndpointOutput::GreeksThirdOrderTicks(ticks) => greeks_third_order_ticks_to_json(ticks),
-        EndpointOutput::TradeGreeksAllTicks(ticks) => trade_greeks_all_ticks_to_json(ticks),
-        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => {
-            trade_greeks_first_order_ticks_to_json(ticks)
-        }
-        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => {
-            trade_greeks_second_order_ticks_to_json(ticks)
-        }
-        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => {
-            trade_greeks_third_order_ticks_to_json(ticks)
-        }
-        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
-            trade_greeks_implied_volatility_ticks_to_json(ticks)
-        }
-        EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks, shape),
-        EndpointOutput::PriceTicks(ticks) => price_ticks_to_json(ticks),
-        EndpointOutput::IndexPriceAtTimeTicks(ticks) => index_price_at_time_ticks_to_json(ticks),
-        EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
-        EndpointOutput::InterestRateTicks(ticks) => interest_rate_ticks_to_json(ticks),
-        EndpointOutput::OptionContracts(contracts) => option_contracts_to_json(contracts),
-        // Only the quote flat files return interval quotes, and the router
-        // serves every flat file through `flatfile_routes`, never here.
-        EndpointOutput::IntervalQuoteTicks(_) => {
-            unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-//  v3 endpoint-aware response building
-// ---------------------------------------------------------------------------
-//
-//  The handler knows the endpoint (`EndpointMeta`) and the request; this
-//  module knows the per-row v3 shape. The two meet here: the handler hands us
-//  both and we produce the flat v3 rows once, then the JSON
-//  path groups option rows under their contract while CSV / NDJSON consume
-//  the flat rows directly — mirroring the vendor terminal, whose CSV / NDJSON
-//  writers emit every contract column inline and only the grouped-JSON writer
-//  lifts the contract out of each row.
-
-/// `true` when an endpoint's rows carry the option contract identity
-/// (`symbol` + `expiration` + `strike` + `right`) AND should be grouped under
-/// a `contract` object in the JSON envelope. v3 groups exactly the option
-/// *tick* families (snapshot / history / at-time market data); the option
-/// *list* endpoints (`option_list_expirations` / `_strikes` / `_contracts`,
-/// which emit flat `{symbol, expiration}` / `{symbol, strike}` /
-/// `{symbol, expiration, strike, right}` rows) stay flat even though their
-/// REST path is under `/option/`.
-///
-/// Keyed on the REST path: `/option/` minus the `/option/list/` prefix. The
-/// list endpoints reach [`response_rows`] via the [`EndpointOutput::StringList`]
-/// / [`EndpointOutput::OptionContracts`] arms, whose rows carry no per-tick
-/// `data` to nest, so grouping them would wrongly wrap each `{symbol, …}` row
-/// in `{contract: {…}, data: [{}]}`.
-fn endpoint_is_option_tick(ep: &EndpointMeta) -> bool {
-    ep.rest_path.contains("/option/") && !ep.rest_path.contains("/option/list/")
-}
-
-/// `true` when an endpoint's rows carry a leading `symbol` column. Every
-/// option *tick* endpoint does (alongside the rest of the contract identity),
-/// and so do the stock / index *snapshot* endpoints (which the v3 spec renders
-/// with a `symbol` column but no `expiration` / `strike` / `right`, so they
-/// stay flat). Stock / index history / at-time rows carry no `symbol`, and the
-/// option *list* endpoints inject `symbol` themselves in [`list_rows`].
-fn endpoint_carries_symbol(ep: &EndpointMeta) -> bool {
-    endpoint_is_option_tick(ep) || ep.rest_path.contains("/snapshot/")
-}
-
-/// `true` when the endpoint is a snapshot family (REST path `/snapshot/`).
-/// v3 snapshots carry a leading `timestamp` and trim several columns relative
-/// to their history / at-time counterparts, which share the same serializer
-/// and tick type. The serializers branch on this to match the per-endpoint
-/// spec shape (drop `vwap` from snapshot OHLC, trim stock snapshot trade, etc.).
-fn endpoint_is_snapshot(ep: &EndpointMeta) -> bool {
-    ep.rest_path.contains("/snapshot/")
-}
-
-/// `true` when the endpoint is under `/index/`. The index families trim
-/// columns the stock / option families keep (index snapshot market value
-/// publishes only `market_price`, no bid / ask).
-fn endpoint_is_index(ep: &EndpointMeta) -> bool {
-    ep.rest_path.contains("/index/")
-}
-
-/// The per-row shape knobs a shared serializer needs to render the exact v3
-/// field set + order for one endpoint.
-///
-/// A handful of tick types back both a snapshot and a history / at-time
-/// endpoint, but v3 gives the snapshot a trimmed, timestamp-led shape. Rather
-/// than fork the serializers per endpoint (which would re-grow the per-analytic
-/// file factory the codegen exists to avoid), each shared serializer takes this
-/// descriptor and emits / omits the contested columns from it.
-#[derive(Clone, Copy)]
-pub(crate) struct RowShape {
-    /// Endpoint is a snapshot (timestamp-led, trimmed columns).
-    is_snapshot: bool,
-    /// Endpoint is under `/index/` (no bid / ask on market value).
-    is_index: bool,
-    /// Endpoint is an option *tick* endpoint (full trade condition set on the
-    /// snapshot trade shape, which the stock snapshot trade trims).
-    is_option: bool,
-}
-
-impl RowShape {
-    fn for_endpoint(ep: &EndpointMeta) -> Self {
-        Self {
-            is_snapshot: endpoint_is_snapshot(ep),
-            is_index: endpoint_is_index(ep),
-            is_option: endpoint_is_option_tick(ep),
-        }
-    }
-}
-
-/// Where the contract-identity block (`symbol`, plus `expiration` / `strike` /
-/// `right` for options) is spliced into a row's v3 column order.
+/// How a column is written when its cell is empty or missing, and whether it
+/// holds a date.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum IdentitySlot {
-    /// No identity columns (history / at-time stock + index, list endpoints).
-    None,
-    /// Identity leads the row, before the time column
-    /// (`symbol,expiration,strike,right,timestamp,...`). v3 renders all option
-    /// history / at-time rows and the option *snapshot* trade / greeks rows
-    /// contract-first.
-    Leading,
-    /// Identity follows the leading `timestamp` column
-    /// (`timestamp,symbol,...` for stock / index snapshots and the option
-    /// *snapshot* OHLC / market-value / open-interest / quote rows, which v3
-    /// renders timestamp-first).
-    AfterTimestamp,
+enum Kind {
+    /// A count the terminal never leaves empty: `0`.
+    Count,
+    /// A price: `0.0`.
+    Price,
+    /// A date, written `YYYY-MM-DD` whether it arrives as text, a number or
+    /// an instant; empty is null.
+    Date,
+    /// Anything else, written as it arrives; empty is null.
+    Value,
 }
 
-/// The endpoints whose option *snapshot* rows v3 renders timestamp-first
-/// (`timestamp,symbol,expiration,strike,right,...`) rather than contract-first.
-/// Every other option row (all history / at-time, plus snapshot trade /
-/// greeks) leads with the contract identity.
-fn option_snapshot_is_timestamp_first(name: &str) -> bool {
-    matches!(
-        name.strip_suffix("_range").unwrap_or(name),
-        "option_snapshot_ohlc"
-            | "option_snapshot_market_value"
-            | "option_snapshot_open_interest"
-            | "option_snapshot_quote"
-    )
+#[derive(Clone, Copy)]
+struct Column {
+    name: &'static str,
+    kind: Kind,
 }
 
-/// Resolve where a response's contract identity sits in the v3 column order for
-/// `ep`. Drives both the runtime row build ([`build_rows`]) and the CSV column
-/// order derivation ([`endpoint_columns`]) so the placement lives in one place.
-fn identity_slot(ep: &EndpointMeta) -> IdentitySlot {
-    if endpoint_is_option_tick(ep) {
-        // Options carry the full identity. It leads except on the four
-        // timestamp-first snapshot families.
-        if endpoint_is_snapshot(ep) && option_snapshot_is_timestamp_first(ep.name) {
-            IdentitySlot::AfterTimestamp
+const fn count(name: &'static str) -> Column {
+    Column {
+        name,
+        kind: Kind::Count,
+    }
+}
+
+const fn price(name: &'static str) -> Column {
+    Column {
+        name,
+        kind: Kind::Price,
+    }
+}
+
+const fn date(name: &'static str) -> Column {
+    Column {
+        name,
+        kind: Kind::Date,
+    }
+}
+
+const fn value(name: &'static str) -> Column {
+    Column {
+        name,
+        kind: Kind::Value,
+    }
+}
+
+const CONTRACT: [Column; 4] = [
+    value("symbol"),
+    date("expiration"),
+    price("strike"),
+    value("right"),
+];
+const DATE: [Column; 1] = [date("date")];
+const TIMESTAMP: [Column; 1] = [value("timestamp")];
+const BAR: [Column; 6] = [
+    price("open"),
+    price("high"),
+    price("low"),
+    price("close"),
+    count("volume"),
+    count("count"),
+];
+const QUOTE: [Column; 8] = [
+    count("bid_size"),
+    value("bid_exchange"),
+    price("bid"),
+    value("bid_condition"),
+    count("ask_size"),
+    value("ask_exchange"),
+    price("ask"),
+    value("ask_condition"),
+];
+const TRADE: [Column; 9] = [
+    count("sequence"),
+    value("ext_condition1"),
+    value("ext_condition2"),
+    value("ext_condition3"),
+    value("ext_condition4"),
+    value("condition"),
+    count("size"),
+    value("exchange"),
+    price("price"),
+];
+const BID_ASK: [Column; 2] = [price("bid"), price("ask")];
+const ALL_GREEKS: [Column; 20] = [
+    price("delta"),
+    price("theta"),
+    price("vega"),
+    price("rho"),
+    price("epsilon"),
+    price("lambda"),
+    price("gamma"),
+    price("vanna"),
+    price("charm"),
+    price("vomma"),
+    price("veta"),
+    price("vera"),
+    price("speed"),
+    price("zomma"),
+    price("color"),
+    price("ultima"),
+    price("d1"),
+    price("d2"),
+    price("dual_delta"),
+    price("dual_gamma"),
+];
+const SECOND_ORDER: [Column; 5] = [
+    price("gamma"),
+    price("vanna"),
+    price("charm"),
+    price("vomma"),
+    price("veta"),
+];
+const THIRD_ORDER: [Column; 4] = [
+    price("speed"),
+    price("zomma"),
+    price("color"),
+    price("ultima"),
+];
+const IV_UNDERLYING: [Column; 4] = [
+    price("implied_vol"),
+    price("iv_error"),
+    value("underlying_timestamp"),
+    price("underlying_price"),
+];
+
+/// The columns one endpoint writes, in the terminal's order.
+struct Layout {
+    /// The columns that say what a row is about: the contract of an option
+    /// row, the symbol of a snapshot row, the day of a calendar row. Each is
+    /// written only when the vendor sends it.
+    keys: &'static [Column],
+    /// The keys follow the row's leading timestamp instead of leading it.
+    keys_after_timestamp: bool,
+    /// Every other column, written on every row.
+    body: Vec<Column>,
+    /// The columns a table with rows must carry. Without one, a row has no
+    /// time or no value, and the response is refused rather than written
+    /// with the column blank.
+    required: &'static [&'static str],
+    /// The symbol-scoped lists pair each value with the requested symbol,
+    /// which their answer does not repeat.
+    request_symbol: bool,
+    /// The JSON body groups the rows under their contract.
+    grouped: bool,
+}
+
+impl Layout {
+    fn of(ep: &EndpointMeta) -> Self {
+        let snapshot = ep.rest_path.contains("/snapshot/");
+        let option_tick =
+            ep.rest_path.contains("/option/") && !ep.rest_path.contains("/option/list/");
+        let (keys, keys_after_timestamp): (&'static [Column], bool) = if option_tick {
+            // Option rows lead with the contract, except on the four
+            // snapshots the terminal writes timestamp first.
+            let timestamp_first = matches!(
+                ep.name,
+                "option_snapshot_ohlc"
+                    | "option_snapshot_market_value"
+                    | "option_snapshot_open_interest"
+                    | "option_snapshot_quote"
+            );
+            (&CONTRACT, timestamp_first)
+        } else if snapshot {
+            (&CONTRACT[..1], true)
+        } else if ep.returns == ReturnType::CalendarDays {
+            (&DATE, false)
         } else {
-            IdentitySlot::Leading
-        }
-    } else if endpoint_carries_symbol(ep) {
-        // Stock / index snapshots carry only `symbol`, after the `timestamp`.
-        IdentitySlot::AfterTimestamp
-    } else {
-        IdentitySlot::None
-    }
-}
-
-/// Pick the per-row key for a `StringList` list endpoint from the endpoint
-/// name suffix. v3 list rows are single-key objects keyed by the listed
-/// dimension (`symbol` / `date` / `expiration` / `strike`).
-fn list_value_key(ep: &EndpointMeta) -> &'static str {
-    if ep.name.ends_with("_list_symbols") {
-        "symbol"
-    } else if ep.name.ends_with("_list_dates") {
-        "date"
-    } else if ep.name.ends_with("_list_expirations") {
-        "expiration"
-    } else if ep.name.ends_with("_list_strikes") {
-        "strike"
-    } else {
-        "symbol"
-    }
-}
-
-/// Convert a raw `YYYYMMDD` list value (`"20160816"`) to the v3 ISO
-/// `YYYY-MM-DD` string. Non-8-digit values pass through unchanged so a
-/// surprise wire shape is observable rather than silently mangled.
-fn iso_date_string(raw: &str) -> String {
-    let bytes = raw.as_bytes();
-    if bytes.len() == 8 && bytes.iter().all(u8::is_ascii_digit) {
-        format!("{}-{}-{}", &raw[0..4], &raw[4..6], &raw[6..8])
-    } else {
-        raw.to_string()
-    }
-}
-
-/// Build the flat v3 rows for a list endpoint, applying the per-endpoint
-/// key, ISO date formatting, numeric strike values, and the `symbol`
-/// pairing the symbol-scoped lists (`expirations` / `strikes`) carry.
-///
-/// `symbol` (when paired) leads the row, then the listed dimension — the v3 CSV
-/// column order for the symbol-scoped lists.
-fn list_rows(ep: &EndpointMeta, symbol: Option<&str>, items: &[String]) -> Vec<Row> {
-    let key = list_value_key(ep);
-    let is_date = key == "date" || key == "expiration";
-    let is_strike = key == "strike";
-    // The symbol-scoped lists (`option_list_expirations` / `_strikes`) pair
-    // each value with the requested symbol; the bare symbol / date lists do
-    // not. The SDK refuses more than one distinct symbol on these lists, so
-    // the first named in the request's comma-separated `symbol` is the one.
-    let pair_symbol = symbol
-        .and_then(|s| s.split(',').map(str::trim).find(|s| !s.is_empty()))
-        .filter(|_| key == "expiration" || key == "strike");
-
-    items
-        .iter()
-        .map(|raw| {
-            let mut row = Row::with_capacity(2);
-            if let Some(sym) = pair_symbol {
-                row.push("symbol", sonic_rs::Value::from(sym));
+            (&[], false)
+        };
+        let list = |suffix: &str| ep.name.ends_with(suffix);
+        let (body, required): (&[&[Column]], &'static [&'static str]) = match ep.returns {
+            ReturnType::StringList if list("_list_dates") => (&[&DATE], &["date"]),
+            ReturnType::StringList if list("_list_expirations") => {
+                (&[&CONTRACT[1..2]], &["expiration"])
             }
-            let value = if is_date {
-                sonic_rs::Value::from(iso_date_string(raw).as_str())
-            } else if is_strike {
-                // A JSON number spelled as the vendor wrote it (`80.000`),
-                // falling back to the raw string only if it is not a number.
-                sonic_rs::from_str::<sonic_rs::RawNumber>(raw)
-                    .and_then(|number| sonic_rs::to_value(&number))
-                    .unwrap_or_else(|_| sonic_rs::Value::from(raw.as_str()))
-            } else {
-                sonic_rs::Value::from(raw.as_str())
-            };
-            row.push(key, value);
-            row
-        })
-        .collect()
-}
-
-/// Splice the contract identity into a serialized data row at its v3 slot.
-///
-/// The serializer appends `expiration` / `strike` / `right` to the end of the
-/// `Row` (via [`insert_contract_id_fields`]) when the wire carried them. This
-/// pulls the identity out of that trailing position and inserts it, `symbol`
-/// first, then `expiration` / `strike` / `right` for options, at the v3 column
-/// slot ([`identity_slot`]), so the [`Row`]'s order is the final v3 column
-/// order. Every value comes from the wire: a field the wire did not send is
-/// left out, as the terminal leaves it out, never filled in from the request.
-fn splice_identity(mut row: Row, slot: IdentitySlot, symbol: Option<&str>, is_option: bool) -> Row {
-    if slot == IdentitySlot::None {
-        return row;
-    }
-
-    let mut identity: Vec<(&'static str, sonic_rs::Value)> = Vec::with_capacity(4);
-    if let Some(symbol) = symbol {
-        identity.push(("symbol", sonic_rs::Value::from(symbol)));
-    }
-    if is_option {
-        let expiration = row.get("expiration").cloned();
-        let strike = row.get("strike").cloned();
-        let right = row.get("right").cloned();
-        // Drop the serializer's trailing id columns so they are not duplicated
-        // when re-inserted at the identity slot.
-        row.retain(|k| !matches!(k, "expiration" | "strike" | "right"));
-        if let Some(v) = expiration {
-            identity.push(("expiration", v));
-        }
-        if let Some(v) = strike {
-            identity.push(("strike", v));
-        }
-        if let Some(v) = right {
-            identity.push(("right", v));
-        }
-    }
-
-    // `Leading` inserts before the time column; `AfterTimestamp` inserts after
-    // the leading `timestamp` column (index 0 on every snapshot family).
-    let at = match slot {
-        IdentitySlot::Leading => 0,
-        IdentitySlot::AfterTimestamp => 1.min(row.len()),
-        IdentitySlot::None => unreachable!("handled above"),
-    };
-    for (offset, (k, v)) in identity.into_iter().enumerate() {
-        row.insert(at + offset, k, v);
-    }
-    row
-}
-
-/// Build the ordered v3 response [`Row`]s for an endpoint result.
-///
-/// Each row is built in the exact v3 column order: the shared serializer emits
-/// the per-tick fields via [`row!`], and [`splice_identity`] inserts the
-/// contract identity the wire carried at its v3 slot for endpoints that render
-/// one. The serializer's field order is therefore the single source of the
-/// column sequence, for both the JSON body and the CSV header.
-///
-/// `request_symbol` is the request's `symbol` parameter. Only the
-/// symbol-scoped list rows use it, because their wire answer is a bare list of
-/// values; tick rows are labelled from the wire alone.
-fn build_rows(
-    ep: &EndpointMeta,
-    request_symbol: Option<&str>,
-    output: &EndpointOutput,
-) -> Vec<Row> {
-    if let EndpointOutput::StringList(items) = output {
-        return list_rows(ep, request_symbol, items);
-    }
-    let rows = serialize_rows(ep, output);
-    let slot = identity_slot(ep);
-    // The history / at-time stock + index families render no identity.
-    if slot == IdentitySlot::None {
-        return rows;
-    }
-    let is_option = endpoint_is_option_tick(ep);
-    let wire_cols = wire_columns(output);
-    rows.into_iter()
-        .enumerate()
-        .map(|(i, row)| {
-            // The wire's per-row symbol, else its constant one.
-            let symbol = wire_cols.and_then(|c| {
-                c.symbols()
-                    .and_then(|s| s.get(i))
-                    .map(|s| &**s)
-                    .or_else(|| c.symbol())
-            });
-            splice_identity(row, slot, symbol, is_option)
-        })
-        .collect()
-}
-
-/// Build the flat v3 response rows for an endpoint result.
-///
-/// Every row is emitted in the v3 wire shape with the contract identity the
-/// wire carried inline and leading where the endpoint renders it. These rows
-/// feed the CSV and NDJSON renderers directly; the JSON renderer groups option
-/// rows via [`json_envelope`].
-///
-/// `price_types` is the price type of every wire cell of `output`, row for
-/// row, which sets the precision each price is written at
-/// ([`write_wire_precision`]).
-pub fn response_rows(
-    ep: &EndpointMeta,
-    request_symbol: Option<&str>,
-    output: &EndpointOutput,
-    price_types: &decode::PriceTypes,
-) -> Vec<sonic_rs::Value> {
-    let mut rows = build_rows(ep, request_symbol, output);
-    write_wire_precision(&mut rows, price_types);
-    rows.into_iter().map(Row::into_value).collect()
-}
-
-/// Write each price at the precision of the `Price` cell it was decoded from,
-/// in every format, as the terminal writes it: a strike of type 7 is
-/// `766.000`, a greek of type 6 `0.5800`, a zero bid of type 6 `0.0000`.
-/// The decode to `f64` keeps a price's value but not its precision, and the
-/// shortest form it would otherwise be written in (`766.0`, `0.58`, `0.0`) is
-/// not the terminal's. The precision is per cell because the vendor varies it
-/// from row to row within one column.
-///
-/// Row `i` is wire row `i`, since the decode maps rows one to one, and a key
-/// names the wire column its value was decoded from.
-fn write_wire_precision(rows: &mut [Row], price_types: &decode::PriceTypes) {
-    let headers = price_types.headers();
-    // The rows of a response share a layout, so each key is looked up among
-    // the headers once per layout rather than once per row.
-    let mut keys: Vec<&'static str> = Vec::new();
-    let mut columns: Vec<Option<usize>> = Vec::new();
-    for (index, row) in rows.iter_mut().enumerate() {
-        if !row.columns().eq(keys.iter().copied()) {
-            keys = row.columns().collect();
-            columns = keys
-                .iter()
-                .map(|key| headers.iter().position(|header| header == key))
-                .collect();
-        }
-        for (value, column) in row.values_mut().zip(&columns) {
-            let Some(price_type) = column.and_then(|column| price_types.get(index, column)) else {
-                continue;
-            };
-            // A float is the cell's mantissa scaled by a power of ten, which
-            // this undoes exactly for every `i32` mantissa. An integer was
-            // decoded from the cell some other way and is written as it was.
-            let Some(number) = value.as_f64().filter(|_| value.is_f64()) else {
-                continue;
-            };
-            let mantissa = (number * 10f64.powi(10 - price_type.get())).round() as i32;
-            let text = Price::new(mantissa, price_type.get()).to_string();
-            // Every price spells a JSON number except a zero above type 10
-            // (`000.0`), whose shortest form is already the terminal's JSON.
-            if let Ok(price) = sonic_rs::from_str::<sonic_rs::RawNumber>(&text)
-                .and_then(|raw| sonic_rs::to_value(&raw))
-            {
-                *value = price;
+            ReturnType::StringList if list("_list_strikes") => (&[&CONTRACT[2..3]], &["strike"]),
+            ReturnType::StringList => (&[&CONTRACT[..1]], &["symbol"]),
+            ReturnType::OptionContracts => (&[&CONTRACT], &["symbol"]),
+            ReturnType::CalendarDays => (
+                &[&[value("type"), value("open"), value("close")]],
+                &["type"],
+            ),
+            ReturnType::InterestRateTicks => (&[&[date("created"), price("rate")]], &["created"]),
+            ReturnType::EodTicks => (
+                &[&[value("created"), value("last_trade")], &BAR, &QUOTE],
+                &["created"],
+            ),
+            ReturnType::OhlcTicks if snapshot => (&[&TIMESTAMP, &BAR], &["timestamp", "open"]),
+            ReturnType::OhlcTicks => (
+                &[&TIMESTAMP, &BAR, &[price("vwap")]],
+                &["timestamp", "open"],
+            ),
+            // A stock or index snapshot trade is the last trade's summary,
+            // not the whole execution record.
+            ReturnType::TradeTicks if snapshot && !option_tick => (
+                &[
+                    &TIMESTAMP,
+                    &[
+                        count("sequence"),
+                        count("size"),
+                        value("condition"),
+                        price("price"),
+                    ],
+                ],
+                &["timestamp", "price"],
+            ),
+            ReturnType::TradeTicks | ReturnType::IndexPriceAtTimeTicks => {
+                (&[&TIMESTAMP, &TRADE], &["timestamp", "price"])
             }
+            ReturnType::TradeQuoteTicks => (
+                &[
+                    &[value("trade_timestamp"), value("quote_timestamp")],
+                    &TRADE,
+                    &QUOTE,
+                ],
+                &["trade_timestamp", "price"],
+            ),
+            ReturnType::QuoteTicks => (&[&TIMESTAMP, &QUOTE], &["timestamp", "bid", "ask"]),
+            ReturnType::OpenInterestTicks => {
+                (&[&TIMESTAMP, &[count("open_interest")]], &["timestamp"])
+            }
+            ReturnType::MarketValueTicks if ep.rest_path.contains("/index/") => {
+                (&[&TIMESTAMP, &[price("market_price")]], &["timestamp"])
+            }
+            ReturnType::MarketValueTicks => (
+                &[
+                    &TIMESTAMP,
+                    &[
+                        price("market_bid"),
+                        price("market_ask"),
+                        price("market_price"),
+                    ],
+                ],
+                &["timestamp"],
+            ),
+            ReturnType::GreeksAllTicks => (
+                &[&TIMESTAMP, &BID_ASK, &ALL_GREEKS, &IV_UNDERLYING],
+                &["timestamp"],
+            ),
+            ReturnType::GreeksEodTicks => (
+                &[&TIMESTAMP, &BAR, &QUOTE, &ALL_GREEKS, &IV_UNDERLYING],
+                &["timestamp"],
+            ),
+            ReturnType::GreeksFirstOrderTicks => (
+                &[&TIMESTAMP, &BID_ASK, &ALL_GREEKS[..6], &IV_UNDERLYING],
+                &["timestamp"],
+            ),
+            ReturnType::GreeksSecondOrderTicks => (
+                &[&TIMESTAMP, &BID_ASK, &SECOND_ORDER, &IV_UNDERLYING],
+                &["timestamp"],
+            ),
+            ReturnType::GreeksThirdOrderTicks => (
+                &[&TIMESTAMP, &BID_ASK, &THIRD_ORDER, &IV_UNDERLYING],
+                &["timestamp"],
+            ),
+            ReturnType::TradeGreeksAllTicks => (
+                &[&TIMESTAMP, &TRADE, &ALL_GREEKS, &IV_UNDERLYING],
+                &["timestamp", "price"],
+            ),
+            ReturnType::TradeGreeksFirstOrderTicks => (
+                &[&TIMESTAMP, &TRADE, &ALL_GREEKS[..6], &IV_UNDERLYING],
+                &["timestamp", "price"],
+            ),
+            ReturnType::TradeGreeksSecondOrderTicks => (
+                &[&TIMESTAMP, &TRADE, &SECOND_ORDER, &IV_UNDERLYING],
+                &["timestamp", "price"],
+            ),
+            ReturnType::TradeGreeksThirdOrderTicks => (
+                &[&TIMESTAMP, &TRADE, &THIRD_ORDER, &IV_UNDERLYING],
+                &["timestamp", "price"],
+            ),
+            ReturnType::TradeGreeksImpliedVolatilityTicks => (
+                &[&TIMESTAMP, &TRADE, &IV_UNDERLYING],
+                &["timestamp", "price"],
+            ),
+            ReturnType::IvTicks if snapshot => {
+                (&[&TIMESTAMP, &BID_ASK, &IV_UNDERLYING], &["timestamp"])
+            }
+            ReturnType::IvTicks => (
+                &[
+                    &TIMESTAMP,
+                    &[
+                        price("bid"),
+                        price("bid_implied_vol"),
+                        price("midpoint"),
+                        price("implied_vol"),
+                        price("ask"),
+                        price("ask_implied_vol"),
+                    ],
+                    &IV_UNDERLYING[1..],
+                ],
+                &["timestamp"],
+            ),
+            ReturnType::PriceTicks => (&[&TIMESTAMP, &[price("price")]], &["timestamp", "price"]),
+            // Only the quote flat files return interval quotes, and the
+            // router serves every flat file through `flatfile_routes`.
+            ReturnType::IntervalQuoteTicks => {
+                unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
+            }
+        };
+        Self {
+            keys,
+            keys_after_timestamp,
+            body: body.concat(),
+            required,
+            request_symbol: list("_list_expirations") || list("_list_strikes"),
+            grouped: option_tick,
         }
     }
 }
 
-/// Wrap flat v3 rows in the JSON envelope, grouping option rows under their
-/// contract.
-///
-/// For an option endpoint the rows are grouped by `(expiration, strike,
-/// right)` into `{"contract": {...}, "data": [...]}` blocks (the contract
-/// fields removed from each data row); every other endpoint stays flat
-/// (`{"response": [...]}`). Rows are already contract-leading (see
-/// [`response_rows`]) so equal-contract rows are contiguous and grouping is a
-/// single linear pass.
-pub fn json_envelope(ep: &EndpointMeta, rows: Vec<sonic_rs::Value>) -> sonic_rs::Value {
-    if !endpoint_is_option_tick(ep) {
-        return ok_envelope(rows);
-    }
-    ok_envelope(group_rows_by_contract(rows))
+/// Where a written column's cells come from.
+#[derive(Clone, Copy)]
+enum Source {
+    /// This column of the vendor's rows.
+    Wire(usize),
+    /// A column the vendor did not send.
+    Absent,
+    /// The requested symbol.
+    Request,
 }
 
-/// Contract-identity key for grouping: `(expiration, strike, right)` as the
-/// rendered v3 strings / number. `symbol` is constant within a request, so
-/// it is not part of the grouping key.
-fn contract_key(row: &sonic_rs::Value) -> (String, String, String) {
-    let field = |name: &str| -> String {
-        row.get(name)
-            .map(|v: &sonic_rs::Value| {
-                v.as_str()
-                    .map(str::to_string)
-                    .unwrap_or_else(|| sonic_rs::to_string(v).unwrap_or_default())
-            })
+/// One cell, resolved to what is written for it.
+enum Value<'a> {
+    /// No value: `null` in JSON and HTML, an empty CSV field.
+    Null,
+    /// The vendor's text, escaped as the format needs.
+    Text(&'a str),
+    /// A date or a time: quoted in JSON, and never in need of escaping.
+    Time(&'a str),
+    /// A number, never quoted.
+    Number(&'a str),
+}
+
+/// Writes one response, in one format, from the vendor's table as its chunks
+/// arrive.
+pub(crate) struct TableWriter {
+    format: ResponseFormat,
+    layout: Layout,
+    /// The requested symbol, written on each row of a symbol-scoped list.
+    request_symbol: String,
+    /// The columns written and where each comes from.
+    columns: Vec<(Column, Source)>,
+    /// Where the contract sits among `columns`, for the JSON grouping.
+    contract: Range<usize>,
+    rows: usize,
+    /// The contract of the JSON block being written, and of the row being
+    /// placed.
+    block: Vec<u8>,
+    next_block: Vec<u8>,
+    /// `json_legacy` only: each column so far, from its key to its last cell.
+    legacy: Vec<Vec<u8>>,
+    scratch: String,
+}
+
+impl TableWriter {
+    /// A writer for one response of `ep`. `symbol` is the request's `symbol`
+    /// parameter.
+    pub(crate) fn new(ep: &EndpointMeta, format: ResponseFormat, symbol: Option<&str>) -> Self {
+        let layout = Layout::of(ep);
+        // The lists refuse more than one distinct symbol, so the first named
+        // is the one.
+        let request_symbol = symbol
+            .filter(|_| layout.request_symbol)
+            .and_then(|symbol| symbol.split(',').map(str::trim).find(|s| !s.is_empty()))
             .unwrap_or_default()
-    };
-    (field("expiration"), field("strike"), field("right"))
-}
-
-/// Group contract-leading rows into v3 `{contract, data}` blocks.
-///
-/// A new block opens wherever the contract changes, so the blocks come back
-/// in the order the rows arrived. Ordering them by the contract key instead
-/// would compare the rendered strike as text, putting strike 1000 ahead of
-/// strike 90; and a response that interleaved two contracts, which none
-/// observed here does, would then be merged into blocks the wire never sent
-/// rather than carried through as it arrived.
-fn group_rows_by_contract(rows: Vec<sonic_rs::Value>) -> Vec<sonic_rs::Value> {
-    let mut groups: Vec<sonic_rs::Value> = Vec::new();
-    let mut current_key: Option<(String, String, String)> = None;
-    let mut current_data: Vec<sonic_rs::Value> = Vec::new();
-    let mut current_contract = sonic_rs::Value::new_null();
-
-    for row in rows {
-        let key = contract_key(&row);
-        if current_key.as_ref() != Some(&key) {
-            if current_key.is_some() {
-                groups.push(sonic_rs::json!({
-                    "contract": std::mem::replace(&mut current_contract, sonic_rs::Value::new_null()),
-                    "data": std::mem::take(&mut current_data),
-                }));
-            }
-            current_contract = contract_object(&row);
-            current_key = Some(key);
-        }
-        current_data.push(strip_contract_fields(row));
-    }
-    if current_key.is_some() {
-        groups.push(sonic_rs::json!({
-            "contract": current_contract,
-            "data": current_data,
-        }));
-    }
-    groups
-}
-
-/// Build the v3 `contract` object from a contract-leading row, carrying the
-/// four identity fields (`symbol`, `strike`, `right`, `expiration`).
-///
-/// The JSON field *order* within the object is not asserted: `sonic_rs`
-/// objects do not preserve construction order on serialisation (their
-/// storage is an indexed key array), and the vendor itself serialises this
-/// object from an unordered map, so the wire order is not a stable contract.
-/// Consumers read the contract by key. (The CSV column order, which *is*
-/// positional, is derived from the serializer's [`Row`] field order — see
-/// [`endpoint_columns`].)
-fn contract_object(row: &sonic_rs::Value) -> sonic_rs::Value {
-    let src = row.as_object().expect("contract row must be a JSON object");
-    let mut out = sonic_rs::json!({});
-    let dst = out.as_object_mut().expect("freshly built JSON object");
-    for field in ["symbol", "strike", "right", "expiration"] {
-        if let Some(v) = src.get(&field) {
-            dst.insert(field, v.clone());
+            .to_owned();
+        Self {
+            format,
+            layout,
+            request_symbol,
+            columns: Vec::new(),
+            contract: 0..0,
+            rows: 0,
+            block: Vec::new(),
+            next_block: Vec::new(),
+            legacy: Vec::new(),
+            scratch: String::new(),
         }
     }
-    out
-}
 
-/// Drop the contract-identity fields (`symbol`, `expiration`, `strike`,
-/// `right`) from a row, leaving the per-tick data the v3 `data` array
-/// carries.
-fn strip_contract_fields(row: sonic_rs::Value) -> sonic_rs::Value {
-    let src = row.as_object().expect("data row must be a JSON object");
-    let mut out = sonic_rs::json!({});
-    let dst = out.as_object_mut().expect("freshly built JSON object");
-    for (k, v) in src.iter() {
-        if matches!(k, "symbol" | "expiration" | "strike" | "right") {
-            continue;
-        }
-        dst.insert(k, v.clone());
-    }
-    out
-}
-
-// ---------------------------------------------------------------------------
-//  Contract identification helpers
-// ---------------------------------------------------------------------------
-
-fn right_label(right: char) -> sonic_rs::Value {
-    // v3 spells the option right out as `CALL` / `PUT` (v2 used `C`/`P`).
-    match right {
-        'C' => sonic_rs::Value::from("CALL"),
-        'P' => sonic_rs::Value::from("PUT"),
-        other => sonic_rs::Value::from(other.to_string().as_str()),
-    }
-}
-
-/// Format a `YYYYMMDD` integer as the vendor's documented ISO `YYYY-MM-DD`
-/// date string (`20260618` -> `"2026-06-18"`). Shared by the option
-/// `expiration` column and the calendar `date` / interest-rate `created`
-/// columns, which the spec all render as bare dates (no time component).
-fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
-    let year = date / 10_000;
-    let month = (date / 100) % 100;
-    let day = date % 100;
-    sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
-}
-
-/// Combine a `YYYYMMDD` date with a millisecond-of-day offset into the v3
-/// ISO local-datetime shape (`20240102`, `62273606` ->
-/// `"2024-01-02T17:17:53.606"`). v3 folds the separate v2 `date` +
-/// `ms_of_day` columns into one ISO timestamp string.
-///
-/// The sub-second fraction is a fixed three digits, always present: `0` ms ->
-/// `.000`, `100` ms -> `.100`, `430` ms -> `.430`.
-///
-/// The terminal writes the fraction this way; the vendor OpenAPI examples
-/// show trimmed fractions and are not what the terminal emits.
-fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
-    let year = date / 10_000;
-    let month = (date / 100) % 100;
-    let day = date % 100;
-    let ms = ms_of_day.max(0);
-    let hour = ms / 3_600_000;
-    let minute = (ms / 60_000) % 60;
-    let second = (ms / 1_000) % 60;
-    let millis = ms % 1_000;
-    sonic_rs::Value::from(
-        format!(
-            "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}{frac}",
-            frac = iso_millis_fraction(millis)
-        )
-        .as_str(),
-    )
-}
-
-/// Render the sub-second fraction for a millisecond field (`0..=999`) as the
-/// terminal does: a leading `.` and exactly three digits, including `.000`.
-fn iso_millis_fraction(millis: i32) -> String {
-    format!(".{millis:03}")
-}
-
-/// Format a millisecond-of-day offset as the v3 `HH:mm:ss` clock string
-/// (the calendar `open` / `close` columns). Milliseconds are truncated:
-/// the calendar publishes whole-second session boundaries.
-fn ms_of_day_to_clock(ms_of_day: i32) -> sonic_rs::Value {
-    let ms = ms_of_day.max(0);
-    let hour = ms / 3_600_000;
-    let minute = (ms / 60_000) % 60;
-    let second = (ms / 1_000) % 60;
-    sonic_rs::Value::from(format!("{hour:02}:{minute:02}:{second:02}").as_str())
-}
-
-/// Append the option contract identity (`expiration` / `strike` / `right`) to
-/// the end of a serialized data row, when the wire carried it
-/// (`expiration != 0`). [`splice_identity`] later lifts these out of the
-/// trailing position and re-inserts them, after the wire `symbol`, at the v3
-/// column slot; a row the wire did not identify carries none.
-fn insert_contract_id_fields(row: &mut Row, expiration: i32, strike: f64, right: char) {
-    if expiration == 0 {
-        return;
-    }
-    row.push("expiration", yyyymmdd_to_iso(expiration));
-    row.push(
-        "strike",
-        sonic_rs::to_value(&strike).expect("f64 should serialize"),
-    );
-    row.push("right", right_label(right));
-}
-
-// ---------------------------------------------------------------------------
-//  Tick -> ordered Row conversions
-// ---------------------------------------------------------------------------
-
-/// A cell the wire did not carry, rendered the way the terminal renders it:
-/// JSON `null`, and an empty field once the CSV writer sees the null. The
-/// value beside the flag is the column's zero, and zero is a condition code
-/// with a meaning of its own, so it cannot stand in for "not sent".
-fn column_or_null(value: i32, present: bool) -> sonic_rs::Value {
-    if present {
-        sonic_rs::Value::from(value)
-    } else {
-        sonic_rs::Value::new_null()
-    }
-}
-
-/// Convert EOD ticks to ordered rows matching the JVM terminal format.
-pub(crate) fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `created` / `last_trade` are ISO datetimes built from the
-            // EOD `date` + ms-of-day offsets; the standalone `date` column is
-            // dropped (folded into the ISO strings).
-            let mut row = row! {
-                "created": ms_of_day_to_iso(t.date, t.created_ms_of_day),
-                "last_trade": ms_of_day_to_iso(t.date, t.last_trade_ms_of_day),
-                "open": t.open,
-                "high": t.high,
-                "low": t.low,
-                "close": t.close,
-                "volume": t.volume,
-                "count": t.count,
-                "bid_size": t.bid_size,
-                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
-                "bid": t.bid,
-                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
-                "ask_size": t.ask_size,
-                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
-                "ask": t.ask,
-                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert OHLC ticks to JSON array.
-///
-/// History OHLC (`*_history_ohlc`) carries the SIP-rule `vwap`; the snapshot
-/// OHLC (`*_snapshot_ohlc`) does not — the v3 snapshot schema is
-/// `timestamp,(symbol,)open,high,low,close,volume,count` with no `vwap`
-/// column. The shared tick type carries `vwap` either way, so the snapshot
-/// shape omits it from the row rather than emitting a column the spec doesn't.
-pub(crate) fn ohlc_ticks_to_json(ticks: &[OhlcTick], shape: RowShape) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: the bar `timestamp` (ISO local-datetime built from the
-            // `date` + ms-of-day offset) replaces the v2 `ms_of_day` + `date`
-            // column pair.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "open": t.open,
-                "high": t.high,
-                "low": t.low,
-                "close": t.close,
-                "volume": t.volume,
-                "count": t.count,
-            };
-            if !shape.is_snapshot {
-                row.push("vwap", sonic_rs::to_value(&t.vwap).expect("f64 serializes"));
+    /// Append one chunk's rows to `out`, after whatever opens the body when
+    /// they are its first.
+    ///
+    /// # Errors
+    ///
+    /// A chunk with rows that lacks a column the endpoint requires, a row
+    /// shorter than its headers, a cell with no value, a price type outside
+    /// `0..=19`, or an instant outside the calendar the conversion covers.
+    pub(crate) fn write(
+        &mut self,
+        headers: &[String],
+        rows: &[DataValueList],
+        out: &mut Vec<u8>,
+    ) -> Result<(), DecodeError> {
+        if self.rows == 0 {
+            self.place(headers);
+            if let Some(header) = self
+                .layout
+                .required
+                .iter()
+                .copied()
+                .find(|name| !headers.iter().any(|header| header == name))
+                .filter(|_| !rows.is_empty())
+            {
+                return Err(DecodeError::MissingRequiredHeader {
+                    header,
+                    rows: rows.len(),
+                    available: headers.join(","),
+                });
             }
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert trade ticks to JSON array.
-///
-/// The full v3 trade shape carries `sequence`, the four `ext_condition`
-/// columns, `condition`, `size`, `exchange`, and `price` — emitted by every
-/// history / at-time trade endpoint and by `option_snapshot_trade`. The
-/// stock (and index) *snapshot* trade shape is trimmed to
-/// `timestamp,symbol,sequence,size,condition,price`: no `ext_condition1..4`
-/// and no `exchange` (the snapshot is a last-trade summary, not the per-OPRA
-/// execution record). The shared tick type carries every field, so the
-/// trimmed shape omits the extras rather than emitting columns the v3
-/// snapshot-trade schema doesn't list.
-pub(crate) fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<Row> {
-    // Only the non-option snapshot trade (stock / index) trims the extended
-    // columns; option snapshot trade keeps the full execution set.
-    let trim_execution_columns = shape.is_snapshot && !shape.is_option;
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
-            // `ms_of_day` + `date` pair; the v2-only `condition_flags`,
-            // `price_flags`, `volume_type`, and `records_back` wire columns
-            // are not part of the v3 trade shape.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-            };
-            if trim_execution_columns {
-                // v3 stock / index snapshot trade: `...sequence,size,condition,
-                // price` — `size` precedes `condition` and the `ext_condition*`
-                // / `exchange` columns are dropped (last-trade summary, not the
-                // per-OPRA execution record).
-                row.push("size", sonic_rs::Value::from(t.size));
-                row.push("condition", column_or_null(t.condition, t.has_condition));
-                row.push(
-                    "price",
-                    sonic_rs::to_value(&t.price).expect("f64 serializes"),
-                );
-            } else {
-                // Full execution record: `...ext_condition1..4,condition,size,
-                // exchange,price`.
-                row.push(
-                    "ext_condition1",
-                    column_or_null(t.ext_condition1, t.has_ext_condition1),
-                );
-                row.push(
-                    "ext_condition2",
-                    column_or_null(t.ext_condition2, t.has_ext_condition2),
-                );
-                row.push(
-                    "ext_condition3",
-                    column_or_null(t.ext_condition3, t.has_ext_condition3),
-                );
-                row.push(
-                    "ext_condition4",
-                    column_or_null(t.ext_condition4, t.has_ext_condition4),
-                );
-                row.push("condition", column_or_null(t.condition, t.has_condition));
-                row.push("size", sonic_rs::Value::from(t.size));
-                row.push("exchange", column_or_null(t.exchange, t.has_exchange));
-                row.push(
-                    "price",
-                    sonic_rs::to_value(&t.price).expect("f64 serializes"),
-                );
-            }
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert quote ticks to ordered rows.
-pub(crate) fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
-            // `ms_of_day` + `date` pair; the v2-only computed `midpoint`
-            // column is not part of the v3 quote shape.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid_size": t.bid_size,
-                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
-                "bid": t.bid,
-                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
-                "ask_size": t.ask_size,
-                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
-                "ask": t.ask,
-                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert trade+quote ticks to JSON array.
-pub(crate) fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: the trade and quote sides each carry their own ISO
-            // datetime -- `trade_timestamp` (from `date` + the trade
-            // ms-of-day) and `quote_timestamp` (from `date` + the paired
-            // quote ms-of-day) -- replacing the v2 `ms_of_day` /
-            // `quote_ms_of_day` / `date` integer columns. The v2-only
-            // `condition_flags`, `price_flags`, `volume_type`, and
-            // `records_back` columns are not part of the v3 shape.
-            let mut row = row! {
-                "trade_timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "quote_timestamp": ms_of_day_to_iso(t.date, t.quote_ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "bid_size": t.bid_size,
-                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
-                "bid": t.bid,
-                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
-                "ask_size": t.ask_size,
-                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
-                "ask": t.ask,
-                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert open interest ticks to ordered rows.
-pub(crate) fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
-            // `ms_of_day` + `date` pair, and leads the row ahead of
-            // `open_interest` in the v3 column order.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "open_interest": t.open_interest,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert market value ticks to JSON array.
-///
-/// v3 leads every market-value row with the `timestamp` (ISO local-datetime
-/// from the tick's `date` + `ms_of_day`); the v2 `ms_of_day` + `date` integer
-/// pair is folded into it. The stock / option shape carries the full quote
-/// triple (`market_bid`, `market_ask`, `market_price`); the *index* shape
-/// publishes only `market_price` (the SIPs report an index value, not a
-/// two-sided market), so bid / ask are omitted there.
-pub(crate) fn market_value_ticks_to_json(ticks: &[MarketValueTick], shape: RowShape) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-            };
-            if !shape.is_index {
-                row.push(
-                    "market_bid",
-                    sonic_rs::to_value(&t.market_bid).expect("f64 serializes"),
-                );
-                row.push(
-                    "market_ask",
-                    sonic_rs::to_value(&t.market_ask).expect("f64 serializes"),
-                );
-            }
-            row.push(
-                "market_price",
-                sonic_rs::to_value(&t.market_price).expect("f64 serializes"),
-            );
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert full-union Greeks ticks (`option_*_greeks_all`,
-/// `option_*_greeks_eod`) to JSON array.
-pub(crate) fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built
-            // from its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` integer columns, and the
-            // implied-vol field is named `implied_vol`. The underlying's
-            // date is its own: it is a day ahead of `date` on a snapshot
-            // taken outside the option's session.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid": t.bid,
-                "ask": t.ask,
-                "delta": t.delta,
-                "theta": t.theta,
-                "vega": t.vega,
-                "rho": t.rho,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "gamma": t.gamma,
-                "vanna": t.vanna,
-                "charm": t.charm,
-                "vomma": t.vomma,
-                "veta": t.veta,
-                "vera": t.vera,
-                "speed": t.speed,
-                "zomma": t.zomma,
-                "color": t.color,
-                "ultima": t.ultima,
-                "d1": t.d1,
-                "d2": t.d2,
-                "dual_delta": t.dual_delta,
-                "dual_gamma": t.dual_gamma,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert end-of-day Greeks ticks (`option_history_greeks_eod`) to
-/// JSON array. The JSON shape preserves the full 39-column wire
-/// surface -- every Greek, the twelve EOD trade/quote context columns
-/// (`open` / `high` / `low` / `close` / `volume` / `count` / `bid_size`
-/// / `bid_exchange` / `bid_condition` / `ask_size` / `ask_exchange` /
-/// `ask_condition`), and the underlying snapshot + contract id triple
-/// -- so downstream MCP-side / REST-side consumers see the full EOD
-/// trade-quote context that the earlier routing dropped; the current schema restores the
-/// full schema.
-pub(crate) fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built
-            // from its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` integer columns, and the
-            // implied-vol field is named `implied_vol`. The underlying's
-            // date is its own: it is a day ahead of `date` on a snapshot
-            // taken outside the option's session.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "open": t.open,
-                "high": t.high,
-                "low": t.low,
-                "close": t.close,
-                "volume": t.volume,
-                "count": t.count,
-                "bid_size": t.bid_size,
-                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
-                "bid": t.bid,
-                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
-                "ask_size": t.ask_size,
-                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
-                "ask": t.ask,
-                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
-                "delta": t.delta,
-                "theta": t.theta,
-                "vega": t.vega,
-                "rho": t.rho,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "gamma": t.gamma,
-                "vanna": t.vanna,
-                "charm": t.charm,
-                "vomma": t.vomma,
-                "veta": t.veta,
-                "vera": t.vera,
-                "speed": t.speed,
-                "zomma": t.zomma,
-                "color": t.color,
-                "ultima": t.ultima,
-                "d1": t.d1,
-                "d2": t.d2,
-                "dual_delta": t.dual_delta,
-                "dual_gamma": t.dual_gamma,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert first-order Greeks subset ticks
-/// (`option_*_greeks_first_order`) to JSON array.
-pub(crate) fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid": t.bid,
-                "ask": t.ask,
-                "delta": t.delta,
-                "theta": t.theta,
-                "vega": t.vega,
-                "rho": t.rho,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert second-order Greeks subset ticks
-/// (`option_*_greeks_second_order`) to JSON array.
-pub(crate) fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid": t.bid,
-                "ask": t.ask,
-                "gamma": t.gamma,
-                "vanna": t.vanna,
-                "charm": t.charm,
-                "vomma": t.vomma,
-                "veta": t.veta,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert third-order Greeks subset ticks
-/// (`option_*_greeks_third_order`) to JSON array. The vendor's
-/// third-order schema does not publish `vera`, hence its absence here.
-pub(crate) fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid": t.bid,
-                "ask": t.ask,
-                "speed": t.speed,
-                "zomma": t.zomma,
-                "color": t.color,
-                "ultima": t.ultima,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert per-OPRA-trade union Greeks ticks
-/// (`option_history_trade_greeks_all`) to JSON array. Carries the nine
-/// trade-side execution columns alongside every Greek the server
-/// publishes -- distinct from the interval-sampled `GreeksAllTick`
-/// JSON whose rows carry the bid/ask quote pair instead.
-pub(crate) fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "delta": t.delta,
-                "theta": t.theta,
-                "vega": t.vega,
-                "rho": t.rho,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "gamma": t.gamma,
-                "vanna": t.vanna,
-                "charm": t.charm,
-                "vomma": t.vomma,
-                "veta": t.veta,
-                "vera": t.vera,
-                "speed": t.speed,
-                "zomma": t.zomma,
-                "color": t.color,
-                "ultima": t.ultima,
-                "d1": t.d1,
-                "d2": t.d2,
-                "dual_delta": t.dual_delta,
-                "dual_gamma": t.dual_gamma,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert per-OPRA-trade first-order Greeks ticks
-/// (`option_history_trade_greeks_first_order`) to JSON array.
-pub(crate) fn trade_greeks_first_order_ticks_to_json(
-    ticks: &[TradeGreeksFirstOrderTick],
-) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "delta": t.delta,
-                "theta": t.theta,
-                "vega": t.vega,
-                "rho": t.rho,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert per-OPRA-trade second-order Greeks ticks
-/// (`option_history_trade_greeks_second_order`) to JSON array.
-pub(crate) fn trade_greeks_second_order_ticks_to_json(
-    ticks: &[TradeGreeksSecondOrderTick],
-) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "gamma": t.gamma,
-                "vanna": t.vanna,
-                "charm": t.charm,
-                "vomma": t.vomma,
-                "veta": t.veta,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert per-OPRA-trade third-order Greeks ticks
-/// (`option_history_trade_greeks_third_order`) to JSON array. The
-/// vendor's third-order schema does not publish `vera`.
-pub(crate) fn trade_greeks_third_order_ticks_to_json(
-    ticks: &[TradeGreeksThirdOrderTick],
-) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "speed": t.speed,
-                "zomma": t.zomma,
-                "color": t.color,
-                "ultima": t.ultima,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert per-OPRA-trade implied-volatility ticks
-/// (`option_history_trade_greeks_implied_volatility`) to JSON array.
-/// Carries only the single `implied_volatility` + `iv_error` pair
-/// (NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`).
-pub(crate) fn trade_greeks_implied_volatility_ticks_to_json(
-    ticks: &[TradeGreeksImpliedVolatilityTick],
-) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol field is named `implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-                "implied_vol": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
-            };
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert IV ticks to JSON array.
-///
-/// The history IV endpoint (`option_history_greeks_implied_volatility`)
-/// publishes the full quote-IV surface: `bid,bid_implied_vol,midpoint,
-/// implied_vol,ask,ask_implied_vol,iv_error` — the implied vols computed off
-/// the bid / mid / ask sides. The *snapshot* IV endpoint
-/// (`option_snapshot_greeks_implied_volatility`) trims this to the last-quote
-/// summary `bid,ask,implied_vol,iv_error` (no `bid_implied_vol` / `midpoint`
-/// / `ask_implied_vol`, and `ask` follows `bid` in its spec slot). Both share
-/// the `IvTick` type, so the snapshot shape omits the bid/mid/ask-IV columns
-/// from the row rather than emitting columns the v3 snapshot schema doesn't
-/// list.
-pub(crate) fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
-            // its own date and ms-of-day) replace the v2 `ms_of_day` /
-            // `underlying_ms_of_day` / `date` columns; the
-            // implied-vol fields are named `implied_vol` / `bid_implied_vol`
-            // / `ask_implied_vol`.
-            let mut row = row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-            };
-            if shape.is_snapshot {
-                // Snapshot IV: `...timestamp,bid,ask,implied_vol,iv_error,...`
-                // — the last-quote summary, no bid / mid / ask IV triple.
-                row.push("bid", sonic_rs::to_value(&t.bid).expect("f64 serializes"));
-                row.push("ask", sonic_rs::to_value(&t.ask).expect("f64 serializes"));
-                row.push(
-                    "implied_vol",
-                    sonic_rs::to_value(&t.implied_volatility).expect("f64 serializes"),
-                );
-            } else {
-                // History IV: the full quote-IV surface `...timestamp,bid,
-                // bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,
-                // iv_error,...`.
-                row.push("bid", sonic_rs::to_value(&t.bid).expect("f64 serializes"));
-                row.push(
-                    "bid_implied_vol",
-                    sonic_rs::to_value(&t.bid_implied_volatility).expect("f64 serializes"),
-                );
-                row.push(
-                    "midpoint",
-                    sonic_rs::to_value(&t.midpoint).expect("f64 serializes"),
-                );
-                row.push(
-                    "implied_vol",
-                    sonic_rs::to_value(&t.implied_volatility).expect("f64 serializes"),
-                );
-                row.push("ask", sonic_rs::to_value(&t.ask).expect("f64 serializes"));
-                row.push(
-                    "ask_implied_vol",
-                    sonic_rs::to_value(&t.ask_implied_volatility).expect("f64 serializes"),
-                );
-            }
-            row.push(
-                "iv_error",
-                sonic_rs::to_value(&t.iv_error).expect("f64 serializes"),
-            );
-            row.push(
-                "underlying_timestamp",
-                ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
-            );
-            row.push(
-                "underlying_price",
-                sonic_rs::to_value(&t.underlying_price).expect("f64 serializes"),
-            );
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect()
-}
-
-/// Convert price ticks to ordered rows.
-pub(crate) fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
-            // `ms_of_day` + `date` pair and leads the row ahead of `price`.
-            row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "price": t.price,
-            }
-        })
-        .collect()
-}
-
-/// Convert trade-shaped index ticks (`index_at_time_price`) to JSON
-/// array. The JSON shape preserves the full 10-column wire surface --
-/// the seven trade-side execution columns (`sequence`,
-/// `ext_condition1..4`, `condition`, `size`, `exchange`) plus
-/// `ms_of_day`, `price`, and `date` -- so downstream MCP-side /
-/// REST-side consumers see the per-row SIP-exchange attribution that
-/// the earlier routing dropped; the current schema restores the full schema.
-pub(crate) fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
-            // `ms_of_day` + `date` pair.
-            row! {
-                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "sequence": t.sequence,
-                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
-                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
-                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
-                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
-                "condition": column_or_null(t.condition, t.has_condition),
-                "size": t.size,
-                "exchange": column_or_null(t.exchange, t.has_exchange),
-                "price": t.price,
-            }
-        })
-        .collect()
-}
-
-/// Convert calendar days to JSON array.
-///
-/// v3 shape: `{date, type, open, close}`. `date` is the ISO `YYYY-MM-DD`
-/// string and is omitted on the single-day `calendar_on_date` /
-/// `calendar_open_today` responses (where the server sends no date column
-/// and `CalendarDay.date` is `0`). `type` carries the vendor day
-/// classification (`open` / `early_close` / `full_close` / `weekend`).
-/// `open` / `close` are `HH:mm:ss` clock strings on trading days and
-/// `null` on fully-closed days, so a consumer can branch on a present
-/// time vs an explicit null rather than a sentinel midnight.
-pub(crate) fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<Row> {
-    days.iter()
-        .map(|d| {
-            let (open, close) = if d.status.is_open() {
-                (
-                    ms_of_day_to_clock(d.open_time),
-                    ms_of_day_to_clock(d.close_time),
-                )
-            } else {
-                (sonic_rs::Value::new_null(), sonic_rs::Value::new_null())
-            };
-            // Build the row by hand so `date` leads the row (matching the
-            // multi-day spec example) yet drops out entirely on the
-            // single-day responses where the server omits the column.
-            let mut row = Row::with_capacity(4);
-            if d.date != 0 {
-                row.push("date", yyyymmdd_to_iso(d.date));
-            }
-            row.push("type", sonic_rs::Value::from(d.status.as_str()));
-            row.push("open", open);
-            row.push("close", close);
-            row
-        })
-        .collect()
-}
-
-/// Convert interest rate ticks to JSON array.
-pub(crate) fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<Row> {
-    ticks
-        .iter()
-        .map(|t| {
-            // v3 names the EOD interest-rate date column `created`, renders it
-            // as the ISO `YYYY-MM-DD` string, and leads the row with it ahead
-            // of `rate`.
-            row! {
-                "created": yyyymmdd_to_iso(t.date),
-                "rate": t.rate,
-            }
-        })
-        .collect()
-}
-
-/// Convert option contracts to JSON array.
-pub(crate) fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<Row> {
-    contracts
-        .iter()
-        .map(|c| {
-            // v3 `option_list_contracts` row order: symbol, expiration (ISO
-            // `YYYY-MM-DD`), strike, right (`CALL` / `PUT`) — the CSV header
-            // order pinned by the spec example.
-            row! {
-                "symbol": c.symbol.as_str(),
-                "expiration": yyyymmdd_to_iso(c.expiration),
-                "strike": c.strike,
-                "right": right_label(c.right),
-            }
-        })
-        .collect()
-}
-
-// ---------------------------------------------------------------------------
-//  CSV formatting
-// ---------------------------------------------------------------------------
-
-/// CRLF line terminator. v3 CSV is RFC-4180 framed: every record (header
-/// and data rows) ends with `\r\n`, matching the vendor's documented
-/// `text/csv` examples. A bare `\n` is the v2 framing and is not the v3
-/// contract.
-const CSV_CRLF: &str = "\r\n";
-
-/// Build a representative single-row [`EndpointOutput`] for `ep`, used to derive
-/// its v3 CSV column order from the serializer.
-///
-/// The variant is selected from `ep.returns` (the registry's return-type
-/// discriminant, which maps one-to-one to [`EndpointOutput`]). Field *values*
-/// are immaterial to the column order — only whether the id-bearing columns are
-/// present. The contract identity (`expiration` / `strike` / `right`) is emitted
-/// by the serializer only when `expiration != 0` ([`insert_contract_id_fields`]),
-/// and v3 carries it solely on option *tick* endpoints. So the representative
-/// tick is contract-bearing only when [`endpoint_is_option_tick`] holds; stock /
-/// index ticks (which share the same return type) get the `expiration == 0`
-/// no-id sentinel so their derived column order matches the real, id-less rows.
-///
-/// The single-day calendar endpoints (`calendar_on_date` / `calendar_open_today`)
-/// have a `date` column that v3 leads with when a response carries it, but the
-/// single-day responses normally omit it. The representative `CalendarDay.date`
-/// is therefore non-zero for every calendar endpoint, so `date` is captured in
-/// its leading slot; real date-less rows then drop it via the present-key
-/// intersection in [`csv_header_order`], while a date-bearing row keeps it
-/// leading (matching the multi-day `calendar_year` shape).
-///
-/// Every row carries a wire `symbol` ([`labelled_row`]), since the identity
-/// block is labelled from the wire alone and must resolve for the endpoints that
-/// render one.
-///
-/// Listing the fields explicitly means a new tick field is a compile error here
-/// rather than silent drift, keeping the derivation honest.
-fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
-    // The single-day calendar header leads with `date` when present; seed a
-    // non-zero `date` on every calendar endpoint so `endpoint_columns` captures
-    // it in its leading slot (date-less rows drop it via the present-key filter).
-    let calendar_date = 20240101;
-    // v3 carries the contract identity only on option tick endpoints. Stock /
-    // index ticks share the return type but render no id columns, so give them
-    // the `expiration == 0` no-id sentinel (the serializer then emits none) and
-    // keep the column order faithful for every endpoint.
-    let (id_expiration, id_strike, id_right) = if endpoint_is_option_tick(ep) {
-        (20240101, 100.0, 'C')
-    } else {
-        (0, 0.0, '\0')
-    };
-    match ep.returns {
-        ReturnType::StringList => EndpointOutput::StringList(vec![String::new()]),
-        ReturnType::EodTicks => EndpointOutput::EodTicks(labelled_row(EodTick {
-            created_ms_of_day: 0,
-            last_trade_ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            has_bid_exchange: true,
-            bid: 0.0,
-            bid_condition: 0,
-            has_bid_condition: true,
-            ask_size: 0,
-            ask_exchange: 0,
-            has_ask_exchange: true,
-            ask: 0.0,
-            ask_condition: 0,
-            has_ask_condition: true,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::OhlcTicks => EndpointOutput::OhlcTicks(labelled_row(OhlcTick {
-            ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            vwap: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::TradeTicks => EndpointOutput::TradeTicks(labelled_row(TradeTick {
-            ms_of_day: 0,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::QuoteTicks => EndpointOutput::QuoteTicks(labelled_row(QuoteTick {
-            ms_of_day: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            has_bid_exchange: true,
-            bid: 0.0,
-            bid_condition: 0,
-            has_bid_condition: true,
-            ask_size: 0,
-            ask_exchange: 0,
-            has_ask_exchange: true,
-            ask: 0.0,
-            ask_condition: 0,
-            has_ask_condition: true,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::TradeQuoteTicks => {
-            EndpointOutput::TradeQuoteTicks(labelled_row(TradeQuoteTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                condition_flags: 0,
-                price_flags: 0,
-                volume_type: 0,
-                records_back: 0,
-                quote_ms_of_day: 0,
-                bid_size: 0,
-                bid_exchange: 0,
-                has_bid_exchange: true,
-                bid: 0.0,
-                bid_condition: 0,
-                has_bid_condition: true,
-                ask_size: 0,
-                ask_exchange: 0,
-                has_ask_exchange: true,
-                ask: 0.0,
-                ask_condition: 0,
-                has_ask_condition: true,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
         }
-        ReturnType::OpenInterestTicks => {
-            EndpointOutput::OpenInterestTicks(labelled_row(OpenInterestTick {
-                ms_of_day: 0,
-                open_interest: 0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::MarketValueTicks => {
-            EndpointOutput::MarketValueTicks(labelled_row(MarketValueTick {
-                ms_of_day: 0,
-                market_bid: 0.0,
-                market_ask: 0.0,
-                market_price: 0.0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::GreeksAllTicks => EndpointOutput::GreeksAllTicks(labelled_row(GreeksAllTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.0,
-            delta: 0.0,
-            gamma: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            underlying_date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::GreeksEodTicks => EndpointOutput::GreeksEodTicks(labelled_row(GreeksEodTick {
-            ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            has_bid_exchange: true,
-            bid: 0.0,
-            bid_condition: 0,
-            has_bid_condition: true,
-            ask_size: 0,
-            ask_exchange: 0,
-            has_ask_exchange: true,
-            ask: 0.0,
-            ask_condition: 0,
-            has_ask_condition: true,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            vera: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            underlying_date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::GreeksFirstOrderTicks => {
-            EndpointOutput::GreeksFirstOrderTicks(labelled_row(GreeksFirstOrderTick {
-                ms_of_day: 0,
-                bid: 0.0,
-                ask: 0.0,
-                delta: 0.0,
-                theta: 0.0,
-                vega: 0.0,
-                rho: 0.0,
-                epsilon: 0.0,
-                lambda: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::GreeksSecondOrderTicks => {
-            EndpointOutput::GreeksSecondOrderTicks(labelled_row(GreeksSecondOrderTick {
-                ms_of_day: 0,
-                bid: 0.0,
-                ask: 0.0,
-                gamma: 0.0,
-                vanna: 0.0,
-                charm: 0.0,
-                vomma: 0.0,
-                veta: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::GreeksThirdOrderTicks => {
-            EndpointOutput::GreeksThirdOrderTicks(labelled_row(GreeksThirdOrderTick {
-                ms_of_day: 0,
-                bid: 0.0,
-                ask: 0.0,
-                speed: 0.0,
-                zomma: 0.0,
-                color: 0.0,
-                ultima: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::TradeGreeksAllTicks => {
-            EndpointOutput::TradeGreeksAllTicks(labelled_row(TradeGreeksAllTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                delta: 0.0,
-                theta: 0.0,
-                vega: 0.0,
-                rho: 0.0,
-                epsilon: 0.0,
-                lambda: 0.0,
-                gamma: 0.0,
-                vanna: 0.0,
-                charm: 0.0,
-                vomma: 0.0,
-                veta: 0.0,
-                vera: 0.0,
-                speed: 0.0,
-                zomma: 0.0,
-                color: 0.0,
-                ultima: 0.0,
-                d1: 0.0,
-                d2: 0.0,
-                dual_delta: 0.0,
-                dual_gamma: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::TradeGreeksFirstOrderTicks => {
-            EndpointOutput::TradeGreeksFirstOrderTicks(labelled_row(TradeGreeksFirstOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                delta: 0.0,
-                theta: 0.0,
-                vega: 0.0,
-                rho: 0.0,
-                epsilon: 0.0,
-                lambda: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::TradeGreeksSecondOrderTicks => {
-            EndpointOutput::TradeGreeksSecondOrderTicks(labelled_row(TradeGreeksSecondOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                gamma: 0.0,
-                vanna: 0.0,
-                charm: 0.0,
-                vomma: 0.0,
-                veta: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::TradeGreeksThirdOrderTicks => {
-            EndpointOutput::TradeGreeksThirdOrderTicks(labelled_row(TradeGreeksThirdOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                speed: 0.0,
-                zomma: 0.0,
-                color: 0.0,
-                ultima: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                underlying_date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }))
-        }
-        ReturnType::TradeGreeksImpliedVolatilityTicks => {
-            EndpointOutput::TradeGreeksImpliedVolatilityTicks(labelled_row(
-                TradeGreeksImpliedVolatilityTick {
-                    ms_of_day: 0,
-                    sequence: 0,
-                    ext_condition1: 0,
-                    has_ext_condition1: true,
-                    ext_condition2: 0,
-                    has_ext_condition2: true,
-                    ext_condition3: 0,
-                    has_ext_condition3: true,
-                    ext_condition4: 0,
-                    has_ext_condition4: true,
-                    condition: 0,
-                    has_condition: true,
-                    size: 0,
-                    exchange: 0,
-                    has_exchange: true,
-                    price: 0.0,
-                    implied_volatility: 0.0,
-                    iv_error: 0.0,
-                    underlying_ms_of_day: 0,
-                    underlying_price: 0.0,
-                    date: 0,
-                    underlying_date: 0,
-                    expiration: id_expiration,
-                    strike: id_strike,
-                    right: id_right,
-                },
-            ))
-        }
-        ReturnType::IvTicks => EndpointOutput::IvTicks(labelled_row(IvTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            bid_implied_volatility: 0.0,
-            midpoint: 0.0,
-            implied_volatility: 0.0,
-            ask: 0.0,
-            ask_implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            underlying_date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        })),
-        ReturnType::PriceTicks => EndpointOutput::PriceTicks(labelled_row(PriceTick {
-            ms_of_day: 0,
-            price: 0.0,
-            date: 0,
-        })),
-        ReturnType::IndexPriceAtTimeTicks => {
-            EndpointOutput::IndexPriceAtTimeTicks(labelled_row(IndexPriceAtTimeTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                has_ext_condition1: true,
-                ext_condition2: 0,
-                has_ext_condition2: true,
-                ext_condition3: 0,
-                has_ext_condition3: true,
-                ext_condition4: 0,
-                has_ext_condition4: true,
-                condition: 0,
-                has_condition: true,
-                size: 0,
-                exchange: 0,
-                has_exchange: true,
-                price: 0.0,
-                date: 0,
-            }))
-        }
-        ReturnType::InterestRateTicks => {
-            EndpointOutput::InterestRateTicks(labelled_row(InterestRateTick { date: 0, rate: 0.0 }))
-        }
-        ReturnType::CalendarDays => EndpointOutput::CalendarDays(labelled_row(CalendarDay {
-            date: calendar_date,
-            open_time: 0,
-            close_time: 0,
-            status: thetadatadx::CalendarStatus::Open,
-        })),
-        ReturnType::OptionContracts => {
-            EndpointOutput::OptionContracts(labelled_row(OptionContract {
-                symbol: String::new(),
-                expiration: 20240101,
-                strike: 100.0,
-                right: 'C',
-            }))
-        }
-        // See `serialize_rows`: no endpoint the generic handler serves
-        // returns interval quotes.
-        ReturnType::IntervalQuoteTicks => {
-            unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
-        }
-    }
-}
-
-/// A one-row response whose wire labelled the row with a `symbol`.
-fn labelled_row<T: columns::WireColumns>(tick: T) -> columns::Ticks<T> {
-    columns::Ticks::new(vec![tick], T::all_columns().with_symbol("SSOT"))
-}
-
-/// The v3 CSV column order for `ep`, derived from the serializer's [`Row`] field
-/// order — the single source of the column sequence.
-///
-/// Builds a representative row through the exact runtime path ([`build_rows`],
-/// which runs the shared serializer then splices the contract identity at its v3
-/// slot) and reads back the declaration order via [`Row::columns`]. There is no
-/// side table: change a serializer's `row!` order and this follows
-/// automatically.
-fn endpoint_columns(ep: &EndpointMeta) -> Vec<&'static str> {
-    let output = representative_output(ep);
-    build_rows(ep, Some("SSOT"), &output)
-        .first()
-        .map(|row| row.columns().collect())
-        .unwrap_or_default()
-}
-
-/// Order a response's column keys into the v3 CSV header sequence for `ep`.
-///
-/// The serializer-derived per-endpoint order ([`endpoint_columns`]) is
-/// authoritative: its columns are emitted in declaration order, restricted to
-/// the ones a row in this response actually carries (a row the wire did not
-/// identify has no identity columns). Any response column NOT in the serializer's order
-/// is appended (sorted) so a surprise field is observable rather than silently
-/// dropped. Returns `None` only when no object row contributes a key.
-fn csv_header_order(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<Vec<String>> {
-    let mut present: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
-    for row in response {
-        let row_obj = row.as_object()?;
-        for (k, _) in row_obj.iter() {
-            present.insert(k);
-        }
-    }
-    if present.is_empty() {
-        return None;
-    }
-
-    let mut keys: Vec<String> = Vec::with_capacity(present.len());
-    for col in endpoint_columns(ep) {
-        if present.remove(col) {
-            keys.push(col.to_string());
-        }
-    }
-    // Any column not in the serializer's order: appended in lexicographic order
-    // (`BTreeSet` iteration), so it is never dropped from the header.
-    keys.extend(present.into_iter().map(str::to_string));
-    Some(keys)
-}
-
-/// Convert a JSON response array to CSV with headers in the v3 column order
-/// for `ep`.
-///
-/// Returns `None` if the response is empty or contains unsupported row shapes.
-///
-/// Object rows are emitted with one column per key, the union across every
-/// row so sparse rows (e.g. index ticks without `expiration` / `strike` /
-/// `right` mixed with option ticks that have them) never silently drop
-/// columns. The header order is the v3 per-endpoint order derived from the
-/// serializer's [`Row`] field order (see [`csv_header_order`] /
-/// [`endpoint_columns`]). Scalar rows are emitted as a single-column CSV with
-/// the `value` header so list endpoints can round-trip through `format=csv`.
-/// Records are CRLF-terminated per the v3 contract.
-pub fn json_to_csv(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<String> {
-    let first = response.first()?;
-    let mut out = String::with_capacity(response.len() * 128);
-
-    if first.as_object().is_some() {
-        let keys = csv_header_order(ep, response)?;
-        let null_val = sonic_rs::Value::default();
-
-        for (i, key) in keys.iter().enumerate() {
-            if i > 0 {
-                out.push(',');
-            }
-            out.push_str(&escape_csv_field(key));
-        }
-        out.push_str(CSV_CRLF);
-
-        for row in response {
-            let row_obj = row.as_object()?;
-            for (i, key) in keys.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+        for row in rows {
+            let first = self.rows == 0;
+            self.rows += 1;
+            match self.format {
+                ResponseFormat::Csv => {
+                    if first {
+                        for (i, (column, _)) in self.columns.iter().enumerate() {
+                            if i > 0 {
+                                out.push(b',');
+                            }
+                            out.extend_from_slice(column.name.as_bytes());
+                        }
+                        out.extend_from_slice(b"\r\n");
+                    }
+                    for (i, &(column, source)) in self.columns.iter().enumerate() {
+                        if i > 0 {
+                            out.push(b',');
+                        }
+                        let value =
+                            cell(row, column, source, &self.request_symbol, &mut self.scratch)?;
+                        push_value(out, self.format, value);
+                    }
+                    out.extend_from_slice(b"\r\n");
                 }
-                let value = row_obj.get(key).unwrap_or(&null_val);
-                out.push_str(&render_csv_value(value));
+                ResponseFormat::Html => {
+                    if first {
+                        out.extend_from_slice(HTML_START.as_bytes());
+                        out.extend_from_slice(b"<thead><tr>");
+                        for (column, _) in &self.columns {
+                            out.extend_from_slice(b"<th>");
+                            out.extend_from_slice(column.name.as_bytes());
+                            out.extend_from_slice(b"</th>");
+                        }
+                        out.extend_from_slice(b"</tr></thead>\n<tbody>");
+                    }
+                    out.extend_from_slice(b"<tr>");
+                    for &(column, source) in &self.columns {
+                        out.extend_from_slice(b"<td>");
+                        let value =
+                            cell(row, column, source, &self.request_symbol, &mut self.scratch)?;
+                        push_value(out, self.format, value);
+                        out.extend_from_slice(b"</td>");
+                    }
+                    out.extend_from_slice(b"</tr>\n");
+                }
+                ResponseFormat::Ndjson => {
+                    push_object(
+                        out,
+                        &self.columns,
+                        row,
+                        &self.request_symbol,
+                        &mut self.scratch,
+                    )?;
+                    out.push(b'\n');
+                }
+                ResponseFormat::Json if self.layout.grouped => {
+                    self.next_block.clear();
+                    let contract = &self.columns[self.contract.clone()];
+                    push_object(
+                        &mut self.next_block,
+                        contract,
+                        row,
+                        &self.request_symbol,
+                        &mut self.scratch,
+                    )?;
+                    if first || self.next_block != self.block {
+                        let open = if first { "{\"response\":[" } else { "]}," };
+                        out.extend_from_slice(open.as_bytes());
+                        out.extend_from_slice(b"{\"contract\":");
+                        out.extend_from_slice(&self.next_block);
+                        out.extend_from_slice(b",\"data\":[");
+                        std::mem::swap(&mut self.block, &mut self.next_block);
+                    } else {
+                        out.push(b',');
+                    }
+                    let data = self.columns[..self.contract.start]
+                        .iter()
+                        .chain(&self.columns[self.contract.end..]);
+                    push_object(out, data, row, &self.request_symbol, &mut self.scratch)?;
+                }
+                ResponseFormat::Json => {
+                    out.extend_from_slice(if first { "{\"response\":[" } else { "," }.as_bytes());
+                    push_object(
+                        out,
+                        &self.columns,
+                        row,
+                        &self.request_symbol,
+                        &mut self.scratch,
+                    )?;
+                }
+                ResponseFormat::JsonLegacy => {
+                    if first {
+                        self.legacy = self
+                            .columns
+                            .iter()
+                            .map(|(column, _)| format!("\"{}\":[", column.name).into_bytes())
+                            .collect();
+                    }
+                    for (values, &(column, source)) in self.legacy.iter_mut().zip(&self.columns) {
+                        if !first {
+                            values.push(b',');
+                        }
+                        let value =
+                            cell(row, column, source, &self.request_symbol, &mut self.scratch)?;
+                        push_value(values, self.format, value);
+                    }
+                }
             }
-            out.push_str(CSV_CRLF);
         }
-
-        return Some(out);
+        Ok(())
     }
 
-    if response.iter().any(|row| row.is_object() || row.is_array()) {
-        return None;
+    /// Append what closes the body once the last chunk is written: the end of
+    /// the JSON envelope or of the HTML page, or the whole `json_legacy` body,
+    /// whose columns cannot close before the last row.
+    pub(crate) fn finish(&self, out: &mut Vec<u8>) {
+        match self.format {
+            ResponseFormat::Csv | ResponseFormat::Ndjson => {}
+            ResponseFormat::Html if self.rows > 0 => out.extend_from_slice(HTML_END.as_bytes()),
+            ResponseFormat::Html => {}
+            ResponseFormat::Json if self.rows == 0 => out.extend_from_slice(b"{\"response\":[]}"),
+            ResponseFormat::Json if self.layout.grouped => out.extend_from_slice(b"]}]}"),
+            ResponseFormat::Json => out.extend_from_slice(b"]}"),
+            ResponseFormat::JsonLegacy => {
+                out.push(b'{');
+                for (i, column) in self.legacy.iter().enumerate() {
+                    if i > 0 {
+                        out.push(b',');
+                    }
+                    out.extend_from_slice(column);
+                    out.push(b']');
+                }
+                out.push(b'}');
+            }
+        }
     }
 
-    out.push_str("value");
-    out.push_str(CSV_CRLF);
-    for row in response {
-        out.push_str(&render_csv_value(row));
-        out.push_str(CSV_CRLF);
-    }
-
-    Some(out)
-}
-
-/// Render a flat response as the vendor's legacy JSON shape: one array per
-/// column, keyed by column name, with no envelope around it.
-///
-/// The columns are the ones the CSV header carries for `ep`, so neither
-/// rendering of a response names a column the other does not. Key order is
-/// not a contract here any more than it is on the enveloped shape: both are
-/// serialised from an unordered map and read by key.
-///
-/// A row missing a column contributes a `null` at its index, so every array
-/// stays the same length and index `i` is row `i` in all of them. An empty
-/// response is an empty object, with no key to seed.
-#[must_use]
-pub fn json_legacy(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> sonic_rs::Value {
-    let mut out = sonic_rs::json!({});
-    let Some(keys) = csv_header_order(ep, response) else {
-        return out;
-    };
-    let object = out
-        .as_object_mut()
-        .expect("freshly built JSON object is an object");
-    for key in keys {
-        let column: Vec<sonic_rs::Value> = response
+    /// Place the endpoint's columns among the vendor's headers.
+    fn place(&mut self, headers: &[String]) {
+        let wire = |column: &Column| headers.iter().position(|header| header == column.name);
+        let keys: Vec<(Column, Source)> = self
+            .layout
+            .keys
             .iter()
-            .map(|row| {
-                row.as_object()
-                    .and_then(|obj| obj.get(&key))
-                    .cloned()
-                    .unwrap_or_else(sonic_rs::Value::new_null)
-            })
+            .filter_map(|column| Some((*column, Source::Wire(wire(column)?))))
             .collect();
-        object.insert(&key, sonic_rs::Value::from(column));
+        self.columns.clear();
+        if !self.request_symbol.is_empty() {
+            self.columns.push((CONTRACT[0], Source::Request));
+        }
+        self.columns.extend(
+            self.layout
+                .body
+                .iter()
+                .map(|column| (*column, wire(column).map_or(Source::Absent, Source::Wire))),
+        );
+        let at = usize::from(self.layout.keys_after_timestamp).min(self.columns.len());
+        self.contract = at..at + keys.len();
+        self.columns.splice(at..at, keys);
     }
-    out
 }
 
-/// Render a JSON response array as the terminal's HTML page, in the v3
-/// column order for `ep`, for browser-viewable `format=html`.
-///
-/// Mirrors [`json_to_csv`]: object rows become one column per key (the union
-/// across rows, so sparse rows never drop columns) in the same
-/// [`csv_header_order`] the CSV path uses; scalar rows become a single `value`
-/// column. The page, the table's style, a line break after the header and
-/// after every row, and `null` for an absent value are the terminal's. Returns
-/// `None` for an empty response or an unsupported row shape. Every header and
-/// cell is HTML-escaped so a symbol / condition string can never break out of
-/// the `<th>` / `<td>` it renders into.
-pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<String> {
-    let first = response.first()?;
-    let mut out = String::with_capacity(response.len() * 256);
-    out.push_str(HTML_START);
-
-    if first.as_object().is_some() {
-        let keys = csv_header_order(ep, response)?;
-        let null_val = sonic_rs::Value::default();
-
-        out.push_str("<thead><tr>");
-        for key in &keys {
-            out.push_str("<th>");
-            out.push_str(&escape_html(key));
-            out.push_str("</th>");
+/// The value written for `column` of `row`.
+fn cell<'a>(
+    row: &'a DataValueList,
+    column: Column,
+    source: Source,
+    request_symbol: &'a str,
+    scratch: &'a mut String,
+) -> Result<Value<'a>, DecodeError> {
+    let data = match source {
+        Source::Request => return Ok(Value::Text(request_symbol)),
+        Source::Absent => None,
+        Source::Wire(index) => Some(
+            row.values
+                .get(index)
+                .and_then(|cell| cell.data_type.as_ref())
+                .ok_or(DecodeError::MissingCell { column: index })?,
+        ),
+    };
+    scratch.clear();
+    Ok(match data {
+        None | Some(DataType::NullValue(_)) => match column.kind {
+            Kind::Count => Value::Number("0"),
+            Kind::Price => Value::Number("0.0"),
+            Kind::Date | Kind::Value => Value::Null,
+        },
+        Some(DataType::Text(text))
+            if column.kind == Kind::Date
+                && text.len() == 8
+                && text.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            let _ = write!(scratch, "{}-{}-{}", &text[..4], &text[4..6], &text[6..]);
+            Value::Time(scratch)
         }
-        out.push_str("</tr></thead>\n<tbody>");
-
-        for row in response {
-            let row_obj = row.as_object()?;
-            out.push_str("<tr>");
-            for key in &keys {
-                let value = row_obj.get(key).unwrap_or(&null_val);
-                out.push_str("<td>");
-                out.push_str(&escape_html(&html_cell_text(value)));
-                out.push_str("</td>");
+        Some(DataType::Text(text)) => Value::Text(text),
+        Some(DataType::Number(number)) => match i32::try_from(*number) {
+            Ok(day) if column.kind == Kind::Date && thetadatadx::time::is_valid_yyyymmdd(day) => {
+                push_date(scratch, day);
+                Value::Time(scratch)
             }
-            out.push_str("</tr>\n");
+            _ => {
+                let _ = write!(scratch, "{number}");
+                Value::Number(scratch)
+            }
+        },
+        Some(DataType::Price(cell)) => {
+            let price = Price::with_value_and_type(cell.value, cell.r#type)
+                .map_err(|_| DecodeError::InvalidPriceType { raw: cell.r#type })?;
+            if cell.value == 0 && cell.r#type > 10 {
+                // Its digits would read `00.0`, which is not a number.
+                Value::Number("0.0")
+            } else {
+                let _ = write!(scratch, "{price}");
+                Value::Number(scratch)
+            }
         }
+        Some(DataType::Timestamp(instant)) => {
+            let out_of_range = || DecodeError::TimestampOutOfRange {
+                raw: instant.epoch_ms,
+            };
+            let day = thetadatadx::time::try_timestamp_to_date(instant.epoch_ms)
+                .ok_or_else(out_of_range)?;
+            push_date(scratch, day);
+            if column.kind != Kind::Date {
+                let ms = thetadatadx::time::try_timestamp_to_ms_of_day(instant.epoch_ms)
+                    .ok_or_else(out_of_range)?;
+                // The terminal always writes three digits of milliseconds.
+                let _ = write!(
+                    scratch,
+                    "T{:02}:{:02}:{:02}.{:03}",
+                    ms / 3_600_000,
+                    ms / 60_000 % 60,
+                    ms / 1_000 % 60,
+                    ms % 1_000
+                );
+            }
+            Value::Time(scratch)
+        }
+    })
+}
 
-        out.push_str(HTML_END);
-        return Some(out);
-    }
+/// Write a `YYYYMMDD` day as `YYYY-MM-DD`.
+fn push_date(out: &mut String, day: i32) {
+    let _ = write!(
+        out,
+        "{:04}-{:02}-{:02}",
+        day / 10_000,
+        day / 100 % 100,
+        day % 100
+    );
+}
 
-    if response.iter().any(|row| row.is_object() || row.is_array()) {
-        return None;
+/// Write `columns` of `row` as one JSON object.
+fn push_object<'c>(
+    out: &mut Vec<u8>,
+    columns: impl IntoIterator<Item = &'c (Column, Source)>,
+    row: &DataValueList,
+    request_symbol: &str,
+    scratch: &mut String,
+) -> Result<(), DecodeError> {
+    out.push(b'{');
+    for (i, &(column, source)) in columns.into_iter().enumerate() {
+        if i > 0 {
+            out.push(b',');
+        }
+        out.push(b'"');
+        out.extend_from_slice(column.name.as_bytes());
+        out.extend_from_slice(b"\":");
+        let value = cell(row, column, source, request_symbol, scratch)?;
+        push_value(out, ResponseFormat::Json, value);
     }
+    out.push(b'}');
+    Ok(())
+}
 
-    out.push_str("<thead><tr><th>value</th></tr></thead>\n<tbody>");
-    for row in response {
-        out.push_str("<tr><td>");
-        out.push_str(&escape_html(&html_cell_text(row)));
-        out.push_str("</td></tr>\n");
+/// Write one cell as `format` spells it.
+fn push_value(out: &mut Vec<u8>, format: ResponseFormat, value: Value<'_>) {
+    let json = !matches!(format, ResponseFormat::Csv | ResponseFormat::Html);
+    match value {
+        Value::Null if format == ResponseFormat::Csv => {}
+        Value::Null => out.extend_from_slice(b"null"),
+        Value::Text(text) if json => {
+            sonic_rs::to_writer(&mut *out, text).expect("a string serialises into a byte buffer");
+        }
+        Value::Text(text) if format == ResponseFormat::Html => {
+            out.extend_from_slice(escape_html(text).as_bytes());
+        }
+        // RFC 4180: a field holding a comma, a quote or a line break is
+        // quoted, with each quote inside it doubled.
+        Value::Text(text) if text.contains([',', '"', '\n', '\r']) => {
+            out.push(b'"');
+            out.extend_from_slice(text.replace('"', "\"\"").as_bytes());
+            out.push(b'"');
+        }
+        Value::Time(text) if json => {
+            out.push(b'"');
+            out.extend_from_slice(text.as_bytes());
+            out.push(b'"');
+        }
+        Value::Text(text) | Value::Time(text) | Value::Number(text) => {
+            out.extend_from_slice(text.as_bytes());
+        }
     }
-    out.push_str(HTML_END);
-    Some(out)
 }
 
 /// The terminal's HTML page around the table, shared with the flat-file
 /// routes, which write the same page.
 pub(crate) const HTML_START: &str = "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n<table style=\"width:100%; text-align: center;\">";
 pub(crate) const HTML_END: &str = "</tbody></table></body></html>\n";
-
-/// The plain-text form of a cell value, before HTML-escaping. Strings render
-/// verbatim, null renders as `null` as the terminal writes it, and numbers /
-/// booleans serialise.
-fn html_cell_text(value: &sonic_rs::Value) -> String {
-    if let Some(s) = value.as_str() {
-        return s.to_owned();
-    }
-    sonic_rs::to_string(value).unwrap_or_default()
-}
 
 /// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
 /// condition string) cannot inject markup into the rendered table.
@@ -2409,43 +801,13 @@ pub(crate) fn escape_html(value: &str) -> String {
     out
 }
 
-fn render_csv_value(value: &sonic_rs::Value) -> String {
-    if let Some(s) = value.as_str() {
-        return escape_csv_field(s);
-    }
-    if value.is_null() {
-        return String::new();
-    }
-    // If serialisation errors, emit an explicit sentinel string so the CSV
-    // column is observable rather than silently empty.
-    match sonic_rs::to_string(value) {
-        // Serialized numbers and booleans never contain an RFC-4180 special.
-        Ok(rendered) if value.is_number() || value.is_boolean() => rendered,
-        Ok(rendered) => escape_csv_field(&rendered),
-        Err(err) => {
-            tracing::warn!(error = %err, "csv cell serialisation failed; emitting sentinel");
-            escape_csv_field(&format!("<csv-render-error: {err}>"))
-        }
-    }
-}
-
-/// CSV-escape a single field per RFC 4180: a field containing `,`, `"`, `\n`
-/// or `\r` is wrapped in double quotes with any inner quote doubled.
-fn escape_csv_field(value: &str) -> String {
-    if !value.contains([',', '"', '\n', '\r']) {
-        return value.to_owned();
-    }
-    format!("\"{}\"", value.replace('"', "\"\""))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sonic_rs::JsonContainerTrait;
-    use thetadatadx::{GreeksAllTick, QuoteTick, TradeQuoteTick};
+    use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
     /// The error envelope must carry `header.error_type` + `header.error_msg`
-    /// with an empty `response` array — the same shape the JVM terminal
+    /// with an empty `response` array, the same shape the JVM terminal
     /// emits and the flat-file / handler fallback strings hand-write. The
     /// nested `error.message` form must never come back: clients parse one
     /// shape across every route family.
@@ -2475,2460 +837,6 @@ mod tests {
         assert!(
             envelope.get("error").is_none(),
             "nested error.message form must not be emitted"
-        );
-    }
-
-    /// A stand-in endpoint for CSV tests that exercise framing / escaping /
-    /// union behaviour rather than a specific endpoint's column order.
-    fn csv_test_endpoint() -> &'static EndpointMeta {
-        thetadatadx::find("stock_snapshot_ohlc").expect("endpoint exists")
-    }
-
-    #[test]
-    fn json_to_csv_formats_scalar_lists_as_single_column() {
-        let csv = json_to_csv(
-            csv_test_endpoint(),
-            &[
-                sonic_rs::Value::from("AAPL"),
-                sonic_rs::Value::from("MS,FT"),
-                sonic_rs::Value::from("He said \"hi\""),
-            ],
-        )
-        .expect("scalar list should format as CSV");
-
-        // v3 CSV is CRLF-framed.
-        assert_eq!(
-            csv,
-            "value\r\nAAPL\r\n\"MS,FT\"\r\n\"He said \"\"hi\"\"\"\r\n"
-        );
-    }
-
-    #[test]
-    fn json_to_csv_formats_object_rows_with_headers() {
-        // `stock_snapshot_ohlc` pins `timestamp,symbol,open,...,count`; with
-        // only `symbol` + `count` present those two are emitted in pinned
-        // order. CRLF-framed.
-        let csv = json_to_csv(
-            csv_test_endpoint(),
-            &[
-                sonic_rs::json!({ "symbol": "AAPL", "count": 1 }),
-                sonic_rs::json!({ "symbol": "MSFT", "count": 2 }),
-            ],
-        )
-        .expect("object rows should format as CSV");
-
-        assert_eq!(csv, "symbol,count\r\nAAPL,1\r\nMSFT,2\r\n");
-    }
-
-    #[test]
-    fn json_to_csv_rejects_mixed_row_shapes() {
-        let csv = json_to_csv(
-            csv_test_endpoint(),
-            &[
-                sonic_rs::json!({ "symbol": "AAPL" }),
-                sonic_rs::Value::from("MSFT"),
-            ],
-        );
-
-        assert!(csv.is_none(), "mixed row shapes should not format as CSV");
-    }
-
-    /// Regression: the header key set must be the UNION of keys across
-    /// every row, not just row 0. If row 0 is sparse (e.g. an index tick
-    /// with no `expiration/strike/right`) and row 1 has extra columns,
-    /// seeding from row 0 alone silently drops the missing columns from
-    /// every subsequent row.
-    #[test]
-    fn json_to_csv_unions_keys_across_sparse_rows() {
-        // `option_history_trade` pins the contract identity first; the synthetic
-        // `zz_extra` / `aa_extra` keys are not in its pinned order, so they
-        // append (sorted) after the matched identity columns. This exercises the
-        // union: a key present in any row must appear in the header.
-        let ep = thetadatadx::find("option_history_trade").expect("endpoint exists");
-        let csv = json_to_csv(
-            ep,
-            &[
-                // Row 0: no option-identifying fields.
-                sonic_rs::json!({ "zz_extra": 0, "aa_extra": 100.0 }),
-                // Row 1: adds `expiration`, `strike`, `right`.
-                sonic_rs::json!({
-                    "zz_extra": 1,
-                    "aa_extra": 101.0,
-                    "expiration": 20240315,
-                    "strike": 150.0,
-                    "right": "C",
-                }),
-            ],
-        )
-        .expect("sparse-object rows should format as CSV");
-
-        let lines: Vec<&str> = csv.lines().collect();
-        // Pinned contract-identity columns present (`expiration`, `strike`,
-        // `right`) lead in spec order; the non-pinned data keys append
-        // lexicographically (`aa_extra` before `zz_extra`). Every key in any row
-        // is present — sparse rows render empty cells.
-        assert_eq!(
-            lines[0], "expiration,strike,right,aa_extra,zz_extra",
-            "header should lead with contract identity then carry every data key"
-        );
-        // Row 0 lacks the contract identity — those leading columns render
-        // empty, not dropped from the schema.
-        assert_eq!(lines[1], ",,,100.0,0");
-        assert_eq!(lines[2], "20240315,150.0,C,101.0,1");
-    }
-
-    /// v3 quote shape: the `date` + `ms_of_day` integer pair collapses
-    /// into one ISO `timestamp`, and the v2-only computed `midpoint`
-    /// column is gone. Contract id fields are emitted as ISO expiration +
-    /// `CALL` / `PUT`.
-    #[test]
-    fn quote_ticks_emit_v3_timestamp_without_midpoint() {
-        let t = QuoteTick {
-            ms_of_day: 62_273_606,
-            bid_size: 1,
-            bid_exchange: 2,
-            has_bid_exchange: true,
-            bid: 3.0,
-            bid_condition: 4,
-            has_bid_condition: true,
-            ask_size: 5,
-            ask_exchange: 6,
-            has_ask_exchange: true,
-            ask: 7.0,
-            ask_condition: 8,
-            has_ask_condition: true,
-            date: 20240102,
-            expiration: 20260417,
-            strike: 150.0,
-            right: 'C',
-        };
-        let r = quote_ticks_to_json(&[t]);
-        let r = r.first().unwrap();
-        assert_eq!(
-            r.get("timestamp")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("2024-01-02T17:17:53.606".to_string())
-        );
-        assert!(r.get("midpoint").is_none(), "v3 quote drops midpoint");
-        assert!(
-            r.get("ms_of_day").is_none(),
-            "v3 folds ms_of_day into timestamp"
-        );
-        assert!(r.get("date").is_none(), "v3 folds date into timestamp");
-        assert_eq!(
-            r.get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("2026-04-17".to_string())
-        );
-        assert_eq!(
-            r.get("right")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("CALL".to_string())
-        );
-    }
-    /// A cell the wire did not carry comes back as JSON `null`, not as the
-    /// column's zero. Zero is a condition code, so serving it for "not sent"
-    /// tells a caller the quote carried a condition it never carried. The
-    /// CSV projection of the same row leaves the field empty.
-    #[test]
-    fn an_absent_quote_condition_is_null_not_zero() {
-        let t = QuoteTick {
-            ms_of_day: 62_273_606,
-            bid_size: 1,
-            bid_exchange: 2,
-            has_bid_exchange: true,
-            bid: 3.0,
-            bid_condition: 0,
-            has_bid_condition: false,
-            ask_size: 5,
-            ask_exchange: 6,
-            has_ask_exchange: true,
-            ask: 7.0,
-            ask_condition: 8,
-            has_ask_condition: true,
-            date: 20240102,
-            expiration: 20260417,
-            strike: 150.0,
-            right: 'C',
-        };
-        let rows = quote_ticks_to_json(&[t]);
-        let row = rows.first().unwrap();
-        assert!(
-            row.get("bid_condition")
-                .is_some_and(sonic_rs::JsonValueTrait::is_null),
-            "an absent bid_condition is null"
-        );
-        assert_eq!(
-            row.get("ask_condition")
-                .and_then(sonic_rs::JsonValueTrait::as_i64),
-            Some(8),
-            "a present ask_condition still carries its code"
-        );
-
-        let values: Vec<sonic_rs::Value> = rows.into_iter().map(Row::into_value).collect();
-        let csv = json_to_csv(
-            thetadatadx::find("option_history_quote").expect("endpoint exists"),
-            &values,
-        )
-        .expect("csv");
-        let header: Vec<&str> = csv.lines().next().unwrap().split(',').collect();
-        let cells: Vec<&str> = csv.lines().nth(1).unwrap().split(',').collect();
-        let at = |name: &str| cells[header.iter().position(|h| *h == name).expect(name)];
-        assert_eq!(at("bid_condition"), "", "an absent cell is an empty field");
-        assert_eq!(at("ask_condition"), "8");
-    }
-
-    /// The legacy JSON shape is columnar and carries no envelope: one array
-    /// per column, in the CSV header order, every array the same length so
-    /// index `i` is row `i` in all of them.
-    #[test]
-    fn json_legacy_emits_one_array_per_column() {
-        let ep = thetadatadx::find("option_history_quote").expect("endpoint exists");
-        let ticks = [
-            QuoteTick {
-                ms_of_day: 34_200_000,
-                bid_size: 1,
-                bid_exchange: 2,
-                has_bid_exchange: true,
-                bid: 3.0,
-                bid_condition: 0,
-                has_bid_condition: false,
-                ask_size: 5,
-                ask_exchange: 6,
-                has_ask_exchange: true,
-                ask: 7.0,
-                ask_condition: 8,
-                has_ask_condition: true,
-                date: 20240102,
-                expiration: 20260417,
-                strike: 150.0,
-                right: 'C',
-            },
-            // No contract identity, so this row carries no `expiration` /
-            // `strike` / `right` key at all — the shape that makes the
-            // transpose fall back rather than read a cell.
-            QuoteTick {
-                ms_of_day: 34_200_001,
-                bid_size: 9,
-                bid_exchange: 2,
-                has_bid_exchange: true,
-                bid: 3.5,
-                bid_condition: 4,
-                has_bid_condition: true,
-                ask_size: 5,
-                ask_exchange: 6,
-                has_ask_exchange: true,
-                ask: 7.5,
-                ask_condition: 8,
-                has_ask_condition: true,
-                date: 20240102,
-                expiration: 0,
-                strike: 0.0,
-                right: '\0',
-            },
-        ];
-        let values: Vec<sonic_rs::Value> = quote_ticks_to_json(&ticks)
-            .into_iter()
-            .map(Row::into_value)
-            .collect();
-
-        let legacy = json_legacy(ep, &values);
-        let object = legacy.as_object().expect("legacy shape is an object");
-        assert!(
-            object.get(&"response").is_none(),
-            "the legacy shape carries no envelope"
-        );
-
-        let column = |name: &str| -> Vec<sonic_rs::Value> {
-            object
-                .get(&name)
-                .and_then(|v: &sonic_rs::Value| v.as_array())
-                .unwrap_or_else(|| panic!("{name} column"))
-                .iter()
-                .cloned()
-                .collect()
-        };
-        assert_eq!(column("bid_size").len(), 2, "one entry per row");
-        assert_eq!(
-            column("bid_size")
-                .iter()
-                .map(|v: &sonic_rs::Value| v.as_i64())
-                .collect::<Vec<_>>(),
-            vec![Some(1), Some(9)],
-            "index i is row i"
-        );
-        // An absent cell stays absent through the transpose rather than
-        // shifting the column and misaligning every row below it.
-        assert!(
-            column("bid_condition")
-                .first()
-                .is_some_and(|v: &sonic_rs::Value| v.is_null()),
-            "an absent cell is null in the column"
-        );
-        // A column a row does not carry at all holds the row's place, so
-        // index 1 is still the second row in every other column.
-        let expiration = column("expiration");
-        assert_eq!(expiration.len(), 2, "the column keeps one entry per row");
-        assert!(
-            expiration[1].is_null(),
-            "a row without contract identity leaves a null, not a gap"
-        );
-
-        // Neither rendering of a response names a column the other does not.
-        let csv = json_to_csv(ep, &values).expect("csv");
-        let mut header: Vec<&str> = csv.lines().next().unwrap().split(',').collect();
-        let mut legacy_keys: Vec<&str> = object.iter().map(|(k, _)| k).collect();
-        header.sort_unstable();
-        legacy_keys.sort_unstable();
-        assert_eq!(legacy_keys, header);
-    }
-
-    /// v3 trade_quote shape: the trade and quote sides each get their own
-    /// ISO datetime (`trade_timestamp` / `quote_timestamp`) and the v2-only
-    /// `condition_flags` / `price_flags` / `volume_type` / `records_back` /
-    /// `date` columns are gone. The four `ext_condition` columns stay.
-    #[test]
-    fn trade_quote_ticks_emit_split_v3_timestamps() {
-        let t = TradeQuoteTick {
-            ms_of_day: 34_200_002,
-            sequence: 1,
-            ext_condition1: 10,
-            has_ext_condition1: true,
-            ext_condition2: 20,
-            has_ext_condition2: true,
-            ext_condition3: 30,
-            has_ext_condition3: true,
-            ext_condition4: 40,
-            has_ext_condition4: true,
-            condition: 1,
-            has_condition: true,
-            size: 100,
-            exchange: 11,
-            has_exchange: true,
-            price: 150.0,
-            condition_flags: 3,
-            price_flags: 7,
-            volume_type: 1,
-            records_back: 5,
-            quote_ms_of_day: 34_200_001,
-            bid_size: 100,
-            bid_exchange: 11,
-            has_bid_exchange: true,
-            bid: 149.0,
-            bid_condition: 1,
-            has_bid_condition: true,
-            ask_size: 200,
-            ask_exchange: 12,
-            has_ask_exchange: true,
-            ask: 151.0,
-            ask_condition: 2,
-            has_ask_condition: true,
-            date: 20230103,
-            expiration: 0,
-            strike: 0.0,
-            right: '\0',
-        };
-        let r = trade_quote_ticks_to_json(&[t]);
-        let r = r.first().unwrap();
-        assert_eq!(
-            r.get("trade_timestamp")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("2023-01-03T09:30:00.002".to_string())
-        );
-        assert_eq!(
-            r.get("quote_timestamp")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("2023-01-03T09:30:00.001".to_string())
-        );
-        for k in [
-            "ext_condition1",
-            "ext_condition2",
-            "ext_condition3",
-            "ext_condition4",
-        ] {
-            assert!(r.get(k).is_some(), "missing: {k}");
-        }
-        for k in [
-            "ms_of_day",
-            "quote_ms_of_day",
-            "date",
-            "condition_flags",
-            "price_flags",
-            "volume_type",
-            "records_back",
-        ] {
-            assert!(r.get(k).is_none(), "v3 trade_quote must drop: {k}");
-        }
-    }
-    #[test]
-    fn greeks_ticks_has_all_greeks() {
-        let t = GreeksAllTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.25,
-            delta: 0.5,
-            gamma: 0.1,
-            theta: -0.01,
-            vega: 0.2,
-            rho: 0.05,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 20260410,
-            underlying_date: 20260411,
-            expiration: 20260417,
-            strike: 150.0,
-            right: 'C',
-        };
-        let r = greeks_all_ticks_to_json(&[t]);
-        let r = r.first().unwrap();
-        for k in [
-            "implied_vol",
-            "delta",
-            "gamma",
-            "theta",
-            "vega",
-            "rho",
-            "iv_error",
-            "vanna",
-            "charm",
-            "vomma",
-            "veta",
-            "speed",
-            "zomma",
-            "color",
-            "ultima",
-            "d1",
-            "d2",
-            "dual_delta",
-            "dual_gamma",
-            "epsilon",
-            "lambda",
-            "vera",
-            "bid",
-            "ask",
-            "underlying_timestamp",
-            "underlying_price",
-            "timestamp",
-        ] {
-            assert!(r.get(k).is_some(), "missing: {k}");
-        }
-        // v3 renames + folds: the integer time columns and the long
-        // `implied_volatility` spelling must not survive.
-        for k in [
-            "implied_volatility",
-            "ms_of_day",
-            "underlying_ms_of_day",
-            "date",
-            "underlying_date",
-        ] {
-            assert!(r.get(k).is_none(), "v3 greeks must drop: {k}");
-        }
-        assert_eq!(
-            r.get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
-            Some("2026-04-17".to_string())
-        );
-    }
-    #[test]
-    fn greeks_ticks_omits_ids_single_contract() {
-        let t = GreeksAllTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.0,
-            delta: 0.0,
-            gamma: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 20260410,
-            underlying_date: 20260411,
-            expiration: 0,
-            strike: 0.0,
-            right: '\0',
-        };
-        let r = greeks_all_ticks_to_json(&[t]);
-        let r = r.first().unwrap();
-        assert!(r.get("expiration").is_none());
-        assert!(r.get("strike").is_none());
-        assert!(r.get("right").is_none());
-    }
-
-    // -----------------------------------------------------------------------
-    //  v3 endpoint-aware response building
-    // -----------------------------------------------------------------------
-
-    use thetadatadx::QuoteTick as TdQuoteTick;
-
-    fn quote_tick(expiration: i32, strike: f64, right: char) -> TdQuoteTick {
-        TdQuoteTick {
-            ms_of_day: 34_200_000,
-            bid_size: 1,
-            bid_exchange: 2,
-            has_bid_exchange: true,
-            bid: 3.0,
-            bid_condition: 4,
-            has_bid_condition: true,
-            ask_size: 5,
-            ask_exchange: 6,
-            has_ask_exchange: true,
-            ask: 7.0,
-            ask_condition: 8,
-            has_ask_condition: true,
-            date: 20240102,
-            expiration,
-            strike,
-            right,
-        }
-    }
-
-    /// A wildcard option snapshot response (two contracts) groups under one
-    /// `{contract, data}` block per contract: the contract object carries the
-    /// wire `symbol` + the per-row identity in the v3 `symbol, strike,
-    /// right, expiration` field order, and each data row drops the contract
-    /// fields. Stock / index endpoints stay flat (covered separately).
-    #[test]
-    fn option_endpoint_groups_rows_by_contract() {
-        let ep = thetadatadx::find("option_snapshot_quote").expect("endpoint exists");
-        let output = EndpointOutput::QuoteTicks(columns::Ticks::new(
-            vec![
-                quote_tick(20260116, 275.0, 'C'),
-                quote_tick(20260116, 280.0, 'P'),
-            ],
-            columns::ColumnPresence::default().with_symbol("AAPL"),
-        ));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        let envelope = json_envelope(ep, rows);
-
-        let response = envelope
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("response array");
-        assert_eq!(response.len(), 2, "one group per distinct contract");
-
-        let first = &response[0];
-        let contract_obj = first.get("contract").expect("contract object");
-        // The contract object carries exactly the four identity keys (the
-        // JSON field *order* within the object is not contractual — the
-        // vendor serialises it from an unordered map, and clients read by
-        // key — so only presence + values are asserted).
-        let keys: std::collections::BTreeSet<String> = contract_obj
-            .as_object()
-            .expect("contract is an object")
-            .iter()
-            .map(|(k, _)| k.to_string())
-            .collect();
-        assert_eq!(
-            keys,
-            ["expiration", "right", "strike", "symbol"]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        );
-        assert_eq!(
-            contract_obj
-                .get("symbol")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL"),
-            "contract symbol comes from the wire"
-        );
-        assert_eq!(
-            contract_obj
-                .get("right")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("CALL")
-        );
-        assert_eq!(
-            contract_obj
-                .get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2026-01-16")
-        );
-
-        let data = first
-            .get("data")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("data array");
-        assert_eq!(data.len(), 1);
-        let data_row = &data[0];
-        for dropped in ["symbol", "expiration", "strike", "right"] {
-            assert!(
-                data_row.get(dropped).is_none(),
-                "contract field must be lifted out of the data row: {dropped}"
-            );
-        }
-        assert!(
-            data_row.get("bid").is_some(),
-            "data row keeps the quote fields"
-        );
-    }
-
-    /// Contract blocks come back in the order the rows arrived.
-    ///
-    /// Grouping must not reorder them. Ordering by the rendered contract key
-    /// compares the strike as text, so strike 1000 sorts ahead of strike 90
-    /// and a caller reading the blocks in order sees a strike ladder that
-    /// runs backwards through the hundreds.
-    #[test]
-    fn contract_blocks_keep_the_order_the_rows_arrived_in() {
-        let ep = thetadatadx::find("option_snapshot_quote").expect("endpoint exists");
-        let output = EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![
-            quote_tick(20260116, 90.0, 'C'),
-            quote_tick(20260116, 1000.0, 'C'),
-        ]));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        let envelope = json_envelope(ep, rows);
-        let response = envelope
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("response array");
-
-        let strikes: Vec<Option<f64>> = response
-            .iter()
-            .map(|block| {
-                block
-                    .get("contract")
-                    .and_then(|c: &sonic_rs::Value| c.get("strike"))
-                    .and_then(|v: &sonic_rs::Value| v.as_f64())
-            })
-            .collect();
-        assert_eq!(strikes, vec![Some(90.0), Some(1000.0)]);
-    }
-
-    /// A row the wire did not label stays unlabelled. The request's `symbol`
-    /// is not a stand-in: on a snapshot it is the caller's whole
-    /// comma-separated list, and in any case a value the wire did not send.
-    #[test]
-    fn a_row_the_wire_did_not_label_carries_no_symbol() {
-        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
-        let output =
-            EndpointOutput::QuoteTicks(columns::Ticks::from(vec![quote_tick(0, 0.0, '\0')]));
-        let rows = response_rows(
-            ep,
-            Some("AAPL,MSFT"),
-            &output,
-            &decode::PriceTypes::default(),
-        );
-        assert_eq!(rows.len(), 1);
-        assert!(
-            rows[0].get("symbol").is_none(),
-            "no symbol was on the wire: {:?}",
-            rows[0]
-        );
-    }
-
-    /// Stock / index endpoints never group: the JSON envelope stays a flat
-    /// `{response: [...]}` array, with the `symbol` column inline on the
-    /// snapshot families and absent on history.
-    #[test]
-    fn stock_snapshot_stays_flat_with_inline_symbol() {
-        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
-        let output = EndpointOutput::QuoteTicks(columns::Ticks::new(
-            vec![quote_tick(0, 0.0, '\0')],
-            columns::ColumnPresence::default().with_symbol("AAPL"),
-        ));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        let envelope = json_envelope(ep, rows);
-        let response = envelope
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("response array");
-        assert_eq!(response.len(), 1);
-        let row = &response[0];
-        assert!(
-            row.get("contract").is_none(),
-            "stock endpoints must not group under a contract"
-        );
-        assert_eq!(
-            row.get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL"),
-            "snapshot rows carry the wire symbol inline"
-        );
-        assert!(
-            row.get("expiration").is_none() && row.get("strike").is_none(),
-            "stock rows carry no option contract identity"
-        );
-    }
-
-    /// `stock_history_*` rows carry no `symbol` column (the v3 spec renders
-    /// them without one).
-    #[test]
-    fn stock_history_has_no_symbol_column() {
-        let ep = thetadatadx::find("stock_history_quote").expect("endpoint exists");
-        let output = EndpointOutput::QuoteTicks(labelled_row(quote_tick(0, 0.0, '\0')));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        assert!(
-            rows[0].get("symbol").is_none(),
-            "stock history rows have no symbol column"
-        );
-    }
-
-    /// v3 list endpoints: symbols -> `{symbol}`, dates -> `{date}` ISO,
-    /// option expirations -> `{symbol, expiration}` ISO, option strikes ->
-    /// `{symbol, strike}` numeric.
-    #[test]
-    fn list_endpoints_use_v3_keys_and_iso() {
-        // Symbol list: single `symbol` key, value verbatim.
-        let ep = thetadatadx::find("stock_list_symbols").expect("endpoint exists");
-        let rows = response_rows(
-            ep,
-            None,
-            &EndpointOutput::StringList(vec!["AAPL".into()]),
-            &decode::PriceTypes::default(),
-        );
-        assert_eq!(
-            rows[0]
-                .get("symbol")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL")
-        );
-
-        // Date list: `date` key, raw YYYYMMDD rendered ISO.
-        let ep = thetadatadx::find("stock_list_dates").expect("endpoint exists");
-        let rows = response_rows(
-            ep,
-            None,
-            &EndpointOutput::StringList(vec!["20160816".into()]),
-            &decode::PriceTypes::default(),
-        );
-        assert_eq!(
-            rows[0]
-                .get("date")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2016-08-16")
-        );
-
-        // Option expirations: symbol-paired, expiration ISO.
-        let ep = thetadatadx::find("option_list_expirations").expect("endpoint exists");
-        let rows = response_rows(
-            ep,
-            Some("AAPL"),
-            &EndpointOutput::StringList(vec!["20120601".into()]),
-            &decode::PriceTypes::default(),
-        );
-        assert_eq!(
-            rows[0]
-                .get("symbol")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL")
-        );
-        assert_eq!(
-            rows[0]
-                .get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2012-06-01")
-        );
-
-        // Option strikes: paired with the symbol the request named, not the
-        // raw parameter, strike a number spelled as the vendor wrote it.
-        let ep = thetadatadx::find("option_list_strikes").expect("endpoint exists");
-        let rows = response_rows(
-            ep,
-            Some(" AAPL,AAPL"),
-            &EndpointOutput::StringList(vec!["80.000".into()]),
-            &decode::PriceTypes::default(),
-        );
-        assert_eq!(
-            rows[0]
-                .get("symbol")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL")
-        );
-        assert_eq!(
-            rows[0]
-                .get("strike")
-                .map(|v: &sonic_rs::Value| sonic_rs::to_string(v).expect("number serializes")),
-            Some("80.000".to_string())
-        );
-    }
-
-    /// v3 CSV: contract identity + time columns lead in fixed order, then
-    /// data columns, CRLF-framed. Built from an option history row so the
-    /// `symbol,expiration,strike,right,timestamp,...` prefix is exercised.
-    #[test]
-    fn csv_v3_column_order_leads_with_contract_then_crlf() {
-        let ep = thetadatadx::find("option_history_trade").expect("endpoint exists");
-        let tick = thetadatadx::TradeTick {
-            ms_of_day: 34_200_471,
-            sequence: 18902138,
-            ext_condition1: 255,
-            has_ext_condition1: true,
-            ext_condition2: 255,
-            has_ext_condition2: true,
-            ext_condition3: 255,
-            has_ext_condition3: true,
-            ext_condition4: 255,
-            has_ext_condition4: true,
-            condition: 130,
-            has_condition: true,
-            size: 2,
-            exchange: 22,
-            has_exchange: true,
-            price: 3.90,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: 20241104,
-            expiration: 20241108,
-            strike: 220.0,
-            right: 'C',
-        };
-        let rows = response_rows(
-            ep,
-            None,
-            &EndpointOutput::TradeTicks(labelled_row(tick)),
-            &decode::PriceTypes::default(),
-        );
-        let csv = json_to_csv(ep, &rows).expect("CSV");
-        assert!(csv.ends_with("\r\n"), "v3 CSV is CRLF-framed: {csv:?}");
-        let header = csv.split("\r\n").next().expect("header line");
-        // Full spec header for option_history_trade (OpenAPI text/csv example
-        // ~:4566): contract identity, then `timestamp`, then the trade columns.
-        assert_eq!(
-            header,
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price",
-            "v3 option_history_trade CSV header must match the spec column order exactly"
-        );
-    }
-
-    /// A price is written at the precision its wire cell carries, in every
-    /// format, as the terminal writes it. The decode to `f64` keeps only the
-    /// value, so the price types travel beside the rows; the second row's
-    /// underlying price carries a decimal more than the first's, as the
-    /// vendor's prices do from row to row within a column.
-    #[test]
-    fn prices_are_written_at_the_precision_of_their_wire_cell() {
-        use thetadatadx::wire::{DataTable, DataValue, DataValueList, data_value::DataType};
-        let text = |text: &str| DataValue {
-            data_type: Some(DataType::Text(text.into())),
-        };
-        let price = |value, r#type| DataValue {
-            data_type: Some(DataType::Price(thetadatadx::wire::Price { value, r#type })),
-        };
-        // 2024-06-21 09:30:00 in New York.
-        let opening_bell = || DataValue {
-            data_type: Some(DataType::Timestamp(thetadatadx::wire::ZonedDateTime {
-                epoch_ms: 1_718_976_600_000,
-                zone: 0,
-            })),
-        };
-        let row = |underlying_price| DataValueList {
-            values: vec![
-                text("SPY"),
-                text("2024-06-21"),
-                price(766_000, 7),
-                text("CALL"),
-                opening_bell(),
-                price(1_430, 8),
-                price(5_800, 6),
-                price(1_450, 8),
-                price(5_900, 6),
-                price(1_470, 8),
-                price(6_000, 6),
-                price(0, 6),
-                opening_bell(),
-                underlying_price,
-            ],
-        };
-        let table = DataTable {
-            headers: [
-                "symbol",
-                "expiration",
-                "strike",
-                "right",
-                "timestamp",
-                "bid",
-                "bid_implied_vol",
-                "midpoint",
-                "implied_vol",
-                "ask",
-                "ask_implied_vol",
-                "iv_error",
-                "underlying_timestamp",
-                "underlying_price",
-            ]
-            .map(String::from)
-            .to_vec(),
-            data_table: vec![row(price(340_680, 7)), row(price(3_406_800, 6))],
-        };
-        let ep =
-            thetadatadx::find("option_history_greeks_implied_volatility").expect("endpoint exists");
-        let ticks = decode::parse_iv_ticks(&table).expect("wire rows decode");
-        let output = EndpointOutput::IvTicks(columns::Ticks::new(
-            ticks,
-            <IvTick as columns::WireColumns>::all_columns().with_symbol("SPY"),
-        ));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::from_table(&table));
-
-        assert_eq!(
-            json_to_csv(ep, &rows).expect("CSV"),
-            "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price\r\n\
-             SPY,2024-06-21,766.000,CALL,2024-06-21T09:30:00.000,14.30,0.5800,14.50,0.5900,14.70,0.6000,0.0000,2024-06-21T09:30:00.000,340.680\r\n\
-             SPY,2024-06-21,766.000,CALL,2024-06-21T09:30:00.000,14.30,0.5800,14.50,0.5900,14.70,0.6000,0.0000,2024-06-21T09:30:00.000,340.6800\r\n"
-        );
-        let html = json_to_html(ep, &rows).expect("HTML");
-        assert!(
-            html.contains("<td>766.000</td><td>CALL</td>"),
-            "HTML writes the strike as CSV does: {html}"
-        );
-        let json = sonic_rs::to_string(&json_envelope(ep, rows)).expect("JSON");
-        for field in [
-            r#""strike":766.000"#,
-            r#""bid":14.30"#,
-            r#""bid_implied_vol":0.5800"#,
-            r#""iv_error":0.0000"#,
-            r#""underlying_price":340.680"#,
-            r#""underlying_price":340.6800"#,
-        ] {
-            assert!(json.contains(field), "JSON lacks {field}: {json}");
-        }
-    }
-
-    /// `format=html` writes the terminal's page byte for byte: its document and
-    /// table style, a line break after the header and each row, `null` for an
-    /// absent value, and every cell escaped.
-    #[test]
-    fn html_is_the_terminals_page() {
-        let ep = thetadatadx::find("calendar_year").expect("endpoint exists");
-        let rows = vec![
-            sonic_rs::json!({"date": "2026-01-01", "type": "full_close", "open": null, "close": null}),
-            sonic_rs::json!({"date": "2026-11-27", "type": "<b>", "open": "09:30:00", "close": "13:00:00"}),
-        ];
-        assert_eq!(
-            json_to_html(ep, &rows).expect("HTML"),
-            "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n\
-             <table style=\"width:100%; text-align: center;\"><thead><tr><th>date</th><th>type</th><th>open</th><th>close</th></tr></thead>\n\
-             <tbody><tr><td>2026-01-01</td><td>full_close</td><td>null</td><td>null</td></tr>\n\
-             <tr><td>2026-11-27</td><td>&lt;b&gt;</td><td>09:30:00</td><td>13:00:00</td></tr>\n\
-             </tbody></table></body></html>\n"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    //  v3 timestamp formatting (fixed `.SSS` fraction)
-    // -----------------------------------------------------------------------
-
-    /// `ms_of_day_to_iso` renders a fixed `.SSS` fraction, as the terminal does.
-    #[test]
-    fn ms_of_day_to_iso_uses_the_terminals_fixed_millisecond_fraction() {
-        let at = |ms: i32| {
-            ms_of_day_to_iso(20240102, ms)
-                .as_str()
-                .expect("iso string")
-                .to_string()
-        };
-        // The terminal formats every timestamp with an explicit `.SSS`, so a
-        // whole second still carries its fraction and a value with trailing
-        // zeros keeps them. The vendor's published examples show the trimmed
-        // forms, which is what this used to emit; they do not match the
-        // terminal, and the terminal is what this server replaces.
-        assert_eq!(at(34_200_000), "2024-01-02T09:30:00.000");
-        assert_eq!(at(34_200_020), "2024-01-02T09:30:00.020");
-        assert_eq!(at(34_200_100), "2024-01-02T09:30:00.100");
-        assert_eq!(at(34_200_606), "2024-01-02T09:30:00.606");
-        assert_eq!(at(34_200_430), "2024-01-02T09:30:00.430");
-    }
-
-    /// The fraction helper in isolation: always a dot and three digits, so
-    /// every rendered timestamp is the same width.
-    #[test]
-    fn iso_millis_fraction_is_always_three_digits() {
-        assert_eq!(iso_millis_fraction(0), ".000");
-        assert_eq!(iso_millis_fraction(1), ".001");
-        assert_eq!(iso_millis_fraction(20), ".020");
-        assert_eq!(iso_millis_fraction(100), ".100");
-        assert_eq!(iso_millis_fraction(430), ".430");
-        assert_eq!(iso_millis_fraction(606), ".606");
-        assert_eq!(iso_millis_fraction(999), ".999");
-        let widths: std::collections::BTreeSet<usize> =
-            (0..1000).map(|ms| iso_millis_fraction(ms).len()).collect();
-        assert_eq!(widths, [4].into_iter().collect());
-    }
-
-    // -----------------------------------------------------------------------
-    //  Endpoint-aware CSV headers — full column order per the v3 spec
-    // -----------------------------------------------------------------------
-
-    fn ohlc_tick(ms: i32, expiration: i32, strike: f64, right: char) -> thetadatadx::OhlcTick {
-        thetadatadx::OhlcTick {
-            ms_of_day: ms,
-            open: 1.0,
-            high: 2.0,
-            low: 0.5,
-            close: 1.5,
-            volume: 100,
-            count: 7,
-            vwap: 1.25,
-            date: 20240102,
-            expiration,
-            strike,
-            right,
-        }
-    }
-
-    fn trade_tick(ms: i32, expiration: i32, strike: f64, right: char) -> thetadatadx::TradeTick {
-        thetadatadx::TradeTick {
-            ms_of_day: ms,
-            sequence: 42,
-            ext_condition1: 1,
-            has_ext_condition1: true,
-            ext_condition2: 2,
-            has_ext_condition2: true,
-            ext_condition3: 3,
-            has_ext_condition3: true,
-            ext_condition4: 4,
-            has_ext_condition4: true,
-            condition: 5,
-            has_condition: true,
-            size: 10,
-            exchange: 11,
-            has_exchange: true,
-            price: 1.5,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: 20240102,
-            expiration,
-            strike,
-            right,
-        }
-    }
-
-    fn market_value_tick(
-        expiration: i32,
-        strike: f64,
-        right: char,
-    ) -> thetadatadx::MarketValueTick {
-        thetadatadx::MarketValueTick {
-            ms_of_day: 34_200_000,
-            market_bid: 1.0,
-            market_ask: 2.0,
-            market_price: 1.5,
-            date: 20240102,
-            expiration,
-            strike,
-            right,
-        }
-    }
-
-    /// The first record (header line) of the CSV the endpoint would emit for
-    /// `output`.
-    fn csv_header_for(ep_name: &str, output: EndpointOutput) -> String {
-        let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        let csv = json_to_csv(ep, &rows).expect("CSV");
-        csv.split("\r\n").next().expect("header line").to_string()
-    }
-
-    /// One snapshot + one history endpoint per asset class, asserted against
-    /// the exact v3 `text/csv` example header. These pin the column ORDER and
-    /// the snapshot-vs-history shape distinctions (snapshot leads `timestamp`,
-    /// drops `vwap`; stock snapshot trade trims ext/exchange; history leads
-    /// contract-first for options; index history / stock history carry no
-    /// `symbol`).
-    #[test]
-    fn csv_headers_match_v3_spec_per_asset_class() {
-        // --- stock ---
-        // snapshot ohlc (spec :332): timestamp,symbol,...,count  (NO vwap)
-        assert_eq!(
-            csv_header_for(
-                "stock_snapshot_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(34_200_000, 0, 0.0, '\0')))
-            ),
-            "timestamp,symbol,open,high,low,close,volume,count"
-        );
-        // snapshot trade (spec :450): timestamp,symbol,sequence,size,condition,price
-        // (NO ext_condition*, NO exchange)
-        assert_eq!(
-            csv_header_for(
-                "stock_snapshot_trade",
-                EndpointOutput::TradeTicks(labelled_row(trade_tick(34_200_000, 0, 0.0, '\0')))
-            ),
-            "timestamp,symbol,sequence,size,condition,price"
-        );
-        // history ohlc (spec :976): timestamp,...,vwap  (NO symbol)
-        assert_eq!(
-            csv_header_for(
-                "stock_history_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(34_200_000, 0, 0.0, '\0')))
-            ),
-            "timestamp,open,high,low,close,volume,count,vwap"
-        );
-
-        // --- option ---
-        // snapshot ohlc (spec :2566): timestamp,symbol,expiration,strike,right,...,count (NO vwap)
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(
-                    34_200_000, 20260116, 275.0, 'C'
-                )))
-            ),
-            "timestamp,symbol,expiration,strike,right,open,high,low,close,volume,count"
-        );
-        // history ohlc (spec :4359): symbol,expiration,strike,right,timestamp,...,vwap
-        assert_eq!(
-            csv_header_for(
-                "option_history_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(
-                    34_200_000, 20260116, 275.0, 'C'
-                )))
-            ),
-            "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,vwap"
-        );
-
-        // --- index ---
-        // snapshot ohlc (spec :8311): timestamp,symbol,...,count (NO vwap)
-        assert_eq!(
-            csv_header_for(
-                "index_snapshot_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(34_200_000, 0, 0.0, '\0')))
-            ),
-            "timestamp,symbol,open,high,low,close,volume,count"
-        );
-        // history ohlc (spec :8777): timestamp,...,vwap (NO symbol)
-        assert_eq!(
-            csv_header_for(
-                "index_history_ohlc",
-                EndpointOutput::OhlcTicks(labelled_row(ohlc_tick(34_200_000, 0, 0.0, '\0')))
-            ),
-            "timestamp,open,high,low,close,volume,count,vwap"
-        );
-    }
-
-    /// `endpoint_columns` is the SSOT for the v3 column order, so it must be
-    /// faithful even for the non-option endpoints that share a tick type with an
-    /// option family. Stock / index history rows carry no contract identity, so
-    /// the derived order must NOT carry a trailing `expiration` / `strike` /
-    /// `right`. (Masked at runtime by the present-key intersection — real rows
-    /// have `expiration == 0` — but the derived order must be correct on its own
-    /// for the invariant to hold.)
-    #[test]
-    fn endpoint_columns_omits_contract_identity_for_non_option_endpoints() {
-        for ep_name in ["stock_history_ohlc", "index_history_ohlc"] {
-            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-            let cols = endpoint_columns(ep);
-            for id in ["expiration", "strike", "right"] {
-                assert!(
-                    !cols.contains(&id),
-                    "{ep_name} carries no contract identity; derived order must omit `{id}` \
-                     (got {cols:?})"
-                );
-            }
-            // Positive control: the bare OHLC history order, no id columns spliced.
-            assert_eq!(
-                cols,
-                vec![
-                    "timestamp",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                    "count",
-                    "vwap",
-                ],
-                "{ep_name} derived column order is the bare serializer order"
-            );
-        }
-    }
-
-    /// The single-day calendar header must lead with `date` WHEN a response
-    /// carries it — matching the multi-day `calendar_year` shape
-    /// (`date,type,open,close`) rather than sorting `date` into the trailing
-    /// `BTreeSet` tail. `endpoint_columns` therefore captures `date` in its
-    /// leading slot for the single-day endpoints; a date-less response drops it
-    /// via the present-key intersection, a date-bearing one keeps it leading.
-    #[test]
-    fn calendar_single_day_header_is_date_leading_when_present() {
-        let open_day = |date: i32| CalendarDay {
-            date,
-            open_time: 34_200_000,
-            close_time: 57_600_000,
-            status: thetadatadx::CalendarStatus::Open,
-        };
-
-        for ep_name in ["calendar_on_date", "calendar_open_today"] {
-            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-            // Derived order leads with `date` (representative carries a date).
-            assert_eq!(
-                endpoint_columns(ep),
-                vec!["date", "type", "open", "close"],
-                "{ep_name} derived order leads with `date` so it sorts ahead of the body"
-            );
-
-            // A date-bearing single-day response keeps `date` leading — NOT in
-            // the trailing tail (`type,open,close,date`).
-            assert_eq!(
-                csv_header_for(
-                    ep_name,
-                    EndpointOutput::CalendarDays(labelled_row(open_day(20240315)))
-                ),
-                "date,type,open,close",
-                "{ep_name} with a date present leads with `date`, like calendar_year"
-            );
-
-            // The normal date-less single-day response drops `date` entirely
-            // (present-key intersection), leaving the bare `type,open,close`.
-            assert_eq!(
-                csv_header_for(
-                    ep_name,
-                    EndpointOutput::CalendarDays(labelled_row(open_day(0)))
-                ),
-                "type,open,close",
-                "{ep_name} with no date keeps the bare single-day header"
-            );
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    //  H2 — snapshot OHLC drops vwap; history keeps it
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn snapshot_ohlc_drops_vwap_history_keeps_it() {
-        let snap = RowShape {
-            is_snapshot: true,
-            is_index: false,
-            is_option: false,
-        };
-        let hist = RowShape {
-            is_snapshot: false,
-            is_index: false,
-            is_option: false,
-        };
-        let s = ohlc_ticks_to_json(&[ohlc_tick(34_200_000, 0, 0.0, '\0')], snap);
-        assert!(
-            s[0].get("vwap").is_none(),
-            "snapshot OHLC must not emit vwap"
-        );
-        assert!(s[0].get("count").is_some(), "snapshot OHLC keeps count");
-        let h = ohlc_ticks_to_json(&[ohlc_tick(34_200_000, 0, 0.0, '\0')], hist);
-        assert!(h[0].get("vwap").is_some(), "history OHLC must emit vwap");
-    }
-
-    // -----------------------------------------------------------------------
-    //  H3 — stock snapshot trade trims ext/exchange; option keeps them
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn stock_snapshot_trade_trims_ext_and_exchange() {
-        let stock_snap = RowShape {
-            is_snapshot: true,
-            is_index: false,
-            is_option: false,
-        };
-        let r = trade_ticks_to_json(&[trade_tick(34_200_000, 0, 0.0, '\0')], stock_snap);
-        let row = &r[0];
-        for trimmed in [
-            "ext_condition1",
-            "ext_condition2",
-            "ext_condition3",
-            "ext_condition4",
-            "exchange",
-        ] {
-            assert!(
-                row.get(trimmed).is_none(),
-                "stock snapshot trade must drop {trimmed}"
-            );
-        }
-        for kept in ["timestamp", "sequence", "size", "condition", "price"] {
-            assert!(row.get(kept).is_some(), "stock snapshot trade keeps {kept}");
-        }
-    }
-
-    #[test]
-    fn option_snapshot_trade_keeps_ext_and_exchange() {
-        let option_snap = RowShape {
-            is_snapshot: true,
-            is_index: false,
-            is_option: true,
-        };
-        let r = trade_ticks_to_json(&[trade_tick(34_200_000, 20260116, 275.0, 'C')], option_snap);
-        let row = &r[0];
-        for kept in [
-            "ext_condition1",
-            "ext_condition2",
-            "ext_condition3",
-            "ext_condition4",
-            "exchange",
-            "sequence",
-            "condition",
-            "size",
-            "price",
-        ] {
-            assert!(
-                row.get(kept).is_some(),
-                "option snapshot trade keeps {kept}"
-            );
-        }
-    }
-
-    /// History / at-time trade (non-snapshot) always carries the full set.
-    #[test]
-    fn history_trade_keeps_full_execution_set() {
-        let hist = RowShape {
-            is_snapshot: false,
-            is_index: false,
-            is_option: false,
-        };
-        let r = trade_ticks_to_json(&[trade_tick(34_200_000, 0, 0.0, '\0')], hist);
-        let row = &r[0];
-        for kept in ["ext_condition1", "ext_condition4", "exchange"] {
-            assert!(row.get(kept).is_some(), "history trade keeps {kept}");
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    //  C3 / C4 / H4 — market value carries timestamp; index drops bid/ask
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn market_value_emits_timestamp_and_index_drops_bid_ask() {
-        // stock / option market value: timestamp + full quote triple.
-        let stock = RowShape {
-            is_snapshot: true,
-            is_index: false,
-            is_option: false,
-        };
-        let r = market_value_ticks_to_json(&[market_value_tick(0, 0.0, '\0')], stock);
-        let row = &r[0];
-        assert_eq!(
-            row.get("timestamp")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2024-01-02T09:30:00.000"),
-            "market value must lead with the v3 timestamp (C4: not dropped)"
-        );
-        assert!(row.get("market_bid").is_some(), "stock MV keeps market_bid");
-        assert!(row.get("market_ask").is_some(), "stock MV keeps market_ask");
-        assert!(row.get("market_price").is_some());
-
-        // index market value: timestamp + market_price only (H4).
-        let index = RowShape {
-            is_snapshot: true,
-            is_index: true,
-            is_option: false,
-        };
-        let r = market_value_ticks_to_json(&[market_value_tick(0, 0.0, '\0')], index);
-        let row = &r[0];
-        assert!(row.get("timestamp").is_some(), "index MV carries timestamp");
-        assert!(
-            row.get("market_bid").is_none() && row.get("market_ask").is_none(),
-            "index market value publishes only market_price (no bid/ask)"
-        );
-        assert!(row.get("market_price").is_some());
-    }
-
-    /// Full CSV header for the three market-value endpoints, exact spec order.
-    #[test]
-    fn market_value_csv_headers_match_spec() {
-        // stock (spec :661): timestamp,symbol,market_bid,market_ask,market_price
-        assert_eq!(
-            csv_header_for(
-                "stock_snapshot_market_value",
-                EndpointOutput::MarketValueTicks(labelled_row(market_value_tick(0, 0.0, '\0')))
-            ),
-            "timestamp,symbol,market_bid,market_ask,market_price"
-        );
-        // index (spec :8494): timestamp,symbol,market_price
-        assert_eq!(
-            csv_header_for(
-                "index_snapshot_market_value",
-                EndpointOutput::MarketValueTicks(labelled_row(market_value_tick(0, 0.0, '\0')))
-            ),
-            "timestamp,symbol,market_price"
-        );
-        // option (spec :3085): timestamp,symbol,expiration,strike,right,market_bid,market_ask,market_price
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_market_value",
-                EndpointOutput::MarketValueTicks(labelled_row(market_value_tick(
-                    20260116, 275.0, 'C'
-                )))
-            ),
-            "timestamp,symbol,expiration,strike,right,market_bid,market_ask,market_price"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    //  Finding 1 — option LIST endpoints must NOT be contract-grouped
-    // -----------------------------------------------------------------------
-
-    /// `option_list_expirations` must emit flat `{symbol, expiration}` rows in
-    /// the JSON envelope — NOT `{contract: {...}, data: [{}]}`.
-    #[test]
-    fn option_list_expirations_is_flat_not_contract_grouped() {
-        let ep = thetadatadx::find("option_list_expirations").expect("endpoint exists");
-        let request_symbol = Some("AAPL");
-        let rows = response_rows(
-            ep,
-            request_symbol,
-            &EndpointOutput::StringList(vec!["20120601".into(), "20120608".into()]),
-            &decode::PriceTypes::default(),
-        );
-        let envelope = json_envelope(ep, rows);
-        let response = envelope
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("response array");
-        assert_eq!(
-            response.len(),
-            2,
-            "one flat row per expiration, not grouped"
-        );
-        let first = &response[0];
-        assert!(
-            first.get("contract").is_none() && first.get("data").is_none(),
-            "list endpoints must stay flat: {first:?}"
-        );
-        assert_eq!(
-            first
-                .get("symbol")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("AAPL")
-        );
-        assert_eq!(
-            first
-                .get("expiration")
-                .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2012-06-01")
-        );
-    }
-
-    /// `option_list_contracts` (OptionContracts output) must also stay flat.
-    #[test]
-    fn option_list_contracts_is_flat_not_contract_grouped() {
-        let ep = thetadatadx::find("option_list_contracts").expect("endpoint exists");
-        let output = EndpointOutput::OptionContracts(thetadatadx::columns::Ticks::from(vec![
-            thetadatadx::OptionContract {
-                symbol: "AAPL".into(),
-                expiration: 20230616,
-                strike: 260.0,
-                right: 'C',
-            },
-        ]));
-        let rows = response_rows(ep, None, &output, &decode::PriceTypes::default());
-        let envelope = json_envelope(ep, rows);
-        let response = envelope
-            .get("response")
-            .and_then(|v: &sonic_rs::Value| v.as_array())
-            .expect("response array");
-        assert_eq!(response.len(), 1);
-        let row = &response[0];
-        assert!(
-            row.get("contract").is_none(),
-            "option_list_contracts must stay flat (no contract grouping): {row:?}"
-        );
-        assert_eq!(
-            row.get("right").and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("CALL")
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    //  SSOT — the CSV column order is derived from the serializer, no table
-    // -----------------------------------------------------------------------
-
-    /// The CSV header order is read back off the serializer's `row!` field
-    /// declaration order (via [`endpoint_columns`] -> [`Row::columns`]), not a
-    /// side table. A serializer whose `row!` lists columns in a deliberately
-    /// NON-alphabetical, NON-lexicographic order must produce exactly that
-    /// order — proving declaration order drives the header and nothing re-sorts
-    /// it. `greeks_all_ticks_to_json` is such a serializer: its v3 order
-    /// (`...rho,iv_error,vanna,...,epsilon,lambda,vera,...`) is neither sorted
-    /// nor groupable by prefix, so a table-free derivation is the only way to
-    /// reproduce it.
-    #[test]
-    fn csv_header_is_derived_from_serializer_declaration_order() {
-        // Build the row straight from the serializer and capture its column
-        // order — this is the single source.
-        let serializer_order: Vec<&'static str> = greeks_all_ticks_to_json(&[GreeksAllTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.0,
-            delta: 0.0,
-            gamma: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            underlying_date: 0,
-            // expiration 0 -> the serializer emits no contract id columns,
-            // so this is the bare data order the CSV header must follow.
-            expiration: 0,
-            strike: 0.0,
-            right: '\0',
-        }])
-        .first()
-        .expect("one row")
-        .columns()
-        .collect();
-
-        // The order is intentionally not sorted: `bid`/`ask` lead the data,
-        // the first-order block (`delta,theta,vega,rho,epsilon,lambda`) precedes
-        // `gamma`, and `implied_vol`/`iv_error` sit late just before the
-        // underlying columns — a lexicographic sort would scramble all of this.
-        // This is the v3 spec column order (snapshot example ~:3453, history
-        // example ~:5579), data tail after the contract identity + `timestamp`.
-        assert_eq!(
-            serializer_order,
-            vec![
-                "timestamp",
-                "bid",
-                "ask",
-                "delta",
-                "theta",
-                "vega",
-                "rho",
-                "epsilon",
-                "lambda",
-                "gamma",
-                "vanna",
-                "charm",
-                "vomma",
-                "veta",
-                "vera",
-                "speed",
-                "zomma",
-                "color",
-                "ultima",
-                "d1",
-                "d2",
-                "dual_delta",
-                "dual_gamma",
-                "implied_vol",
-                "iv_error",
-                "underlying_timestamp",
-                "underlying_price",
-            ],
-            "the CSV column order is the serializer's `row!` order, verbatim"
-        );
-
-        let mut sorted = serializer_order.clone();
-        sorted.sort_unstable();
-        assert_ne!(
-            serializer_order, sorted,
-            "guard: the chosen order must be non-alphabetical so this test \
-             actually proves order is not re-sorted"
-        );
-
-        // `endpoint_columns` (what `json_to_csv` consults) must return the same
-        // serializer-derived order for a greeks-all endpoint — there is no
-        // table in the path.
-        let ep = thetadatadx::find("option_history_greeks_all").expect("endpoint exists");
-        let derived = endpoint_columns(ep);
-        // The endpoint carries the contract identity, which leads; strip it to
-        // compare the data tail against the serializer order.
-        let derived_tail: Vec<&'static str> = derived
-            .iter()
-            .copied()
-            .filter(|c| !matches!(*c, "symbol" | "expiration" | "strike" | "right"))
-            .collect();
-        assert_eq!(
-            derived_tail, serializer_order,
-            "endpoint_columns derives the data order from the serializer, no table"
-        );
-        // And the identity leads, in v3 order, ahead of the data.
-        assert_eq!(
-            &derived[..5],
-            &["symbol", "expiration", "strike", "right", "timestamp"],
-            "option history greeks-all leads contract-first then the timestamp"
-        );
-    }
-
-    /// End-to-end: a serializer's non-alphabetical `row!` order flows through
-    /// `json_to_csv` to the emitted CSV header unchanged — the table is gone, so
-    /// editing the serializer's field order is the only lever on the header.
-    #[test]
-    fn json_to_csv_header_follows_serializer_order_end_to_end() {
-        let ep = thetadatadx::find("stock_history_quote").expect("endpoint exists");
-        // stock_history_quote: no symbol, no contract id — the header is exactly
-        // the quote serializer's `row!` order. `bid_size,bid_exchange,bid,...`
-        // is not alphabetical (`ask*` would sort first), proving no re-sort.
-        let rows = response_rows(
-            ep,
-            None,
-            &EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
-                0, 0.0, '\0',
-            )])),
-            &decode::PriceTypes::default(),
-        );
-        let csv = json_to_csv(ep, &rows).expect("CSV");
-        let header = csv.split("\r\n").next().expect("header line");
-        assert_eq!(
-            header,
-            "timestamp,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition",
-            "CSV header is the quote serializer's row! order, verbatim (bid* before ask*, not sorted)"
-        );
-        let mut cols: Vec<&str> = header.split(',').collect();
-        let original = cols.clone();
-        cols.sort_unstable();
-        assert_ne!(
-            original, cols,
-            "guard: header must be non-alphabetical so this proves order is serializer-driven"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    //  Greeks — full CSV header per the v3 spec, every variant, snapshot +
-    //  history. These are the SSOT guard: any column order/shape drift in a
-    //  greeks serializer fails here against the spec `text/csv` example header.
-    // -----------------------------------------------------------------------
-
-    fn greeks_all_tick() -> thetadatadx::GreeksAllTick {
-        thetadatadx::GreeksAllTick {
-            ms_of_day: 34_200_000,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.0,
-            delta: 0.0,
-            gamma: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn greeks_eod_tick() -> thetadatadx::GreeksEodTick {
-        thetadatadx::GreeksEodTick {
-            ms_of_day: 34_200_000,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            has_bid_exchange: true,
-            bid: 0.0,
-            bid_condition: 0,
-            has_bid_condition: true,
-            ask_size: 0,
-            ask_exchange: 0,
-            has_ask_exchange: true,
-            ask: 0.0,
-            ask_condition: 0,
-            has_ask_condition: true,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            vera: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn greeks_first_order_tick() -> thetadatadx::GreeksFirstOrderTick {
-        thetadatadx::GreeksFirstOrderTick {
-            ms_of_day: 34_200_000,
-            bid: 0.0,
-            ask: 0.0,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn greeks_second_order_tick() -> thetadatadx::GreeksSecondOrderTick {
-        thetadatadx::GreeksSecondOrderTick {
-            ms_of_day: 34_200_000,
-            bid: 0.0,
-            ask: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn greeks_third_order_tick() -> thetadatadx::GreeksThirdOrderTick {
-        thetadatadx::GreeksThirdOrderTick {
-            ms_of_day: 34_200_000,
-            bid: 0.0,
-            ask: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn iv_tick() -> thetadatadx::IvTick {
-        thetadatadx::IvTick {
-            ms_of_day: 34_200_000,
-            bid: 0.0,
-            bid_implied_volatility: 0.0,
-            midpoint: 0.0,
-            implied_volatility: 0.0,
-            ask: 0.0,
-            ask_implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn trade_greeks_all_tick() -> thetadatadx::TradeGreeksAllTick {
-        thetadatadx::TradeGreeksAllTick {
-            ms_of_day: 34_200_000,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            vera: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn trade_greeks_first_order_tick() -> thetadatadx::TradeGreeksFirstOrderTick {
-        thetadatadx::TradeGreeksFirstOrderTick {
-            ms_of_day: 34_200_000,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn trade_greeks_second_order_tick() -> thetadatadx::TradeGreeksSecondOrderTick {
-        thetadatadx::TradeGreeksSecondOrderTick {
-            ms_of_day: 34_200_000,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn trade_greeks_third_order_tick() -> thetadatadx::TradeGreeksThirdOrderTick {
-        thetadatadx::TradeGreeksThirdOrderTick {
-            ms_of_day: 34_200_000,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    fn trade_greeks_iv_tick() -> thetadatadx::TradeGreeksImpliedVolatilityTick {
-        thetadatadx::TradeGreeksImpliedVolatilityTick {
-            ms_of_day: 34_200_000,
-            sequence: 0,
-            ext_condition1: 0,
-            has_ext_condition1: true,
-            ext_condition2: 0,
-            has_ext_condition2: true,
-            ext_condition3: 0,
-            has_ext_condition3: true,
-            ext_condition4: 0,
-            has_ext_condition4: true,
-            condition: 0,
-            has_condition: true,
-            size: 0,
-            exchange: 0,
-            has_exchange: true,
-            price: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 34_200_000,
-            underlying_price: 0.0,
-            date: 20240102,
-            underlying_date: 20240103,
-            expiration: 20260116,
-            strike: 275.0,
-            right: 'C',
-        }
-    }
-
-    /// `underlying_timestamp` carries the underlying's own date on every
-    /// Greeks variant.
-    ///
-    /// The vendor sends that column as a moment in full, and its date is not
-    /// the row's: a snapshot taken outside the option's session pairs the
-    /// previous session's option quote with the current session's underlying
-    /// price. This formatter used to build the published timestamp from the
-    /// row's `date`, which put out a date the vendor never sent. Every
-    /// fixture below sets `underlying_date` a day after `date`, so a
-    /// formatter reading the wrong field fails here on whichever variant
-    /// regressed.
-    #[test]
-    fn greeks_underlying_timestamp_carries_the_underlyings_own_date() {
-        fn iso_date(d: i32) -> String {
-            format!("{:04}-{:02}-{:02}", d / 10_000, (d / 100) % 100, d % 100)
-        }
-        fn first_row(ep_name: &str, output: EndpointOutput) -> sonic_rs::Value {
-            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
-            response_rows(ep, None, &output, &decode::PriceTypes::default())
-                .into_iter()
-                .next()
-                .expect("one row")
-        }
-
-        let mut cases: Vec<(&str, EndpointOutput, i32, i32)> = Vec::new();
-        macro_rules! case {
-            ($ep:expr, $variant:ident, $build:expr) => {{
-                let t = $build;
-                let (date, underlying_date) = (t.date, t.underlying_date);
-                cases.push((
-                    $ep,
-                    EndpointOutput::$variant(labelled_row(t)),
-                    date,
-                    underlying_date,
-                ));
-            }};
-        }
-        case!(
-            "option_snapshot_greeks_all",
-            GreeksAllTicks,
-            greeks_all_tick()
-        );
-        case!(
-            "option_history_greeks_eod",
-            GreeksEodTicks,
-            greeks_eod_tick()
-        );
-        case!(
-            "option_snapshot_greeks_first_order",
-            GreeksFirstOrderTicks,
-            greeks_first_order_tick()
-        );
-        case!(
-            "option_snapshot_greeks_second_order",
-            GreeksSecondOrderTicks,
-            greeks_second_order_tick()
-        );
-        case!(
-            "option_snapshot_greeks_third_order",
-            GreeksThirdOrderTicks,
-            greeks_third_order_tick()
-        );
-        case!(
-            "option_snapshot_greeks_implied_volatility",
-            IvTicks,
-            iv_tick()
-        );
-        case!(
-            "option_history_trade_greeks_all",
-            TradeGreeksAllTicks,
-            trade_greeks_all_tick()
-        );
-        case!(
-            "option_history_trade_greeks_first_order",
-            TradeGreeksFirstOrderTicks,
-            trade_greeks_first_order_tick()
-        );
-        case!(
-            "option_history_trade_greeks_second_order",
-            TradeGreeksSecondOrderTicks,
-            trade_greeks_second_order_tick()
-        );
-        case!(
-            "option_history_trade_greeks_third_order",
-            TradeGreeksThirdOrderTicks,
-            trade_greeks_third_order_tick()
-        );
-        case!(
-            "option_history_trade_greeks_implied_volatility",
-            TradeGreeksImpliedVolatilityTicks,
-            trade_greeks_iv_tick()
-        );
-
-        for (ep_name, output, date, underlying_date) in cases {
-            assert_ne!(
-                date, underlying_date,
-                "{ep_name}: the fixture must put the two dates on different days"
-            );
-            let row = first_row(ep_name, output);
-            let at = |key: &str| {
-                row.get(key)
-                    .and_then(|v: &sonic_rs::Value| v.as_str())
-                    .unwrap_or_default()
-                    .to_string()
-            };
-            assert!(
-                at("timestamp").starts_with(&iso_date(date)),
-                "{ep_name}: timestamp {} must carry the row's date {}",
-                at("timestamp"),
-                iso_date(date)
-            );
-            assert!(
-                at("underlying_timestamp").starts_with(&iso_date(underlying_date)),
-                "{ep_name}: underlying_timestamp {} must carry the underlying's date {}",
-                at("underlying_timestamp"),
-                iso_date(underlying_date)
-            );
-        }
-    }
-
-    /// Every greeks variant's full CSV header string must match its v3 spec
-    /// `text/csv` example column order EXACTLY, in BOTH snapshot and history
-    /// forms (where both exist). This is the comprehensive SSOT guard: it pins
-    /// the contract-identity prefix, the per-variant data block order, and the
-    /// snapshot-vs-history shape distinction, so any greeks column reordering or
-    /// shape drift fails here against the spec.
-    ///
-    /// The spec headers are identical for the snapshot and history form of each
-    /// shared-tick variant (`greeks/all`, `greeks/first_order`,
-    /// `greeks/second_order`, `greeks/third_order`) — both render contract-first
-    /// (`symbol,expiration,strike,right,timestamp,...`). `greeks/eod` and the
-    /// `trade_greeks/*` family are history-only.
-    #[test]
-    fn greeks_csv_headers_match_v3_spec_every_variant() {
-        // greeks/all — snapshot (spec ~:3453) AND history (spec ~:5579), same
-        // header. This is the reordered builder: bid,ask then the first-order
-        // block, gamma + second/third-order greeks, implied_vol/iv_error late.
-        const GREEKS_ALL: &str = "symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price";
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_greeks_all",
-                EndpointOutput::GreeksAllTicks(labelled_row(greeks_all_tick()))
-            ),
-            GREEKS_ALL,
-            "option_snapshot_greeks_all CSV header must match the v3 spec column order"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_all",
-                EndpointOutput::GreeksAllTicks(labelled_row(greeks_all_tick()))
-            ),
-            GREEKS_ALL,
-            "option_history_greeks_all CSV header must match the v3 spec column order"
-        );
-
-        // greeks/eod — history-only (spec ~:5361): the twelve EOD trade/quote
-        // context columns sit between `timestamp` and the greeks block.
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_eod",
-                EndpointOutput::GreeksEodTicks(labelled_row(greeks_eod_tick()))
-            ),
-            "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_greeks_eod CSV header must match the v3 spec column order"
-        );
-
-        // greeks/first_order — snapshot (spec ~:3636) AND history (spec ~:6079).
-        const GREEKS_FIRST: &str = "symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price";
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_greeks_first_order",
-                EndpointOutput::GreeksFirstOrderTicks(labelled_row(greeks_first_order_tick()))
-            ),
-            GREEKS_FIRST,
-            "option_snapshot_greeks_first_order CSV header must match the v3 spec"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_first_order",
-                EndpointOutput::GreeksFirstOrderTicks(labelled_row(greeks_first_order_tick()))
-            ),
-            GREEKS_FIRST,
-            "option_history_greeks_first_order CSV header must match the v3 spec"
-        );
-
-        // greeks/second_order — snapshot (spec ~:3816) AND history (spec ~:6539).
-        const GREEKS_SECOND: &str = "symbol,expiration,strike,right,timestamp,bid,ask,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price";
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_greeks_second_order",
-                EndpointOutput::GreeksSecondOrderTicks(labelled_row(greeks_second_order_tick()))
-            ),
-            GREEKS_SECOND,
-            "option_snapshot_greeks_second_order CSV header must match the v3 spec"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_second_order",
-                EndpointOutput::GreeksSecondOrderTicks(labelled_row(greeks_second_order_tick()))
-            ),
-            GREEKS_SECOND,
-            "option_history_greeks_second_order CSV header must match the v3 spec"
-        );
-
-        // greeks/third_order — snapshot (spec ~:4002) AND history (spec ~:6993).
-        const GREEKS_THIRD: &str = "symbol,expiration,strike,right,timestamp,bid,ask,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price";
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_greeks_third_order",
-                EndpointOutput::GreeksThirdOrderTicks(labelled_row(greeks_third_order_tick()))
-            ),
-            GREEKS_THIRD,
-            "option_snapshot_greeks_third_order CSV header must match the v3 spec"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_third_order",
-                EndpointOutput::GreeksThirdOrderTicks(labelled_row(greeks_third_order_tick()))
-            ),
-            GREEKS_THIRD,
-            "option_history_greeks_third_order CSV header must match the v3 spec"
-        );
-
-        // greeks/implied_volatility — the snapshot (spec ~:3228, 11 cols) trims
-        // the bid/mid/ask IV triple the history form (spec ~:7440, 14 cols)
-        // keeps. The shape descriptor drives the trim through one serializer.
-        assert_eq!(
-            csv_header_for(
-                "option_snapshot_greeks_implied_volatility",
-                EndpointOutput::IvTicks(labelled_row(iv_tick()))
-            ),
-            "symbol,expiration,strike,right,timestamp,bid,ask,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_snapshot_greeks_implied_volatility emits the trimmed 11-col v3 snapshot IV schema"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_greeks_implied_volatility",
-                EndpointOutput::IvTicks(labelled_row(iv_tick()))
-            ),
-            "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_greeks_implied_volatility keeps the full 14-col v3 history IV schema"
-        );
-
-        // trade_greeks/* — history-only. Each carries the nine trade-side
-        // execution columns between `timestamp` and the greeks block.
-        assert_eq!(
-            csv_header_for(
-                "option_history_trade_greeks_all",
-                EndpointOutput::TradeGreeksAllTicks(labelled_row(trade_greeks_all_tick()))
-            ),
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_trade_greeks_all CSV header must match the v3 spec ~:5867"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_trade_greeks_first_order",
-                EndpointOutput::TradeGreeksFirstOrderTicks(labelled_row(
-                    trade_greeks_first_order_tick()
-                ))
-            ),
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_trade_greeks_first_order CSV header must match the v3 spec ~:6325"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_trade_greeks_second_order",
-                EndpointOutput::TradeGreeksSecondOrderTicks(labelled_row(
-                    trade_greeks_second_order_tick()
-                ))
-            ),
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_trade_greeks_second_order CSV header must match the v3 spec ~:6782"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_trade_greeks_third_order",
-                EndpointOutput::TradeGreeksThirdOrderTicks(labelled_row(
-                    trade_greeks_third_order_tick()
-                ))
-            ),
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_trade_greeks_third_order CSV header must match the v3 spec ~:7233"
-        );
-        assert_eq!(
-            csv_header_for(
-                "option_history_trade_greeks_implied_volatility",
-                EndpointOutput::TradeGreeksImpliedVolatilityTicks(labelled_row(
-                    trade_greeks_iv_tick()
-                ))
-            ),
-            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,implied_vol,iv_error,underlying_timestamp,underlying_price",
-            "option_history_trade_greeks_implied_volatility CSV header must match the v3 spec ~:7637"
-        );
-    }
-
-    /// The snapshot IV serializer trims the bid/mid/ask-IV triple at the row
-    /// level (not just the header): the snapshot row must NOT carry
-    /// `bid_implied_vol` / `midpoint` / `ask_implied_vol`, while the history row
-    /// must. Guards the JSON / NDJSON bodies too, which read the same `Row`.
-    #[test]
-    fn snapshot_iv_trims_bid_mid_ask_iv_history_keeps_them() {
-        let snap = RowShape {
-            is_snapshot: true,
-            is_index: false,
-            is_option: true,
-        };
-        let s = iv_ticks_to_json(&[iv_tick()], snap);
-        let srow = &s[0];
-        for trimmed in ["bid_implied_vol", "midpoint", "ask_implied_vol"] {
-            assert!(
-                srow.get(trimmed).is_none(),
-                "snapshot IV must drop {trimmed}"
-            );
-        }
-        for kept in [
-            "timestamp",
-            "bid",
-            "ask",
-            "implied_vol",
-            "iv_error",
-            "underlying_price",
-        ] {
-            assert!(srow.get(kept).is_some(), "snapshot IV keeps {kept}");
-        }
-
-        let hist = RowShape {
-            is_snapshot: false,
-            is_index: false,
-            is_option: true,
-        };
-        let h = iv_ticks_to_json(&[iv_tick()], hist);
-        let hrow = &h[0];
-        for kept in [
-            "bid_implied_vol",
-            "midpoint",
-            "ask_implied_vol",
-            "implied_vol",
-            "iv_error",
-        ] {
-            assert!(hrow.get(kept).is_some(), "history IV keeps {kept}");
-        }
-    }
-    /// A multi-symbol snapshot returns one row per symbol, and each row must
-    /// carry its own. The `symbol` request parameter for this family is a
-    /// comma-separated list, so stamping it on every row labels five of six
-    /// rows with the wrong underlying, in a column a caller joins on.
-    #[test]
-    fn multi_symbol_snapshot_rows_carry_their_own_symbol() {
-        use thetadatadx::columns::{ColumnPresence, Ticks};
-
-        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
-        let wire = ["AAPL", "MSFT", "TSLA"];
-        let rows: Vec<QuoteTick> = wire
-            .iter()
-            .enumerate()
-            .map(|(i, _)| QuoteTick {
-                ms_of_day: 34_200_000 + i as i32,
-                bid_size: 10,
-                bid_exchange: 1,
-                has_bid_exchange: true,
-                bid: 100.0 + i as f64,
-                bid_condition: 0,
-                has_bid_condition: true,
-                ask_size: 10,
-                ask_exchange: 1,
-                has_ask_exchange: true,
-                ask: 101.0 + i as f64,
-                ask_condition: 0,
-                has_ask_condition: true,
-                date: 20_260_922,
-                expiration: 0,
-                strike: 0.0,
-                right: '\0',
-            })
-            .collect();
-        let columns = ColumnPresence::default().with_symbols(wire);
-        let output = EndpointOutput::QuoteTicks(Ticks::new(rows, columns));
-
-        // The request parameter is the whole list, as the server received it.
-        let request_symbol = Some("AAPL,MSFT,TSLA");
-
-        let built = response_rows(ep, request_symbol, &output, &decode::PriceTypes::default());
-        assert_eq!(built.len(), wire.len(), "one row per requested symbol");
-        for (row, expected) in built.iter().zip(wire) {
-            let symbol = row.get("symbol").expect("identity carries a symbol");
-            assert_eq!(
-                symbol.as_str().expect("symbol renders as text"),
-                expected,
-                "row must carry the symbol the wire gave it, not the request list"
-            );
-        }
-    }
-
-    /// A response can carry one symbol for every row rather than a list, and
-    /// the decoder records that as a constant rather than a per-row set. A
-    /// formatter that reads only the per-row shape sends exactly those rows
-    /// back to the request parameter, which for the snapshot family is the
-    /// caller's comma-separated list.
-    #[test]
-    fn a_single_symbol_snapshot_row_carries_the_wire_symbol_not_the_request_list() {
-        use thetadatadx::columns::{ColumnPresence, Ticks};
-
-        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
-        let rows = vec![QuoteTick {
-            ms_of_day: 34_200_000,
-            bid_size: 10,
-            bid_exchange: 1,
-            has_bid_exchange: true,
-            bid: 100.0,
-            bid_condition: 0,
-            has_bid_condition: true,
-            ask_size: 10,
-            ask_exchange: 1,
-            has_ask_exchange: true,
-            ask: 101.0,
-            ask_condition: 0,
-            has_ask_condition: true,
-            date: 20_260_922,
-            expiration: 0,
-            strike: 0.0,
-            right: '\0',
-        }];
-        // The wire answered for one underlying, so the decoder records a
-        // constant rather than a per-row list.
-        let columns = ColumnPresence::default().with_symbol("AAPL");
-        let output = EndpointOutput::QuoteTicks(Ticks::new(rows, columns));
-
-        // The request asked for two.
-        let request_symbol = Some("AAPL,MSFT");
-
-        let built = response_rows(ep, request_symbol, &output, &decode::PriceTypes::default());
-        assert_eq!(built.len(), 1);
-        let symbol = built[0].get("symbol").expect("identity carries a symbol");
-        assert_eq!(
-            symbol.as_str().expect("symbol renders as text"),
-            "AAPL",
-            "a constant wire symbol must beat the request list"
         );
     }
 }

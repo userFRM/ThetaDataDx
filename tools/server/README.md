@@ -50,7 +50,7 @@ The server starts:
 | `--email` | | ThetaData email (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
-| `--config` | | Path to a TOML config file in the SDK's format (see `thetadatadx-rs/config.default.toml`). The file's values are used as written. Without it, the server uses production settings with two changes suited to a long-running local process: the stream backs off when idle (`wait_mode = "backoff"`) instead of holding a core, and each request goes upstream once (`bulk_fetch = "off"`), so large option chains come back in the terminal's row order. |
+| `--config` | | Path to a TOML config file in the SDK's format (see `thetadatadx-rs/config.default.toml`). The file's values are used as written, except `bulk_fetch`: the server sends each request upstream once, as the terminal does, so the rows come back in the terminal's order. Without it, the server uses production settings with one change suited to a long-running local process: the stream backs off when idle (`wait_mode = "backoff"`) instead of holding a core. |
 | `--market-data-region` | `production` | Market-data region: `production` or `stage` |
 | `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
@@ -128,6 +128,8 @@ JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `C
 ```
 
 Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into them) and the option `right` is `CALL` / `PUT`. Each price is written at the precision the vendor sent it with, as the terminal writes it (`550.000`, `0.5800`).
+
+Each response is written as its rows arrive from the vendor, as the terminal writes it. A response that ends within 8 KiB is sent whole, with its `Content-Length`; a longer one is sent with chunked transfer encoding from the moment it outgrows that, so its first rows leave before its last arrive and server memory stays flat at any response size. `json_legacy` is one array per column, so no column is complete before the last row arrives, and it is held whole until then. A failure after a response has begun aborts the transfer, so a truncated response cannot pass for a complete one.
 
 Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
 

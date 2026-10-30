@@ -8,10 +8,9 @@
 //! equal `golden/<case>/<format>`. [`EDGES`] adds tables live data rarely shows,
 //! each derived from a recorded case.
 //!
-//! A registry route's JSON objects carry their members in an order that varies
-//! from one process to the next, so its JSON bodies are compared with each
-//! object's members sorted by key; every other byte, and every other body, is
-//! compared as written.
+//! A registry route's JSON bodies are compared with each object's members
+//! sorted by key, as the expected files store them; every other byte, and
+//! every other body, is compared as written.
 //!
 //! `GOLDEN_UPDATE=1 cargo test golden` rewrites the expected files.
 
@@ -20,7 +19,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use prost::Message;
-use thetadatadx::config::BulkFetchPolicy;
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::wire::{
     CompressionAlgo, CompressionDescription, DataTable, DataValue, ResponseData, data_value,
@@ -200,10 +198,8 @@ async fn answers(ep: &'static EndpointMeta, query: &str, recording: &Recording) 
     let channel = Channel::connect_h2c("127.0.0.1", upstream.addr.port())
         .await
         .expect("connect to the mock");
-    let mut config = DirectConfig::production();
-    config.market_data.bulk_fetch = BulkFetchPolicy::Off;
     let client = Arc::new(MarketDataClient::for_endpoint_routing_test(
-        config,
+        DirectConfig::production(),
         ChannelPool::from_channels(vec![channel]),
         Arc::new(tokio::sync::Semaphore::new(1)),
     ));
@@ -226,7 +222,7 @@ async fn answer(
     let response = if ep.subcategory == "flat_file" {
         flatfile_routes::respond(Arc::clone(client), ep, params).await
     } else {
-        handler::respond(client, ep, &params).await
+        handler::respond(Arc::clone(client), ep, &params).await
     };
 
     let mut out = format!("{}\n", response.status());
