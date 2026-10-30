@@ -675,9 +675,7 @@ pub(crate) async fn collect_stream_table(
 /// `root` (symbol) column chunk-by-chunk
 /// ([`super::shard::RootColumn`]), so the merged frame's presence /
 /// symbol come out identical to the single-stream path's whole-table
-/// `response_symbol` pass without a second pass over the rows. When
-/// `price_types` is set it also keeps the price type of every cell
-/// ([`super::decode::extract::PriceTypes`]), chunk by chunk, in row order.
+/// `response_symbol` pass without a second pass over the rows.
 ///
 /// Runs inside a shard's `run_unary_retry_loop` attempt closure; all
 /// accumulation state is local to one call, so a replayed attempt
@@ -695,16 +693,12 @@ pub(crate) async fn collect_stream_typed<T, E, P>(
     mut stream: ServerStreaming<proto::ResponseData>,
     parser: P,
     produced: &std::sync::atomic::AtomicBool,
-    price_types: bool,
 ) -> Result<super::shard::TypedBand<T>, Error>
 where
     P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
     E: Into<Error>,
 {
     let mut collect = TypedCollect::default();
-    if price_types {
-        collect.price_types = Some(super::decode::extract::PriceTypes::default());
-    }
     let max_message_size = stream.max_message_size();
     while let Some(response) = stream.next().await {
         let response = response?;
@@ -739,9 +733,6 @@ struct TypedCollect<T> {
     /// schema has no root column.
     root_idx: Option<usize>,
     root: super::shard::RootColumn,
-    /// The price type of every cell folded so far, when the pull asks for
-    /// it.
-    price_types: Option<super::decode::extract::PriceTypes>,
     rows: Vec<T>,
     chunk_index: usize,
 }
@@ -752,7 +743,6 @@ impl<T> Default for TypedCollect<T> {
             headers: Vec::new(),
             root_idx: None,
             root: super::shard::RootColumn::default(),
-            price_types: None,
             rows: Vec::new(),
             chunk_index: 0,
         }
@@ -805,9 +795,6 @@ impl<T> TypedCollect<T> {
                     .map(|row| super::decode::extract::root_cell_text(row, idx)),
             );
         }
-        if let Some(price_types) = &mut self.price_types {
-            price_types.append(&chunk);
-        }
         self.headers = chunk.headers;
         self.rows.extend(parsed);
         Ok(())
@@ -818,7 +805,6 @@ impl<T> TypedCollect<T> {
             headers: self.headers,
             rows: self.rows,
             root: self.root,
-            price_types: self.price_types.unwrap_or_default(),
         }
     }
 }
@@ -1135,10 +1121,7 @@ mod streaming_decode_contract {
         // parsed and appended per chunk, never a whole-band proto table)
         // and fold the root column's constancy the way the streaming
         // path's `chunk_columns` reads it per chunk.
-        let mut collect = TypedCollect {
-            price_types: Some(decode::extract::PriceTypes::default()),
-            ..TypedCollect::default()
-        };
+        let mut collect = TypedCollect::default();
         collect
             .fold_chunk(
                 typed_chunk(&["symbol", "count"], &[("SPY", 1), ("SPY", 2)]),
@@ -1154,13 +1137,6 @@ mod streaming_decode_contract {
         let band = collect.into_band();
         assert_eq!(band.rows, vec![1, 2, 3]);
         assert_eq!(band.headers, vec!["symbol", "count"]);
-        // A price type for every cell of every row, the headerless chunk's
-        // included, which is what the merge gathers them by.
-        assert_eq!(band.price_types.headers, band.headers);
-        assert_eq!(
-            band.price_types.cells.len(),
-            band.rows.len() * band.headers.len()
-        );
         // The wire root column ("symbol" resolves via the shared header
         // alias) was constant: one broadcast value, no per-row
         // materialization.

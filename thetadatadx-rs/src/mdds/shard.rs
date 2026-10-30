@@ -1259,9 +1259,6 @@ pub(crate) struct TypedBand<T> {
     pub(crate) rows: Vec<T>,
     /// The band's `root` (symbol) column cells, folded chunk by chunk.
     pub(crate) root: RootColumn,
-    /// The price type of every cell of the band's rows, when the pull asks
-    /// for it; empty otherwise.
-    pub(crate) price_types: decode::extract::PriceTypes,
 }
 
 /// One band's `root` (symbol) column summary, folded chunk by chunk while
@@ -1465,18 +1462,11 @@ struct ChainRun {
 /// materialized, and the sort touches descriptors instead of shuffling
 /// ~row-count proto cells.
 ///
-/// `price_types`, when given, receives the bands' price types gathered in
-/// the same order as the rows, so row `i` of the merged frame reads row `i`
-/// of it.
-///
 /// # Errors
 ///
 /// Returns a decode error when band headers disagree — the same schema
 /// contract `collect_stream` enforces across chunks of one stream.
-pub(crate) fn merge_typed_in_order<T>(
-    bands: Vec<TypedBand<T>>,
-    price_types: Option<&mut decode::extract::PriceTypes>,
-) -> Result<Ticks<T>, Error>
+pub(crate) fn merge_typed_in_order<T>(bands: Vec<TypedBand<T>>) -> Result<Ticks<T>, Error>
 where
     T: ChainSortKey + WireColumns + Clone,
 {
@@ -1553,23 +1543,6 @@ where
     let mut rows: Vec<T> = Vec::with_capacity(total_rows);
     for run in &runs {
         rows.extend_from_slice(&bands[run.band].rows[run.start..run.start + run.len]);
-    }
-    // The price types follow the rows through the same descriptors. Every
-    // band of a pull that asks for them collected them, `headers.len()` to
-    // a row.
-    if let Some(price_types) = price_types {
-        let width = headers.len();
-        let mut cells = Vec::with_capacity(total_rows * width);
-        for run in &runs {
-            cells.extend_from_slice(
-                &bands[run.band].price_types.cells
-                    [run.start * width..(run.start + run.len) * width],
-            );
-        }
-        *price_types = decode::extract::PriceTypes {
-            headers: headers.to_vec(),
-            cells,
-        };
     }
 
     // Column presence + response symbol, exactly as the single-stream
@@ -2746,7 +2719,6 @@ mod tests {
             headers: chain_headers(),
             rows,
             root: RootColumn::Unobserved,
-            price_types: decode::extract::PriceTypes::default(),
         }
     }
 
@@ -2759,7 +2731,6 @@ mod tests {
             headers,
             rows,
             root,
-            price_types: decode::extract::PriceTypes::default(),
         }
     }
 
@@ -2770,38 +2741,17 @@ mod tests {
         // Time bands slice ACROSS contracts; each band arrives
         // contract-grouped within itself. The merge must reassemble the
         // canonical whole.
-        //
-        // Each row's strike cell carries a price type of its own, so the
-        // price types are seen to follow their rows through the merge.
-        use crate::tdbe::types::price::PriceType;
-        let with_strike_types = |mut band: TypedBand<ChainTestTick>, types: [i32; 3]| {
-            band.price_types = decode::extract::PriceTypes {
-                headers: chain_headers(),
-                cells: types
-                    .into_iter()
-                    .flat_map(|t| [None, PriceType::new(t).ok(), None, None])
-                    .collect(),
-            };
-            band
-        };
-        let band1 = with_strike_types(
-            chain_band(vec![
-                tick(20260710, 100.0, 'C', 1000),
-                tick(20260710, 100.0, 'C', 2000),
-                tick(20260710, 200.0, 'P', 1500),
-            ]),
-            [1, 2, 3],
-        );
-        let band2 = with_strike_types(
-            chain_band(vec![
-                tick(20260710, 100.0, 'C', 5000),
-                tick(20260710, 200.0, 'P', 4000),
-                tick(20260710, 200.0, 'P', 6000),
-            ]),
-            [4, 5, 6],
-        );
-        let mut price_types = decode::extract::PriceTypes::default();
-        let merged = merge_typed_in_order(vec![band1, band2], Some(&mut price_types)).unwrap();
+        let band1 = chain_band(vec![
+            tick(20260710, 100.0, 'C', 1000),
+            tick(20260710, 100.0, 'C', 2000),
+            tick(20260710, 200.0, 'P', 1500),
+        ]);
+        let band2 = chain_band(vec![
+            tick(20260710, 100.0, 'C', 5000),
+            tick(20260710, 200.0, 'P', 4000),
+            tick(20260710, 200.0, 'P', 6000),
+        ]);
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let expected = [
             tick(20260710, 100.0, 'C', 1000),
             tick(20260710, 100.0, 'C', 2000),
@@ -2811,16 +2761,6 @@ mod tests {
             tick(20260710, 200.0, 'P', 6000),
         ];
         assert_eq!(merged.as_slice(), expected.as_slice());
-        let strike_types: Vec<Option<i32>> = price_types
-            .cells
-            .chunks(chain_headers().len())
-            .map(|row| row[1].map(PriceType::get))
-            .collect();
-        assert_eq!(
-            strike_types,
-            [1, 2, 4, 3, 5, 6].map(Some),
-            "row i of the merged price types is row i of the merged frame"
-        );
     }
 
     #[test]
@@ -2835,7 +2775,7 @@ mod tests {
             tick(20260710, 100.0, 'C', 4000),
             tick(20260710, 200.0, 'P', 4000),
         ]);
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let expected = [
             tick(20260710, 100.0, 'C', 4000),
             tick(20260710, 100.0, 'P', 1000),
@@ -2869,7 +2809,7 @@ mod tests {
             tick(20260710, 100.0, 'P', 5100),
             tick(20260710, 200.0, 'P', 5300),
         ]);
-        let merged = merge_typed_in_order(vec![call_t1, call_t2, put_t1, put_t2], None).unwrap();
+        let merged = merge_typed_in_order(vec![call_t1, call_t2, put_t1, put_t2]).unwrap();
         let expected = [
             tick(20260710, 100.0, 'C', 1000),
             tick(20260710, 100.0, 'C', 5000),
@@ -2892,7 +2832,7 @@ mod tests {
             tick(20260710, 200.0, 'C', 2),
             tick(20260724, 50.0, 'C', 3),
         ]);
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let expected = [
             tick(20260710, 200.0, 'C', 2),
             tick(20260724, 50.0, 'C', 3),
@@ -2914,7 +2854,7 @@ mod tests {
             tick(20260710, 100.0, 'C', 3),
             tick(20260710, 100.0, 'C', 4),
         ]);
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let ms: Vec<i64> = merged.iter().map(|t| t.ms_of_day).collect();
         assert_eq!(ms, vec![1, 2, 3, 4]);
     }
@@ -2935,7 +2875,7 @@ mod tests {
             tick(20260710, 100.0, 'P', 2), // B
             tick(0, 100.0, 'C', 6),        // F: equal seeded key as E, later band
         ]);
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let ms: Vec<i64> = merged.iter().map(|t| t.ms_of_day).collect();
         assert_eq!(ms, vec![1, 2, 3, 4, 5, 6]);
     }
@@ -2949,9 +2889,8 @@ mod tests {
             headers: vec!["ms_of_day".to_string(), "price".to_string()],
             rows: ms.iter().map(|&m| FlatTestTick { ms_of_day: m }).collect(),
             root: RootColumn::Unobserved,
-            price_types: decode::extract::PriceTypes::default(),
         };
-        let merged = merge_typed_in_order(vec![make(&[1, 2, 3]), make(&[4, 5])], None).unwrap();
+        let merged = merge_typed_in_order(vec![make(&[1, 2, 3]), make(&[4, 5])]).unwrap();
         let ms: Vec<i64> = merged.iter().map(|t| t.ms_of_day).collect();
         assert_eq!(ms, vec![1, 2, 3, 4, 5]);
     }
@@ -2967,7 +2906,7 @@ mod tests {
             tick(20260710, 100.0, 'C', 2),
         ]);
         let band2 = chain_band(vec![tick(20260710, 100.0, 'C', 3)]);
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         let ms: Vec<i64> = merged.iter().map(|t| t.ms_of_day).collect();
         assert_eq!(ms, vec![1, 2, 3]);
     }
@@ -2978,10 +2917,9 @@ mod tests {
             headers: Vec::new(),
             rows: Vec::new(),
             root: RootColumn::Unobserved,
-            price_types: decode::extract::PriceTypes::default(),
         };
         let band2 = chain_band(vec![tick(20260710, 100.0, 'C', 1)]);
-        let merged = merge_typed_in_order(vec![empty, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![empty, band2]).unwrap();
         assert_eq!(merged.len(), 1);
         // Presence comes from the first non-empty band schema, exactly
         // as the single-stream path derives it from the merged headers.
@@ -2998,9 +2936,8 @@ mod tests {
             headers: vec!["something".to_string(), "else".to_string()],
             rows: vec![tick(20260710, 100.0, 'C', 2)],
             root: RootColumn::Unobserved,
-            price_types: decode::extract::PriceTypes::default(),
         };
-        let err = merge_typed_in_order(vec![band1, band2], None).unwrap_err();
+        let err = merge_typed_in_order(vec![band1, band2]).unwrap_err();
         assert!(
             matches!(err, Error::Decode { .. }),
             "expected a decode-class schema error, got {err:?}"
@@ -3020,7 +2957,7 @@ mod tests {
             vec![tick(20260710, 200.0, 'C', 2)],
             RootColumn::Uniform(Some("SPXW".into())),
         );
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         assert_eq!(merged.columns().symbol(), Some("SPXW"));
         assert_eq!(merged.columns().symbols(), None);
     }
@@ -3039,7 +2976,7 @@ mod tests {
             vec![tick(20260710, 100.0, 'C', 2)],
             RootColumn::Uniform(Some("BBB".into())),
         );
-        let merged = merge_typed_in_order(vec![band1, band2], None).unwrap();
+        let merged = merge_typed_in_order(vec![band1, band2]).unwrap();
         assert_eq!(merged.columns().symbol(), None);
         let symbols: Vec<&str> = merged
             .columns()
@@ -3060,7 +2997,7 @@ mod tests {
             vec![tick(20260710, 100.0, 'C', 1), tick(20260710, 100.0, 'C', 2)],
             RootColumn::PerRow(vec![Some("SPXW".into()), None]),
         );
-        let merged = merge_typed_in_order(vec![band], None).unwrap();
+        let merged = merge_typed_in_order(vec![band]).unwrap();
         let symbols: Vec<&str> = merged
             .columns()
             .symbols()
@@ -3078,19 +3015,19 @@ mod tests {
             vec![tick(20260710, 100.0, 'C', 1)],
             RootColumn::Uniform(None),
         );
-        let merged = merge_typed_in_order(vec![band], None).unwrap();
+        let merged = merge_typed_in_order(vec![band]).unwrap();
         assert_eq!(merged.columns().symbol(), None);
         assert_eq!(merged.columns().symbols(), None);
 
         // Root header present but zero rows in every band → Constant("")
         // so the column set stays keyed on the header.
         let merged =
-            merge_typed_in_order(vec![rooted_band(vec![], RootColumn::Unobserved)], None).unwrap();
+            merge_typed_in_order(vec![rooted_band(vec![], RootColumn::Unobserved)]).unwrap();
         assert_eq!(merged.columns().symbol(), Some(""));
 
         // No root header at all → Absent, whatever the fold says.
         let band = chain_band(vec![tick(20260710, 100.0, 'C', 1)]);
-        let merged = merge_typed_in_order(vec![band], None).unwrap();
+        let merged = merge_typed_in_order(vec![band]).unwrap();
         assert_eq!(merged.columns().symbol(), None);
     }
 
@@ -3197,7 +3134,7 @@ mod tests {
             spawn_shard(async move { (false, Err::<TypedBand<ChainTestTick>, _>(not_found())) }),
         ];
         let bands = join_shards(tasks).await.expect("sibling band has data");
-        let merged = merge_typed_in_order(bands, None).unwrap();
+        let merged = merge_typed_in_order(bands).unwrap();
         assert_eq!(merged.as_slice(), &[tick(20260710, 100.0, 'C', 1)]);
     }
 

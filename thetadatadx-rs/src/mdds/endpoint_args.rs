@@ -546,10 +546,6 @@ pub enum EndpointOutput {
 /// `EndpointError::Server(Error::Timeout { duration_ms })`. Subsequent calls
 /// on the same `MarketDataClient` succeed.
 ///
-/// `price_types`, when given, receives the price type of every cell of a
-/// buffered response's rows, row for row, which is the precision the vendor
-/// wrote each price at. A list response leaves it untouched.
-///
 /// # Errors
 ///
 /// Returns [`EndpointError::UnknownEndpoint`] for an unrecognized `name`,
@@ -563,9 +559,8 @@ pub async fn invoke_endpoint(
     client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
-    price_types: Option<&mut crate::mdds::decode::extract::PriceTypes>,
 ) -> Result<EndpointOutput, EndpointError> {
-    invoke_generated_endpoint(client, name, args, price_types).await
+    invoke_generated_endpoint(client, name, args).await
 }
 
 /// Transport-neutral endpoint dispatch that drains the response
@@ -689,7 +684,7 @@ fn collected_columns<T: crate::columns::WireColumns>(
 macro_rules! endpoint_dispatch {
     (@collect $($entries:tt)*) => {
         endpoint_dispatch! { @tables { client args handler } $($entries)* }
-        crate::__stream_endpoints! { endpoint_dispatch { @sort { client args price_types handler } [] [] $($entries)* } }
+        crate::__stream_endpoints! { endpoint_dispatch { @sort { client args handler } [] [] $($entries)* } }
     };
     (@tables { $client:ident $args:ident $handler:ident } $($(#[$attr:ident])* $shape:ident $name:ident {
         group: $g:ident / $sg:ident, rest: $r:tt, returns: $ret:ident $(($col:tt))?, params: [$($key:tt)*], doc: $d:tt,
@@ -743,22 +738,17 @@ macro_rules! endpoint_dispatch {
     } $($rest:tt)*) => {
         endpoint_dispatch! { @sort $c [$($b)* { $shape $name $ret $keys }] $s $($rest)* }
     };
-    (@sort { $client:ident $args:ident $pt:ident $handler:ident }
+    (@sort { $client:ident $args:ident $handler:ident }
         [$({ $shape:ident $name:ident $ret:ident [$($key:tt)*] })*]
         [$({ $sname:ident $sret:ident [$($skey:tt)*] })*]) => {
         /// Dispatch a validated endpoint call into the typed builder it names.
-        ///
-        /// `price_types`, when given, receives the price type of every cell of a
-        /// buffered response's rows, row for row; list and streamed responses
-        /// leave it untouched.
         pub async fn invoke_generated_endpoint(
             $client: &crate::mdds::MarketDataClient,
             name: &str,
             $args: &EndpointArgs,
-            $pt: Option<&mut crate::mdds::decode::extract::PriceTypes>,
         ) -> Result<EndpointOutput, EndpointError> {
             match name {
-                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $pt } $shape $name $ret } },)*
+                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $handler } $shape $name $ret } },)*
                 _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
             }
         }
@@ -861,8 +851,8 @@ macro_rules! dispatch_arm {
     (@finish tables $ret:ident $b:ident $handler:ident) => {
         $b.stream_tables($handler).await.map_err(EndpointError::from)
     };
-    (@finish $mode:ident $ret:ident $b:ident $pt:ident) => {{
-        let result = $b.fetch($pt).await?;
+    (@finish $mode:ident $ret:ident $b:ident $tail:ident) => {{
+        let result = $b.await?;
         pastey::paste!(Ok(EndpointOutput::[<$ret s>](result)))
     }};
 
