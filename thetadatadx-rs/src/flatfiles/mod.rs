@@ -83,8 +83,7 @@ impl MarketDataClient {
     /// Returns an error for a malformed date or an endpoint that is not a flat
     /// file, on network, authentication or decode failure, and when the file
     /// cannot be written.
-    #[doc(hidden)]
-    pub async fn flat_file_to_path(
+    pub(crate) async fn write_flat_file(
         &self,
         endpoint: &str,
         date: &str,
@@ -106,7 +105,7 @@ impl MarketDataClient {
             out: BufWriter::with_capacity(1 << 20, File::create(&partial).await?),
             failure: None,
         });
-        self.stream_flat_file(endpoint, date, |headers, rows| {
+        self.flat_file_chunks(endpoint, date, |headers, rows| {
             let file = &file;
             async move {
                 let mut file = file.lock().await;
@@ -150,5 +149,53 @@ impl MarketDataClient {
         tokio::fs::rename(&partial, &path).await?;
         guard.disarm();
         Ok(path)
+    }
+}
+
+/// The by-name flat-file calls of the workspace's server, MCP server and
+/// response recorder. A default build keeps them crate-private, so the wire
+/// rows they pass to a handler stay off the public API.
+#[cfg(feature = "__internal")]
+impl MarketDataClient {
+    /// Write the flat file `endpoint` for `date` to `output_path` in `format`,
+    /// and return the path written.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for a malformed date or an endpoint that is not a flat
+    /// file, on network, authentication or decode failure, and when the file
+    /// cannot be written.
+    #[doc(hidden)]
+    pub async fn flat_file_to_path(
+        &self,
+        endpoint: &str,
+        date: &str,
+        output_path: &Path,
+        format: FlatFileFormat,
+    ) -> Result<PathBuf, Error> {
+        self.write_flat_file(endpoint, date, output_path, format)
+            .await
+    }
+
+    /// Stream the flat file `endpoint` for `date` to `handler` as the service
+    /// sends it: each chunk's column headers and its cells, unconverted. A
+    /// `Break` from `handler` ends the download.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an endpoint that is not a flat file, and on
+    /// network, authentication or decode failure.
+    #[doc(hidden)]
+    pub async fn stream_flat_file<F, Fut>(
+        &self,
+        endpoint: &str,
+        date: &str,
+        handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(Vec<String>, Vec<crate::proto::DataValueList>) -> Fut,
+        Fut: std::future::Future<Output = ControlFlow<()>>,
+    {
+        self.flat_file_chunks(endpoint, date, handler).await
     }
 }

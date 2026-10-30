@@ -483,7 +483,7 @@ macro_rules! flat_file_to_path {
                 output_path: impl AsRef<std::path::Path>,
                 format: crate::flatfiles::FlatFileFormat,
             ) -> Result<std::path::PathBuf, Error> {
-                self.flat_file_to_path(stringify!($name), date, output_path.as_ref(), format)
+                self.write_flat_file(stringify!($name), date, output_path.as_ref(), format)
                     .await
             }
         }
