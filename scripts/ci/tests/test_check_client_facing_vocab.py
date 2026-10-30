@@ -133,7 +133,7 @@ def test_exempt_only_tokens_clean() -> None:
             "README.md",
             "Market-data host mdds-01.thetadata.us, staging mdds-stage.thetadata.us.\n"
             "Scrape thetadatadx.fpss.dropped.\n"
-            "<!-- @generated from fpss_event_schema.toml -->\n"
+            "<!-- @generated from the streaming event table -->\n"
             '#include "fpss_event_structs.h.inc"\n',
         )
         _expect("exempt-only tokens clean", _hits(root) == [])
@@ -188,7 +188,7 @@ def test_generated_path_exempt() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "thetadatadx-ts/src/_generated/fpss_event_classes.rs",
+            "thetadatadx-ts/src/_generated/tick_classes.rs",
             "/// FPSS Quote tick.\n",
         )
         _expect("_generated path exempt", _hits(root) == [])

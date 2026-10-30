@@ -121,12 +121,10 @@ EXEMPT_PATH_FRAGMENTS = (
 EXEMPT_LINE_PATTERNS = (
     # Generated-file provenance banners cite the schema they are emitted from.
     re.compile(r"@generated", re.IGNORECASE),
-    re.compile(r"fpss_event_schema\.toml", re.IGNORECASE),
     # Wire-include filenames (the C/C++ event-struct includes).
     re.compile(r"fpss_event_structs\.h(?:\.inc)?", re.IGNORECASE),
     re.compile(r"fpss_layout_asserts\.hpp(?:\.inc)?", re.IGNORECASE),
     re.compile(r"fpss\.hpp\.inc", re.IGNORECASE),
-    re.compile(r"fpss_event_classes", re.IGNORECASE),
     # Real DNS hostnames (the actual production / staging endpoints).
     re.compile(r"mdds-01\.thetadata\.us", re.IGNORECASE),
     re.compile(r"mdds-stage\.thetadata\.us", re.IGNORECASE),
@@ -260,7 +258,7 @@ def _selftest() -> int:
             "Market-data host is mdds-01.thetadata.us; staging is "
             "mdds-stage.thetadata.us.\n"
             "Scrape the thetadatadx.fpss.reconnects counter.\n"
-            "<!-- @generated from fpss_event_schema.toml -->\n"
+            "<!-- @generated from the streaming event table -->\n"
             '#include "fpss_event_structs.h.inc"\n',
             encoding="utf-8",
         )

@@ -141,11 +141,11 @@ using IntervalQuoteTick = ThetaDataDxIntervalQuoteTick;
 // ── streaming event struct layout guards ──
 //
 // Field-level offsetof guards. The `ThetaDataDxStreamEvent` data-variant field
-// order is generated from `fpss_event_schema.toml` — the same schema
-// every binding is emitted from — so the C++ consumer and the data
+// order is generated from the streaming event table, the same table
+// every binding is expanded from, so the C++ consumer and the data
 // producer agree on member order by construction rather than by
 // hand-kept convention. These asserts catch any ABI-level drift
-// (padding, alignment, scalar widths) the schema alone cannot express.
+// (padding, alignment, scalar widths) the table alone cannot express.
 
 // Every data variant carries an embedded `ThetaDataDxContract contract` as
 // the first member. On LP64 (x86_64 / aarch64 Linux, macOS),
