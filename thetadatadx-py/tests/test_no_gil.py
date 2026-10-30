@@ -36,6 +36,7 @@ import pytest
 # only flags *call sites* in code, after `_strip_comments` blanks out
 # `//` and `///` comments.
 _BLOCK_ON_CALL_SITE = re.compile(r"\.?block_on\s*\(")
+_CHAR_LITERAL = re.compile(r"'(?:\\.|[^'\\])'")
 
 
 def _sdk_src_root() -> Path:
@@ -51,20 +52,21 @@ def _sdk_src_root() -> Path:
 
 
 def _detach_closure_spans(src: str) -> list[tuple[int, int]]:
-    """Character spans of every `detach(|...|  { ... })` closure body.
+    """Character spans of every `detach(|...| ...)` call's argument.
 
-    Found by matching braces forward from the closure's opening brace, so a
-    span is the region where the GIL is actually released rather than a
-    window of nearby lines. String and character literals are skipped, since
-    a brace inside one does not open or close a block.
+    `detach` takes the closure as its only argument, so the closure body is
+    exactly what lies between the call's own parentheses, whether it is a
+    `{ ... }` block or a single expression. Each span is found by matching
+    parentheses forward from the call's opening one, so it is the region
+    where the GIL is actually released rather than a window of nearby lines.
+    String and character literals are skipped, since a parenthesis inside one
+    does not open or close a call; a lifetime such as `'_` is not a literal.
     """
     spans: list[tuple[int, int]] = []
-    for opener in re.finditer(r"detach\s*\(\s*\|[^|]*\|", src):
-        brace = src.find("{", opener.end())
-        if brace == -1:
-            continue
-        depth, i, n = 0, brace, len(src)
-        in_str = in_chr = False
+    for opener in re.finditer(r"detach\s*(\()\s*\|[^|]*\|", src):
+        start = opener.start(1)
+        depth, i, n = 0, start, len(src)
+        in_str = False
         while i < n:
             c = src[i]
             if in_str:
@@ -73,22 +75,19 @@ def _detach_closure_spans(src: str) -> list[tuple[int, int]]:
                     continue
                 if c == '"':
                     in_str = False
-            elif in_chr:
-                if c == "\\":
-                    i += 2
-                    continue
-                if c == "'":
-                    in_chr = False
             elif c == '"':
                 in_str = True
             elif c == "'":
-                in_chr = True
-            elif c == "{":
+                literal = _CHAR_LITERAL.match(src, i)
+                if literal:
+                    i = literal.end()
+                    continue
+            elif c == "(":
                 depth += 1
-            elif c == "}":
+            elif c == ")":
                 depth -= 1
                 if depth == 0:
-                    spans.append((brace, i))
+                    spans.append((start, i))
                     break
             i += 1
     return spans
@@ -162,6 +161,11 @@ def test_the_gil_audit_rejects_a_closure_that_closed_first() -> None:
         })
     }
     """
+    wrapped_expression = """
+    fn f(py: Python<'_>) -> i32 {
+        py.detach(|| runtime().block_on(fut))
+    }
+    """
 
     def offenders(src: str) -> int:
         stripped = _strip_comments(src)
@@ -174,47 +178,58 @@ def test_the_gil_audit_rejects_a_closure_that_closed_first() -> None:
 
     assert offenders(closed_first) == 1, "a closure that already closed must not count"
     assert offenders(wrapped) == 0, "a `block_on` inside the closure is the correct shape"
+    assert offenders(wrapped_expression) == 0, "an expression closure releases the GIL too"
 
 
-def test_fpss_streaming_paths_release_the_gil() -> None:
-    """Audit gate: the standalone FPSS streaming connect, reconnect, and
-    subscribe paths release the GIL across their blocking I/O.
+# The core streaming calls that block: the connect, the reconnect, the
+# subscription wire writes, the stop's dispatcher join and the drain wait.
+_BLOCKING_STREAM_CALL = re.compile(
+    r"\.stream\(\)\s*\.(start_streaming\w*|reconnect_streaming\w*|subscribe\w*"
+    r"|unsubscribe\w*|stop_streaming|await_drain)\s*\("
+)
+_BLOCKING_STREAM_METHODS = {
+    "start_streaming_scoped",
+    "reconnect_streaming_scoped",
+    "subscribe",
+    "subscribe_many",
+    "unsubscribe",
+    "unsubscribe_many",
+    "stop_streaming",
+    "await_drain",
+}
 
-    The FPSS standalone client does not route through `block_on`; its
-    blocking work is a synchronous TLS connect / handshake
-    (`StreamingClientBuilder::build`) and a synchronous wire write
-    (`StreamingClient::subscribe` / `unsubscribe`). The audit above
-    only covers `block_on` call sites, so this test pins the FPSS
-    surface separately: the connect must run inside `py.detach`, and
-    the shared `with_live` helper that brackets every subscribe /
-    unsubscribe wire write must release the GIL too.
+
+def test_every_blocking_stream_call_runs_inside_a_detach_closure() -> None:
+    """Audit gate: the streaming connect, reconnect, subscription writes,
+    stop and drain release the GIL.
+
+    `client.stream` and the standalone `StreamingClient` both run on
+    `StreamView`, whose methods call the core streaming service. Every such
+    blocking call in `thetadatadx-py/src/` must sit inside a
+    `detach(|| ...)` closure. The scan must also find each of those calls, so
+    a rename that leaves it matching nothing fails here instead of passing.
     """
-    src = (_sdk_src_root() / "fpss_client.rs").read_text()
+    root = _sdk_src_root()
+    seen: set[str] = set()
+    offenders: list[tuple[Path, int, str]] = []
+    for path in sorted(root.rglob("*.rs")):
+        raw = path.read_text()
+        src = _strip_comments(raw)
+        spans = _detach_closure_spans(src)
+        for m in _BLOCKING_STREAM_CALL.finditer(src):
+            seen.add(m.group(1))
+            if any(lo < m.start() < hi for lo, hi in spans):
+                continue
+            line_no = src.count("\n", 0, m.start()) + 1
+            offenders.append((path, line_no, raw.splitlines()[line_no - 1].strip()))
 
-    # The connect (`.build()`) must sit inside a `py.detach` envelope.
-    assert ".detach(|| self.params.builder().build())" in src, (
-        "StreamingClient.start_streaming must wrap the blocking FPSS "
-        "connect (`builder().build()`) in `py.detach` so a sibling "
-        "Python thread keeps running during the TLS handshake"
+    missing = _BLOCKING_STREAM_METHODS - seen
+    assert not missing, f"no call site found for {sorted(missing)}; the scan measured nothing"
+    assert not offenders, (
+        "every blocking core streaming call must run inside a `detach(|| ...)` "
+        "closure so the GIL is released while it blocks. Offenders:\n"
+        + "\n".join(f"  {p}:{ln}  {src}" for p, ln, src in offenders)
     )
-
-    # The `with_live` helper -- the single chokepoint every subscribe /
-    # unsubscribe wire write flows through -- must release the GIL
-    # around the cloned-out Rust handle.
-    assert "py.detach(move || f(&client)).map_err(to_py_err)" in src, (
-        "StreamingClient.with_live must release the GIL across the "
-        "blocking wire write so subscribe / unsubscribe do not hold "
-        "the GIL during the socket send"
-    )
-
-    # And every subscribe / unsubscribe entry point must flow through
-    # that helper rather than touching the live client directly.
-    for method in ("subscribe", "subscribe_many", "unsubscribe", "unsubscribe_many"):
-        sig = f"fn {method}(&self, py: Python<'_>"
-        assert sig in src, (
-            f"StreamingClient.{method} must take a `py` token and route "
-            f"its wire write through `with_live(py, ...)`; missing `{sig}`"
-        )
 
 
 def test_record_batch_reader_releases_the_gil() -> None:
@@ -325,14 +340,15 @@ def test_fpss_connect_releases_the_gil(monkeypatch) -> None:
     # The probe is only meaningful if the connect actually blocked. On a
     # runner that RSTs the blackhole address (rather than dropping the
     # SYN) the call returns immediately and the GIL-release window never
-    # opens -- skip rather than fail, since the structural test
-    # (`test_fpss_streaming_paths_release_the_gil`) covers the guarantee
-    # unconditionally.
+    # opens. The skip names the measured time; the structural audit
+    # `test_every_blocking_stream_call_runs_inside_a_detach_closure` pins the
+    # release on this path without needing a blocking connect.
     if blocked_for <= 0.2:
         pytest.skip(
-            f"connect returned in {blocked_for:.3f}s -- the blackhole host "
-            "did not produce a blocking connect on this runner, so the "
-            "GIL-release probe is vacuous"
+            f"connect to 192.0.2.1:20000 returned in {blocked_for:.3f}s, under "
+            "the 0.2s floor, so this runner opened no blocking window to "
+            "measure; test_every_blocking_stream_call_runs_inside_a_detach_closure "
+            "pins the release structurally"
         )
     # If the GIL were held across the connect, the peer thread would be
     # frozen for the entire `blocked_for` window and `counter` would be
