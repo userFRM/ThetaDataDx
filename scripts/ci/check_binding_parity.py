@@ -65,8 +65,7 @@ A `--selftest` switch runs an in-process synthetic-source matrix
 covering positive (all-bound) and negative (missing-on-TS,
 missing-on-C++, missing-on-FFI, undocumented-orphan, rust_only-
 without-issue) cases, plus comment-stripping cases proving a
-commented-out declaration is ignored. The selftest is registered with
-the audit-protocol convention for CI gates.
+commented-out declaration is ignored.
 """
 
 from __future__ import annotations
@@ -2187,7 +2186,7 @@ def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
 # Keywords that can front a `name(` as a CALL or statement, never as a C++
 # return type. Shared by the method-presence collector and the signature
 # extractor so both reject a `return foo(` / `.foo(` in-body call site rather
-# than read it as a declaration (the G11 in-body-shadow defect class).
+# than read it as a declaration.
 _SIG_CPP_CALL_PREV_KEYWORDS: frozenset[str] = frozenset(
     {
         "return",
@@ -2226,7 +2225,7 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     rejected. Counting such call sites let a method *declaration* be
     deleted while its in-class call sites kept the name alive, so the
     parity gate read the binding as still exposing a method it no longer
-    declared (the G11 bypass). This mirrors `_collect_cpp_setters`, which
+    declared. This mirrors `_collect_cpp_setters`, which
     already keys on the `void` / `int32_t` return type so a bare call
     cannot satisfy it.
 
@@ -2252,7 +2251,7 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
         r"(?P<prev>[A-Za-z_]\w*|[>*&\]])\s+(?P<name>[a-z_][a-z0-9_]*)\s*\(",
     )
     # Keywords that can precede a `name(` as a CALL or statement, never as
-    # a return type. `return foo(` is the live G11 mask; the rest guard the
+    # a return type. `return foo(` is the common one; the rest guard the
     # general class (`else if (`, `co_return bar(`, etc.).
     _CALL_PREV_KEYWORDS = _SIG_CPP_CALL_PREV_KEYWORDS
     # Method names that are themselves keywords (defensive; a declaration
@@ -6677,7 +6676,7 @@ def _sig_extract_cpp_member(body: str, method: str) -> tuple[list[str], str] | N
     `>`/`*`/`&`/`]` ending a templated/pointer/reference/array return) sits just
     before the method name. A bare `.method(` call or a keyword-fronted
     `return method(` is rejected — the same discipline the method collector uses
-    to defeat the in-body call-site shadow (the G11 bypass class)."""
+    to reject an in-body call site."""
     decl_re = re.compile(
         r"(?P<prev>[A-Za-z_]\w*|[>*&\]])\s+" + re.escape(method) + r"\s*\("
     )
@@ -7743,13 +7742,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_selftest() -> int:
-    """In-process synthetic-source matrix covering the audit cases.
+    """In-process synthetic-source matrix covering each pass and fail case.
 
-    Each test materialises a temporary tree with the binding sources
-    needed to exercise one specific pass/fail axis, then invokes the
-    parity-row evaluator. The selftest is intentionally hermetic — it
-    does not touch the live binding tree, so running it never depends
-    on the current state of the production bindings.
+    Most cases materialise a temporary tree with the binding sources
+    needed to exercise one pass/fail axis, then invoke the parity-row
+    evaluator. The `live` cases also run the extractors over the real
+    binding tree, so they fail when a collector stops seeing the shipped
+    surface.
     """
     n_pass = 0
     n_fail = 0
@@ -7927,13 +7926,15 @@ def _run_selftest() -> int:
         )
 
     def _case_orphan_rust_field_trips() -> None:
-        """A pub field with no parity row must surface a clear error."""
+        """A pub field with no parity row and no config table entry must
+        surface a clear error; a field with either stays silent."""
         with tempfile.TemporaryDirectory() as tmp:
             cfg_dir = pathlib.Path(tmp) / "config"
             cfg_dir.mkdir()
             (cfg_dir / "fake.rs").write_text(
                 "pub struct FlatFilesConfig {\n"
                 "    pub max_attempts: u32,\n"
+                "    pub jitter: bool,\n"
                 "    pub novel_field: u64,\n"
                 "}\n",
                 encoding="utf-8",
@@ -7953,9 +7954,12 @@ def _run_selftest() -> int:
                     "cpp": True,
                 }
             ]
-            errors = _check_orphan_rust_fields(rust_fields, rows, set())
+            errors = _check_orphan_rust_fields(rust_fields, rows, {("FlatFilesConfig", "jitter")})
             assert any("novel_field" in e for e in errors), (
                 f"undocumented pub field must trip; got {errors!r}"
+            )
+            assert not any("max_attempts" in e or "jitter" in e for e in errors), (
+                f"a field with a row or a config table entry must not trip; got {errors!r}"
             )
 
     def _case_explicit_widened_abi_accepted() -> None:
@@ -7979,6 +7983,15 @@ def _run_selftest() -> int:
             f"_explicit widened-ABI shape must satisfy the row; got {errors!r}"
         )
 
+    def _case_unknown_struct_dotted_row_trips() -> None:
+        """A dotted row naming a struct outside `STRUCT_TO_PREFIX` (the typo
+        `FlatFileConfig`) would assert nothing, so it fails instead."""
+        rows = [{"name": "FlatFileConfig.jitter", "python": True, "typescript": True, "cpp": True}]
+        errors = _check_dotted_rows(rows, set(), set(), set(), set())
+        assert any("FlatFileConfig" in e for e in errors), (
+            f"unknown struct dotted row must trip; got {errors!r}"
+        )
+
     _case("positive — all four bindings expose the field", _case_positive_all_bound)
     _case("negative — TS setter missing", _case_negative_missing_on_ts)
     _case("negative — C++ setter missing", _case_negative_missing_on_cpp)
@@ -7990,6 +8003,7 @@ def _run_selftest() -> int:
     _case("negative — rust_only with binding=true trips", _case_negative_rust_only_with_binding_true)
     _case("orphan — undocumented Rust pub field trips", _case_orphan_rust_field_trips)
     _case("positive — `_explicit` widened-ABI suffix accepted", _case_explicit_widened_abi_accepted)
+    _case("negative - dotted row on an unknown struct trips", _case_unknown_struct_dotted_row_trips)
 
     def _case_authconfig_metricsconfig_prefixes_resolve() -> None:
         """`AuthConfig` + `MetricsConfig` are in scope (issue #608).
@@ -8877,7 +8891,7 @@ def _run_selftest() -> int:
 
     def _case_ts_class_row_runtime_drop_trips() -> None:
         """Dropping ONLY the JS runtime export (the class still declared in the
-        `.d.ts`) must trip the gate. This is the audit-proven hole: a
+        `.d.ts`) must trip the gate: a
         declaration-side hit must never stand in for the shipped surface."""
         rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
         with tempfile.TemporaryDirectory() as tmp:
@@ -10334,6 +10348,52 @@ def _run_selftest() -> int:
     _case("getter-set — live sources clean", _case_getter_set_parity_live_sources_clean)
     _case("getter collectors — scope to impl Config only", _case_getter_collectors_scope_to_config)
 
+    def _case_napi_collectors_read_balanced_attr_args() -> None:
+        """A `)` inside a `ts_args_type` string does not end the napi attribute
+        arg list, so a callback-typed setter or method keeps its `js_name`, and
+        a getter is seen whichever order `getter` and `js_name` come in."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp)
+            (src / "config.rs").write_text(
+                "#[napi]\nimpl Config {\n"
+                '    #[napi(ts_args_type = "cb: (e: Event) => void", js_name = "setStreamCallback")]\n'
+                "    pub fn set_stream_callback(&mut self, cb: ThreadsafeFunction) -> napi::Result<()> { Ok(()) }\n"
+                '    #[napi(js_name = "fooBar", getter)]\n'
+                "    pub fn foo_bar(&self) -> u32 { 0 }\n}\n"
+                "#[napi]\nimpl StreamView {\n"
+                '    #[napi(ts_args_type = "cb: (e: Event) => void", js_name = "onEvent")]\n'
+                "    pub fn subscribe_events(&self, cb: ThreadsafeFunction) -> napi::Result<()> { Ok(()) }\n}\n",
+                encoding="utf-8",
+            )
+            setters = _collect_typescript_setters(src)
+            assert "stream_callback" in setters, f"callback-typed setter dropped; got {sorted(setters)!r}"
+            methods = _collect_typescript_class_methods(src).get("StreamView", set())
+            assert "onEvent" in methods, f"callback-typed method dropped; got {sorted(methods)!r}"
+            getters = _collect_typescript_getters(src)
+            assert "foo_bar" in getters, f"getter after js_name dropped; got {sorted(getters)!r}"
+
+    def _case_cpp_method_collector_declarations_only() -> None:
+        """Only `<return-type> name(` declarations count as C++ methods: an
+        in-class call site (`return request(...)`) cannot keep a deleted
+        declaration alive, and a data member (`handle_`) is not a method."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "thetadatadx.hpp"
+            hpp.write_text(
+                "class FlatFiles {\npublic:\n"
+                "    FlatFileRowList option_eod(const std::string& d) const {\n"
+                '        return request("OPTION");\n'
+                "    }\nprivate:\n"
+                "    Handle* handle_;\n};\n",
+                encoding="utf-8",
+            )
+            methods = _collect_cpp_class_methods(hpp).get("FlatFiles", set())
+            assert methods == {"option_eod"}, (
+                f"only the declared method may be collected; got {sorted(methods)!r}"
+            )
+
+    _case("napi collectors - balanced attribute args", _case_napi_collectors_read_balanced_attr_args)
+    _case("C++ method collector - declarations only", _case_cpp_method_collector_declarations_only)
+
     # ── ClientBuilder fluent-setter parity selftests ──────────────
 
     def _case_client_builder_setter_parity_positive() -> None:
@@ -10758,13 +10818,10 @@ def _run_selftest() -> int:
     _case("comment-strip — commented-out #[pyclass] not collected", _case_strip_pyclass_in_comment_ignored)
     _case("comment-strip — _read_cpp_expanded strips host + .inc comments", _case_strip_cpp_includes_comments)
 
-    # ── Route-B method-signature infrastructure (Phase 3) ──────────
-    # The signature gate is opt-in per row, so it governs ZERO rows on the
-    # real surface today (a verified no-op until Phase 4 authors specs).
-    # These probes ARE the proof the infrastructure works: each extractor
-    # reads a synthetic source, and the orchestrator catches every drift
-    # axis (type / arity / order / return) while honouring a type-map
-    # sanction and a per-binding override.
+    # ── Method-signature selftests ─────────────────────────────────
+    # Each extractor reads a synthetic source, and the orchestrator catches
+    # every drift axis (type / arity / order / return) while honouring a
+    # type-map sanction and a per-binding override.
 
     def _case_sig_type_map_forward_and_sanction() -> None:
         """Forward map: a canonical type is satisfied by its accepted binding
@@ -10844,11 +10901,14 @@ def _run_selftest() -> int:
             (src / "l.rs").write_text(
                 "#[napi]\nimpl Foo {\n"
                 '    #[napi(js_name = "barBaz")]\n'
-                "    pub fn bar_baz(&self, n: f64) -> napi::Result<()> { Ok(()) }\n}\n",
+                "    pub fn bar_baz(&self, n: f64) -> napi::Result<()> { Ok(()) }\n"
+                "    #[napi]\n"
+                "    pub fn do_it(&self) -> u32 { 0 }\n}\n",
                 encoding="utf-8",
             )
             got = _sig_extract_ts_napi(src, "Foo", "barBaz")
             assert got == (["f64"], "napi::Result<()>"), got
+            assert _sig_extract_ts_napi(src, "Foo", "doIt") == ([], "u32")
 
     def _case_sig_extract_ts_dts() -> None:
         """`.d.ts` extractor reads the declared `method(p: T): R` shape."""
@@ -10953,7 +11013,7 @@ def _run_selftest() -> int:
             assert conflicts[0][1] == (
                 ["BatchesOptions | undefined | null"], "Promise<RecordBatchStreamHandle>"
             ), conflicts
-            # FINDING 5: a SECOND overload in the SAME entry interface body (not a
+            # A SECOND overload in the SAME entry interface body (not a
             # cross-file sibling) — `finditer` must collect it so the conflict
             # scan sees the in-body drift, which `search` (first-match-only) hid.
             entry.write_text(
@@ -10988,7 +11048,7 @@ def _run_selftest() -> int:
             assert _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec) == []
 
     def _case_sig_ts_dts_param_optionality() -> None:
-        """FINDING 6: the `?` optional-param marker is preserved as `T |
+        """The `?` optional-param marker is preserved as `T |
         undefined`, so a required-vs-optional drift on a `.d.ts` param FAILS the
         type compare instead of collapsing both spellings to `T`. Pins the
         `StreamView.batches(options?: BatchesOptions)` row: `Option<...>` spec
@@ -11013,7 +11073,7 @@ def _run_selftest() -> int:
             )
             req = _sig_extract_ts_dts(dts, "StreamView", "batches")
             assert req == (["BatchesOptions"], "void"), req
-            # The two are now DISTINGUISHED (the FINDING-6 bug collapsed them).
+            # The two stay distinct rather than collapsing to `T`.
             assert opt != req
             # Legitimate matches pass; the representable drift fails.
             assert _sig_compare_one("X.batches", spec_opt, opt, "ts_dts") == []
@@ -11087,7 +11147,7 @@ def _run_selftest() -> int:
         """A MISSING `.d.ts` declaration is an error when the class IS part of
         the public surface (a dropped public member), but degrades to
         napi-as-authority when the class itself is absent (a legitimately
-        napi-only row). This is the FINDING-2 fail-on-absence rule."""
+        napi-only row)."""
         with tempfile.TemporaryDirectory() as tmp:
             d = pathlib.Path(tmp)
             (d / "index.d.ts").write_text(
@@ -11168,7 +11228,7 @@ def _run_selftest() -> int:
         assert not _sig_type_agrees("usize", "str", "python_pyi")
         # A `Literal[...]` canonical compares by EXACT value set (the fold to
         # `str` is gone): identity and reordering pass; add / remove / rename a
-        # member fails; widening to bare `str` fails. This is the FINDING-9 win.
+        # member fails; widening to bare `str` fails.
         lit = 'Literal["batched", "immediate"]'
         assert _sig_type_agrees(lit, 'Literal["batched", "immediate"]', "python_pyi")
         assert _sig_type_agrees(lit, 'Literal["immediate", "batched"]', "python_pyi")  # order-insensitive
@@ -11194,7 +11254,7 @@ def _run_selftest() -> int:
         assert not _sig_type_agrees("RecordBatchStream", "Any", "python_pyi")
 
     def _case_sig_python_pyi_literal_value_set_drift() -> None:
-        """FINDING-9 probe end-to-end: a `python_pyi_returns` Literal override
+        """End to end: a `python_pyi_returns` Literal override
         pins the EXACT value set through the orchestrator. The correct set
         passes; adding, removing, or changing one member of the `.pyi` property
         FAILS the `python_pyi` lane (while ts / cpp keep checking the canonical
@@ -11358,7 +11418,7 @@ def _run_selftest() -> int:
         # The setter rows still get their pyo3-source `python` / ts / cpp / ffi
         # checks; only the `.pyi` lane is exempt. So no `python_pyi` error.
         assert not any("python_pyi" in e for e in setter_errs), setter_errs
-        # FINDING-8 closure: the exemption is sound ONLY if EVERY exempt setter
+        # The exemption is sound ONLY if EVERY exempt setter
         # has a getter twin whose `.pyi` property type the `python_pyi` lane
         # checks. Resolve each setter's twin from the real spec and assert (a) a
         # checked getter `[[method]]` row exists for it and (b) the stub declares
@@ -11756,7 +11816,7 @@ def _run_selftest() -> int:
             assert any("ffi" in e and "arity mismatch" in e for e in bad), bad
 
     def _case_sig_name_only_fails_closed() -> None:
-        """FINDING-1 fail-closed enrollment: a `[[method]]` row WITHOUT a
+        """Fail-closed enrollment: a `[[method]]` row WITHOUT a
         `[method.signature]` FAILS unless it is in `NAME_ONLY_METHOD_ALLOWLIST`.
         A synthetic unpinned + unlisted row trips; the same row listed passes.
         This is the guarantee that no NEW row can be silently name-only."""
@@ -11839,16 +11899,15 @@ def _run_selftest() -> int:
             ) == []
 
     def _case_sig_live_surface_is_clean() -> None:
-        """The LIVE parity.toml now carries real `[method.signature]` specs (the
+        """The LIVE parity.toml carries real `[method.signature]` specs (the
         non-streaming enrolled surfaces). The signature gate extracts every
         enrolled binding's declared signature from the real sources and must
-        find them all satisfying the specs — the engaged-and-clean invariant
-        that replaces Phase 3's gated-to-zero landing."""
+        find them all satisfying the specs."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
         method_rows = data.get("method", [])
         pinned = [r for r in method_rows if r.get("signature")]
         assert pinned, (
-            "Phase 4a engages the signature gate: at least one [[method]] row "
+            "At least one live [[method]] row "
             "must carry a [method.signature] sub-table against the real sources."
         )
         errs = _sig_check_method_signatures(
@@ -11866,7 +11925,7 @@ def _run_selftest() -> int:
         ffi_rows = data.get("ffi_symbol", [])
         pinned = [r for r in ffi_rows if r.get("signature")]
         assert pinned, (
-            "Phase 4a pins the hand-written FFI streaming symbols' signatures."
+            "The live [[ffi_symbol]] rows must pin the hand-written FFI streaming symbols' signatures."
         )
         errs = _check_ffi_symbol_rows(
             ffi_rows, _collect_ffi_all_symbols(FFI_SRC), FFI_SRC
