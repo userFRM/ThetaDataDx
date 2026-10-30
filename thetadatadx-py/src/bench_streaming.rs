@@ -42,10 +42,7 @@
 //! bench `thetadatadx-rs/benches/streaming_throughput.rs`).
 //!
 //! These are bench-only `#[pyfunction]`s, NOT part of the public utility
-//! surface. They are enrolled in `PY_NON_UTILITY_PYFUNCTIONS` in
-//! `scripts/ci/check_binding_parity.py` alongside the other offline hooks so
-//! the parity gate does not mistake them for untracked cross-binding
-//! utilities.
+//! surface.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};

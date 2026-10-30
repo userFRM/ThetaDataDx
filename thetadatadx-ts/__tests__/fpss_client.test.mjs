@@ -28,16 +28,6 @@ try {
 
 const fpssBlock = dts.match(/export declare class StreamingClient \{[\s\S]*?\n\}/);
 
-function methodNames(block) {
-  return new Set(
-    block
-      .split('\n')
-      .map((line) => line.match(/^\s+(?:static\s+)?([a-z][a-zA-Z0-9]*)\(/))
-      .filter(Boolean)
-      .map((m) => m[1])
-  );
-}
-
 describe('StreamingClient native addon surface', () => {
   it('exports the StreamingClient class with the creds-first connect factories', () => {
     assert.ok(mod.StreamingClient, 'StreamingClient should be exported');
@@ -55,44 +45,7 @@ describe('StreamingClient native addon surface', () => {
   });
 });
 
-describe('StreamingClient carries the full streaming surface', () => {
-  // The streaming, subscription, lifecycle, and ring-telemetry surface
-  // that the Python `StreamingClient` exposes (the parity rows flipped to
-  // `typescript = true` in parity.toml). Pin the whole set so a
-  // regression that drops any one of them fails here.
-  const STREAMING_SURFACE = [
-    'startStreaming',
-    'stopStreaming',
-    'shutdown',
-    'reconnect',
-    'isStreaming',
-    'isAuthenticated',
-    'awaitDrain',
-    'subscribe',
-    'subscribeMany',
-    'unsubscribe',
-    'unsubscribeMany',
-    'activeSubscriptions',
-    'activeFullSubscriptions',
-    'droppedEventCount',
-    'ringOccupancy',
-    'ringCapacity',
-    'panicCount',
-    'millisSinceLastEvent',
-    'lastEventReceivedAtUnixNanos',
-    'lastConnectedAddr',
-  ];
-
-  it('declares every streaming / lifecycle / telemetry method', () => {
-    const methods = methodNames(fpssBlock[0]);
-    for (const expected of STREAMING_SURFACE) {
-      assert.ok(
-        methods.has(expected),
-        `StreamingClient must expose ${expected}`
-      );
-    }
-  });
-
+describe('StreamingClient network-bound methods', () => {
   it('the network-bound lifecycle methods are async so they never block the event loop', () => {
     assert.match(
       fpssBlock[0],

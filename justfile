@@ -6,7 +6,7 @@
 ci:
     python3 scripts/ci.py all
 
-# Run one named gate, e.g. `just check binding_parity`. `just check list`
+# Run one named gate, e.g. `just check docs_consistency`. `just check list`
 # prints the available gate names.
 check name:
     python3 scripts/ci.py {{name}}

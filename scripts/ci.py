@@ -14,7 +14,6 @@ current interpreter. It does not reimplement any gate logic.
 Usage:
     python scripts/ci.py all
     python scripts/ci.py list
-    python scripts/ci.py binding_parity
     python scripts/ci.py docs_consistency
 """
 
@@ -58,10 +57,6 @@ GATES: dict[str, list[list[str]]] = {
     "c_abi_completeness": (
         _ci("check_c_abi_completeness", "--selftest")
         + _ci("check_c_abi_completeness")
-    ),
-    "binding_parity": (
-        _ci("check_binding_parity", "--selftest")
-        + _ci("check_binding_parity")
     ),
     "public_surface_leak": (
         _ci("check_public_surface_leak", "--selftest")

@@ -1,0 +1,272 @@
+{
+  "about": "The hand-written surface the Python, TypeScript and C++ bindings share; everything the tables in thetadatadx-rs/src/surface/ expand is left out. Each binding checks its built artefact against this file: thetadatadx-py/tests/test_parity.py, thetadatadx-ts/__tests__/parity.test.mjs, and the C++ test build, which compiles a translation unit taking the address of every C++ entry. A class or member names the bindings that have it: \"*\" for all three, a space-separated list for some, or an object giving each binding's own spelling. Default spellings: snake_case in Python (get_x and set_x are the property x), camelCase in TypeScript (get_x is the property x, set_x is setX), snake_case in C++ under thetadatadx::. Python and TypeScript also fail on a public member a listed class has and this file does not name, except in the bindings a class lists as open, where the tables add members. No public Python or TypeScript name, listed or not, may embed one of the banned identifier tokens, the names of implementation details; the vendor's protocol names (mdds, fpss) are not among them.",
+  "classes": {
+    "Credentials": {
+      "members": {
+        "from_file": "*",
+        "from_email": "cpp",
+        "from_api_key": "*",
+        "from_api_key_with_email": "*",
+        "from_env": "*",
+        "from_env_or_file": "*",
+        "from_dotenv": "*"
+      }
+    },
+    "Config": {
+      "members": {
+        "production": "*",
+        "dev": "*",
+        "stage": "*",
+        "from_dotenv": "*",
+        "set_consumer_cpu": "*",
+        "get_consumer_cpu": "*",
+        "get_market_data_environment": "*",
+        "get_streaming_environment": "*",
+        "set_reconnect_callback": "*",
+        "set_reconnect_policy": "*",
+        "get_reconnect_policy": "*",
+        "set_streaming_ring_size": "*",
+        "set_worker_threads": "*",
+        "get_worker_threads": "*"
+      }
+    },
+    "Client": {
+      "members": {
+        "connect": "typescript cpp",
+        "from_file": {"python": "from_file", "typescript": "connectFromFile", "cpp": "from_file"},
+        "from_env": "python",
+        "from_dotenv": "python",
+        "market_data": "*",
+        "stream": "*",
+        "close": "*",
+        "streaming": "python typescript",
+        "builder": "cpp",
+        "connect_with": "typescript",
+        "session_uuid": "python",
+        "subscription_info": "python"
+      }
+    },
+    "AsyncClient": {
+      "typescript": null,
+      "cpp": null,
+      "members": {
+        "connect": "python",
+        "connect_from_file": "python",
+        "from_file": "python",
+        "close": "python"
+      }
+    },
+    "MarketDataClient": {
+      "open": "typescript",
+      "members": {
+        "connect": "typescript cpp",
+        "from_file": {"python": "from_file", "typescript": "connectFromFile", "cpp": "from_file"},
+        "close": "*"
+      }
+    },
+    "MarketDataView": {
+      "cpp": "MarketData",
+      "open": "*",
+      "members": {}
+    },
+    "StreamingClient": {
+      "members": {
+        "connect": "typescript",
+        "from_file": {"python": "from_file", "typescript": "connectFromFile", "cpp": "from_file"},
+        "streaming": "python typescript",
+        "start_streaming": "python typescript",
+        "stop_streaming": "python typescript",
+        "shutdown": "*",
+        "reconnect": "*",
+        "is_streaming": "*",
+        "is_authenticated": "*",
+        "await_drain": "python typescript",
+        "subscribe": "*",
+        "subscribe_many": "*",
+        "unsubscribe": "*",
+        "unsubscribe_many": "*",
+        "active_subscriptions": "*",
+        "active_full_subscriptions": "*",
+        "dropped_event_count": "*",
+        "ring_occupancy": "*",
+        "ring_capacity": "*",
+        "panic_count": "*",
+        "millis_since_last_event": "*",
+        "last_event_received_at_unix_nanos": "*",
+        "last_connected_addr": "*",
+        "set_callback": "cpp"
+      }
+    },
+    "StreamView": {
+      "cpp": "Stream",
+      "members": {
+        "start_streaming": "python typescript",
+        "stop_streaming": "*",
+        "shutdown": "python typescript",
+        "reconnect": "*",
+        "is_streaming": "*",
+        "batches": {"python": "batches", "typescript": "batches", "cpp": "batches", "cpp_requires": "THETADATADX_CPP_ARROW"},
+        "is_authenticated": "*",
+        "await_drain": "*",
+        "subscribe": "*",
+        "subscribe_many": "*",
+        "unsubscribe": "*",
+        "unsubscribe_many": "*",
+        "active_subscriptions": "*",
+        "active_full_subscriptions": "*",
+        "dropped_event_count": "*",
+        "ring_occupancy": "*",
+        "ring_capacity": "*",
+        "panic_count": "*",
+        "millis_since_last_event": "*",
+        "last_event_received_at_unix_nanos": "*",
+        "last_connected_addr": "*",
+        "set_callback": "cpp"
+      }
+    },
+    "RecordBatchStream": {
+      "cpp_requires": "THETADATADX_CPP_ARROW",
+      "members": {
+        "close": "*",
+        "schema": "*",
+        "dropped": "*"
+      }
+    },
+    "StreamingSession": {
+      "cpp": null,
+      "members": {}
+    },
+    "StandaloneStreamingSession": {
+      "python": null,
+      "cpp": null,
+      "members": {}
+    },
+    "Contract": {
+      "cpp": "FluentContract",
+      "members": {
+        "stock": "*",
+        "index": "*",
+        "option": "*",
+        "quote": "*",
+        "trade": "*",
+        "open_interest": "*",
+        "market_value": "*",
+        "symbol": "*",
+        "sec_type": "*",
+        "expiration": "*",
+        "strike": "*",
+        "right": "*",
+        "is_option": "cpp"
+      }
+    },
+    "ContractRef": {
+      "cpp": null,
+      "members": {
+        "symbol": "python typescript",
+        "sec_type": "python typescript",
+        "expiration": "python typescript",
+        "strike": "python typescript",
+        "strike_thousandths": "python",
+        "right": "python typescript",
+        "stock": "typescript",
+        "index": "typescript",
+        "option": "typescript",
+        "quote": "typescript",
+        "trade": "typescript",
+        "open_interest": "typescript",
+        "market_value": "typescript"
+      }
+    },
+    "ColumnPresence": {
+      "python": null,
+      "members": {}
+    },
+    "Subscription": {
+      "cpp": "FluentSubscription",
+      "members": {
+        "kind": "*",
+        "scope": "cpp",
+        "is_full": "python typescript",
+        "contract": "python typescript",
+        "sec_type": "*",
+        "symbol": "cpp",
+        "expiration": "cpp",
+        "strike": "cpp",
+        "right": "cpp",
+        "is_option": "cpp"
+      }
+    },
+    "SecType": {
+      "cpp": "FluentSecType",
+      "members": {
+        "stock": {"python": "STOCK", "typescript": "stock", "cpp": "stock"},
+        "index": {"python": "INDEX", "typescript": "index", "cpp": "index"},
+        "option": {"python": "OPTION", "typescript": "option", "cpp": "option"},
+        "rate": {"python": "RATE", "typescript": "rate", "cpp": "rate"},
+        "full_trades": "*",
+        "full_open_interest": "*",
+        "name": "typescript cpp"
+      }
+    },
+    "ThetaDataError": {"members": {}},
+    "AuthenticationError": {"members": {}},
+    "InvalidCredentialsError": {"members": {}},
+    "SubscriptionError": {"members": {}},
+    "RateLimitError": {"members": {}},
+    "InvalidParameterError": {"members": {}},
+    "NetworkError": {"members": {}},
+    "UnavailableError": {"members": {}},
+    "DeadlineExceededError": {"members": {}},
+    "NotFoundError": {"members": {}},
+    "SchemaMismatchError": {"members": {}},
+    "StreamError": {"members": {}},
+    "ConfigError": {"members": {}},
+    "NoDataFoundError": {"typescript": null, "cpp": null, "members": {}},
+    "TimeoutError": {"typescript": null, "cpp": null, "members": {}}
+  },
+  "functions": {
+    "condition_name": "*",
+    "condition_description": "*",
+    "is_cancel": "*",
+    "updates_volume": "*",
+    "quote_condition_name": "*",
+    "quote_condition_description": "*",
+    "is_firm": "*",
+    "is_halted": "*",
+    "exchange_name": "*",
+    "exchange_symbol": "*",
+    "calendar_status_name": "*",
+    "timestamp_ms": "*",
+    "sequence_signed_to_unsigned": "*",
+    "sequence_unsigned_to_signed": "*",
+    "split_date_range": "python"
+  },
+  "c_functions": [
+    "thetadatadx_contract_strike_dollars",
+    "thetadatadx_client_batches_open",
+    "thetadatadx_client_market_data",
+    "thetadatadx_record_batch_stream_next_ipc",
+    "thetadatadx_record_batch_stream_schema_ipc",
+    "thetadatadx_record_batch_stream_dropped",
+    "thetadatadx_record_batch_stream_close",
+    "thetadatadx_record_batch_stream_free"
+  ],
+  "error_codes": {
+    "THETADATADX_ERR_NONE": 0,
+    "THETADATADX_ERR_OTHER": 1,
+    "THETADATADX_ERR_AUTHENTICATION": 2,
+    "THETADATADX_ERR_INVALID_CREDENTIALS": 3,
+    "THETADATADX_ERR_SUBSCRIPTION": 4,
+    "THETADATADX_ERR_RATE_LIMIT": 5,
+    "THETADATADX_ERR_NOT_FOUND": 6,
+    "THETADATADX_ERR_DEADLINE_EXCEEDED": 7,
+    "THETADATADX_ERR_UNAVAILABLE": 8,
+    "THETADATADX_ERR_NETWORK": 9,
+    "THETADATADX_ERR_SCHEMA_MISMATCH": 10,
+    "THETADATADX_ERR_STREAM": 11,
+    "THETADATADX_ERR_CONFIG": 12,
+    "THETADATADX_ERR_INVALID_PARAMETER": 13
+  },
+  "subscription_kinds": ["quote", "trade", "open_interest", "market_value", "full_trades", "full_open_interest"],
+  "banned_identifier_tokens": ["tokio", "disruptor", "crossbeam", "parking_lot", "parkinglot", "block_on", "blockon", "allow_threads", "allowthreads", "os_pipe", "ospipe"]
+}

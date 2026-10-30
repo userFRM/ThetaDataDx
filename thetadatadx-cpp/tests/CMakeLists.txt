@@ -61,6 +61,120 @@ if(THETADATADX_CPP_ARROW)
     list(APPEND THETADATADX_CPP_TEST_SOURCES streaming_batches.cpp)
 endif()
 
+# The C++ column of the cross-binding manifest `parity.json`, rendered into a
+# translation unit that takes the address of every entry the manifest lists
+# for C++, so a missing one fails to compile and a missing C ABI export fails
+# to link. It also holds the header's error codes to the manifest.
+if(CMAKE_VERSION VERSION_LESS 3.19)
+    message(FATAL_ERROR "the C++ tests read parity.json with string(JSON), which needs CMake 3.19")
+endif()
+set(THETADATADX_PARITY_JSON "${CMAKE_CURRENT_SOURCE_DIR}/../../parity.json")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${THETADATADX_PARITY_JSON}")
+file(READ "${THETADATADX_PARITY_JSON}" parity)
+
+# Sets `out` to the C++ spelling of `name` under `spec`, or to "" when C++ lacks it.
+function(parity_cpp_name out name spec_type spec)
+    set(result "")
+    if(spec_type STREQUAL "OBJECT")
+        string(JSON result ERROR_VARIABLE missing GET "${spec}" cpp)
+        if(missing)
+            set(result "")
+        endif()
+    elseif(spec STREQUAL "*" OR " ${spec} " MATCHES " cpp ")
+        set(result "${name}")
+    endif()
+    set(${out} "${result}" PARENT_SCOPE)
+endfunction()
+
+set(parity_body "")
+string(JSON class_count LENGTH "${parity}" classes)
+math(EXPR last_class "${class_count} - 1")
+foreach(i RANGE ${last_class})
+    string(JSON class MEMBER "${parity}" classes ${i})
+    string(JSON cpp_type ERROR_VARIABLE no_override TYPE "${parity}" classes ${class} cpp)
+    if(cpp_type STREQUAL "NULL")
+        continue()
+    elseif(no_override)
+        set(cpp_class "thetadatadx::${class}")
+    else()
+        string(JSON cpp_class GET "${parity}" classes ${class} cpp)
+        set(cpp_class "thetadatadx::${cpp_class}")
+    endif()
+    string(JSON requires ERROR_VARIABLE unconditional GET "${parity}" classes ${class} cpp_requires)
+    if(NOT unconditional)
+        string(APPEND parity_body "#ifdef ${requires}\n")
+    endif()
+    string(APPEND parity_body "    static_cast<void>(sizeof(${cpp_class}));\n")
+    string(JSON member_count LENGTH "${parity}" classes ${class} members)
+    if(member_count GREATER 0)
+        math(EXPR last_member "${member_count} - 1")
+        foreach(j RANGE ${last_member})
+            string(JSON member MEMBER "${parity}" classes ${class} members ${j})
+            string(JSON spec_type TYPE "${parity}" classes ${class} members ${member})
+            string(JSON spec GET "${parity}" classes ${class} members ${member})
+            parity_cpp_name(cpp_member ${member} ${spec_type} "${spec}")
+            if(cpp_member)
+                set(member_requires "")
+                if(spec_type STREQUAL "OBJECT")
+                    string(JSON member_requires ERROR_VARIABLE no_requires GET "${spec}" cpp_requires)
+                endif()
+                if(member_requires)
+                    string(APPEND parity_body "#ifdef ${member_requires}\n")
+                endif()
+                string(APPEND parity_body "    static_cast<void>(&${cpp_class}::${cpp_member});\n")
+                if(member_requires)
+                    string(APPEND parity_body "#endif\n")
+                endif()
+            endif()
+        endforeach()
+    endif()
+    if(NOT unconditional)
+        string(APPEND parity_body "#endif\n")
+    endif()
+endforeach()
+
+string(JSON function_count LENGTH "${parity}" functions)
+math(EXPR last_function "${function_count} - 1")
+foreach(i RANGE ${last_function})
+    string(JSON function MEMBER "${parity}" functions ${i})
+    string(JSON spec_type TYPE "${parity}" functions ${function})
+    string(JSON spec GET "${parity}" functions ${function})
+    parity_cpp_name(cpp_function ${function} ${spec_type} "${spec}")
+    if(cpp_function)
+        string(APPEND parity_body "    static_cast<void>(&${cpp_function});\n")
+    endif()
+endforeach()
+
+string(JSON c_count LENGTH "${parity}" c_functions)
+math(EXPR last_c "${c_count} - 1")
+foreach(i RANGE ${last_c})
+    string(JSON c_function GET "${parity}" c_functions ${i})
+    string(APPEND parity_body "    static_cast<void>(&${c_function});\n")
+endforeach()
+
+set(parity_asserts "")
+string(JSON code_count LENGTH "${parity}" error_codes)
+math(EXPR last_code "${code_count} - 1")
+foreach(i RANGE ${last_code})
+    string(JSON code MEMBER "${parity}" error_codes ${i})
+    string(JSON value GET "${parity}" error_codes ${code})
+    string(APPEND parity_asserts "static_assert(${code} == ${value}, \"${code} differs from parity.json\");\n")
+endforeach()
+
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/parity_surface.cpp" CONTENT
+"// Rendered from parity.json by thetadatadx-cpp/tests/CMakeLists.txt.
+#include \"thetadatadx.h\"
+#include \"thetadatadx.hpp\"
+
+${parity_asserts}
+void thetadatadx_parity_surface() {
+    // The free functions live in `thetadatadx` or `thetadatadx::util`.
+    using namespace thetadatadx;
+    using namespace thetadatadx::util;
+${parity_body}}
+")
+list(APPEND THETADATADX_CPP_TEST_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/parity_surface.cpp")
+
 add_executable(thetadatadx_cpp_tests ${THETADATADX_CPP_TEST_SOURCES})
 target_link_libraries(thetadatadx_cpp_tests
     PRIVATE

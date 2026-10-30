@@ -770,8 +770,7 @@ use stream_events::{StreamEvent, buffered_event_to_typed, fpss_event_to_buffered
 // `__benchFloodEvents(n, callback)` pushes synthetic streaming events through
 // the real `TsfnCallback` dispatch path (same bounded queue, same per-event
 // marshal) so the TypeScript streaming ceiling can be measured offline.
-// Bench-only; carved out of the parity utility roster via
-// `_is_ts_internal_free_fn` in `scripts/ci/check_binding_parity.py`.
+// Bench-only, not part of the cross-binding surface.
 //
 // Gated `cfg(not(test))`: the node bench loads the release-built addon, so
 // the export is only ever reached from a non-test build. Under `cfg(test)`

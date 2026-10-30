@@ -27,12 +27,7 @@
 //! actually fired `n` times (the receive-side zero-drop check) and that
 //! the core ring `droppedEventCount()` stayed `0`.
 //!
-//! This is a BENCH-ONLY export. It is a napi free function whose name
-//! (`__bench_flood_events`) is enrolled in `_is_ts_internal_free_fn` in
-//! `scripts/ci/check_binding_parity.py`, so the parity gate does not treat
-//! it as an untracked cross-binding utility — the same carve-out the
-//! Arrow-IPC serialization free functions use. It carries no `[[utility]]`
-//! row and no parity-matrix obligation.
+//! This is a BENCH-ONLY export, not part of the cross-binding surface.
 
 use std::sync::Arc;
 
