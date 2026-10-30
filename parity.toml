@@ -4671,25 +4671,16 @@ ffi = false
 
 # ─── C-ABI streaming-batch / borrowed-handle externs ───────────────────
 #
-# A small family of `extern "C"` symbols underpins the columnar streaming
-# reader, the flat-file Arrow bridge, and the borrowed market-data handle.
-# They are not endpoint (`_with_options` / `_stream`) symbols, config
-# accessors, or utilities, so no other family tracks them — a `[[ffi_symbol]]`
-# row pins each one's existence so it cannot be removed (breaking the C++
-# RecordBatchStream / FlatFileRowList wrappers) without tripping the gate.
-# The `name` is the bare symbol with the `thetadatadx_` prefix stripped; the
-# checker re-derives the full `thetadatadx_<name>` extern when matching
-# `thetadatadx-ffi/src/**`. The reverse FFI-orphan scan additionally guarantees no
-# C-ABI symbol ships without belonging to some enrolled family.
-#
-# Each of these eight hand-written symbols carries an optional
-# `[ffi_symbol.signature]` pinning its C param list + return: the extern's
-# declared signature is extracted and compared on the `ffi` lang, where the
-# opaque handle pointers (`*const ThetaDataDxClient`) and owned-struct returns
-# (`ThetaDataDxArrowBytes`) compare by exact C-ABI spelling. The
-# macro-generated per-tick `*_to_arrow_ipc` terminals below carry NO signature:
-# they are emitted from one `tick_array_to_arrow_ipc!` macro, so their shape is
-# identical by construction — the name-only row already pins their existence.
+# A small family of hand-written `extern "C"` symbols underpins the columnar
+# streaming reader, the flat-file Arrow bridge, and the borrowed market-data
+# handle. `check_c_abi_completeness` holds their names to `thetadatadx.h` and
+# the C++ wrappers call them, but nothing else compares a parameter list, so
+# each `[[ffi_symbol]]` row pins one by its `[ffi_symbol.signature]`: the
+# extern's declared C param list and return, read from
+# `thetadatadx-ffi/src/**`, where the opaque handle pointers
+# (`*const ThetaDataDxClient`) and owned-struct returns
+# (`ThetaDataDxArrowBytes`) compare by exact C-ABI spelling. The `name` is the
+# bare symbol with the `thetadatadx_` prefix stripped.
 [[ffi_symbol]]
 name = "client_batches_open"
 [ffi_symbol.signature]
@@ -4743,8 +4734,7 @@ returns = "ThetaDataDxFlatFileBytes"
 # exposes the identical fetch surface as the unified client's
 # `thetadatadx_flatfile_*`. These two hand-written externs back the C++
 # `MarketDataClient::flat_files()` view (Python and TypeScript reach the same
-# surface through their unified-client-backed handles). No endpoint/config
-# family tracks them, so a `[[ffi_symbol]]` row pins each one's existence.
+# surface through their unified-client-backed handles).
 [[ffi_symbol]]
 name = "market_data_flatfile_request_decoded"
 [ffi_symbol.signature]
@@ -4768,231 +4758,3 @@ params = [
     "*const c_char",
 ]
 returns = "i32"
-
-# Per-tick Arrow IPC terminals (`thetadatadx_<kind>_ticks_to_arrow_ipc`,
-# `thetadatadx_calendar_days_to_arrow_ipc`). Emitted by the
-# `tick_array_to_arrow_ipc!` macro in `thetadatadx-ffi/src/types.rs` — the symbol name is
-# the macro's first argument, so the name lives only at the invocation site.
-# Each is a cross-binding data contract the C++ `tick_arrow_ipc.hpp.inc`
-# binds by name (one `*_to_arrow_ipc` free function per tick wrapper), the
-# columnar exit Python exposes via `<TickName>List.to_arrow()`. A row pins
-# each one so a rename/removal trips before it can break arrow-cpp consumers.
-[[ffi_symbol]]
-name = "eod_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "ohlc_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "quote_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "greeks_all_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "greeks_eod_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "greeks_first_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "greeks_second_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "greeks_third_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_greeks_all_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_greeks_first_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_greeks_second_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_greeks_third_order_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_greeks_implied_volatility_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "iv_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "price_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "index_price_at_time_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "open_interest_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "market_value_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "calendar_days_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "interest_rate_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "trade_quote_ticks_to_arrow_ipc"
-
-[[ffi_symbol]]
-name = "interval_quote_ticks_to_arrow_ipc"
-
-# Column presence + projected Arrow IPC terminals (decode-fed history export).
-# The `thetadatadx_<collection>_present_columns` producer runs the response's
-# `WireColumns::present_columns` (the buffered `.await` decode's own projection)
-# and the `thetadatadx_<collection>_to_arrow_ipc_projected` serialiser emits only
-# those columns — the C++ equivalent of Python's `<TickName>List.to_arrow()` on a
-# decode result. Both families are macro-emitted in `thetadatadx-ffi/src/types.rs`
-# alongside the all-present `*_to_arrow_ipc` family, share the
-# `ThetaDataDxColumnPresence` carrier (freed by `thetadatadx_column_presence_free`),
-# and are bound by name in the generated C++ `tick_arrow_ipc.hpp.inc`. Name-only
-# rows pin each so a rename/removal trips before it breaks arrow-cpp consumers.
-[[ffi_symbol]]
-name = "column_presence_free"
-
-[[ffi_symbol]]
-name = "eod_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "ohlc_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "quote_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "greeks_all_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "greeks_eod_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "greeks_first_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "greeks_second_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "greeks_third_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_greeks_all_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_greeks_first_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_greeks_second_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_greeks_third_order_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_greeks_implied_volatility_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "iv_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "price_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "index_price_at_time_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "open_interest_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "market_value_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "calendar_days_present_columns"
-
-[[ffi_symbol]]
-name = "interest_rate_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "trade_quote_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "interval_quote_ticks_present_columns"
-
-[[ffi_symbol]]
-name = "eod_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "ohlc_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "quote_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "greeks_all_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "greeks_eod_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "greeks_first_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "greeks_second_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "greeks_third_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_greeks_all_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_greeks_first_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_greeks_second_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_greeks_third_order_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "iv_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "price_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "index_price_at_time_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "open_interest_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "market_value_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "calendar_days_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "interest_rate_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "trade_quote_ticks_to_arrow_ipc_projected"
-
-[[ffi_symbol]]
-name = "interval_quote_ticks_to_arrow_ipc_projected"
