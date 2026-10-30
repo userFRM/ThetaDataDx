@@ -1,8 +1,4 @@
 //! Code-generation modules reachable only from `bin/generate_sdk_surfaces`.
-//!
-//! Items here are physically separate from `build_support/` so the build
-//! script never compiles them. The build script's compile unit reads
-//! `thetadatadx-rs/build_support/mod.rs`; the binary reads this file.
 
 mod endpoints;
 mod fpss_events;

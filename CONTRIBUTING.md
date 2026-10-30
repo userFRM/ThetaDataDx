@@ -137,13 +137,7 @@ The endpoint table expands at compile time into the registry, the shared endpoin
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`
-   - `cargo build` regenerates Rust message types automatically
-   - The committed gRPC codegen snapshot at
-     `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` is verified
-     by the build script but never written by it. Refresh it
-     explicitly with
-     `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`
-     and commit the resulting diff alongside the proto change.
+   - Regenerate the committed message types and client stubs at `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` and commit the resulting diff alongside the proto change. CI runs the same command and fails when it changes the snapshot.
 
 2. **Add or update the endpoint surface**
    - Add an entry to the endpoint table in `thetadatadx-rs/src/surface/endpoints.rs`, reusing the parameter definitions and groups in `__param!` where possible; its module documentation describes the entry grammar

@@ -19,7 +19,7 @@ readme = "README.md"
 # compile: `cargo build --all-features` against the published package fails
 # on the missing module. The default verify build never caught it because
 # the generator carries `required-features`.
-include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+include = ["src/**/*", "!src/bin/**", "proto/**/*", "Cargo.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
 name = "thetadatadx"
@@ -39,10 +39,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = []
 config-file = ["dep:toml", "dep:heck"]
-# Pulls `prost-build` into the regular dep graph for the
-# `refresh_grpc_snapshot` developer binary. Strictly off for normal
-# crate builds — the build script keeps its own `prost-build` under
-# `[build-dependencies]`.
+# Pulls `prost-build` into the dep graph for the `refresh_grpc_snapshot`
+# developer binary. Strictly off for normal crate builds.
 grpc-codegen = ["dep:prost-build"]
 # Optional Prometheus exporter. When enabled, a `metrics-exporter-prometheus`
 # HTTP listener binds to `DirectConfig::metrics_port` (see the
@@ -244,10 +242,10 @@ arc-swap = "1.7"
 # choice, not us.
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
-# Optional prost-build for the `refresh_grpc_snapshot` developer binary
-# and the build script's grpc-codegen path. Stays out of the default dep
-# graph; the `grpc-codegen = ["dep:prost-build"]` feature enables it here
-# and in `[build-dependencies]` together.
+# Optional prost-build for the `refresh_grpc_snapshot` developer binary,
+# which compiles `proto/mdds.proto` and emits the client stubs with its own
+# service generator. Stays out of the default dep graph; the `grpc-codegen`
+# feature enables it.
 prost-build = { version = "=0.14.4", optional = true }
 
 [dev-dependencies]
@@ -277,20 +275,6 @@ toml = "1.1.2"
 # CPU-seconds per measured phase without spawning `perf` or requiring
 # elevated kernel settings.
 libc = "0.2"
-
-[build-dependencies]
-# `prost-build` compiles `proto/mdds.proto` into Rust message types; the
-# in-house client stubs are emitted by a custom service generator under
-# `build_support/grpc/`. Optional and gated behind `grpc-codegen`: a
-# normal build uses the committed `proto/beta_endpoints.snapshot.rs` and
-# never invokes `protoc`, so `prost-build` stays out of the default build
-# graph. Enabled (in both this table and `[dependencies]`) by the single
-# `grpc-codegen = ["dep:prost-build"]` feature.
-prost-build = { version = "=0.14.4", optional = true }
-# Parses the surface specs and the captured-response fixture sidecars for
-# the build-time generators. Build-time only — not in the runtime dep graph.
-toml = "1.1.2"
-serde = { version = "1.0.228", features = ["derive"] }
 
 [[bench]]
 # Drives `thetadatadx::wire` proto types + `thetadatadx::decode` cell
@@ -525,5 +509,5 @@ required-features = ["config-file"]
 
 [[bin]]
 name = "refresh_grpc_snapshot"
-path = "src/bin/refresh_grpc_snapshot.rs"
+path = "src/bin/refresh_grpc_snapshot/main.rs"
 required-features = ["grpc-codegen"]
