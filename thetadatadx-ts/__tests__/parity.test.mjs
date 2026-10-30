@@ -49,7 +49,8 @@ function names(start, ignore) {
   }
   return out;
 }
-const statics = (cls) => names(cls, ['length', 'name', 'prototype']);
+// Node 20 gives native constructors their own `arguments` and `caller`.
+const statics = (cls) => names(cls, ['length', 'name', 'prototype', 'arguments', 'caller']);
 const instance = (cls) => names(cls.prototype, ['constructor', 'toString']);
 
 it('classes and members match parity.json', () => {
