@@ -36,7 +36,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 # on it directly for `ConcurrencyLimitLayer`.
 tower = { version = "0.5.3", features = ["limit"] }
 # `trace` powers the per-request access log mounted in `router::build`.
-tower-http = { version = "0.6.8", features = ["cors", "trace"] }
+tower-http = { version = "0.7.1", features = ["cors", "trace"] }
 # Streams each route's written chunks into the response body
 # (`ReceiverStream`). Already in the dependency tree; declared directly so the
 # import is sourced from a pinned version.
