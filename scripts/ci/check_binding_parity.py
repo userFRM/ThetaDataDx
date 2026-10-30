@@ -160,13 +160,14 @@ ENDPOINT_WITH_OPTIONS_INC = (
     REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_with_options.h.inc"
 )
 # The two generated consumers of the request-options SSOT: the C++ fluent
-# `with_*` setters and the FFI `#[repr(C)]` bridge struct. Both are emitted
-# from `endpoint_surface.toml` and must carry the same option roster.
+# `with_*` setters and the C `ThetaDataDxEndpointRequestOptions` struct they
+# fill. Both are emitted from `endpoint_surface.toml` and must carry the same
+# option roster.
 ENDPOINT_OPTIONS_HPP_INC = (
     REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_options.hpp.inc"
 )
-ENDPOINT_REQUEST_OPTIONS_RS = (
-    REPO_ROOT / "thetadatadx-ffi" / "src" / "endpoint_request_options.rs"
+ENDPOINT_REQUEST_OPTIONS_H_INC = (
+    REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_request_options.h.inc"
 )
 
 
@@ -4142,6 +4143,32 @@ def _collect_typescript_streaming_endpoints(
     return out
 
 
+# The endpoint table the core and the C ABI expand their endpoint surfaces from.
+ENDPOINT_TABLE_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "surface" / "endpoints.rs"
+
+
+def _ffi_table_symbols(ffi_src: pathlib.Path) -> set[str]:
+    """The endpoint C-ABI symbols a crate under `ffi_src` expands from the
+    endpoint table, as bare names (`thetadatadx_` stripped).
+
+    `thetadatadx-ffi/src/endpoint_table.rs` pastes these names, so no source
+    spells them. It gives every table entry `<name>_with_options`, and a
+    chunked entry whose rows are flat ticks (every one but `OptionContract`)
+    `<name>_stream` as well; this mirrors that rule over the table entries.
+    """
+    if not any("__endpoints!" in _read_source(rs) for rs in ffi_src.rglob("*.rs")):
+        return set()
+    out: set[str] = set()
+    for shape, name, ret in re.findall(
+        r"(?m)^\s*(list|buffered|chunked)\s+(\w+)\s*\{\s*group:[^\n]*\n\s*rest:[^\n]*\n\s*returns:\s*(\w+)",
+        _read_source(ENDPOINT_TABLE_RS),
+    ):
+        out.add(f"{name}_with_options")
+        if shape == "chunked" and ret != "OptionContract":
+            out.add(f"{name}_stream")
+    return out
+
+
 def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose `thetadatadx_<endpoint>_stream` extern "C"
     symbol exists in `thetadatadx-ffi/src/`.
@@ -4159,6 +4186,7 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
+    out |= {s.removesuffix("_stream") for s in _ffi_table_symbols(ffi_src) if s.endswith("_stream")}
     return out
 
 
@@ -4674,6 +4702,11 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
+    out |= {
+        s.removesuffix("_with_options")
+        for s in _ffi_table_symbols(ffi_src)
+        if s.endswith("_with_options")
+    }
     return out
 
 
@@ -6061,7 +6094,7 @@ def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
             out.add(m.group(1))
         for m in macro_sym_re.finditer(text):
             out.add(m.group(1))
-    return out
+    return out | _ffi_table_symbols(ffi_src)
 
 
 def _ffi_symbol_governed(name: str, enrolled: frozenset[str]) -> bool:
@@ -6177,9 +6210,9 @@ def _check_ffi_symbol_orphans(
 #
 # The endpoint request-options surface is generated from
 # `endpoint_surface.toml` into two consumers: the C++ fluent `with_*`
-# setters (`endpoint_options.hpp.inc`) and the FFI `#[repr(C)]` bridge
-# struct `ThetaDataDxEndpointRequestOptions` (with a `has_*` presence flag
-# per scalar). Both are emitted from the same option roster, so they must
+# setters (`endpoint_options.hpp.inc`) and the C struct
+# `ThetaDataDxEndpointRequestOptions` (`endpoint_request_options.h.inc`, with
+# a `has_*` presence flag per scalar). Both are emitted from the same option roster, so they must
 # carry the same option set; a hand-edit or a generator drift that adds a
 # `with_X` without the FFI field (or vice versa), or a scalar field without
 # its `has_X` flag, breaks the C++ → C bridge silently. This checks the two
@@ -6226,7 +6259,7 @@ def _collect_cpp_with_options(hpp_inc: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_request_option_fields(
-    rs: pathlib.Path,
+    h_inc: pathlib.Path,
 ) -> tuple[set[str], set[str]]:
     """The `ThetaDataDxEndpointRequestOptions` struct's option fields and its
     `has_*` presence flags, as two bare-name sets.
@@ -6238,15 +6271,15 @@ def _collect_ffi_request_option_fields(
     """
     fields: set[str] = set()
     has_flags: set[str] = set()
-    if not rs.is_file():
+    if not h_inc.is_file():
         return fields, has_flags
-    text = _read_source(rs)
+    text = _read_source(h_inc)
     m = re.search(
-        r"struct\s+ThetaDataDxEndpointRequestOptions\s*\{(.*?)\n\}", text, re.S
+        r"typedef\s+struct\s*\{(.*?)\}\s*ThetaDataDxEndpointRequestOptions\s*;", text, re.S
     )
     if not m:
         return fields, has_flags
-    for fm in re.finditer(r"\bpub\s+(\w+)\s*:", m.group(1)):
+    for fm in re.finditer(r"(\w+)\s*;", m.group(1)):
         name = fm.group(1)
         if name.startswith("has_"):
             has_flags.add(name[len("has_") :])
@@ -6326,21 +6359,21 @@ def _check_request_options_roster(
 # the FFI field) away from the SSOT `param_type` fails the gate.
 #
 # The SSOT canonical type is the `param_type` (or the global option's
-# `type`). The codegen (`builder_value_type_name` / `ffi_option_value_type`)
+# `type`). The codegen (`builder_value_type_name` / `c_option_value_type`)
 # collapses every `param_type` into one of five categories; the map below
 # mirrors that exactly, pinning the C++ `with_*` parameter spelling and the
-# FFI `#[repr(C)]` field spelling each category MUST take. A `param_type` the
+# C struct field spelling each category MUST take. A `param_type` the
 # map does not cover, or an actual type that disagrees, fails with the option
 # named — so a drift cannot hide behind a still-matching roster.
 #
 # `with_deadline` is exempt (the `std::chrono::milliseconds` alias of the
 # `timeout_ms` `u64`); the roster check already excludes it.
 REQUEST_OPTION_TYPE_MAP: dict[str, tuple[str, str]] = {
-    # SSOT param_type → (C++ `with_*` parameter type, FFI field type).
-    "Int": ("int32_t", "i32"),
-    "Float": ("double", "f64"),
-    "Bool": ("bool", "i32"),  # bool is C-unfriendly over FFI; encoded as i32.
-    "u64": ("uint64_t", "u64"),  # the `timeout_ms` global's `type`.
+    # SSOT param_type → (C++ `with_*` parameter type, C field type).
+    "Int": ("int32_t", "int32_t"),
+    "Float": ("double", "double"),
+    "Bool": ("bool", "int32_t"),  # bool is C-unfriendly over FFI; encoded as int32_t.
+    "u64": ("uint64_t", "uint64_t"),  # the `timeout_ms` global's `type`.
 }
 # Every string-like `param_type` decodes to the same C++/FFI spelling; the
 # codegen's catch-all arm. Listed explicitly so an unknown new `param_type`
@@ -6349,7 +6382,7 @@ REQUEST_OPTION_TYPE_MAP: dict[str, tuple[str, str]] = {
 REQUEST_OPTION_STRING_TYPES: frozenset[str] = frozenset(
     {"Str", "Strike", "Right", "Interval", "Date", "Symbol", "Venue", "Version", "RateType"}
 )
-_REQUEST_OPTION_STRING_SPELLING: tuple[str, str] = ("std::string", "*const c_char")
+_REQUEST_OPTION_STRING_SPELLING: tuple[str, str] = ("std::string", "const char*")
 
 
 def _request_option_canonical_types(param_type: str) -> tuple[str, str] | None:
@@ -6418,7 +6451,7 @@ def _collect_cpp_with_option_types(hpp_inc: pathlib.Path) -> dict[str, str]:
 def _check_request_options_types(
     ssot_types: dict[str, str],
     cpp_with_types: dict[str, str],
-    ffi_options_rs: pathlib.Path,
+    ffi_options_h: pathlib.Path,
 ) -> list[str]:
     """Assert each request-option's type agrees across SSOT, C++, and FFI.
 
@@ -6427,8 +6460,8 @@ def _check_request_options_types(
     parameter spelling and the FFI struct-field spelling it must take, then
     compare against the actual declared types. A `param_type` outside the map,
     a C++ parameter that differs, or an FFI field that differs each fails with
-    the option named. The FFI field type is read with the same
-    `_struct_field_type` machinery the `[[value_field]]` gate uses.
+    the option named. The C field type is read with the same
+    `_c_abi_struct_field_type` machinery the `[[value_field]]` gate uses.
     """
     errors: list[str] = []
     for name in sorted(ssot_types):
@@ -6451,13 +6484,13 @@ def _check_request_options_types(
                 f"implies C++ `with_{name}({exp_cpp})`, but the generated setter "
                 f"takes `{actual_cpp or '<setter missing>'}`."
             )
-        actual_ffi = _struct_field_type(
-            ffi_options_rs.parent, "ThetaDataDxEndpointRequestOptions", name
+        actual_ffi = _c_abi_struct_field_type(
+            ffi_options_h, "ThetaDataDxEndpointRequestOptions", name
         )
         if actual_ffi != exp_ffi:
             errors.append(
                 f"  request-options `{name}`: SSOT param_type `{param_type}` "
-                f"implies FFI field `{name}: {exp_ffi}`, but the generated struct "
+                f"implies FFI field `{exp_ffi} {name}`, but the generated struct "
                 f"declares `{actual_ffi or '<field missing>'}`."
             )
     return errors
@@ -8453,7 +8486,7 @@ def main(argv: list[str] | None = None) -> int:
     request_options_global = _collect_endpoint_request_options(ENDPOINT_SURFACE_TOML)
     cpp_with_options = _collect_cpp_with_options(ENDPOINT_OPTIONS_HPP_INC)
     ffi_opt_fields, ffi_opt_has = _collect_ffi_request_option_fields(
-        ENDPOINT_REQUEST_OPTIONS_RS
+        ENDPOINT_REQUEST_OPTIONS_H_INC
     )
     request_options_errors = _check_request_options_roster(
         request_options_global, cpp_with_options, ffi_opt_fields, ffi_opt_has
@@ -8464,7 +8497,7 @@ def main(argv: list[str] | None = None) -> int:
     request_options_errors += _check_request_options_types(
         _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
         _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
-        ENDPOINT_REQUEST_OPTIONS_RS,
+        ENDPOINT_REQUEST_OPTIONS_H_INC,
     )
 
     # Catch-all: every binding class must be either tracked explicitly or via
@@ -9734,14 +9767,13 @@ def _run_selftest() -> int:
     # ── Request-options TYPE parity (signature level, Route A) ──
 
     def _write_ffi_options_struct(tmp: pathlib.Path, fields: dict[str, str]) -> pathlib.Path:
-        """A minimal `ThetaDataDxEndpointRequestOptions` source for the FFI
-        field-type reader; `fields` maps option name → declared Rust type."""
-        body = "".join(f"    pub {n}: {t},\n" for n, t in fields.items())
-        path = tmp / "endpoint_request_options.rs"
+        """A minimal `ThetaDataDxEndpointRequestOptions` C header for the
+        field-type reader; `fields` maps option name → declared C type."""
+        body = "".join(f"    {t} {n};\n" for n, t in fields.items())
+        path = tmp / "endpoint_request_options.h.inc"
         path.write_text(
-            "#[repr(C)]\n"
-            "pub struct ThetaDataDxEndpointRequestOptions {\n"
-            f"{body}}}\n",
+            "typedef struct {\n"
+            f"{body}}} ThetaDataDxEndpointRequestOptions;\n",
             encoding="utf-8",
         )
         return path
@@ -9752,7 +9784,7 @@ def _run_selftest() -> int:
         errors = _check_request_options_types(
             _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
             _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
-            ENDPOINT_REQUEST_OPTIONS_RS,
+            ENDPOINT_REQUEST_OPTIONS_H_INC,
         )
         assert errors == [], (
             f"the agreeing real request-options surface must be silent; got {errors!r}"
@@ -9764,7 +9796,7 @@ def _run_selftest() -> int:
         trips, with the option named."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi = _write_ffi_options_struct(
-                pathlib.Path(tmp), {"strike": "*const c_char"}
+                pathlib.Path(tmp), {"strike": "const char*"}
             )
             errors = _check_request_options_types(
                 {"strike": "Str"},
@@ -9777,10 +9809,10 @@ def _run_selftest() -> int:
 
     def _case_request_options_ffi_type_drift_trips() -> None:
         """An FFI struct field type that differs from the SSOT-implied spelling
-        (here `i32` where the SSOT says `Float` → `f64`) trips."""
+        (here `int32_t` where the SSOT says `Float` → `double`) trips."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi = _write_ffi_options_struct(
-                pathlib.Path(tmp), {"rate_value": "i32"}  # drifted: should be f64
+                pathlib.Path(tmp), {"rate_value": "int32_t"}  # drifted: should be double
             )
             errors = _check_request_options_types(
                 {"rate_value": "Float"},
@@ -9796,7 +9828,7 @@ def _run_selftest() -> int:
         or mis-tagged type cannot slip the gate by defaulting to a string."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi = _write_ffi_options_struct(
-                pathlib.Path(tmp), {"mystery": "f64"}
+                pathlib.Path(tmp), {"mystery": "double"}
             )
             errors = _check_request_options_types(
                 {"mystery": "Decimal128"},  # not in the map
@@ -9812,7 +9844,7 @@ def _run_selftest() -> int:
         not held to a SSOT type, so it never trips the type check."""
         with tempfile.TemporaryDirectory() as tmp:
             ffi = _write_ffi_options_struct(
-                pathlib.Path(tmp), {"timeout_ms": "u64"}
+                pathlib.Path(tmp), {"timeout_ms": "uint64_t"}
             )
             errors = _check_request_options_types(
                 {"timeout_ms": "u64", "deadline": "Duration"},

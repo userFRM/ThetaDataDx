@@ -133,18 +133,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: enums::render_typescript_enums(&enum_projections),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-ffi/src/endpoint_request_options.rs",
-            contents: ffi::render_ffi_endpoint_request_options(&builder_params),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ffi/src/endpoint_with_options.rs",
-            contents: ffi::render_ffi_with_options(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ffi/src/endpoint_stream.rs",
-            contents: ffi::render_ffi_stream_endpoints(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
             relative_path: "thetadatadx-ffi/src/config_accessors.rs",
             contents: config_accessors::render_ffi_config_accessors()?,
         },

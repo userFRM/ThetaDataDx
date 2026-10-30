@@ -23,8 +23,6 @@ use super::model::{GeneratedEndpoint, GeneratedParam};
 #[derive(Debug, Clone)]
 struct BinTickRender {
     ffi_array: String,
-    ffi_output_variant: String,
-    ffi_from_vec_array: String,
     ffi_free_fn: String,
     cpp_value: String,
     python_pyclass_list: String,
@@ -48,8 +46,6 @@ struct TickTypeToml {
 struct TickRenderToml {
     collection: String,
     ffi_array: String,
-    ffi_output_variant: String,
-    ffi_from_vec_array: String,
     ffi_free_fn: String,
     cpp_value: String,
     python_pyclass_list: String,
@@ -77,8 +73,6 @@ fn load_render_map() -> HashMap<String, BinTickRender> {
         }
         let entry = BinTickRender {
             ffi_array: render.ffi_array,
-            ffi_output_variant: render.ffi_output_variant,
-            ffi_from_vec_array: render.ffi_from_vec_array,
             ffi_free_fn: render.ffi_free_fn,
             cpp_value: render.cpp_value,
             python_pyclass_list: render.python_pyclass_list,
@@ -309,26 +303,6 @@ pub(super) fn ffi_array_type(return_type: &str) -> String {
     render_for(return_type).ffi_array.clone()
 }
 
-/// Returns the `EndpointOutput` variant name for a return type, looked
-/// up from the tick render map.
-pub(super) fn ffi_output_variant(return_type: &str) -> String {
-    if return_type == "StringList" {
-        return "StringList".into();
-    }
-    render_for(return_type).ffi_output_variant.clone()
-}
-
-/// Returns the `#[repr(C)]` array type name for the given `EndpointOutput`
-/// variant (e.g. `ThetaDataDxEodTickArray`). The emitter wraps `<type>::from_vec(...)`
-/// — which returns `Result<Self, NulError>` — in an inline match that routes
-/// interior-NUL failures through the FFI error slot.
-pub(super) fn ffi_from_vec_array_type(return_type: &str) -> String {
-    if return_type == "StringList" {
-        return "ThetaDataDxStringArray".into();
-    }
-    render_for(return_type).ffi_from_vec_array.clone()
-}
-
 /// Returns the C++ element type for a return type's row vector, looked
 /// up from the tick render map.
 pub(super) fn cpp_value_type(return_type: &str) -> String {
@@ -433,16 +407,6 @@ pub(super) fn builder_copy_expr(param: &GeneratedParam, source: &str) -> String 
     }
 }
 
-/// Returns the Rust FFI field type for an optional builder parameter in
-/// the `#[repr(C)]` options struct.
-pub(super) fn ffi_option_value_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        "Int" | "Bool" => "i32",
-        "Float" => "f64",
-        _ => "*const c_char",
-    }
-}
-
 /// Returns the C field type for an optional builder parameter in the
 /// generated `ThetaDataDxEndpointRequestOptions` struct.
 pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
@@ -451,31 +415,6 @@ pub(super) fn c_option_value_type(param: &GeneratedParam) -> &'static str {
         "Bool" => "int32_t",
         "Float" => "double",
         _ => "const char*",
-    }
-}
-
-/// Returns the Rust statement that inserts an optional builder
-/// parameter from the FFI options struct into the endpoint args.
-pub(super) fn ffi_option_insert_expr(param: &GeneratedParam) -> String {
-    match param.param_type.as_str() {
-        "Int" => format!(
-            "        insert_int_arg(args, {:?}, options.{});",
-            param.name, param.name
-        ),
-        "Float" => {
-            format!(
-                "        insert_float_arg(args, {:?}, options.{});",
-                param.name, param.name
-            )
-        }
-        "Bool" => format!(
-            "        insert_bool_arg(args, {:?}, options.{})?;",
-            param.name, param.name
-        ),
-        _ => format!(
-            "    insert_optional_str_arg(args, {:?}, options.{})?;",
-            param.name, param.name
-        ),
     }
 }
 
