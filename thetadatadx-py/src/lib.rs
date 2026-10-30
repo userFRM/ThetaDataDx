@@ -2542,7 +2542,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Offline streaming-saturation bench hooks (no network). Drive the real
     // Disruptor pipeline + the production per-event GIL/marshal/callback path,
     // plus the batched-delivery and Arrow-columnar throughput levers.
-    // Bench-only; enrolled in `PY_NON_UTILITY_PYFUNCTIONS` in the parity gate.
+    // Bench-only; the leading underscore keeps them off the public surface.
     m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
     m.add_function(wrap_pyfunction!(
         bench_streaming::__bench_flood_events_batched_calls,

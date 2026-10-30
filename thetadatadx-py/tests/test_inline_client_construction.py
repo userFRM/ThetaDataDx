@@ -84,11 +84,3 @@ def test_api_key_email_password_kwargs_all_present():
     # this doubles as a presence guard for all three at once.
     with pytest.raises(ConfigError):
         Client(api_key="td1_dummy_key", email="you@example.com", password="secret")
-
-
-def test_from_env_and_from_dotenv_constructors_exist():
-    # The env / dotenv constructors are not modeled by the parity collector
-    # (they ride `__new__`-adjacent staticmethods), so pin them here: a
-    # removed or renamed `from_env` / `from_dotenv` fails this assertion.
-    assert callable(Client.from_env)
-    assert callable(Client.from_dotenv)

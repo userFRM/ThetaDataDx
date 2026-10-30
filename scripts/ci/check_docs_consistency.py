@@ -331,8 +331,7 @@ def server_arg_defaults() -> dict[str, str | None]:
     # `value_parser = ["production", "dev"]` allow-list) and nested `(...)`,
     # so the inner span is read with a bracket/paren balance counter — a
     # naive `#[arg([^\]]*)]` stops at the first `]` inside the value_parser
-    # array and drops the flag (the same inner-delimiter trap the napi
-    # parity collectors hit). After the attribute's closing `]`, the next
+    # array and drops the flag. After the attribute's closing `]`, the next
     # identifier before a `:` is the field name.
     after_field_re = re.compile(r"\s*(?:#\[[^\]]*\]\s*)*([a-z_][a-z0-9_]*)\s*:")
     for m in re.finditer(r"#\[\s*arg\b", body):

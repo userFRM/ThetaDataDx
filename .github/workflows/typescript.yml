@@ -208,8 +208,8 @@ jobs:
         # another's jobs. #1352 put crates.io and the GitHub Release behind
         # ci.yml's `verified` aggregate, but that job lives in ci.yml, so this
         # publisher kept uploading on its own file's jobs alone -- none of which
-        # are fmt, clippy, the core tests, binding parity, wire-schema drift,
-        # the surface gates or semver. A red core gate would have split the
+        # are fmt, clippy, the core tests, wire-schema drift, the surface gates
+        # or semver. A red core gate would have split the
         # release across registries, with the parts that did upload unyankable.
         uses: ./.github/actions/require-ci-green
         with:
