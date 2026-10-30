@@ -606,7 +606,6 @@ jobs:
       # pure-Python gate that must run on EVERY PR (a docs-only PR skips this
       # rust-gated heavy job). It now lives in the standalone `agreement`
       # fast-lane job above, wired into `ci-gate`.
-      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
       - name: TypeScript SDK build + test
         working-directory: thetadatadx-ts
         run: |
@@ -621,13 +620,10 @@ jobs:
   # binding surface, so a PR that touches ONLY those skips the whole
   # cross-platform matrix (`test` / `surfaces` / `build-ffi` /
   # `sdk-bindings` / `cpp-tests` and the Python/TS lanes). The doc
-  # regeneration `--check`s and fmt already run on EVERY PR in the
-  # always-on fast lane (`wire-schema-drift` runs
-  # `generate_sdk_surfaces --check`; `fmt` runs repo-wide), so this job
-  # only adds the gaps that the fast lane misses for the feature-gated
-  # generator: clippy of the generator bin (the default `clippy
-  # --workspace` does not enable its `config-file` required-feature, so
-  # it never compiles it) and intra-doc-link rustdoc. On any PR that also
+  # regeneration `--check`, clippy of the generator and fmt already run on
+  # EVERY PR in the always-on fast lane (`wire-schema-drift`, `clippy
+  # --all-features`, `fmt`), so this job only adds the intra-doc-link
+  # rustdoc the skipped `rustdoc` job would have run. On any PR that also
   # touches real source it does not run (the full matrix does instead),
   # and it never runs on push/tag/schedule.
   # ───────────────────────────────────────────────────────────────
@@ -644,11 +640,6 @@ jobs:
       - uses: ./.github/actions/setup-rust-deps
         with:
           components: clippy
-      # Clippy the feature-gated generator bin and the `build_support_bin`
-      # tree it compiles: the gap the always-on `clippy --workspace
-      # --all-targets` leaves because it does not enable its
-      # required-features.
-      - run: cargo clippy -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file --locked -- -D warnings
       # Intra-doc link hygiene on the core crate the generator lives in.
       - run: cargo doc --no-deps -p thetadatadx-rs --features "config-file" --locked
 
