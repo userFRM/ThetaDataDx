@@ -13,10 +13,6 @@
 //! Splitting the tree per binary removes the whole-module cases and leaves
 //! the leaf sharing, where the docs-site generator calls three functions out
 //! of files the SDK emitters also use, so it does not reach zero.
-//!
-//! Shared core modules (`endpoints::model`, `endpoints::parser`,
-//! `endpoints::helpers`, `endpoints::proto_parser`, `ticks::schema`) live
-//! in `build_support/` and are pulled in here via `#[path]` aliases.
 
 mod endpoints;
 mod fpss_events;

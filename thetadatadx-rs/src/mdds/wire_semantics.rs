@@ -2,12 +2,12 @@
 //!
 //! Consumed by:
 //! - runtime request building in `mdds/endpoints.rs`
-//! - build-time mode collapsing in `build_support/endpoints/modes.rs` (via
-//!   `#[path]` reuse of this file)
+//! - generator-side mode collapsing in `build_support_bin/endpoints/modes.rs`
+//!   (via `#[path]` reuse of this file)
 
-// The `venue=nqb` default lives in the SSOT
-// (`endpoint_surface.toml` -> `stock_venue_filter.default = "nqb"`) so it
-// flows through every emitted SDK builder uniformly. `modes.rs` reads
+// The `venue=nqb` default is declared with the parameter (`venue` in the
+// endpoint table, `stock_venue_filter.default` in `endpoint_surface.toml`)
+// so it flows through every builder uniformly. `modes.rs` reads
 // `param.default` directly; no runtime constant is applied at
 // query-assembly time here.
 

@@ -19,7 +19,7 @@ readme = "README.md"
 # crate that cannot compile: `cargo build --all-features` against the
 # published package fails on the missing module. The default verify build
 # never caught it because all four carry `required-features`.
-include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "endpoint_surface.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
+include = ["src/**/*", "!src/bin/**", "proto/**/*", "build.rs", "build_support/**/*", "Cargo.toml", "tick_schema.toml", "config_surface.toml", "sdk_surface.toml", "fpss_event_schema.toml"]
 
 [lib]
 name = "thetadatadx"
@@ -197,18 +197,12 @@ metrics-exporter-prometheus = { version = "0.18", optional = true, default-featu
 # Config file loading (optional)
 toml = { version = "1.1.2", optional = true }
 
-# Shared proto parser (`build_support/endpoints/proto_parser.rs`) is
-# `#[path]`-imported from both the `build.rs` compile unit and the
-# `generate_sdk_surfaces` binary. The build script pulls `regex` from
-# `[build-dependencies]`; the binary pulls it from `[dependencies]`
-# behind the `config-file` feature gate (see `[[bin]] required-features`).
+# Proto parsing in the `generate_sdk_surfaces` / `generate_docs_site`
+# binaries, behind the `config-file` feature gate (see `[[bin]]
+# required-features`).
 regex = { version = "1.12.3", optional = true }
-# Case conversion for the codegen identifier emitters in the
-# `generate_sdk_surfaces` / `generate_docs_site` binaries (the shared
-# `build_support/endpoints/helpers.rs` is `#[path]`-compiled into both the
-# build script and those binaries). The build script reaches it through
-# `[build-dependencies]`; the binaries through this `config-file`-gated
-# `[dependencies]` entry, mirroring `regex`.
+# Case conversion for the codegen identifier emitters in the same binaries,
+# gated the same way.
 heck = { version = "0.5.0", optional = true }
 
 # Lock-free ring buffer for FPSS event dispatch # VOCAB-OK: crate name in dep
@@ -296,11 +290,6 @@ libc = "0.2"
 # graph. Enabled (in both this table and `[dependencies]`) by the single
 # `grpc-codegen = ["dep:prost-build"]` feature.
 prost-build = { version = "=0.14.4", optional = true }
-regex = "1.12.3"
-# Case conversion for the build-time / codegen identifier emitters
-# (snake_case / UpperCamelCase / lowerCamelCase). Standard build-time
-# crate; replaces hand-rolled per-word case folders.
-heck = "0.5.0"
 # Parses the surface specs and the captured-response fixture sidecars for
 # the build-time generators. Build-time only — not in the runtime dep graph.
 toml = "1.1.2"

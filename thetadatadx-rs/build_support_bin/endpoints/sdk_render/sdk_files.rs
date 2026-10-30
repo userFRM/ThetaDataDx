@@ -111,11 +111,10 @@ fn splice_region(
 fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;
     let enum_projections = load_enum_projections()?;
-    // Fixtures power the live-validator matrix only — kept out of the
-    // shared `load_endpoint_specs` path so the build script doesn't pay
-    // the upstream OpenAPI snapshot dependency (not in the Python sdist).
-    // Every fixture consumer flows through here, so validating at this
-    // seam catches every drift case with full per-endpoint blast radius.
+    // Fixtures power the live-validator matrix only, so they are loaded
+    // and validated here rather than in `load_endpoint_specs`. Every
+    // fixture consumer flows through here, so validating at this seam
+    // catches every drift case with full per-endpoint blast radius.
     let fixtures = load_test_fixtures()?;
     validate_test_fixtures(&fixtures, &parsed.endpoints, &enum_projections)?;
     let builder_params = collect_builder_params(&parsed.endpoints);

@@ -1062,10 +1062,8 @@ mod tests {
     /// present, and no empty descriptions or rest_paths.
     ///
     /// Note: dispatch-registry alignment (every registry name has a
-    /// generated match arm) is guaranteed at build time — both are
-    /// generated from the same `ParsedEndpoints` vec in
-    /// `build_support/endpoints/`. A name mismatch is structurally
-    /// impossible without a build failure. This test validates the
+    /// dispatch arm) holds by construction: both expand from the endpoint
+    /// table in `src/surface/endpoints.rs`. This test validates the
     /// registry's content, not dispatch coverage.
     #[test]
     fn registry_metadata_integrity() {

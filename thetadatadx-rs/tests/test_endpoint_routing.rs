@@ -6,9 +6,9 @@
 //! `parse_index_price_at_time_ticks`) preserve every wire column when
 //! fed a hand-built `DataTable`. They do NOT prove that the high-level
 //! `MarketDataClient::<endpoint>` dispatch method routes the response through
-//! that parser -- the heuristic that picks `parse: decode::parse_<tick>`
-//! for each endpoint inside `build_support/endpoints/proto_parser.rs`
-//! can drift silently and the per-parser regressions would still pass.
+//! that parser -- the `returns:` tick type of each entry in the endpoint
+//! table (`src/surface/endpoints.rs`) picks `decode::parse_<tick>`, a wrong
+//! one compiles, and the per-parser regressions would still pass.
 //!
 //! These tests close the routing gap end-to-end. For each of the
 //! seven endpoints whose silent mis-routing previously dropped the

@@ -1,27 +1,22 @@
 //! Endpoint surface generation for the `generate_sdk_surfaces` binary.
 //!
-//! This tree pulls the shared parser / model / proto plumbing from
-//! `build_support/endpoints/` via `#[path]` and adds the bin-only render
-//! pipeline (per-language SDK projections + the live-validator matrix
-//! emitter) that the build script never compiles.
+//! This tree loads `endpoint_surface.toml`, joins it to the wire contract in
+//! `proto/mdds.proto`, and renders the per-language SDK projections and the
+//! live-validator matrix from the result.
 //!
 //! Module layout:
-//! * [`model`] — shared TOML data types (`#[path]` from `build_support`).
-//! * [`parser`] — shared TOML loader (`#[path]` from `build_support`).
-//! * [`proto_parser`] — shared proto parser (`#[path]` from `build_support`).
-//! * [`helpers`] — shared cross-renderer helpers (`#[path]` from `build_support`).
-//! * [`modes`] — bin-only live-validator parameter-mode matrix derivation.
-//! * [`fixture_validation`] — bin-only `[test_fixtures]` cross-check.
-//! * [`sdk_helpers`] — bin-only render-side helpers.
-//! * [`sdk_render`] — bin-only per-language emitters.
+//! * [`model`]: TOML data types and the joined endpoint model.
+//! * [`parser`]: TOML loader and its validation against the wire contract.
+//! * [`proto_parser`]: proto parser.
+//! * [`helpers`]: cross-renderer helpers.
+//! * [`modes`]: live-validator parameter-mode matrix derivation.
+//! * [`fixture_validation`]: `[test_fixtures]` cross-check.
+//! * [`sdk_helpers`]: render-side helpers.
+//! * [`sdk_render`]: per-language emitters.
 
-#[path = "../../build_support/endpoints/helpers.rs"]
 pub(super) mod helpers;
-#[path = "../../build_support/endpoints/model.rs"]
 pub(super) mod model;
-#[path = "../../build_support/endpoints/parser.rs"]
 pub(super) mod parser;
-#[path = "../../build_support/endpoints/proto_parser.rs"]
 pub(super) mod proto_parser;
 
 // Dead-code allowance mirrors the bin-side mod declarations: when
