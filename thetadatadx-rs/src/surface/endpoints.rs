@@ -3,11 +3,11 @@
 //! Every endpoint is written once, in `__endpoints!`. The engine expands the
 //! tables into the `MarketDataClient` methods and builders, the endpoint
 //! registry, the dispatch behind it and the shard fan-out allowlist; the
-//! Python binding expands them into its endpoint methods and builders, and
-//! the C ABI into its entry points and `__request_options!` into its options
-//! struct. `endpoint_surface.toml` still drives the other binding and
-//! documentation generators and the C header, so an endpoint change lands in
-//! both until that file is retired.
+//! Python and TypeScript bindings expand them into their endpoint methods and
+//! builders, and the C ABI into its entry points and `__request_options!` into
+//! its options struct. `endpoint_surface.toml` still drives the Python type
+//! stub, the C and C++ headers and the documentation, so an endpoint change
+//! lands in both until that file is retired.
 //!
 //! A consumer passes the name of one of its own macros and receives every
 //! entry, in table order, after the tokens it passed:

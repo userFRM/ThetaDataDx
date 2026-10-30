@@ -13,9 +13,7 @@ use super::super::fixture_validation::validate_test_fixtures;
 use super::super::parser::load_endpoint_specs;
 use super::super::sdk_helpers::collect_builder_params;
 use super::super::test_fixtures::load_test_fixtures;
-use super::{
-    config_accessors, cpp, cpp_validate, enums, ffi, python_stub, python_validate, typescript,
-};
+use super::{config_accessors, cpp, cpp_validate, enums, ffi, python_stub, python_validate};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -178,10 +176,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/src/market_data_stream.cpp.inc",
             contents: cpp::render_cpp_stream_defs(&parsed.endpoints),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ts/src/_generated/market_data_methods.rs",
-            contents: typescript::render_typescript_market_data_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "scripts/ci/check_python.py",

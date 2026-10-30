@@ -25,8 +25,6 @@ struct BinTickRender {
     ffi_array: String,
     ffi_free_fn: String,
     cpp_value: String,
-    ts_class: String,
-    ts_class_vec: String,
     pyclass: String,
 }
 
@@ -46,8 +44,6 @@ struct TickRenderToml {
     ffi_array: String,
     ffi_free_fn: String,
     cpp_value: String,
-    ts_class: String,
-    ts_class_vec: String,
     pyclass: String,
 }
 
@@ -71,8 +67,6 @@ fn load_render_map() -> HashMap<String, BinTickRender> {
             ffi_array: render.ffi_array,
             ffi_free_fn: render.ffi_free_fn,
             cpp_value: render.cpp_value,
-            ts_class: render.ts_class,
-            ts_class_vec: render.ts_class_vec,
             pyclass: render.pyclass,
         };
         if map.insert(collection.clone(), entry).is_some() {
@@ -160,56 +154,6 @@ pub(super) fn collect_builder_params(endpoints: &[GeneratedEndpoint]) -> Vec<Gen
 /// predicates (`endpoint_streams`, `endpoint_streams_repr_c_ticks`) straight
 /// from `helpers`.
 pub(super) use super::helpers::is_snapshot_endpoint;
-
-// ───────────────────────── Docstring composition ───────────────────────────
-
-/// Format an endpoint doc body as a sequence of Rust `///` lines with the
-/// given indent. Used by the Python + TypeScript pymethod/napi emitters
-/// so that sync, async, and builder variants share one render path.
-pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
-    use std::fmt::Write as _;
-    let mut out = String::new();
-    for line in doc.lines() {
-        if line.is_empty() {
-            writeln!(out, "{indent}///").unwrap();
-        } else {
-            writeln!(out, "{indent}/// {line}").unwrap();
-        }
-    }
-    out
-}
-
-/// Emit the await of the list endpoint call `{method}({args})`, applying a
-/// caller's `timeout_ms` as the endpoint's per-call deadline: through the
-/// `{method}_with_deadline` overload of a plain list endpoint, or `.with_deadline`
-/// on the builder a `builder` list endpoint returns. `indent` is the leading
-/// whitespace of the `match` line. Shared by every list dispatch emitter
-/// (Python and TypeScript).
-///
-/// The core owns the deadline contract: `None` runs under the configured
-/// request timeout, and an explicit value, including `0` for "no deadline",
-/// goes through the same resolution every other endpoint uses.
-pub(super) fn write_list_call(
-    out: &mut String,
-    indent: &str,
-    method: &str,
-    args: &str,
-    builder: bool,
-) {
-    use std::fmt::Write as _;
-    let deadline = "std::time::Duration::from_millis(ms)";
-    let with_deadline = if builder {
-        format!("{method}({args}).with_deadline({deadline})")
-    } else if args.is_empty() {
-        format!("{method}_with_deadline({deadline})")
-    } else {
-        format!("{method}_with_deadline({args}, {deadline})")
-    };
-    writeln!(out, "{indent}match timeout_ms {{").unwrap();
-    writeln!(out, "{indent}    None => {method}({args}).await,").unwrap();
-    writeln!(out, "{indent}    Some(ms) => {with_deadline}.await,").unwrap();
-    writeln!(out, "{indent}}}").unwrap();
-}
 
 // ───────────────────────── Casing ────────────────────────────────────────────
 
@@ -317,20 +261,6 @@ pub(super) fn python_pyclass_list_class(return_type: &str) -> String {
 /// annotates them as `List[<row pyclass>]`.
 pub(super) fn python_pyclass_row_class(return_type: &str) -> String {
     render_for(return_type).pyclass.clone()
-}
-
-/// Map a collection return type (e.g. `TradeTicks`) to the generated
-/// `#[napi(object)]` struct name emitted in `tick_classes.rs`. The TS SDK
-/// binds each Rust tick struct (the `thetadatadx::*` tick types) to this
-/// flat napi-object variant so `Vec<T>` surfaces as `T[]` in `index.d.ts`.
-pub(super) fn ts_class_name(return_type: &str) -> String {
-    render_for(return_type).ts_class.clone()
-}
-
-/// Map a collection return type to the generated
-/// `{tick}_to_class_vec` factory name. Complements `ts_class_name`.
-pub(super) fn ts_class_vec_converter(return_type: &str) -> String {
-    render_for(return_type).ts_class_vec.clone()
 }
 
 // ───────────────────────── Builder / FFI option tables ─────────────────────

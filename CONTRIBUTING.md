@@ -131,10 +131,10 @@ feat(core)!: replace MarketDataClient with the unified Client
 The endpoint-facing source of truth is split across:
 - `thetadatadx-rs/proto/mdds.proto` for the wire contract
 - `thetadatadx-rs/src/surface/endpoints.rs`, the endpoint table, for the Rust surface
-- `thetadatadx-rs/endpoint_surface.toml` for the binding and docs surfaces
+- `thetadatadx-rs/endpoint_surface.toml` for the Python and C binding surfaces and the docs
 - `thetadatadx-rs/tick_schema.toml` for DataTable parser layouts
 
-The endpoint table expands at compile time into the registry, the shared endpoint dispatch, and the `MarketDataClient` methods and builders.
+The endpoint table expands at compile time into the registry, the shared endpoint dispatch, the `MarketDataClient` methods and builders, and the TypeScript market-data methods.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`

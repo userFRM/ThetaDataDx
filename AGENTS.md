@@ -63,8 +63,8 @@ so a consumer never needs the generator.
 | Source | Drives |
 | --- | --- |
 | `thetadatadx-rs/tick_schema.toml` | Every tick struct, its columns, its byte layout, its flag accessors, across all four surfaces. |
-| `thetadatadx-rs/src/surface/endpoints.rs` | The endpoint table: every `MarketDataClient` method and builder, the endpoint registry and its dispatch, the Python endpoint methods and builders, and the C ABI entry points and options struct. |
-| `thetadatadx-rs/endpoint_surface.toml` | The endpoint surface on the TypeScript binding, the Python type stub, the C and C++ headers and the docs site. Keep it in step with the endpoint table. |
+| `thetadatadx-rs/src/surface/endpoints.rs` | The endpoint table: every `MarketDataClient` method and builder, the endpoint registry and its dispatch, the Python and TypeScript endpoint methods and builders, and the C ABI entry points and options struct. |
+| `thetadatadx-rs/endpoint_surface.toml` | The Python type stub, the C and C++ headers and the docs site. Keep it in step with the endpoint table. |
 | `thetadatadx-rs/sdk_surface.toml` | The non-endpoint SDK surface. |
 | `thetadatadx-rs/config_surface.toml` | Config accessors for the FFI and C++. |
 | `thetadatadx-rs/fpss_event_schema.toml` | Every streaming event. |

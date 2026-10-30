@@ -18,7 +18,6 @@ thetadatadx-py/src/tick_arrow.rs        text eol=lf linguist-generated=true
 thetadatadx-py/src/buffered_event.rs    text eol=lf linguist-generated=true
 thetadatadx-py/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
-thetadatadx-ts/src/market_data_methods.rs text eol=lf linguist-generated=true
 thetadatadx-ts/src/streaming_methods.rs text eol=lf linguist-generated=true
 thetadatadx-ts/src/tick_classes.rs  text eol=lf linguist-generated=true
 thetadatadx-ts/src/fpss_event_classes.rs text eol=lf linguist-generated=true
