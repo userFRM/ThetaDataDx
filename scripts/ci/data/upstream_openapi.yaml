@@ -2,12 +2,11 @@
 # _source: https://docs.thetadata.us/openapiv3.yaml
 # _refresh_with: python3 scripts/ci/check_tier_badges.py --refresh-snapshot
 #
-# This file is the pinned upstream ThetaData OpenAPI v3 spec. Both the
-# tier-badge check (scripts/ci/check_tier_badges.py) and the Rust validator
-# generator (xtask/src/bin/generate_sdk_surfaces/endpoints/) derive endpoint
-# min-subscription tiers and expiration-wildcard support from it, so both
-# human docs and generated machinery agree on one pinned schema. Refresh
-# with the command above when ThetaData publishes a new spec.
+# This file is the pinned upstream ThetaData OpenAPI v3 spec. The SDK surface
+# generator (xtask/src/bin/generate_sdk_surfaces/) derives endpoint
+# min-subscription tiers and expiration-wildcard support from it, so the docs
+# and the generated surfaces agree on one pinned schema. Refresh with the
+# command above when ThetaData publishes a new spec.
 #
 # The binomial Greeks routes and the `perf_boost_intraday` parameter on the
 # trade Greeks routes were taken from the vendor's current published spec and
