@@ -1,10 +1,11 @@
 //! Orchestrator for checked-in SDK surface files.
 //!
 //! `write_sdk_generated_files` regenerates every projection from the
-//! endpoint table; `check_sdk_generated_files` verifies the
-//! checked-in tree matches what the current generator would emit. The list
-//! returned by [`render_sdk_generated_files`] is the single place where each
-//! per-language emitter is wired to its output path.
+//! endpoint table, and the live validators' cells beside them;
+//! `check_sdk_generated_files` verifies the checked-in tree matches what the
+//! current generator would emit. The lists returned by
+//! [`render_sdk_generated_files`] and [`render_live_cells`] are the single
+//! place where each per-language emitter is wired to its output path.
 
 use std::path::Path;
 
@@ -26,9 +27,13 @@ struct SplicedSourceFile {
     region: String,
 }
 
-/// Write the checked-in SDK surface artifacts generated from the endpoint table.
+/// Write the checked-in SDK surface artifacts generated from the endpoint
+/// table, and the live validators' cells.
 pub fn write_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    for file in render_sdk_generated_files()? {
+    for file in render_sdk_generated_files()?
+        .into_iter()
+        .chain(render_live_cells())
+    {
         let path = repo_root.join(file.relative_path);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -148,6 +153,14 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             relative_path: "thetadatadx-cpp/src/market_data_stream.cpp.inc",
             contents: cpp::render_cpp_stream_defs(&endpoints),
         },
+    ])
+}
+
+/// The cells the live validators run. They are rendered before a live run
+/// rather than committed, so `--check` has nothing to compare them with.
+fn render_live_cells() -> Vec<GeneratedSourceFile> {
+    let endpoints = table::endpoints();
+    vec![
         GeneratedSourceFile {
             relative_path: "scripts/ci/data/live_cells.json",
             contents: validator::render_cells_json(&endpoints),
@@ -156,7 +169,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             relative_path: "thetadatadx-cpp/examples/validate_cells.inc",
             contents: validator::render_cpp_cells(&endpoints),
         },
-    ])
+    ]
 }
 
 /// Files whose generated region is spliced between marker comments while
