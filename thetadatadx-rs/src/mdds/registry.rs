@@ -1,8 +1,9 @@
 //! Endpoint registry -- single source of truth for all `MarketDataClient` endpoints.
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool
-//! definitions. When `ThetaData` adds a new proto RPC, the build script parses
-//! `mdds.proto` and regenerates the registry automatically.
+//! definitions. `ENDPOINTS` expands from the endpoint table, so an endpoint
+//! added there is registered with the same parameters and descriptions the
+//! client methods carry.
 //!
 //! # Design
 //!
@@ -67,15 +68,135 @@ pub struct EndpointMeta {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Generated from mdds.proto by build.rs
-//
-//  Gated on `__internal`: the generated file defines `ParamType`, `ReturnType`,
-//  `ENDPOINTS`, `CATEGORIES`, and `param_type_to_json_type`. All of these are
-//  exclusively for workspace tools — not needed in default crate builds.
+//  Types and endpoints (only when `__internal` is enabled)
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[cfg(feature = "__internal")]
-include!(concat!(env!("OUT_DIR"), "/registry_generated.rs"));
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamType {
+    RequestType,
+    Symbol,
+    Symbols,
+    Venue,
+    Str,
+    Bool,
+    Date,
+    Interval,
+    Expiration,
+    Strike,
+    Right,
+    Int,
+    Float,
+    RateType,
+    Version,
+    Year,
+}
+
+#[cfg(feature = "__internal")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnType {
+    StringList,
+    OhlcTicks,
+    TradeTicks,
+    QuoteTicks,
+    MarketValueTicks,
+    EodTicks,
+    TradeQuoteTicks,
+    IntervalQuoteTicks,
+    OptionContracts,
+    OpenInterestTicks,
+    IvTicks,
+    GreeksAllTicks,
+    GreeksFirstOrderTicks,
+    GreeksSecondOrderTicks,
+    GreeksThirdOrderTicks,
+    GreeksEodTicks,
+    TradeGreeksAllTicks,
+    TradeGreeksFirstOrderTicks,
+    TradeGreeksSecondOrderTicks,
+    TradeGreeksThirdOrderTicks,
+    TradeGreeksImpliedVolatilityTicks,
+    PriceTicks,
+    IndexPriceAtTimeTicks,
+    CalendarDays,
+    InterestRateTicks,
+}
+
+#[cfg(feature = "__internal")]
+pub const CATEGORIES: &[&str] = &["stock", "option", "index", "calendar", "rate"];
+
+#[cfg(feature = "__internal")]
+#[must_use]
+pub fn param_type_to_json_type(pt: ParamType) -> &'static str {
+    match pt {
+        ParamType::RequestType => "string",
+        ParamType::Symbol => "string",
+        ParamType::Symbols => "string",
+        ParamType::Venue => "string",
+        ParamType::Str => "string",
+        ParamType::Bool => "boolean",
+        ParamType::Date => "string",
+        ParamType::Interval => "string",
+        ParamType::Expiration => "string",
+        ParamType::Strike => "string",
+        ParamType::Right => "string",
+        ParamType::Int => "integer",
+        ParamType::Float => "number",
+        ParamType::RateType => "string",
+        ParamType::Version => "string",
+        ParamType::Year => "string",
+    }
+}
+
+/// One registry entry from a resolved endpoint. The description is the first
+/// line of the endpoint's documentation.
+#[cfg(feature = "__internal")]
+macro_rules! registry_entry {
+    ($name:ident $cat:ident $sub:ident $rest:literal $ret:ident $desc:literal params {
+        all [$({ $p:ident $a:ident $b:ident $t:ident $v:tt $d:literal })*] $($more:tt)*
+    }) => {
+        EndpointMeta {
+            name: stringify!($name),
+            description: $desc,
+            category: stringify!($cat),
+            subcategory: stringify!($sub),
+            rest_path: $rest,
+            params: &[$(ParamMeta {
+                name: stringify!($p),
+                description: $d,
+                param_type: registry_entry!(@type $t),
+                required: registry_entry!(@required $b),
+            }),*],
+            returns: registry_entry!(@returns $ret),
+        }
+    };
+    // A time of day is a string on the wire and in the registry.
+    (@type Time) => { ParamType::Str };
+    (@type $t:ident) => { ParamType::$t };
+    (@required req) => { true };
+    (@required opt) => { false };
+    (@returns StringList) => { ReturnType::StringList };
+    (@returns $item:ident) => { pastey::paste!(ReturnType::[<$item s>]) };
+}
+
+/// Expands the endpoint table into `ENDPOINTS`, in table order.
+#[cfg(feature = "__internal")]
+macro_rules! registry_endpoints {
+    ($( $(#[$attr:meta])* $shape:ident $name:ident {
+        group: $cat:ident / $sub:ident,
+        rest: $rest:literal,
+        returns: $ret:ident $(($col:literal))?,
+        params: [$($key:tt)*],
+        doc: [$desc:literal $(, $doc:literal)* $(,)?],
+    } )*) => {
+        pub static ENDPOINTS: &[EndpointMeta] = &[$(
+            crate::__resolve!([$($key)*] => registry_entry { $name $cat $sub $rest $ret $desc }),
+        )*];
+    };
+}
+
+#[cfg(feature = "__internal")]
+crate::__endpoints! { registry_endpoints {} }
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Lookup helpers (only when `__internal` is enabled)
