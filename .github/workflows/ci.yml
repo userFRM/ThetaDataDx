@@ -171,19 +171,6 @@ jobs:
       - run: python3 scripts/ci/check_c_abi_completeness.py --selftest
       - run: python3 scripts/ci/check_c_abi_completeness.py
 
-  binding-parity:
-    name: Cross-binding parity matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      # The in-process synthetic-source matrix runs before the production gate.
-      - run: python3 scripts/ci/check_binding_parity.py --selftest
-      - run: python3 scripts/ci/check_binding_parity.py
-
   wire-schema-drift:
     name: Wire schema drift (proto + FPSS + tick layouts)
     runs-on: ubuntu-latest
@@ -905,7 +892,6 @@ jobs:
       - clippy
       - core-test
       - c-abi-completeness
-      - binding-parity
       - wire-schema-drift
       - public-surface-leak
       - doc-defaults

@@ -68,7 +68,7 @@ so a consumer never needs the generator.
 | `thetadatadx-rs/src/surface/events.rs` | The streaming event table: every event's Python class, TypeScript object and C ABI struct with their conversions, and through `generate_sdk_surfaces` the C event header, the C++ layout asserts and the docs site's event field tables. |
 | `thetadatadx-rs/src/surface/config.rs` | The config accessor table: every `Config` accessor that reads or writes one value, in the C ABI, Python and TypeScript, and through `generate_sdk_surfaces` the C++ `Config` methods. |
 | `thetadatadx-rs/proto/mdds.proto` | The vendor's gRPC service. |
-| `parity.toml` | The declared cross-binding surface the parity gate enforces. Endpoint methods, table-written config accessors and tick fields have no rows: the gate reads the tables. |
+| `parity.json` | The hand-written surface the bindings share: the classes, members and functions no table expands, the C error codes and the subscription kinds. Python (`thetadatadx-py/tests/test_parity.py`), TypeScript (`thetadatadx-ts/__tests__/parity.test.mjs`) and the C++ test build each check their built artefact against it. |
 
 Regenerate with:
 
@@ -76,9 +76,10 @@ Regenerate with:
 cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces
 ```
 
-Edit the schema, run that, commit both the schema and the regenerated files. The parity gate then
-holds the published TypeScript and C++ declarations to the endpoint and config tables, and
-`thetadatadx-py/tests/test_table_surface.py` holds the built Python module to them.
+Edit the schema, run that, commit both the schema and the regenerated files. The compiler holds the
+bindings to the tables they expand, and `thetadatadx-py/tests/test_table_surface.py` holds the built
+Python module to them. A hand-written addition to one binding's surface goes into `parity.json`,
+with the bindings that have it.
 
 **Never hand-edit a file whose header says `@generated`.** They are the `.inc` files under
 `thetadatadx-cpp/`, the docs site's reference and streaming pages, `scripts/ci/data/live_cells.json`
@@ -155,7 +156,7 @@ directly as shown.
 
 ```sh
 python3 scripts/ci.py all            # everything   (just ci)
-python3 scripts/ci.py binding_parity # one gate      (just check binding_parity)
+python3 scripts/ci.py version_sync   # one gate      (just check version_sync)
 python3 scripts/ci.py list           # the gate names
 ```
 

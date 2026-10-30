@@ -155,11 +155,10 @@ FORBIDDEN_PATTERNS = (
     # NOTE: `worker[\s_-]?pool` is deliberately NOT in this list. The
     # async worker-thread count is a documented PUBLIC config knob
     # (`set_worker_threads` / the `worker_threads` property on every
-    # binding); `check_binding_parity._check_public_surface_vocab` already
-    # adjudicates worker-thread vocabulary as neutral public surface (it
-    # strips the internal `tokio_` prefix and exposes `worker_threads`),
-    # with an explicit `test_surface_vocab_allows_neutral_worker_threads`
-    # asserting it stays clean. The knob's own doc comment necessarily
+    # binding); the built Python and TypeScript packages are held to the
+    # `banned_identifier_tokens` of `parity.json`, which reject an internal
+    # name such as `tokio` inside a public identifier and allow
+    # `worker_threads`. The knob's own doc comment necessarily
     # describes its process-global threading model, so banning "worker
     # pool" here would fire on a legitimate public-API description, not an
     # impl-IP leak. The internal runtime crate name (`tokio`) is already
