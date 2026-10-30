@@ -957,8 +957,8 @@ macro_rules! tick_array_to_arrow_ipc_projected {
 
 // Presence producer + projected serialiser, one per tick type — the same set
 // the all-present `tick_array_to_arrow_ipc!` block above covers. A tick added
-// to the tick table gets a row in all three families (plus its
-// `parity.toml` `[[ffi_symbol]]` entries and the C header decls).
+// to the tick table gets a row in all three families (plus the C header
+// decls).
 tick_present_columns!(thetadatadx_eod_ticks_present_columns, thetadatadx::EodTick);
 tick_present_columns!(
     thetadatadx_ohlc_ticks_present_columns,

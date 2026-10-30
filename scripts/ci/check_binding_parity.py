@@ -5903,240 +5903,25 @@ def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
-# ─── C-ABI symbol roster + reverse-orphan scan ────────────────────────
+# ─── Hand-written C-ABI signatures ([[ffi_symbol]]) ───────────────────
 #
-# The `[[method]]` / endpoint / config / utility families each gate one
-# slice of the C ABI by SHAPE. None of them tracks the streaming-batch /
-# borrowed-handle externs (the columnar reader, the flat-file Arrow bridge,
-# the market-data sub-handle), and nothing asserts the reverse direction:
-# that EVERY `extern "C"` symbol belongs to some enrolled family. A new
-# C-ABI symbol could ship — breaking the ABI contract the C++ wrappers and
-# external FFI consumers depend on — with no row anywhere. Two checks close
-# this: `[[ffi_symbol]]` rows pin the streaming-batch family by name, and
-# the orphan scan subtracts every enrolled family + the memory-management
-# exempt roster from the harvested universe and flags the remainder.
-
-# Memory-management frees and panic-test hooks: C-ABI symbols that release
-# an owned allocation (`*_free`) or exist only to exercise the panic boundary
-# in tests. They carry no cross-binding method contract, so they are exempt
-# from the FFI-symbol orphan scan. Bare names with the `thetadatadx_` prefix
-# stripped.
-#
-# The `*_tick_array_free` / `*_array_free` block is the per-tick deallocator
-# the `tick_array_free!` macro emits in `thetadatadx-ffi/src/types.rs` (one per tick
-# wrapper, plus the `calendar_day_array_free` calendar variant). The symbol
-# name is the macro's first argument, so the orphan scan only sees these once
-# `_collect_ffi_all_symbols` harvests macro-invocation sites; each is a pure
-# deallocator paired with a `*_ticks_to_arrow_ipc` enrolled `[[ffi_symbol]]`.
-_FFI_TICK_ARRAY_FREES: frozenset[str] = frozenset(
-    {
-        "eod_tick_array_free",
-        "ohlc_tick_array_free",
-        "trade_tick_array_free",
-        "quote_tick_array_free",
-        "greeks_all_tick_array_free",
-        "greeks_eod_tick_array_free",
-        "greeks_first_order_tick_array_free",
-        "greeks_second_order_tick_array_free",
-        "greeks_third_order_tick_array_free",
-        "trade_greeks_all_tick_array_free",
-        "trade_greeks_first_order_tick_array_free",
-        "trade_greeks_second_order_tick_array_free",
-        "trade_greeks_third_order_tick_array_free",
-        "trade_greeks_implied_volatility_tick_array_free",
-        "iv_tick_array_free",
-        "price_tick_array_free",
-        "index_price_at_time_tick_array_free",
-        "open_interest_tick_array_free",
-        "market_value_tick_array_free",
-        "calendar_day_array_free",
-        "interest_rate_tick_array_free",
-        "trade_quote_tick_array_free",
-        "interval_quote_tick_array_free",
-    }
-)
-FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
-    {
-        "arrow_bytes_free",
-        "string_free",
-        "string_array_free",
-        "subscription_array_free",
-        "option_contract_array_free",
-        "greeks_result_free",
-        "flatfile_bytes_free",
-        "flatfile_rowlist_free",
-        "credentials_free",
-        "market_data_free",
-        "config_free",
-        "test_panic_str",
-        "test_panic_string",
-    }
-    | _FFI_TICK_ARRAY_FREES
-)
-
-# The client / streaming observability + lifecycle roster: the C-ABI
-# realization of the `StreamView` / `StreamingClient` surface, each
-# independently enrolled and gated by the `[[method]]`, core-streaming, and
-# connect families. Enumerated explicitly (not by a broad `client_*` /
-# `streaming_*` prefix) so a NEW `thetadatadx_client_*` / `thetadatadx_streaming_*`
-# symbol that nobody enrolled still falls through to the orphan scan. Bare
-# `<stem>_<suffix>` names (prefix stripped); `_OBS_SUFFIXES` is shared by
-# both the `client` and `streaming` stems.
-_FFI_OBS_SUFFIXES: frozenset[str] = frozenset(
-    {
-        "active_subscriptions",
-        "active_full_subscriptions",
-        "await_drain",
-        "dropped_events",
-        "free",
-        "is_authenticated",
-        "is_streaming",
-        "last_connected_addr",
-        "last_event_received_at_unix_nanos",
-        "millis_since_last_event",
-        "panic_count",
-        "reconnect",
-        "ring_capacity",
-        "ring_occupancy",
-        "set_callback",
-        "subscribe",
-        "unsubscribe",
-    }
-)
-_FFI_OBS_SYMBOLS: frozenset[str] = frozenset(
-    f"{stem}_{suf}" for stem in ("client", "streaming") for suf in _FFI_OBS_SUFFIXES
-) | frozenset(
-    {
-        "client_stop_streaming",
-        "client_market_data",
-        "streaming_shutdown",
-    }
-)
-
-# Config lifecycle symbols outside the `config_set_` / `config_get_` /
-# `config_with_` shapes (the ctors / environment selectors / free).
-_FFI_CONFIG_MISC: frozenset[str] = frozenset(
-    {"config_dev", "config_stage", "config_production", "config_from_dotenv"}
-)
-
-# Client / streaming / market-data construction symbols (the `[[connect]]` /
-# `[[from_file]]` families).
-_FFI_CONNECT_SYMBOLS: frozenset[str] = frozenset(
-    f"{stem}_{suf}"
-    for stem in ("client", "streaming", "market_data")
-    for suf in ("connect", "connect_from_file")
-)
-
-# The error-surface symbols (the `[[error]]` leaf/code family threads the
-# higher bindings off these).
-_FFI_ERROR_SYMBOLS: frozenset[str] = frozenset(
-    {"last_error", "last_error_code", "last_error_retry_after_ms", "clear_error"}
-)
-
-# Standalone utility symbols (the `[[utility]]` family —
-# condition/exchange/sequence/calendar lookups, the strike/timestamp
-# converters).
-_FFI_UTILITY_SYMBOLS: frozenset[str] = frozenset(
-    {
-        "condition_description",
-        "condition_is_cancel",
-        "condition_name",
-        "condition_updates_volume",
-        "quote_condition_description",
-        "quote_condition_is_firm",
-        "quote_condition_is_halted",
-        "quote_condition_name",
-        "exchange_name",
-        "exchange_symbol",
-        "sequence_signed_to_unsigned",
-        "sequence_unsigned_to_signed",
-        "calendar_status_name",
-        "contract_strike_dollars",
-        "timestamp_ms",
-    }
-)
-
-# Flat-file request symbols other than the Arrow-IPC bridge (which is an
-# enrolled `[[ffi_symbol]]`): the decoded-rows fetch, the blob-to-disk
-# fetch, and the row count — governed by the flat-file fetch / namespace
-# families.
-_FFI_FLATFILE_SYMBOLS: frozenset[str] = frozenset(
-    {
-        "flatfile_request_decoded",
-        "flatfile_request_to_path",
-        "flatfile_rows_count",
-    }
-)
+# The streaming-batch reader, the market-data sub-handle and the flat-file
+# Arrow bridge are written by hand in `thetadatadx-ffi/src` and declared by
+# hand in `thetadatadx.h`. `check_c_abi_completeness` holds their names to the
+# header, but nothing else compares a parameter list, so each `[[ffi_symbol]]`
+# row pins one of them by its C signature.
 
 
 def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
-    """Every `extern "C" fn thetadatadx_<name>` declared under `thetadatadx-ffi/src/**`,
-    as the bare `<name>` (prefix stripped).
-
-    This is the full C-ABI symbol universe the orphan scan reduces against
-    the enrolled families. Two harvest shapes:
-
-    * `fn thetadatadx_<name>(` — symbols spelled literally (the bulk).
-    * `<macro>!(thetadatadx_<name>, ...)` — symbols whose name is a macro
-      ARGUMENT, invisible to the literal-`fn` regex. `thetadatadx-ffi/src/types.rs`
-      emits these through `tick_array_free!` (the per-tick `*_array_free`
-      deallocators) and `tick_array_to_arrow_ipc!` (the per-tick
-      `*_ticks_to_arrow_ipc` columnar terminals the C++
-      `tick_arrow_ipc.hpp.inc` calls by name). Both name the extern as the
-      macro's first argument, so one regex anchored on that arg position
-      harvests every current and future name-as-arg extern emitter.
-    """
+    """Every `extern "C" fn thetadatadx_<name>` spelled out under
+    `thetadatadx-ffi/src/**`, as the bare `<name>` (prefix stripped)."""
     out: set[str] = set()
     if not ffi_src.is_dir():
         return out
     sym_re = re.compile(r"\bfn\s+thetadatadx_(\w+)\s*\(")
-    macro_sym_re = re.compile(r"\w+!\s*\(\s*thetadatadx_(\w+)\s*,")
     for rs in ffi_src.rglob("*.rs"):
-        text = _read_source(rs)
-        for m in sym_re.finditer(text):
-            out.add(m.group(1))
-        for m in macro_sym_re.finditer(text):
-            out.add(m.group(1))
-    for direction in ("set", "get"):
-        out.update(
-            f"config_{direction}_{name}"
-            for name in _config_table_accessors(ffi_src, direction)
-        )
-    return out | _ffi_table_symbols(ffi_src)
-
-
-def _ffi_symbol_governed(name: str, enrolled: frozenset[str]) -> bool:
-    """True iff the bare C-ABI symbol `name` belongs to an enrolled family.
-
-    `enrolled` is the set of `[[ffi_symbol]]` row names (the streaming-batch
-    family). The remaining families are matched by their SSOT-backed shape
-    (config / endpoint / credentials) or their explicit roster (observability
-    / connect / error / utility / flat-file / config-misc). A symbol matching
-    none of these — and not in `FFI_SYMBOL_EXEMPT` — is an orphan.
-    """
-    if name in enrolled:
-        return True
-    if name in FFI_SYMBOL_EXEMPT:
-        return True
-    # SSOT-backed shapes: config accessors, every endpoint's `_with_options`
-    # base and `_stream` companion, the credentials factories.
-    if (
-        name.startswith("config_set_")
-        or name.startswith("config_get_")
-        or name.startswith("config_with_")
-        or name.startswith("credentials_")
-        or name.endswith("_with_options")
-        or name.endswith("_stream")
-    ):
-        return True
-    return name in (
-        _FFI_OBS_SYMBOLS
-        | _FFI_CONFIG_MISC
-        | _FFI_CONNECT_SYMBOLS
-        | _FFI_ERROR_SYMBOLS
-        | _FFI_UTILITY_SYMBOLS
-        | _FFI_FLATFILE_SYMBOLS
-    )
+        out.update(sym_re.findall(_read_source(rs)))
+    return out
 
 
 def _check_ffi_symbol_rows(
@@ -6144,23 +5929,12 @@ def _check_ffi_symbol_rows(
     all_symbols: set[str],
     ffi_src: pathlib.Path,
 ) -> list[str]:
-    """Forward check for `[[ffi_symbol]]` rows: each declared symbol must
-    exist as an `extern "C"` declaration under `thetadatadx-ffi/src/**`.
-
-    A row whose symbol vanished (renamed / removed) trips, so the
-    streaming-batch / borrowed-handle ABI cannot silently break the C++
-    wrappers that call these symbols by name.
-
-    A row MAY carry an optional `[ffi_symbol.signature]` sub-table pinning the
-    C param list + return (opt-in, exactly like `[method.signature]`). When
-    present, the extern's declared signature is extracted and compared on the
-    `ffi` lang via the shared signature engine — the C ABI is the lowest layer,
-    so its opaque handle pointers / owned-struct returns compare by exact
-    spelling (see `_sig_type_agrees`). The macro-generated per-tick
-    `*_to_arrow_ipc` terminals carry no signature here: they are emitted from
-    one `tick_array_to_arrow_ipc!` macro, so their shape is identical by
-    construction (the data-plane by-construction guarantee), and the name-only
-    row already pins their existence.
+    """Each `[[ffi_symbol]]` row names an `extern "C"` function under
+    `thetadatadx-ffi/src/**`, and its `[ffi_symbol.signature]` sub-table pins
+    the C param list + return. The extern's declared signature is extracted and
+    compared on the `ffi` lang via the shared signature engine; the C ABI is
+    the lowest layer, so its opaque handle pointers / owned-struct returns
+    compare by exact spelling (see `_sig_type_agrees`).
     """
     errors: list[str] = []
     for row in ffi_symbol_rows:
@@ -6182,35 +5956,6 @@ def _check_ffi_symbol_rows(
                 errors += _sig_compare_one(
                     f"thetadatadx_{name}", spec, _sig_extract_ffi(ffi_src, name), "ffi"
                 )
-    return errors
-
-
-def _check_ffi_symbol_orphans(
-    all_symbols: set[str], ffi_symbol_rows: list[dict[str, Any]]
-) -> list[str]:
-    """Reverse-direction orphan scan over the whole C ABI: every harvested
-    `thetadatadx_*` symbol must belong to an enrolled family or be in
-    `FFI_SYMBOL_EXEMPT`.
-
-    This is the strongest single guarantee in the matrix — no C-ABI symbol
-    ships without enrollment. A genuinely new symbol family (a symbol
-    matching no config / endpoint / credentials shape and no explicit
-    roster) trips, forcing a `[[ffi_symbol]]` row (or the appropriate
-    family) before it can land.
-    """
-    enrolled = frozenset(
-        row["name"] for row in ffi_symbol_rows if row.get("name")
-    )
-    errors: list[str] = []
-    for name in sorted(all_symbols):
-        if _ffi_symbol_governed(name, enrolled):
-            continue
-        errors.append(
-            f"  thetadatadx_{name}: C-ABI symbol belongs to no enrolled family. "
-            f"Either add a `[[ffi_symbol]]` row (or enroll it in the matching "
-            f"endpoint/config/utility family), or add it to FFI_SYMBOL_EXEMPT "
-            f"if it is a memory-management free with no cross-binding contract."
-        )
     return errors
 
 
@@ -8443,15 +8188,10 @@ def main(argv: list[str] | None = None) -> int:
         cpp_codes,
     )
 
-    # C-ABI symbol roster: the streaming-batch / borrowed-handle externs
-    # pinned by `[[ffi_symbol]]` rows must exist, and EVERY harvested
-    # `thetadatadx_*` symbol must belong to some enrolled family (the reverse
-    # orphan scan). No C-ABI symbol ships untracked.
+    # Hand-written C-ABI signatures: each `[[ffi_symbol]]` row pins one
+    # extern's C param list + return.
     ffi_all_symbols = _collect_ffi_all_symbols(FFI_SRC)
     ffi_symbol_errors = _check_ffi_symbol_rows(ffi_symbol_rows, ffi_all_symbols, FFI_SRC)
-    ffi_symbol_orphan_errors = _check_ffi_symbol_orphans(
-        ffi_all_symbols, ffi_symbol_rows
-    )
 
     # Request-options roster: the two generated consumers of the endpoint
     # table's request options (the C++ `with_*` setters and the FFI
@@ -8749,19 +8489,9 @@ def main(argv: list[str] | None = None) -> int:
         had_errors = True
         print(
             f"check_binding_parity: {len(ffi_symbol_errors)} `[[ffi_symbol]]` "
-            f"row(s) lack a matching C-ABI declaration:"
+            f"row(s) disagree with the C-ABI declaration:"
         )
         for e in ffi_symbol_errors:
-            print(e)
-        print()
-
-    if ffi_symbol_orphan_errors:
-        had_errors = True
-        print(
-            f"check_binding_parity: {len(ffi_symbol_orphan_errors)} C-ABI "
-            f"symbol(s) belong to no enrolled family:"
-        )
-        for e in ffi_symbol_orphan_errors:
             print(e)
         print()
 
@@ -9591,29 +9321,7 @@ def _run_selftest() -> int:
         _case_class_reverse_orphan_camel_source_member_trips,
     )
 
-    # ── C-ABI symbol roster + reverse-orphan scan ──
-
-    def _case_ffi_symbol_orphan_trips() -> None:
-        """A harvested C-ABI symbol matching no enrolled family and not in
-        `FFI_SYMBOL_EXEMPT` trips the orphan scan."""
-        symbols = {
-            "config_set_worker_threads",      # config family — governed
-            "option_history_trade_with_options",  # endpoint family — governed
-            "arrow_bytes_free",               # exempt
-            "client_batches_open",            # enrolled [[ffi_symbol]]
-            "frobnicate_widget",              # ORPHAN — no family, not exempt
-        }
-        rows = [{"name": "client_batches_open"}]
-        errors = _check_ffi_symbol_orphans(symbols, rows)
-        assert any("frobnicate_widget" in e for e in errors), (
-            f"an ungoverned C-ABI symbol must trip; got {errors!r}"
-        )
-        assert not any(
-            "config_set_worker_threads" in e
-            or "arrow_bytes_free" in e
-            or "client_batches_open" in e
-            for e in errors
-        ), f"governed / exempt / enrolled symbols must stay silent; got {errors!r}"
+    # ── Hand-written C-ABI signatures ──
 
     def _case_ffi_symbol_row_missing_decl_trips() -> None:
         """A `[[ffi_symbol]]` row whose symbol is absent from the harvested
@@ -9631,64 +9339,7 @@ def _run_selftest() -> int:
             f"a present symbol must stay silent; got {errors!r}"
         )
 
-    def _case_ffi_macro_symbol_harvested_and_governed() -> None:
-        """A C-ABI extern whose name is a MACRO ARGUMENT (the
-        `tick_array_free!` / `tick_array_to_arrow_ipc!` shape in
-        `thetadatadx-ffi/src/types.rs`) is harvested by `_collect_ffi_all_symbols`, and an
-        unenrolled one trips the orphan scan — so the macro blindness that hid
-        44 externs from the literal-`fn` regex cannot regress."""
-        with tempfile.TemporaryDirectory() as tmp:
-            ffi_dir = pathlib.Path(tmp) / "ffi"
-            ffi_dir.mkdir()
-            (ffi_dir / "types.rs").write_text(
-                # A literal-`fn` extern (still seen) ...
-                'pub unsafe extern "C" fn thetadatadx_string_free(s: i32) {}\n'
-                # ... the macro DEFINITIONS ($fn_name is not a real symbol) ...
-                "macro_rules! tick_array_free { ($fn_name:ident, $t:ident) => {\n"
-                '    pub unsafe extern "C" fn $fn_name(a: $t) {} }; }\n'
-                "macro_rules! tick_array_to_arrow_ipc { ($fn_name:ident, $t:ident) => {\n"
-                '    pub unsafe extern "C" fn $fn_name(r: *const $t, n: usize) {} }; }\n'
-                # ... and the macro INVOCATIONS where the name lives as an arg.
-                "tick_array_free!(thetadatadx_eod_tick_array_free, EodTick);\n"
-                "tick_array_to_arrow_ipc!(thetadatadx_eod_ticks_to_arrow_ipc, EodTick);\n"
-                "tick_array_to_arrow_ipc!(\n"
-                "    thetadatadx_frobnicate_ticks_to_arrow_ipc, FrobTick);\n",
-                encoding="utf-8",
-            )
-            syms = _collect_ffi_all_symbols(ffi_dir)
-            assert "string_free" in syms, (
-                f"a literal-`fn` extern must still be harvested; got {syms!r}"
-            )
-            assert "eod_tick_array_free" in syms, (
-                f"a `tick_array_free!`-emitted extern must be harvested; got {syms!r}"
-            )
-            assert "eod_ticks_to_arrow_ipc" in syms, (
-                f"a `tick_array_to_arrow_ipc!`-emitted extern must be harvested; "
-                f"got {syms!r}"
-            )
-            assert "fn_name" not in syms, (
-                f"the macro's `$fn_name` metavariable must not be harvested as a "
-                f"symbol; got {syms!r}"
-            )
-            # The deallocator is exempt and the enrolled terminal is governed;
-            # the unenrolled macro extern (no row, no exempt) must trip.
-            rows = [{"name": "eod_ticks_to_arrow_ipc"}]
-            orphans = _check_ffi_symbol_orphans(syms, rows)
-            assert any("frobnicate_ticks_to_arrow_ipc" in e for e in orphans), (
-                f"an unenrolled macro-emitted extern must trip the orphan scan; "
-                f"got {orphans!r}"
-            )
-            assert not any(
-                "eod_tick_array_free" in e or "eod_ticks_to_arrow_ipc" in e
-                for e in orphans
-            ), f"exempt free + enrolled terminal must stay silent; got {orphans!r}"
-
-    _case("ffi-symbol orphan - ungoverned symbol trips", _case_ffi_symbol_orphan_trips)
     _case("ffi-symbol row - missing declaration trips", _case_ffi_symbol_row_missing_decl_trips)
-    _case(
-        "ffi-symbol macro - name-as-arg extern harvested + governed",
-        _case_ffi_macro_symbol_harvested_and_governed,
-    )
 
     # ── Request-options roster (the two generated consumers) ──
 
