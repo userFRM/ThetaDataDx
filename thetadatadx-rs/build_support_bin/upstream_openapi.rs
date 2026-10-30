@@ -53,9 +53,9 @@ pub struct UpstreamOpenApi {
 impl UpstreamOpenApi {
     /// Load and parse the snapshot, caching the result across callers.
     ///
-    /// Callers come from both `build.rs` (cwd = crate root) and the
-    /// `generate_sdk_surfaces` binary (same cwd), so the snapshot path
-    /// is resolved relative to the crate root at `../scripts/ci/data/upstream_openapi.yaml`.
+    /// The caller is the `generate_sdk_surfaces` binary, which runs from the
+    /// crate root, so the snapshot path is resolved relative to it at
+    /// `../scripts/ci/data/upstream_openapi.yaml`.
     pub fn load() -> &'static Self {
         static CACHE: OnceLock<UpstreamOpenApi> = OnceLock::new();
         CACHE.get_or_init(|| {
@@ -77,11 +77,6 @@ impl UpstreamOpenApi {
                          `python3 scripts/ci/check_tier_badges.py --refresh-snapshot` to populate."
                     )
                 });
-            // Emit rerun-if-changed so cargo picks up refreshed snapshots
-            // without requiring a clean build. Harmless in the
-            // generate_sdk_surfaces binary — cargo ignores these prints
-            // outside of build scripts.
-            println!("cargo:rerun-if-changed={}", path.display());
             Self::parse(&text).unwrap_or_else(|err| {
                 panic!(
                     "failed to parse {}: {err}. \
