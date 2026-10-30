@@ -405,7 +405,7 @@ pub(crate) fn full_stream_supported(
 
 /// Whether the feed publishes `kind` for `sec_type` per contract.
 ///
-/// The streaming reference is generated from `fpss_event_schema.toml`, and
+/// The streaming reference is generated from the streaming event table, and
 /// it has no index quote page and no stock open-interest page, because
 /// neither stream exists upstream. An index publishes its prints through
 /// the trade feed; open interest counts option contracts outstanding and a

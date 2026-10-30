@@ -67,7 +67,7 @@ so a consumer never needs the generator.
 | `thetadatadx-rs/src/surface/enums.rs` | The endpoint parameter enums (`Right`, `Venue`, `Interval`, `RateType`, `RequestType`, `Version`) in Rust, Python and TypeScript, and the values `generate_sdk_surfaces` holds each enum parameter's "Accepted values" description to. |
 | `thetadatadx-rs/sdk_surface.toml` | The non-endpoint SDK surface. |
 | `thetadatadx-rs/config_surface.toml` | Config accessors for the FFI and C++. |
-| `thetadatadx-rs/fpss_event_schema.toml` | Every streaming event. |
+| `thetadatadx-rs/src/surface/events.rs` | The streaming event table: every event's Python class, TypeScript object and C ABI struct with their conversions, and through `generate_sdk_surfaces` the C event header, the C++ layout asserts and the docs site's event field tables. |
 | `thetadatadx-rs/proto/mdds.proto` | The vendor's gRPC service. |
 | `parity.toml` | The declared cross-binding surface the parity gate enforces. |
 
