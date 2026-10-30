@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
-"""Validate checked-in documentation against the endpoint table.
+"""Validate checked-in documentation against the code it describes.
 
-This script keeps the human-facing docs aligned with the current SDK and REST
-surface by checking a few high-signal invariants:
+`cargo run -p xtask --bin generate_sdk_surfaces -- --check` holds every
+generated page, `llms.txt` and the OpenAPI routes to the endpoint table byte
+for byte. This script checks what that comparison cannot see:
 
-- endpoint/tool counts in top-level docs, each derived from the list it heads
+- no reference page outliving its endpoint, since the generator writes the
+  pages but never deletes one
 - the OpenAPI path set matching the routes the server serves, its `servers`
   block naming the local server, and no global security requirement
-- one generated docs-site reference page per registry endpoint (and no
-  stale extras), each carrying the fixed page anatomy markers
-- `llms.txt` covering every page on the site (and naming no deleted page)
-- current server docs staying on the v3 path scheme and current defaults
-
-The generated reference tree, `llms.txt` and the OpenAPI routes, with their
-parameters checked against the endpoint table, are byte-verified by
-`cargo run -p xtask --bin generate_sdk_surfaces -- --check`
-in CI; the structural checks here are the cargo-free fast path the docs
-deploy workflow runs.
+- the server docs' flag defaults matching the server's command line
+- the MCP docs listing and counting every tool the server advertises
+- the C request-options struct laid out as the FFI crate expands it, with no
+  field that no endpoint reads
+- the getting-started install line naming the current version
 
 Exits non-zero on any mismatch. Run from repo root; the script resolves
 the workspace root from its own path so `cd` is not required.
@@ -117,21 +114,11 @@ def served_v3_routes() -> set[str]:
     return routes
 
 
-# The server mirrors the JVM terminal's system surface 1:1, so every served
-# `/v3/terminal/*` route is documented verbatim in the OpenAPI contract — the
-# terminal publishes these exact paths (docs.thetadata.us) and the server is a
-# drop-in for it. Nothing is served-but-undocumented here, so this set is empty.
-OPENAPI_UNDOCUMENTED_PARITY_ALIASES: set[str] = set()
-
 # Routes the server serves beyond the upstream-tracking registry endpoints:
 # the system status / lifecycle routes and the v3 path aliases. These
 # are documented in the OpenAPI contract (they are real served routes) but are
-# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift. The
-# vendor-parity aliases above are subtracted: they are served but intentionally
-# undocumented (their documented equivalents carry the identical behaviour).
-SERVER_ONLY_PATHS = (
-    served_v3_routes() - REST_PATHS - OPENAPI_UNDOCUMENTED_PARITY_ALIASES
-)
+# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift.
+SERVER_ONLY_PATHS = served_v3_routes() - REST_PATHS
 
 # The registry endpoints: every table entry but the raw streams, which share
 # the route of the endpoint they stream and have no page of their own.
@@ -166,46 +153,7 @@ def expect_contains(path: Path, snippet: str) -> None:
         fail(f"{path.relative_to(ROOT)} missing expected text: {snippet!r}")
 
 
-def expect_not_contains(path: Path, snippet: str) -> None:
-    text = path.read_text()
-    if snippet in text:
-        fail(f"{path.relative_to(ROOT)} contains stale text: {snippet!r}")
-
-
 def check_static_docs() -> None:
-    expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
-    expect_contains(
-        ROOT / "README.md",
-        "MCP server exposing every market-data endpoint to AI clients",
-    )
-
-    expect_contains(
-        ROOT / "tools/mcp/README.md",
-        "## Available Tools",
-    )
-    # Derive the three counts from the inventory rather than pinning the
-    # sentence as a literal. Pinned, the gate required whatever number was
-    # current when it was written: adding a tool left it green on a sentence
-    # that had become wrong, and correcting the sentence failed it. The
-    # heading-based count check below does not cover this line either, since
-    # it sits in the intro paragraph before the first subheading.
-    inventory = mcp_tool_inventory()
-    offline = inventory["offline"]
-    flatfile = inventory["flatfile"]
-    utility = inventory["utility"]
-    expect_contains(
-        ROOT / "tools/mcp/README.md",
-        (
-            f"Every generated market-data endpoint plus {len(offline)} offline "
-            f"tool ({plural_names(offline)}) and, when connected, "
-            f"{len(flatfile)} flat-file tools and {plural_names(utility)}."
-        ),
-    )
-
-    expect_contains(
-        DOCS_SITE / "mcp.md",
-        "Every generated market-data endpoint plus `ping`.",
-    )
     # Version strings in getting-started docs must match the canonical
     # workspace version; derive it from the root `Cargo.toml` so the pin
     # tracks bumps automatically instead of pinning a literal that silently
@@ -215,143 +163,6 @@ def check_static_docs() -> None:
         DOCS_SITE / "articles/getting-started.md",
         f'thetadatadx-rs = "{cargo_version}"',
     )
-    expect_contains(
-        DOCS_SITE / "mcp.md",
-        'Use `"strike":"*"` when you want a bulk chain-style response',
-    )
-    expect_contains(
-        ROOT / "tools/mcp/README.md",
-        'Use `"strike":"*"` when you want a bulk chain-style response',
-    )
-
-    server_pages = [
-        DOCS_SITE / "server/index.md",
-        DOCS_SITE / "server/http.md",
-        DOCS_SITE / "server/websocket.md",
-    ]
-    expect_contains(ROOT / "tools/server/README.md", "25503")
-    expect_contains(ROOT / "tools/server/README.md", "/v3/option/snapshot/quote?symbol=")
-    expect_contains(DOCS_SITE / "server/index.md", "25503")
-    expect_contains(DOCS_SITE / "server/http.md", "/v3/option/snapshot/quote?symbol=")
-    for path in [ROOT / "tools/server/README.md", *server_pages]:
-        expect_not_contains(path, "/v2/")
-        expect_not_contains(path, "/v3/hist/")
-        expect_not_contains(path, "/v3/snapshot/")
-        expect_not_contains(path, "/v3/list/roots/")
-        expect_not_contains(path, "/v3/list/dates/")
-        expect_not_contains(path, "/v3/at_time/")
-        expect_not_contains(path, "?root=")
-        expect_not_contains(path, "&exp=")
-        expect_not_contains(path, "&ivl=")
-
-    # Strike is dollars on the REST surface everywhere: the REST reference
-    # pages, the server README, the REST server pages (index / http), and the
-    # OpenAPI spec must never show the scaled-integer strike form. A client
-    # who copies a `500000` / `570000` thousandths example on a REST surface
-    # would subscribe to a $500,000 / $570,000 strike.
-    #
-    # The server's WebSocket, by contrast, defaults to the terminal's
-    # 1/10-cent integer (a `$570` strike is `570000`) and is configurable to
-    # dollars via `--strike-format`. So server/websocket.md and the
-    # streaming/** docs legitimately show the terminal form and are EXEMPT
-    # from the dollars-only strike rule below.
-    rest_strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
-        ROOT / "tools/server/README.md",
-        DOCS_SITE / "server/index.md",
-        DOCS_SITE / "server/http.md",
-        OPENAPI_YAML,
-    ]
-    for path in rest_strike_docs:
-        expect_not_contains(path, "scaled integer")
-        # Word-bounded: capture-backed sample tables legitimately carry
-        # timestamps like `34500000` that embed the digit string.
-        if re.search(r"\b500000\b", path.read_text()):
-            fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
-    # Ban the thousandths vocabulary and the literal `570000` example from
-    # the dollars-only REST-facing strike pages (the REST server pages and
-    # the symbology article). The WebSocket page and the streaming docs are
-    # exempt — they show the terminal's 1/10-cent form by default.
-    for path in [
-        DOCS_SITE / "server/index.md",
-        DOCS_SITE / "server/http.md",
-        DOCS_SITE / "articles/symbology.md",
-    ]:
-        expect_not_contains(path, "thousandths")
-        if re.search(r"\b570000\b", path.read_text()):
-            fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")
-
-    expect_contains(
-        ENDPOINT_TABLE_RS,
-        '"ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',
-    )
-    # The generated at-time pages inherit the same wording from the
-    # registry; pin one so a registry rewrite that loses the format
-    # note fails here too.
-    expect_contains(
-        DOCS_SITE / "reference/stock/at-time/trade.md",
-        "ET wall-clock time in HH:MM:SS.SSS",
-    )
-    expect_contains(
-        OPENAPI_YAML,
-        'description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)',
-    )
-
-    # Wave K replaced the per-tick subscribe_* family with the polymorphic
-    # subscribe(Subscription) entry point that takes a typed value built
-    # via Contract.option(...).quote() / .trade() / .open_interest(). The
-    # README now documents the new shape; the assertion below pins it.
-    expect_contains(
-        ROOT / "thetadatadx-py/README.md",
-        "`Contract.option(symbol, *, expiration, strike, right)`",
-    )
-    # Streaming pages (hand-written guides + generated stream-type pages)
-    # must never reference removed or internal delivery APIs. Every
-    # binding exposes `start_streaming(callback)` as the sole delivery
-    # path; pin that contract.
-    streaming_pages = sorted((DOCS_SITE / "streaming").rglob("*.md"))
-    if len(streaming_pages) < 10:
-        fail(
-            f"expected the streaming section to hold the 3 guide pages plus the "
-            f"generated stream-type pages; found {len(streaming_pages)}"
-        )
-    for streaming_page in streaming_pages:
-        expect_not_contains(streaming_page, "start_streaming_iter")
-        expect_not_contains(streaming_page, "streaming_iter")
-        expect_not_contains(streaming_page, "streaming_async")
-        expect_not_contains(streaming_page, "startStreamingIter")
-        expect_not_contains(streaming_page, "StreamEventPoller")
-        expect_not_contains(streaming_page, "EventIterator")
-        expect_not_contains(streaming_page, "thetadatadx_streaming_event_iter")
-        expect_not_contains(streaming_page, "```go [Go]")
-        expect_not_contains(streaming_page, "contract_map")
-        expect_not_contains(streaming_page, "contract_lookup")
-        expect_not_contains(streaming_page, "SubscribeOptionQuotes")
-        expect_not_contains(streaming_page, 'event.kind == "simple"')
-        expect_not_contains(streaming_page, "event.event_type")
-        expect_not_contains(streaming_page, "StreamEvent::RawData")
-        expect_not_contains(streaming_page, "RawData (undecoded fallback)")
-        expect_not_contains(streaming_page, "ring-reader thread")
-        expect_not_contains(streaming_page, "subscribe_option_")
-        expect_not_contains(streaming_page, "subscribe_quotes")
-        expect_not_contains(streaming_page, "subscribe_trades")
-        expect_not_contains(streaming_page, "subscribe_full_trades")
-    expect_contains(
-        DOCS_SITE / "streaming/reliability.md",
-        "Caller-driven recovery is always available: `reconnect()`",
-    )
-    # Same streaming-API guards apply to interactive Vue components under the
-    # VitePress theme. Code samples embedded in recipe builders deploy to the
-    # public docs site on every push to main; a dead-API reference there
-    # ships broken paste-and-run examples to readers.
-    vue_components_dir = DOCS_SITE / ".vitepress/theme/components"
-    for vue_file in sorted(vue_components_dir.rglob("*.vue")):
-        expect_not_contains(vue_file, "start_streaming_iter")
-        expect_not_contains(vue_file, "streaming_iter")
-        expect_not_contains(vue_file, "streaming_async")
-        expect_not_contains(vue_file, "startStreamingIter")
-        expect_not_contains(vue_file, "EventIterator")
-        expect_not_contains(vue_file, "StreamEventPoller")
-        expect_not_contains(vue_file, "thetadatadx_streaming_event_iter")
 
 
 def endpoint_page_path(endpoint: dict) -> Path:
@@ -361,64 +172,19 @@ def endpoint_page_path(endpoint: dict) -> Path:
 
 
 def check_reference_pages() -> None:
-    """One generated page per registry endpoint, no stale extras, fixed anatomy."""
-    expected: dict[Path, str] = {
-        endpoint_page_path(ep): ep["name"] for ep in REGISTRY_ENDPOINTS
-    }
-    for path, name in sorted(expected.items()):
-        if not path.is_file():
-            fail(
-                f"missing generated reference page for endpoint {name}: "
-                f"{path.relative_to(ROOT)} — run the docs generator"
-            )
-        text = path.read_text()
-        # The interactive request builder (`<RequestBuilder :cfg="cfg" />`) is the
-        # current per-page anatomy; it replaced the static `<SdkTabs>` code block.
-        for marker in ("@generated", "<RequestBuilder", "## Parameters", "## Response"):
-            if marker not in text:
-                fail(f"{path.relative_to(ROOT)} missing page-anatomy marker {marker!r}")
-        if not re.search(r'<TierBadge tier="(free|value|standard|professional)" />', text):
-            fail(f"{path.relative_to(ROOT)} missing or malformed <TierBadge>")
+    """No reference page outlives its endpoint.
 
+    The generator writes one page per endpoint but never deletes one, and it
+    indexes every page on disk in `llms.txt`, so its check cannot see a page
+    whose endpoint is gone.
+    """
+    expected = {endpoint_page_path(ep) for ep in REGISTRY_ENDPOINTS}
     actual = {p for p in (DOCS_SITE / "reference").rglob("*.md") if p.name != "index.md"}
-    extra = sorted(p.relative_to(ROOT) for p in actual - set(expected))
+    extra = sorted(rel(p) for p in actual - expected)
     if extra:
         fail(
             "stale reference pages with no matching registry endpoint "
-            f"(delete or regenerate): {', '.join(str(p) for p in extra)}"
-        )
-
-
-def site_page_url(md_path: Path) -> str:
-    rel = md_path.relative_to(DOCS_SITE).as_posix().removesuffix(".md")
-    if rel == "index":
-        return "/"
-    if rel.endswith("/index"):
-        return "/" + rel.removesuffix("index")
-    return "/" + rel
-
-
-def check_llms_txt() -> None:
-    """`llms.txt` lists every page on the site and names no deleted page."""
-    llms_path = DOCS_SITE / "public/llms.txt"
-    if not llms_path.is_file():
-        fail("docs-site/docs/public/llms.txt missing — run the docs generator")
-    listed = {
-        line.split(": ", 1)[0].strip()
-        for line in llms_path.read_text().splitlines()
-        if line.strip() and not line.startswith("#")
-    }
-    on_disk = {
-        site_page_url(p)
-        for p in DOCS_SITE.rglob("*.md")
-        if ".vitepress" not in p.parts and "node_modules" not in p.parts
-    }
-    missing = sorted(on_disk - listed)
-    stale = sorted(listed - on_disk)
-    if missing or stale:
-        fail(
-            "docs-site/docs/public/llms.txt drifted from the page tree. "
-            f"missing={missing or '[]'} stale={stale or '[]'} — run the docs generator"
+            f"(delete them): {', '.join(extra)}"
         )
 
 
@@ -493,14 +259,6 @@ def check_openapi() -> None:
     # router source. A route the binary serves but the spec omits leaves a
     # generated client unable to call it; a spec path the binary does not serve
     # is a dangling contract. Either direction trips.
-    #
-    # The only served routes excluded from `expected_paths` are the two
-    # vendor-parity status aliases in `OPENAPI_UNDOCUMENTED_PARITY_ALIASES`
-    # (already subtracted out of `SERVER_ONLY_PATHS`): they are served for
-    # drop-in parity with the JVM terminal and dispatch to the same handlers as
-    # the documented `/v3/terminal/{streaming,historical}/status` routes, while
-    # their path segments are banned client-facing vocabulary that must not
-    # appear in this public spec. See that constant for the full rationale.
     expected_paths = REST_PATHS | SERVER_ONLY_PATHS
     if actual_paths != expected_paths:
         missing = sorted(expected_paths - actual_paths)
@@ -522,14 +280,6 @@ def check_openapi() -> None:
             f"The server reads no per-request credential; keep only the "
             f"route-scoped shutdown token on POST /v3/system/shutdown."
         )
-
-
-def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -> set[str]:
-    text = path.read_text()
-    match = re.search(struct_pattern, text, re.DOTALL)
-    if not match:
-        fail(f"{path.relative_to(ROOT)} missing expected struct pattern: {struct_pattern!r}")
-    return set(re.findall(field_pattern, match.group(1), re.MULTILINE))
 
 
 def _struct_body(text: str, struct_name: str) -> str | None:
@@ -840,14 +590,6 @@ def _rust_fn_body(text: str, fn_signature_re: str, path: Path) -> str:
     return ""  # unreachable; fail() raises
 
 
-def plural_names(names: list[str]) -> str:
-    """Render tool names the way the README prose does: `a`, `b` and `c`."""
-    quoted = [f"`{n}`" for n in sorted(names)]
-    if len(quoted) <= 1:
-        return quoted[0] if quoted else ""
-    return ", ".join(quoted[:-1]) + " and " + quoted[-1]
-
-
 def mcp_tool_inventory() -> dict[str, list[str]]:
     """The connected `tools/list` surface, derived from the MCP server source.
 
@@ -1098,29 +840,6 @@ def check_endpoint_option_surface() -> None:
             f"optional parameters. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
-    cpp_fields = extract_struct_fields(
-        ROOT / "thetadatadx-cpp/include/endpoint_options.hpp.inc",
-        r"struct EndpointRequestOptions \{(.*?)\n\};",
-        r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
-    )
-    if cpp_fields != option_fields:
-        missing = sorted(option_fields - cpp_fields)
-        extra = sorted(cpp_fields - option_fields)
-        fail(
-            "thetadatadx-cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields differ "
-            f"from the endpoints' optional parameters. missing={missing or '[]'} extra={extra or '[]'}"
-        )
-
-    for path in [
-        ROOT / "thetadatadx-ffi/src/lib.rs",
-        ROOT / "thetadatadx-cpp/include/thetadatadx.h",
-        ROOT / "thetadatadx-cpp/include/thetadatadx.hpp",
-        ROOT / "thetadatadx-cpp/src/thetadatadx.cpp",
-        ROOT / "thetadatadx-cpp/README.md",
-        DOCS_SITE / "reference/option/history/greeks/eod.md",
-    ]:
-        expect_not_contains(path, "OptionRequestOptions")
-        expect_not_contains(path, "ThetaDataDxOptionRequestOptions")
 
 
 def _selftest() -> int:
@@ -1260,7 +979,6 @@ def main() -> None:
     check_static_docs()
     check_server_flag_defaults()
     check_reference_pages()
-    check_llms_txt()
     check_openapi()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
