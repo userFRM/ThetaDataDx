@@ -516,7 +516,7 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("1 cells agree across", out)
 
     def test_omit_vs_zero_for_expiration_agrees(self) -> None:
-        # One producer emits `expiration: 0` (Python tick_columnar). The
+        # One producer emits `expiration: 0` (the Python tick classes). The
         # other omits it (server skip-when-zero). Both shapes must
         # canonicalize to "absent".
         _write_artifact(
@@ -578,7 +578,7 @@ class AgreementTests(unittest.TestCase):
 
     def test_right_empty_string_and_zero_canonicalize(self) -> None:
         # Right field has two valid sentinel shapes: empty string `""`
-        # (Python tick_columnar `right: "C"/"P"/""`) and raw int `0`
+        # (the Python tick classes' `right: "C"/"P"/""`) and raw int `0`
         # (server's right_label fall-through, OptionContract). Both must
         # canonicalize to "absent" so `right: ""` (Python), `right: 0`
         # (server / OptionContract emitter), and omitted `right` all agree.
@@ -687,7 +687,7 @@ class AgreementTests(unittest.TestCase):
     def test_stripped_empty_container_vs_absent_parent_disagrees(self) -> None:
         # Team-lead flagged this case as debatable. We pick DISAGREE
         # because real first_row schemas emit contract-id fields at the
-        # TOP level -- no producer in the ecosystem (Python tick_columnar,
+        # TOP level -- no producer in the ecosystem (the Python tick classes,
         # the server's `TableWriter` in tools/server/src/format.rs) nests a
         # `contract` sub-dict in a row.
         # If a hypothetical producer started doing so, surfacing the
