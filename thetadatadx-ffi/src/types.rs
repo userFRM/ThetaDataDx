@@ -164,82 +164,20 @@ macro_rules! tick_array_type {
     };
 }
 
-tick_array_type!(ThetaDataDxEodTickArray, thetadatadx::EodTick);
-tick_array_type!(ThetaDataDxOhlcTickArray, thetadatadx::OhlcTick);
-tick_array_type!(ThetaDataDxTradeTickArray, thetadatadx::TradeTick);
-tick_array_type!(ThetaDataDxQuoteTickArray, thetadatadx::QuoteTick);
 // Per-order Greeks subsets emitted by `option_*_greeks_first_order` /
 // `_second_order` / `_third_order`. The full union for the interval-sampled
 // `option_*_greeks_all` endpoints lands on `ThetaDataDxGreeksAllTickArray`; the
 // end-of-day endpoint `option_history_greeks_eod` lands on
 // `ThetaDataDxGreeksEodTickArray` (carries 12 EOD trade/quote columns absent from
 // the interval-sampled all-union shape).
-tick_array_type!(ThetaDataDxGreeksAllTickArray, thetadatadx::GreeksAllTick);
-tick_array_type!(ThetaDataDxGreeksEodTickArray, thetadatadx::GreeksEodTick);
-tick_array_type!(
-    ThetaDataDxGreeksFirstOrderTickArray,
-    thetadatadx::GreeksFirstOrderTick
-);
-tick_array_type!(
-    ThetaDataDxGreeksSecondOrderTickArray,
-    thetadatadx::GreeksSecondOrderTick
-);
-tick_array_type!(
-    ThetaDataDxGreeksThirdOrderTickArray,
-    thetadatadx::GreeksThirdOrderTick
-);
 // Per-OPRA-trade Greeks emitted by `option_history_trade_greeks_*`. These
 // carry the nine trade-side execution columns alongside the Greek values --
 // distinct from the interval-sampled `ThetaDataDxGreeks*TickArray` whose rows carry
 // the bid/ask quote pair instead.
-tick_array_type!(
-    ThetaDataDxTradeGreeksAllTickArray,
-    thetadatadx::TradeGreeksAllTick
-);
-tick_array_type!(
-    ThetaDataDxTradeGreeksFirstOrderTickArray,
-    thetadatadx::TradeGreeksFirstOrderTick
-);
-tick_array_type!(
-    ThetaDataDxTradeGreeksSecondOrderTickArray,
-    thetadatadx::TradeGreeksSecondOrderTick
-);
-tick_array_type!(
-    ThetaDataDxTradeGreeksThirdOrderTickArray,
-    thetadatadx::TradeGreeksThirdOrderTick
-);
-tick_array_type!(
-    ThetaDataDxTradeGreeksImpliedVolatilityTickArray,
-    thetadatadx::TradeGreeksImpliedVolatilityTick
-);
-tick_array_type!(ThetaDataDxIvTickArray, thetadatadx::IvTick);
-tick_array_type!(ThetaDataDxPriceTickArray, thetadatadx::PriceTick);
 // Trade-shaped row emitted by `index_at_time_price` (10 wire columns:
 // `timestamp`, `sequence`, `ext_condition1..4`, `condition`, `size`,
 // `exchange`, `price`). Distinct from the bare `ThetaDataDxPriceTickArray`
 // used by `index_snapshot_price` / `index_history_price` (3 columns).
-tick_array_type!(
-    ThetaDataDxIndexPriceAtTimeTickArray,
-    thetadatadx::IndexPriceAtTimeTick
-);
-tick_array_type!(
-    ThetaDataDxOpenInterestTickArray,
-    thetadatadx::OpenInterestTick
-);
-tick_array_type!(
-    ThetaDataDxMarketValueTickArray,
-    thetadatadx::MarketValueTick
-);
-tick_array_type!(ThetaDataDxCalendarDayArray, thetadatadx::CalendarDay);
-tick_array_type!(
-    ThetaDataDxInterestRateTickArray,
-    thetadatadx::InterestRateTick
-);
-tick_array_type!(ThetaDataDxTradeQuoteTickArray, thetadatadx::TradeQuoteTick);
-tick_array_type!(
-    ThetaDataDxIntervalQuoteTickArray,
-    thetadatadx::IntervalQuoteTick
-);
 
 /// Generate a `#[unsafe(no_mangle)] extern "C"` free function for a tick array type.
 macro_rules! tick_array_free {
@@ -254,81 +192,6 @@ macro_rules! tick_array_free {
         }
     };
 }
-
-tick_array_free!(thetadatadx_eod_tick_array_free, ThetaDataDxEodTickArray);
-tick_array_free!(thetadatadx_ohlc_tick_array_free, ThetaDataDxOhlcTickArray);
-tick_array_free!(thetadatadx_trade_tick_array_free, ThetaDataDxTradeTickArray);
-tick_array_free!(thetadatadx_quote_tick_array_free, ThetaDataDxQuoteTickArray);
-tick_array_free!(
-    thetadatadx_greeks_all_tick_array_free,
-    ThetaDataDxGreeksAllTickArray
-);
-tick_array_free!(
-    thetadatadx_greeks_eod_tick_array_free,
-    ThetaDataDxGreeksEodTickArray
-);
-tick_array_free!(
-    thetadatadx_greeks_first_order_tick_array_free,
-    ThetaDataDxGreeksFirstOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_greeks_second_order_tick_array_free,
-    ThetaDataDxGreeksSecondOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_greeks_third_order_tick_array_free,
-    ThetaDataDxGreeksThirdOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_greeks_all_tick_array_free,
-    ThetaDataDxTradeGreeksAllTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_greeks_first_order_tick_array_free,
-    ThetaDataDxTradeGreeksFirstOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_greeks_second_order_tick_array_free,
-    ThetaDataDxTradeGreeksSecondOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_greeks_third_order_tick_array_free,
-    ThetaDataDxTradeGreeksThirdOrderTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_greeks_implied_volatility_tick_array_free,
-    ThetaDataDxTradeGreeksImpliedVolatilityTickArray
-);
-tick_array_free!(thetadatadx_iv_tick_array_free, ThetaDataDxIvTickArray);
-tick_array_free!(thetadatadx_price_tick_array_free, ThetaDataDxPriceTickArray);
-tick_array_free!(
-    thetadatadx_index_price_at_time_tick_array_free,
-    ThetaDataDxIndexPriceAtTimeTickArray
-);
-tick_array_free!(
-    thetadatadx_open_interest_tick_array_free,
-    ThetaDataDxOpenInterestTickArray
-);
-tick_array_free!(
-    thetadatadx_market_value_tick_array_free,
-    ThetaDataDxMarketValueTickArray
-);
-tick_array_free!(
-    thetadatadx_calendar_day_array_free,
-    ThetaDataDxCalendarDayArray
-);
-tick_array_free!(
-    thetadatadx_interest_rate_tick_array_free,
-    ThetaDataDxInterestRateTickArray
-);
-tick_array_free!(
-    thetadatadx_trade_quote_tick_array_free,
-    ThetaDataDxTradeQuoteTickArray
-);
-tick_array_free!(
-    thetadatadx_interval_quote_tick_array_free,
-    ThetaDataDxIntervalQuoteTickArray
-);
 
 // ═══════════════════════════════════════════════════════════════════════
 //  Arrow IPC terminal for in-band history tick rows
@@ -444,81 +307,6 @@ macro_rules! tick_array_to_arrow_ipc {
         }
     };
 }
-
-tick_array_to_arrow_ipc!(thetadatadx_eod_ticks_to_arrow_ipc, thetadatadx::EodTick);
-tick_array_to_arrow_ipc!(thetadatadx_ohlc_ticks_to_arrow_ipc, thetadatadx::OhlcTick);
-tick_array_to_arrow_ipc!(thetadatadx_trade_ticks_to_arrow_ipc, thetadatadx::TradeTick);
-tick_array_to_arrow_ipc!(thetadatadx_quote_ticks_to_arrow_ipc, thetadatadx::QuoteTick);
-tick_array_to_arrow_ipc!(
-    thetadatadx_greeks_all_ticks_to_arrow_ipc,
-    thetadatadx::GreeksAllTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_greeks_eod_ticks_to_arrow_ipc,
-    thetadatadx::GreeksEodTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_greeks_first_order_ticks_to_arrow_ipc,
-    thetadatadx::GreeksFirstOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_greeks_second_order_ticks_to_arrow_ipc,
-    thetadatadx::GreeksSecondOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_greeks_third_order_ticks_to_arrow_ipc,
-    thetadatadx::GreeksThirdOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_greeks_all_ticks_to_arrow_ipc,
-    thetadatadx::TradeGreeksAllTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc,
-    thetadatadx::TradeGreeksFirstOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc,
-    thetadatadx::TradeGreeksSecondOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc,
-    thetadatadx::TradeGreeksThirdOrderTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc,
-    thetadatadx::TradeGreeksImpliedVolatilityTick
-);
-tick_array_to_arrow_ipc!(thetadatadx_iv_ticks_to_arrow_ipc, thetadatadx::IvTick);
-tick_array_to_arrow_ipc!(thetadatadx_price_ticks_to_arrow_ipc, thetadatadx::PriceTick);
-tick_array_to_arrow_ipc!(
-    thetadatadx_index_price_at_time_ticks_to_arrow_ipc,
-    thetadatadx::IndexPriceAtTimeTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_open_interest_ticks_to_arrow_ipc,
-    thetadatadx::OpenInterestTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_market_value_ticks_to_arrow_ipc,
-    thetadatadx::MarketValueTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_calendar_days_to_arrow_ipc,
-    thetadatadx::CalendarDay
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_interest_rate_ticks_to_arrow_ipc,
-    thetadatadx::InterestRateTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_trade_quote_ticks_to_arrow_ipc,
-    thetadatadx::TradeQuoteTick
-);
-tick_array_to_arrow_ipc!(
-    thetadatadx_interval_quote_ticks_to_arrow_ipc,
-    thetadatadx::IntervalQuoteTick
-);
 
 /// Free a byte buffer returned by any `thetadatadx_*_to_arrow_ipc` terminal.
 #[unsafe(no_mangle)]
@@ -947,189 +735,30 @@ macro_rules! tick_array_to_arrow_ipc_projected {
     };
 }
 
-// Presence producer + projected serialiser, one per tick type — the same set
-// the all-present `tick_array_to_arrow_ipc!` block above covers. A tick added
-// to the tick table gets a row in all three families (plus the C header
-// decls).
-tick_present_columns!(thetadatadx_eod_ticks_present_columns, thetadatadx::EodTick);
-tick_present_columns!(
-    thetadatadx_ohlc_ticks_present_columns,
-    thetadatadx::OhlcTick
-);
-tick_present_columns!(
-    thetadatadx_trade_ticks_present_columns,
-    thetadatadx::TradeTick
-);
-tick_present_columns!(
-    thetadatadx_quote_ticks_present_columns,
-    thetadatadx::QuoteTick
-);
-tick_present_columns!(
-    thetadatadx_greeks_all_ticks_present_columns,
-    thetadatadx::GreeksAllTick
-);
-tick_present_columns!(
-    thetadatadx_greeks_eod_ticks_present_columns,
-    thetadatadx::GreeksEodTick
-);
-tick_present_columns!(
-    thetadatadx_greeks_first_order_ticks_present_columns,
-    thetadatadx::GreeksFirstOrderTick
-);
-tick_present_columns!(
-    thetadatadx_greeks_second_order_ticks_present_columns,
-    thetadatadx::GreeksSecondOrderTick
-);
-tick_present_columns!(
-    thetadatadx_greeks_third_order_ticks_present_columns,
-    thetadatadx::GreeksThirdOrderTick
-);
-tick_present_columns!(
-    thetadatadx_trade_greeks_all_ticks_present_columns,
-    thetadatadx::TradeGreeksAllTick
-);
-tick_present_columns!(
-    thetadatadx_trade_greeks_first_order_ticks_present_columns,
-    thetadatadx::TradeGreeksFirstOrderTick
-);
-tick_present_columns!(
-    thetadatadx_trade_greeks_second_order_ticks_present_columns,
-    thetadatadx::TradeGreeksSecondOrderTick
-);
-tick_present_columns!(
-    thetadatadx_trade_greeks_third_order_ticks_present_columns,
-    thetadatadx::TradeGreeksThirdOrderTick
-);
-tick_present_columns!(
-    thetadatadx_trade_greeks_implied_volatility_ticks_present_columns,
-    thetadatadx::TradeGreeksImpliedVolatilityTick
-);
-tick_present_columns!(thetadatadx_iv_ticks_present_columns, thetadatadx::IvTick);
-tick_present_columns!(
-    thetadatadx_price_ticks_present_columns,
-    thetadatadx::PriceTick
-);
-tick_present_columns!(
-    thetadatadx_index_price_at_time_ticks_present_columns,
-    thetadatadx::IndexPriceAtTimeTick
-);
-tick_present_columns!(
-    thetadatadx_open_interest_ticks_present_columns,
-    thetadatadx::OpenInterestTick
-);
-tick_present_columns!(
-    thetadatadx_market_value_ticks_present_columns,
-    thetadatadx::MarketValueTick
-);
-tick_present_columns!(
-    thetadatadx_calendar_days_present_columns,
-    thetadatadx::CalendarDay
-);
-tick_present_columns!(
-    thetadatadx_interest_rate_ticks_present_columns,
-    thetadatadx::InterestRateTick
-);
-tick_present_columns!(
-    thetadatadx_trade_quote_ticks_present_columns,
-    thetadatadx::TradeQuoteTick
-);
-tick_present_columns!(
-    thetadatadx_interval_quote_ticks_present_columns,
-    thetadatadx::IntervalQuoteTick
-);
+/// Expands every tick of the tick table that has a C layout into its array
+/// type, its free function and its three Arrow IPC entry points. A row that
+/// owns a `String` (`#[owned]`) has no C layout and is marshalled by hand.
+macro_rules! tick_entry_points {
+    () => {};
+    (#[owned] $name:ident $body:tt $($rest:tt)*) => {
+        tick_entry_points! { $($rest)* }
+    };
+    ($(#[$attr:meta])? $name:ident $body:tt $($rest:tt)*) => {
+        thetadatadx::__paste! {
+            tick_array_type!([<ThetaDataDx $name Array>], thetadatadx::$name);
+            tick_array_free!([<thetadatadx_ $name:snake _array_free>], [<ThetaDataDx $name Array>]);
+            tick_array_to_arrow_ipc!([<thetadatadx_ $name:snake s_to_arrow_ipc>], thetadatadx::$name);
+            tick_present_columns!([<thetadatadx_ $name:snake s_present_columns>], thetadatadx::$name);
+            tick_array_to_arrow_ipc_projected!(
+                [<thetadatadx_ $name:snake s_to_arrow_ipc_projected>],
+                thetadatadx::$name
+            );
+        }
+        tick_entry_points! { $($rest)* }
+    };
+}
 
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_eod_ticks_to_arrow_ipc_projected,
-    thetadatadx::EodTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_ohlc_ticks_to_arrow_ipc_projected,
-    thetadatadx::OhlcTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_quote_ticks_to_arrow_ipc_projected,
-    thetadatadx::QuoteTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_greeks_all_ticks_to_arrow_ipc_projected,
-    thetadatadx::GreeksAllTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected,
-    thetadatadx::GreeksEodTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::GreeksFirstOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::GreeksSecondOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::GreeksThirdOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeGreeksAllTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeGreeksFirstOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeGreeksSecondOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeGreeksThirdOrderTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeGreeksImpliedVolatilityTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_iv_ticks_to_arrow_ipc_projected,
-    thetadatadx::IvTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_price_ticks_to_arrow_ipc_projected,
-    thetadatadx::PriceTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected,
-    thetadatadx::IndexPriceAtTimeTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_open_interest_ticks_to_arrow_ipc_projected,
-    thetadatadx::OpenInterestTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_market_value_ticks_to_arrow_ipc_projected,
-    thetadatadx::MarketValueTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_calendar_days_to_arrow_ipc_projected,
-    thetadatadx::CalendarDay
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_interest_rate_ticks_to_arrow_ipc_projected,
-    thetadatadx::InterestRateTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_trade_quote_ticks_to_arrow_ipc_projected,
-    thetadatadx::TradeQuoteTick
-);
-tick_array_to_arrow_ipc_projected!(
-    thetadatadx_interval_quote_ticks_to_arrow_ipc_projected,
-    thetadatadx::IntervalQuoteTick
-);
+thetadatadx::__ticks! { tick_entry_points {} }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  OptionContract FFI type (String field requires special handling)
