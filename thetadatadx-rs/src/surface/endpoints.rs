@@ -79,13 +79,17 @@
 /// `defaults` lists the documented defaults (`quote` is the quote the
 /// documentation renders the value in), and `dates` the required date
 /// arguments the builder validates before sending.
+///
+/// A key the vocabulary does not define fails the build with an error that
+/// names it, and names the endpoint too when the keys are followed by
+/// `for <endpoint>`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __resolve {
-    ([$($key:tt)*] => $m:ident { $($ctx:tt)* }) => {
-        $crate::__resolve! { @next [$($key)*] {} {} {} {} {} $m { $($ctx)* } }
+    ([$($key:tt)*] $(for $name:ident)? => $m:ident { $($ctx:tt)* }) => {
+        $crate::__resolve! { @next [$($key)*] {} {} {} {} {} $m { $($ctx)* } [$($name)?] }
     };
-    (@next [] {$($all:tt)*} {$($req:tt)*} {$($opt:tt)*} {$($def:tt)*} {$($dates:tt)*} $m:ident { $($ctx:tt)* }) => {
+    (@next [] {$($all:tt)*} {$($req:tt)*} {$($opt:tt)*} {$($def:tt)*} {$($dates:tt)*} $m:ident { $($ctx:tt)* } $name:tt) => {
         $m! { $($ctx)* params {
             all [$($all)*] req [$($req)*] opt [$($opt)*] defaults [$($def)*] dates [$($dates)*]
         } }
@@ -299,6 +303,9 @@ macro_rules! __param {
     (option_at_time $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity date_range_required time_of_day max_dte_filter strike_range_filter] $($s)* } };
     (option_flat_file $($s:tt)*) => { $crate::__resolve! { @keys [required_date] $($s)* } };
     (index_snapshot $($s:tt)*) => { $crate::__resolve! { @keys [multi_symbol min_time_filter current_day_only_flag] $($s)* } };
+    ($key:tt $keys:tt $all:tt $req:tt $opt:tt $def:tt $dates:tt $m:ident $ctx:tt [$($name:ident)?]) => {
+        compile_error! { concat!("unknown endpoint parameter key `", stringify!($key), "`" $(, " in `", stringify!($name), "`")?) }
+    };
 }
 
 /// The optional parameters of the C ABI options struct, in field order.

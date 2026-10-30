@@ -327,7 +327,7 @@ exceeds [`crate::config::MarketDataConfig::warn_on_buffered_threshold_bytes`]
 macro_rules! market_data_endpoint {
     // Only a list endpoint can be a plain method.
     (@method list $name:ident $ret:ident ($col:literal) $doc:tt $keys:tt) => {
-        crate::__resolve! { $keys => market_data_endpoint { method list $name $ret ($col) $doc } }
+        crate::__resolve! { $keys for $name => market_data_endpoint { method list $name $ret ($col) $doc } }
     };
     (@method $($other:tt)*) => {};
 
@@ -509,7 +509,7 @@ macro_rules! market_data_endpoints {
                 flat_file_to_path! { $sub $name }
             )*
         }
-        $( crate::__resolve! { [$($key)*] => market_data_endpoint { builder $shape $name $ret $(($col))? [$($doc)*] } } )*
+        $( crate::__resolve! { [$($key)*] for $name => market_data_endpoint { builder $shape $name $ret $(($col))? [$($doc)*] } } )*
     };
 }
 
@@ -524,7 +524,7 @@ macro_rules! market_data_streams {
         params: [$($key:tt)*],
         doc: [$($doc:literal),* $(,)?],
     } )*) => {
-        $( crate::__resolve! { [$($key)*] => market_data_endpoint { stream $wire $name $item } } )*
+        $( crate::__resolve! { [$($key)*] for $name => market_data_endpoint { stream $wire $name $item } } )*
     };
 }
 

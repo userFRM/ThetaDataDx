@@ -190,7 +190,7 @@ macro_rules! registry_endpoints {
         doc: [$desc:literal $(, $doc:literal)* $(,)?],
     } )*) => {
         pub static ENDPOINTS: &[EndpointMeta] = &[$(
-            crate::__resolve!([$($key)*] => registry_entry { $name $cat $sub $rest $ret $desc }),
+            crate::__resolve!([$($key)*] for $name => registry_entry { $name $cat $sub $rest $ret $desc }),
         )*];
     };
 }
