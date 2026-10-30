@@ -1,5 +1,5 @@
-name: Setup Rust + cache + protoc
-description: Stable Rust toolchain, Swatinem cache, and protoc. Mirrors the four-step preamble used by every Rust build job in this repo.
+name: Setup Rust + cache
+description: Stable Rust toolchain and Swatinem cache, the preamble used by every Rust build job in this repo.
 
 inputs:
   components:
@@ -14,4 +14,3 @@ runs:
       with:
         components: ${{ inputs.components }}
     - uses: Swatinem/rust-cache@v2
-    - uses: ./.github/actions/install-protoc
