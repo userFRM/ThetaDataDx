@@ -122,7 +122,6 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       # `--all-features` so feature-gated code is linted too. Without it the
       # generator sources behind `__internal` are never reached by this job,
       # and a lint can sit in the tree while the job stays green.
@@ -205,6 +204,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust-deps
+      # The snapshot refresh drives `prost-build`, which shells out to `protoc`.
+      - uses: ./.github/actions/install-protoc
       - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
       - run: cargo run -p thetadatadx-rs --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
@@ -361,7 +362,6 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - if: matrix.toolchain == 'stable'
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       # The floor covers every feature and every member: anyone installing
@@ -608,7 +608,6 @@ jobs:
         with:
           node-version: "20"
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       # NOTE: `test_check_agreement.py` ran here historically, but it is a
       # pure-Python gate that must run on EVERY PR (a docs-only PR skips this
       # rust-gated heavy job). It now lives in the standalone `agreement`
@@ -765,7 +764,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - uses: ./.github/actions/install-protoc
       - name: Install musl toolchain (Linux)
         if: runner.os == 'Linux'
         shell: bash
@@ -1002,7 +1000,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
-      - uses: ./.github/actions/install-protoc
       - shell: bash
         run: |
           set -euo pipefail
