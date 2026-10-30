@@ -1896,3 +1896,136 @@ macro_rules! __config {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::DirectConfig;
+
+    /// A numeric or boolean accessor's production value and its documentation
+    /// in each binding.
+    struct Documented {
+        symbol: &'static str,
+        setter: bool,
+        value: String,
+        docs: [(&'static str, &'static [&'static str]); 4],
+    }
+
+    /// Collects every accessor of a number or a boolean; the others document
+    /// their default in words.
+    macro_rules! documented {
+        ({ $($done:tt)* }) => { vec![$($done)*] };
+        ({ $($done:tt)* } $kind:ident $sym:ident ($p:ident: $ty:ident) [$($target:tt)*] {
+            $(param: $param:ident,)?
+            doc: [$($d:literal),* $(,)?],
+            cpp_doc: [$($c:literal),* $(,)?],
+            py_doc: [$($py:literal),* $(,)?],
+            ts_doc: [$($ts:literal),* $(,)?] $(,)?
+        } $($rest:tt)*) => {
+            documented! { {
+                $($done)*
+                documented!(@entry $ty $kind $sym [$($target)*] [
+                    ("C", &[$($d),*]),
+                    ("C++", &[$($c),*]),
+                    ("Python", &[$($py),*]),
+                    ("TypeScript", &[$($ts),*]),
+                ]),
+            } $($rest)* }
+        };
+        ({ $($done:tt)* } $kind:ident $sym:ident $param:tt $target:tt $body:tt $($rest:tt)*) => {
+            documented! { { $($done)* } $($rest)* }
+        };
+        (@entry String $($skip:tt)*) => { None };
+        (@entry $ty:ident $kind:ident $sym:ident [$($target:tt)*] $docs:tt) => {{
+            let config = DirectConfig::production_defaults();
+            Some(Documented {
+                symbol: stringify!($sym),
+                setter: stringify!($kind) == "set",
+                value: $crate::__config_read!(config [$($target)*]).to_string(),
+                docs: $docs,
+            })
+        }};
+    }
+
+    /// Every value the documentation gives as the default: the number or
+    /// boolean after `Default`, `default` or `Defaults`, past an `is`, `of` or
+    /// `to` and any quoting, with `_` separators and a BigInt `n` dropped, a
+    /// `MiB` count in bytes and a product such as `100 * 1024 * 1024`
+    /// multiplied out.
+    fn stated_defaults(doc: &str) -> Vec<String> {
+        let mut values = Vec::new();
+        for (at, _) in doc.match_indices("efault") {
+            if !doc[..at].ends_with(['D', 'd']) {
+                continue;
+            }
+            let mut rest = doc[at + "efault".len()..]
+                .trim_start_matches('s')
+                .trim_start();
+            for word in ["is ", "of ", "to "] {
+                rest = rest.strip_prefix(word).unwrap_or(rest);
+            }
+            let mut rest = rest.trim_start_matches(['`', ' ']);
+            if let Some(word) = ["true", "True", "false", "False"]
+                .into_iter()
+                .find(|word| rest.starts_with(word))
+            {
+                values.push(word.to_lowercase());
+                continue;
+            }
+            let mut product: Option<u128> = None;
+            loop {
+                let digits = rest
+                    .find(|c: char| !c.is_ascii_digit() && c != '_')
+                    .unwrap_or(rest.len());
+                let Ok(mut factor) = rest[..digits].replace('_', "").parse::<u128>() else {
+                    break;
+                };
+                rest = rest[digits..].trim_start_matches(['n', '`']);
+                if let Some(after) = rest.strip_prefix(" MiB") {
+                    factor <<= 20;
+                    rest = after;
+                }
+                product = Some(product.unwrap_or(1) * factor);
+                match rest.trim_start().strip_prefix('*') {
+                    Some(next) => rest = next.trim_start().trim_start_matches('`'),
+                    None => break,
+                }
+            }
+            values.extend(product.map(|value| value.to_string()));
+        }
+        values
+    }
+
+    /// A default stated in any binding's documentation is the one
+    /// `DirectConfig` starts from, and every setter of a number or a boolean
+    /// states it, so a default changed in the config cannot leave a binding
+    /// documenting the old one.
+    #[test]
+    fn documented_defaults_match_the_production_config() {
+        let entries: Vec<Option<Documented>> = crate::__config! { documented { {} } };
+        let mut wrong = Vec::new();
+        let mut checked = 0;
+        for entry in entries.into_iter().flatten() {
+            for (binding, lines) in entry.docs {
+                let stated = stated_defaults(&lines.join(" "));
+                // Documented as the host's companion, the port states no default.
+                if entry.setter
+                    && stated.is_empty()
+                    && entry.symbol != "thetadatadx_config_set_market_data_port"
+                {
+                    wrong.push(format!("{} ({binding}) states no default", entry.symbol));
+                }
+                for value in stated {
+                    checked += 1;
+                    if value != entry.value {
+                        wrong.push(format!(
+                            "{} ({binding}) documents default {value}; the config starts at {}",
+                            entry.symbol, entry.value
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+        assert!(checked > 0, "no documented default was read");
+    }
+}

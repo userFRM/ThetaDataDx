@@ -223,20 +223,6 @@ jobs:
           python3 scripts/ci/tests/test_check_client_facing_vocab.py
           python3 scripts/ci/check_client_facing_vocab.py
 
-  doc-defaults:
-    name: Documented config defaults
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Documented default vs Rust source-of-truth detector
-        run: |
-          python3 scripts/ci/check_doc_defaults.py --selftest
-          python3 scripts/ci/check_doc_defaults.py
-
   docs-consistency:
     name: Docs consistency
     runs-on: ubuntu-latest
@@ -894,7 +880,6 @@ jobs:
       - c-abi-completeness
       - wire-schema-drift
       - public-surface-leak
-      - doc-defaults
       - docs-consistency
       - version-sync
       - agreement
