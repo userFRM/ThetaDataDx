@@ -276,3 +276,99 @@ fn push_json_string(out: &mut String, text: &str) {
     }
     out.push('"');
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A chunk shaped like the service's: the header line, then rows whose
+    /// quoted cells are text (the service sends prices as decimal text) and
+    /// whose bare cells are integers.
+    fn chunk(file: &str) -> (Vec<String>, Vec<DataValueList>) {
+        let cell = |cell: &str| DataValue {
+            data_type: Some(
+                match cell.strip_prefix('"').and_then(|c| c.strip_suffix('"')) {
+                    Some(text) => DataType::Text(text.to_owned()),
+                    None => DataType::Number(cell.parse().expect("integer cell")),
+                },
+            ),
+        };
+        let mut lines = file.lines();
+        let headers = lines
+            .next()
+            .expect("header line")
+            .split(',')
+            .map(str::to_owned)
+            .collect();
+        let rows = lines
+            .map(|line| DataValueList {
+                values: line.split(',').map(cell).collect(),
+            })
+            .collect();
+        (headers, rows)
+    }
+
+    fn written(format: FlatFileFormat, file: &str) -> String {
+        let mut renderer = FileRenderer::new(format);
+        let (headers, rows) = chunk(file);
+        let mut out = renderer
+            .chunk(&headers, &rows)
+            .expect("the file is written");
+        out.extend(renderer.finish());
+        out
+    }
+
+    /// A flat file is written as the terminal writes it: the terminal's own
+    /// rows for 2026-10-21, sent through as the service's cells, come back
+    /// byte for byte, the sub-penny `"0.00010"` and the closing blank line
+    /// included.
+    #[test]
+    fn flat_files_are_written_as_the_terminal_writes_them() {
+        let stock_eod = "root,ms_of_day,ms_of_day2,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"HCMA\",62128177,57600350,\"10.3\",\"10.3\",\"10.3\",\"10.3\",112241,101,100,7,\"10.26\",0,100,7,\"10.35\",0,20261021\n\
+            \"HCMC\",62128177,57577936,\"0.00010\",\"0.00010\",\"0.0\",\"0.00010\",42627531,109,0,0,\"0.0\",0,0,0,\"0.0\",0,20261021\n";
+        assert_eq!(
+            written(FlatFileFormat::Csv, stock_eod),
+            format!("{stock_eod}\n")
+        );
+
+        let option_quote = "root,expiration,strike,right,interval_ms_of_day,quote_ms_of_day,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,date\n\
+            \"ABG\",20270115,\"115.0\",\"C\",34260000,34259636,1,11,\"61.0\",50,1,11,\"65.0\",50,20261021\n";
+        assert_eq!(
+            written(FlatFileFormat::Csv, option_quote),
+            format!("{option_quote}\n")
+        );
+
+        // The JSON form carries the same cells: text as strings, integers as
+        // numbers, in the `response` envelope.
+        assert_eq!(
+            written(
+                FlatFileFormat::Json,
+                "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
+            ),
+            "{\"response\":[{\"root\":\"HCMC\",\"bid\":\"0.00010\",\"date\":20261021}]}"
+        );
+
+        // The legacy JSON form is one array per column, the same cells in
+        // the same order, row `i` at index `i` of every array.
+        assert_eq!(
+            written(
+                FlatFileFormat::JsonLegacy,
+                "root,bid,date\n\"HCMA\",\"10.26\",20261021\n\"HCMC\",\"0.00010\",20261021\n"
+            ),
+            "{\"root\":[\"HCMA\",\"HCMC\"],\"bid\":[\"10.26\",\"0.00010\"],\"date\":[20261021,20261021]}"
+        );
+
+        // The HTML form is the terminal's page, as the regular routes write it.
+        assert_eq!(
+            written(
+                FlatFileFormat::Html,
+                "root,bid,date\n\"HCMC\",\"0.00010\",20261021\n"
+            ),
+            "<!DOCTYPE html><html lang=\"en\">\n<head><title>Theta Data</title></head>\n<body>\n\
+             <table style=\"width:100%; text-align: center;\"><thead><tr><th>root</th><th>bid</th><th>date</th></tr></thead>\n\
+             <tbody><tr><td>HCMC</td><td>0.00010</td><td>20261021</td></tr>\n\
+             </tbody></table></body></html>\n"
+        );
+    }
+}
