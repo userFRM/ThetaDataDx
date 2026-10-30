@@ -10,12 +10,6 @@
 //!
 //! Escape conventions per language:
 //!
-//! * **Python** — PEP 8 keyword convention: append a trailing
-//!   underscore (`lambda` -> `lambda_`). Applied to pyclass struct
-//!   fields (the `#[pyo3(get)]` attribute name), constructor kwargs,
-//!   `__repr__` labels, and stubs. Columnar surfaces (Arrow fields,
-//!   pandas columns, dict keys) keep the logical column name — column
-//!   names are strings, not identifiers, so no collision exists there.
 //! * **Rust** — raw-identifier prefix (`type` -> `r#type`). Keywords
 //!   that cannot be raw (`self`, `super`, `crate`, `Self`) get the
 //!   trailing-underscore fallback.
@@ -29,17 +23,6 @@
 //! Keyword tables are deliberately broad (soft keywords included):
 //! escaping a name that did not strictly need it is a cosmetic cost,
 //! while missing one is an unusable public surface.
-
-/// Python keywords (`keyword.kwlist`, 3.12) plus soft keywords
-/// (`keyword.softkwlist`: `match` / `case` / `type` / `_`). Soft
-/// keywords are legal attribute names today, but escaping them keeps
-/// generated surfaces clear of parser ambiguity in pattern contexts.
-const PYTHON_RESERVED: &[&str] = &[
-    "False", "None", "True", "and", "as", "assert", "async", "await", "break", "class", "continue",
-    "def", "del", "elif", "else", "except", "finally", "for", "from", "global", "if", "import",
-    "in", "is", "lambda", "nonlocal", "not", "or", "pass", "raise", "return", "try", "while",
-    "with", "yield", "match", "case", "type", "_",
-];
 
 /// Rust strict + reserved keywords (2024 edition). Names here are
 /// emitted as raw identifiers (`r#name`); the four that cannot be raw
@@ -121,16 +104,6 @@ const C_CPP_RESERVED: &[&str] = &[
     "while",
 ];
 
-/// Python attribute spelling for a schema field name. `lambda` ->
-/// `lambda_`; non-keywords pass through unchanged.
-pub(crate) fn python_field_ident(field: &str) -> String {
-    if PYTHON_RESERVED.contains(&field) {
-        format!("{field}_")
-    } else {
-        field.to_string()
-    }
-}
-
 /// Rust identifier spelling for a schema field name. Keywords become
 /// raw identifiers (`r#type`); the non-raw-able four take a trailing
 /// underscore.
@@ -157,14 +130,6 @@ pub(crate) fn c_field_ident(field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn python_escapes_keywords_and_soft_keywords() {
-        assert_eq!(python_field_ident("lambda"), "lambda_");
-        assert_eq!(python_field_ident("class"), "class_");
-        assert_eq!(python_field_ident("match"), "match_");
-        assert_eq!(python_field_ident("delta"), "delta");
-    }
 
     #[test]
     fn rust_raw_escapes_keywords() {

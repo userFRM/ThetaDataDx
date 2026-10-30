@@ -1,8 +1,8 @@
 //! `TicksArrowExt::to_arrow` coverage.
 //!
 //! Runs under `cargo test -p thetadatadx-rs --features arrow`. Mirrors the
-//! polars test — asserts column set, order, row count, and dtypes match
-//! the schema emitted by the Python slice_arrow path.
+//! polars test: asserts column set, order, row count, and dtypes. The Python
+//! binding builds its Arrow tables through the same impls.
 
 #![cfg(feature = "arrow")]
 
@@ -64,7 +64,7 @@ fn ohlc_tick_to_arrow_schema_matches_python() {
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    // i64-widened volume / count match the Python slice_arrow dtype.
+    // volume / count are i64 columns.
     assert_eq!(dtype_of(&batch, "volume"), DataType::Int64);
     assert_eq!(dtype_of(&batch, "count"), DataType::Int64);
     assert_eq!(dtype_of(&batch, "strike"), DataType::Float64);

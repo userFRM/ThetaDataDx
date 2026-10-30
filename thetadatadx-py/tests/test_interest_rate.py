@@ -1,6 +1,6 @@
 """Regression coverage for the `InterestRateTick` schema fix.
 
-The `tick_schema.toml` definition must match what the upstream v3 server
+The tick table definition must match what the upstream v3 server
 actually emits for interest-rate EOD: two columns, an ISO-date `created`
 header and a `rate` percent value — not a fictitious `ms_of_day` field. A
 schema that advertises `ms_of_day` makes every live
@@ -8,7 +8,7 @@ schema that advertises `ms_of_day` makes every live
 `expected: "Number|Timestamp", got Text`.
 
 The schema is cross-binding by design — the Python `InterestRateTick`
-pyclass is regenerated from `tick_schema.toml`, so the shape of the
+pyclass is expanded from the tick table, so the shape of the
 pyclass itself is the single source of truth this test pins. Liveness
 of the decode is covered upstream in
 `thetadatadx-rs/tests/test_interest_rate_schema.rs`; here we lock

@@ -1,10 +1,8 @@
 //! TOML-backed schema types for `tick_schema.toml` reachable from the
 //! `generate_sdk_surfaces` binary.
 //!
-//! Adds the per-language render block + doc / copy / align metadata that
-//! the SDK projection emitters need on top of the build-script's
-//! decoder-focused view. Both compile units deserialize the same TOML —
-//! extra fields here, missing fields in the build-script schema.
+//! Carries the per-language render block and the doc / align metadata the
+//! SDK projection emitters need.
 
 use std::collections::HashMap;
 
@@ -16,14 +14,13 @@ pub(crate) struct Schema {
     pub(crate) types: HashMap<String, TickTypeDef>,
 }
 
-/// Parsed from `tick_schema.toml`. `doc`, `copy`, and `align` drive the
-/// generated tick struct layout; `render` drives the per-language binding
+/// Parsed from `tick_schema.toml`. `doc` and `align` drive the
+/// generated tick layout; `render` drives the per-language binding
 /// name lookups consumed by every renderer in
 /// `build_support_bin/endpoints/sdk_render/` and `build_support_bin/ticks`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct TickTypeDef {
     pub(crate) doc: String,
-    pub(crate) copy: bool,
     #[serde(default)]
     pub(crate) align: Option<u32>,
     /// Wire decoder function name. Build-script-only — the bin emitters
@@ -200,11 +197,10 @@ pub(crate) struct ColumnDef {
 }
 
 /// The per-language binding names the per-tick emitters in this tree read
-/// for one tick type: the pyclass / Vec / Arrow projections and the
-/// TypeScript class vec. The other binding names in the same TOML row
-/// (FFI / C++ / direct) are read by the endpoint emitters' `sdk_helpers`,
-/// which reparses the TOML independently; serde ignores the keys this
-/// struct does not name, so they are not redeclared here.
+/// for one tick type: the TypeScript class vec. The other binding names in
+/// the same TOML row (FFI / C++ / direct) are read by the endpoint emitters'
+/// `sdk_helpers`, which reparses the TOML independently; serde ignores the
+/// keys this struct does not name, so they are not redeclared here.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct TickRenderDef {
     /// Wire-collection plural keying every renderer call (e.g. `"GreeksTicks"`).
@@ -212,11 +208,7 @@ pub(crate) struct TickRenderDef {
     /// (its `returns` type plus `s`). The render-map loader rejects
     /// duplicates, and an endpoint returning a collection with no entry.
     pub(crate) collection: String,
-    pub(crate) python_pyclass_list: String,
-    pub(crate) python_vec_to_pylist: String,
-    pub(crate) python_slice_arrow: String,
     pub(crate) ts_class_vec: String,
-    pub(crate) pyclass: String,
 }
 
 /// Loads and parses `tick_schema.toml` from the current working directory into a [`Schema`].

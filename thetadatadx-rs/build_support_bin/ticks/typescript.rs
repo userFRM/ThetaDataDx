@@ -17,7 +17,6 @@ use std::fmt::Write as _;
 use heck::{ToLowerCamelCase, ToSnakeCase};
 
 use super::idents::rust_field_ident;
-use super::python_classes::strip_field_count_from_doc;
 use super::schema::{Schema, TickTypeDef, render_for_type};
 use super::sorted_type_names;
 use super::tdbe_structs::timestamp_accessor_fields;
@@ -606,4 +605,26 @@ fn ts_column_is_i32(column_type: &str) -> bool {
 
 fn ts_column_needs_bigint(column_type: &str) -> bool {
     matches!(column_type, "i64" | "eod_num64")
+}
+
+/// Strip " -- N fields[...]." from the first doc line so the rendered
+/// comment reflects the actual field set once `contract_id` and
+/// even when a schema edit adds/removes a column, so we drop the numeric
+/// count instead of recomputing it per surface.
+fn strip_field_count_from_doc(doc: &str) -> String {
+    let first_line = doc.lines().next().unwrap_or("");
+    if let Some(pos) = first_line.find(" -- ") {
+        let after_dash = &first_line[pos + 4..];
+        if after_dash.starts_with(|c: char| c.is_ascii_digit()) {
+            let rest = after_dash
+                .find(". ")
+                .map(|i| &after_dash[i + 2..])
+                .unwrap_or("");
+            if rest.is_empty() {
+                return format!("{}.", &first_line[..pos]);
+            }
+            return format!("{}. {rest}", &first_line[..pos]);
+        }
+    }
+    first_line.to_string()
 }
