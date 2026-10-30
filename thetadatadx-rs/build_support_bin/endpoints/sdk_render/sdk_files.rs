@@ -8,9 +8,8 @@
 
 use std::path::Path;
 
-use super::super::enum_projection::ENUMS;
 use super::super::table::{self, REQUEST_OPTIONS};
-use super::{config_accessors, cpp, cpp_validate, enums, ffi, python_stub, python_validate};
+use super::{config_accessors, cpp, cpp_validate, ffi, python_stub, python_validate};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -109,18 +108,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
     super::super::test_fixtures::check_fixtures(&endpoints)?;
 
     Ok(vec![
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-rs/src/tdbe/types/generated/enums_endpoint.rs",
-            contents: enums::render_tdbe_enums(ENUMS),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/enums_generated.rs",
-            contents: enums::render_python_enums(ENUMS),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-ts/src/_generated/enums_generated.rs",
-            contents: enums::render_typescript_enums(ENUMS),
-        },
         GeneratedSourceFile {
             relative_path: "thetadatadx-ffi/src/config_accessors.rs",
             contents: config_accessors::render_ffi_config_accessors()?,

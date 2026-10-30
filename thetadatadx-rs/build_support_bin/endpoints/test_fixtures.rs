@@ -4,9 +4,8 @@
 //! rather than emitting a cell or an example that leaves the argument out.
 //! [`check_fixtures`] holds the tables to the endpoints that read them.
 
-use super::enum_projection::ENUMS;
 use super::modes::emitted_mode_names;
-use super::table::GeneratedEndpoint;
+use super::table::{ENUMS, GeneratedEndpoint};
 
 /// The symbol sent to an endpoint, by category.
 const CATEGORY_SYMBOLS: &[(&str, &str)] = &[
@@ -192,7 +191,7 @@ pub(super) fn check_fixtures(
             .iter()
             .filter(|e| params().any(|p| p.name == name && p.param_type == e.name))
         {
-            if !e.variants.iter().any(|v| v.wire == value) {
+            if !e.values.contains(&value) {
                 errors.push(format!(
                     "fixture value '{value}' for '{name}' is not a value of enum '{}'",
                     e.name

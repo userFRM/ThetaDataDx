@@ -729,8 +729,24 @@ fn normalize_optional_time(value: Option<String>) -> Option<String> {
     value
 }
 
-// Generated string enum exports.
-include!("_generated/enums_generated.rs");
+/// Expands `__enums!` into napi string enums. napi renders a doc line only
+/// when it is one string literal, so `__paste!` joins it.
+macro_rules! ts_string_enums {
+    ($($name:ident { $($variant:ident $wire:tt $py:ident [$($alias:tt)*]),+ $(,)? })*) => {
+        $(thetadatadx::__paste! {
+            #[doc = "Wire string enum `" $name "`."]
+            #[napi(string_enum)]
+            pub enum $name {
+                $(
+                    #[napi(value = $wire)]
+                    $variant,
+                )+
+            }
+        })*
+    };
+}
+
+thetadatadx::__enums! { ts_string_enums {} }
 
 // ── Tick row objects, expanded from the core tick table ──
 //

@@ -8,10 +8,3 @@
 pub mod enums;
 pub mod price;
 pub mod tick;
-
-// Generator-emitted modules live in `generated/`. The submodule
-// itself is empty (a doc hub) — the actual files are reached via
-// `include!("generated/<name>.rs")` from the hand-written
-// `enums.rs` sibling, so the feature gates and hand-written `impl`
-// blocks keep their place above the include site.
-mod generated;

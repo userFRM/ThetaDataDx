@@ -9,8 +9,6 @@ use std::collections::BTreeSet;
 
 use heck::ToUpperCamelCase;
 
-use super::enum_projection::{ENUMS, EnumVariantProjection};
-
 /// One endpoint of the table.
 pub(super) struct GeneratedEndpoint {
     pub(super) name: &'static str,
@@ -97,6 +95,22 @@ macro_rules! endpoint_record {
     (@column) => { None };
 }
 
+/// One wire-string enum of `__enums!`.
+pub(super) struct WireEnum {
+    pub(super) name: &'static str,
+    /// The variants' wire values, in declaration order.
+    pub(super) values: &'static [&'static str],
+}
+
+macro_rules! enum_records {
+    ($($name:ident { $($variant:ident $wire:literal $py:ident [$($alias:literal)*]),+ $(,)? })*) => {
+        &[$(WireEnum { name: stringify!($name), values: &[$($wire),+] }),*]
+    };
+}
+
+/// The wire-string enums of the endpoint parameters.
+pub(super) const ENUMS: &[WireEnum] = thetadatadx::__enums! { enum_records {} };
+
 macro_rules! request_option_records {
     (params { all [$($all:tt)*] $($resolved:tt)* }) => { param_records!($($all)*) };
 }
@@ -152,37 +166,12 @@ pub(super) fn check_proto_coverage(
 /// an unknown shape, or a list entry that returns ticks, as a tick endpoint,
 /// while the surfaces rendered here would describe it as written. A string
 /// default is sent as written, so it must be a value its type accepts. An
-/// enum parameter's description lists the enum's values by hand, for the
-/// bindings that expand the table without this generator, so it must list
-/// exactly those values. The enums themselves must each be declared once,
-/// with at least one variant and distinct wire values, Rust names and Python
-/// names.
+/// enum parameter's description lists the enum's values by hand, so it must
+/// list exactly those values.
 pub(super) fn check_entries(
     endpoints: &[GeneratedEndpoint],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut errors = BTreeSet::new();
-    let mut enum_names = BTreeSet::new();
-    for spec in ENUMS {
-        let distinct = |name: fn(&EnumVariantProjection) -> &'static str| {
-            spec.variants
-                .iter()
-                .map(name)
-                .collect::<BTreeSet<_>>()
-                .len()
-                == spec.variants.len()
-        };
-        if !enum_names.insert(spec.name)
-            || spec.variants.is_empty()
-            || !distinct(|v| v.wire)
-            || !distinct(|v| v.rust)
-            || !distinct(|v| v.python)
-        {
-            errors.insert(format!(
-                "enum {} must be declared once, with distinct wire values, Rust names and Python names",
-                spec.name
-            ));
-        }
-    }
     for endpoint in endpoints {
         let (name, shape) = (endpoint.name, endpoint.shape);
         if !matches!(shape, "list" | "buffered" | "chunked" | "stream") {
@@ -212,18 +201,14 @@ pub(super) fn check_entries(
             continue;
         };
         if let Some(default) = param.default
-            && !spec.variants.iter().any(|v| v.wire == default)
+            && !spec.values.contains(&default)
         {
             errors.insert(format!(
                 "'{name}' defaults to '{default}', not a value of {}",
                 spec.name
             ));
         }
-        let mut values: Vec<String> = spec
-            .variants
-            .iter()
-            .map(|v| format!("`{}`", v.wire))
-            .collect();
+        let mut values: Vec<String> = spec.values.iter().map(|v| format!("`{v}`")).collect();
         // `Right` also parses `*`, as `both`.
         if spec.name == "Right" {
             values.push("`*`".into());

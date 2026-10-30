@@ -1,14 +1,13 @@
 //! Per-language emitters for the checked-in SDK projections.
 //!
 //! Each submodule owns one render target (the Python type stub, C++, the C
-//! header, per-language live validators, enums). The build script never compiles
+//! header, per-language live validators). The build script never compiles
 //! this tree — only the `generate_sdk_surfaces` binary reaches here.
 
 mod config_accessors;
 mod cpp;
 mod cpp_validate;
 mod doc;
-mod enums;
 mod ffi;
 mod python_stub;
 mod python_validate;
