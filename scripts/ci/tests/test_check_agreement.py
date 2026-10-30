@@ -688,7 +688,8 @@ class AgreementTests(unittest.TestCase):
         # Team-lead flagged this case as debatable. We pick DISAGREE
         # because real first_row schemas emit contract-id fields at the
         # TOP level -- no producer in the ecosystem (Python tick_columnar,
-        # server format.rs) nests a `contract` sub-dict.
+        # the server's `TableWriter` in tools/server/src/format.rs) nests a
+        # `contract` sub-dict in a row.
         # If a hypothetical producer started doing so, surfacing the
         # divergence is safer than silently eliding it.
         #

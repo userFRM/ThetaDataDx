@@ -73,8 +73,8 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    collapse all three to a single unambiguous sentinel
 4. date-shaped fields (`date`, `expiration`, or ending in `_date`):
    value `0` -> `None`. Every SDK emits the sentinel verbatim (Python
-   `thetadatadx-py/src/tick_columnar.rs:7,38`; server
-   `tools/server/src/format.rs:346`). Without this normalization,
+   `thetadatadx-py/src/tick_columnar.rs:7,38`; server `cell` in
+   `tools/server/src/format.rs`). Without this normalization,
    a producer that happens to see `date == 0` (no-data cell, pre-market
    snapshot) would false-diff against one that serializes the same
    cell as `null`.
@@ -191,10 +191,11 @@ _STRIKE_FIELD_NAMES: frozenset[str] = frozenset({"strike"})
 _RIGHT_FIELD_NAMES: frozenset[str] = frozenset({"right"})
 
 # Union of all sentinel-shaped field names for omit-vs-null normalization.
-# A producer that omits the field (server skip-when-zero) is equivalent to
-# one that emits `null` or the raw sentinel value (Python tick_columnar
-# emits 0/`""` verbatim). The consumer strips post-canonical `None` values
-# for these fields so all three shapes converge to "absent".
+# A producer that omits the field (the server, for a column its upstream
+# table lacks) is equivalent to one that emits `null` or the raw sentinel
+# value (Python tick_columnar emits 0/`""` verbatim). The consumer strips
+# post-canonical `None` values for these fields so all three shapes converge
+# to "absent".
 _SENTINEL_SHAPED_FIELDS: frozenset[str] = (
     _DATE_FIELD_NAMES | _MS_FIELD_NAMES | _STRIKE_FIELD_NAMES | _RIGHT_FIELD_NAMES
 )
@@ -300,7 +301,8 @@ def _canonicalize_row(value: Any, key: str = "") -> Any:
       * post-canonical None -> stripped from the dict for LEAF fields
         whose name is in `_SENTINEL_SHAPED_FIELDS`. This makes producer
         divergence on omit-vs-null-vs-sentinel-value invisible to the
-        diff engine (server skips them in `tools/server/src/format.rs:89`;
+        diff engine (the server omits a contract column its upstream table
+        lacks, in `TableWriter::place` in `tools/server/src/format.rs`;
         Python emits raw `0`/`""`; CLI emits raw `0`/`""`).
         All three shapes converge to "field absent from the dict" post-
         canonicalization.
