@@ -6,8 +6,8 @@
 //! strategies are provided:
 //!
 //! - [`collect_stream`](MarketDataClient::collect_stream) (crate-private) — drains
-//!   the stream into a single merged `DataTable`. Used by the generated list
-//!   and parsed endpoint macros where the caller expects a finite result.
+//!   the stream into a single merged `DataTable`. Used by the buffered list
+//!   and tick requests, where the caller expects a finite result.
 //! - [`for_each_chunk`](MarketDataClient::for_each_chunk) (public) — streams each
 //!   chunk into a caller-supplied closure without materializing every row.
 //!   Used by the generated streaming builders and public enough for callers
@@ -15,25 +15,58 @@
 
 use std::future::Future;
 use std::ops::ControlFlow;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::util::stream_ext::StreamNextExt;
 
+use crate::columns::{Ticks, WireColumns};
 use crate::decode;
 use crate::error::Error;
-use crate::grpc::ServerStreaming;
+use crate::grpc::{Channel, ChannelError, ServerStreaming};
 use crate::proto;
 
 use super::client::MarketDataClient;
+use super::macros::{
+    effective_deadline, run_streaming_retry_loop, run_unary_retry_loop, run_with_optional_deadline,
+    warn_buffered_response_size,
+};
+use super::shard::{ChainSortKey, ShardBand, ShardPlan, ShardStreamFuture};
 
-/// Opens one endpoint's server stream for an attempt of
-/// [`MarketDataClient::stream_tables`], given the attempt's query info.
-#[cfg(feature = "__internal")]
-pub(crate) type TableRequest<'a> = dyn Fn(
-        proto::QueryInfo,
-    ) -> std::pin::Pin<
-        Box<dyn Future<Output = Result<ServerStreaming<proto::ResponseData>, Error>> + Send + 'a>,
-    > + Sync
-    + 'a;
+/// The wire query of one generated endpoint, with what the endpoint runtime
+/// needs to send it.
+///
+/// Every builder hands its proto query to the runtime as this trait object,
+/// so the request, retry, fan-out and delivery code below is compiled once
+/// per tick type rather than once per endpoint. The macros implement it for
+/// each endpoint's query type.
+pub(crate) trait EndpointQuery: Send + Sync {
+    /// The bulk-fetch plan for this query, `None` to send it on one stream.
+    fn plan(&self, client: &MarketDataClient) -> Option<ShardPlan>;
+
+    /// This query narrowed to one band of its plan; every other parameter
+    /// is forwarded as issued.
+    fn band(&self, band: &ShardBand) -> Box<dyn EndpointQuery>;
+
+    /// Open this query's server stream on `channel` for one attempt.
+    fn open<'c>(&self, channel: &'c Channel, query_info: proto::QueryInfo) -> OpenStream<'c>;
+}
+
+/// The open phase of one attempt, as [`EndpointQuery::open`] returns it.
+pub(crate) type OpenStream<'c> = Pin<
+    Box<
+        dyn Future<Output = Result<ServerStreaming<proto::ResponseData>, ChannelError>> + Send + 'c,
+    >,
+>;
+
+/// A tick type's response parser, as the tick table names it.
+pub(crate) type TickParser<T> = fn(&proto::DataTable) -> Result<Vec<T>, decode::DecodeError>;
+
+/// The chunk callback of a streamed call: the builder's handler, taking each
+/// chunk by value and returning whether to go on. A synchronous handler
+/// returns a ready future.
+pub(crate) type ChunkCallback<'h, T> =
+    dyn FnMut(Ticks<T>) -> Pin<Box<dyn Future<Output = ControlFlow<()>> + Send + 'h>> + Send + 'h;
 
 pub(crate) fn chunk_columns<T: crate::columns::WireColumns>(
     table: &proto::DataTable,
@@ -113,26 +146,11 @@ impl MarketDataClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn for_each_chunk<F>(
         &self,
-        stream: ServerStreaming<proto::ResponseData>,
-        mut f: F,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(&[String], &[proto::DataValueList]),
-    {
-        self.for_each_chunk_control(stream, |headers, rows| {
-            f(headers, rows);
-            ControlFlow::Continue(())
-        })
-        .await
-    }
-
-    pub(crate) async fn for_each_chunk_control<F>(
-        &self,
         mut stream: ServerStreaming<proto::ResponseData>,
         mut f: F,
     ) -> Result<(), Error>
     where
-        F: FnMut(&[String], &[proto::DataValueList]) -> ControlFlow<()>,
+        F: FnMut(&[String], &[proto::DataValueList]),
     {
         // Preserve first-chunk headers across all chunks, matching
         // collect_stream behavior. Reject any mid-stream chunk whose
@@ -151,9 +169,7 @@ impl MarketDataClient {
             } else {
                 &table.headers
             };
-            if f(headers, &table.data_table).is_break() {
-                break;
-            }
+            f(headers, &table.data_table);
             chunk_index += 1;
         }
         Ok(())
@@ -352,56 +368,309 @@ impl MarketDataClient {
         .await
     }
 
-    /// Send one generated endpoint's request and hand each chunk's column
-    /// headers and cells to `handler` as the vendor sends them, unconverted:
-    /// the body of every builder's `stream_tables`.
+    /// The body of every list endpoint: send `query` and return the text of
+    /// its `column`, in the server's row order.
     ///
-    /// `request` opens the endpoint's server stream for one attempt. The
-    /// request goes upstream once as built, never split into bands, so the
-    /// rows keep the vendor's order. `deadline` resolves as on every other
-    /// call, and a `Break` from `handler` ends the call. Transient failures
-    /// are retried only until the first rows reach `handler`.
-    #[cfg(feature = "__internal")]
-    pub(crate) async fn stream_tables<F, Fut>(
+    /// `deadline` is the call's own, `None` for the configured default.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication or parsing failure, and
+    /// [`Error::Timeout`] when the deadline elapses first.
+    pub(crate) async fn fetch_list(
         &self,
         endpoint: &'static str,
         deadline: Option<std::time::Duration>,
-        request: &TableRequest<'_>,
-        handler: F,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
-        Fut: Future<Output = ControlFlow<()>>,
-    {
-        let deadline = super::macros::effective_deadline(
-            deadline,
-            self.config().market_data.request_timeout_secs,
-        );
-        super::macros::run_with_optional_deadline(deadline, async {
-            tracing::debug!(endpoint, "gRPC streaming request");
+        query: &dyn EndpointQuery,
+        column: &str,
+    ) -> Result<Vec<String>, Error> {
+        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        run_with_optional_deadline(deadline, async move {
+            tracing::debug!(endpoint, "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
             let started = std::time::Instant::now();
             let _permit = self.acquire_request_permit().await?;
-            let handler = tokio::sync::Mutex::new(handler);
-            let delivered = std::sync::atomic::AtomicBool::new(false);
-            let (handler, delivered) = (&handler, &delivered);
-            super::macros::run_streaming_retry_loop(
+            let table = run_unary_retry_loop(
                 self.session(),
                 &self.config().retry,
                 endpoint,
-                delivered,
                 |snap| async move {
-                    let stream = request(self.build_query_info(snap.uuid.clone())).await?;
-                    self.for_each_chunk_async_control(stream, |headers, rows| async move {
-                        if !rows.is_empty() {
-                            delivered.store(true, std::sync::atomic::Ordering::Release);
-                        }
-                        (handler.lock().await)(headers, rows).await
-                    })
-                    .await
+                    // The lease lives across the open, so the pool's picker
+                    // counts the pending open on its channel.
+                    let lease = self.channel();
+                    let stream = query
+                        .open(&lease, self.build_query_info(snap.uuid))
+                        .await
+                        .map_err(Error::from)?;
+                    self.collect_stream(stream).await
                 },
             )
             .await?;
+            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
+                .record(started.elapsed().as_secs_f64() * 1_000.0);
+            // The server's row order is the contract, as on the terminal.
+            Ok(decode::extract_text_column(&table, column)
+                .into_iter()
+                .flatten()
+                .collect())
+        })
+        .await
+    }
+
+    /// The buffered `.await` of every tick builder: send `query` and parse
+    /// the whole response into one [`Ticks`].
+    ///
+    /// `deadline` is the builder's own, `None` for the configured default.
+    /// A `query` the builder could not build is reported once the request
+    /// has been counted. Under a bulk-fetch plan every band is its own
+    /// top-level request, and the typed bands merge into the single
+    /// stream's row order (see `mdds/shard.rs`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication or parsing failure, and
+    /// [`Error::Timeout`] when the deadline elapses first.
+    pub(crate) async fn fetch_ticks<T>(
+        &self,
+        endpoint: &'static str,
+        deadline: Option<std::time::Duration>,
+        query: Result<Box<dyn EndpointQuery>, Error>,
+        parse: TickParser<T>,
+    ) -> Result<Ticks<T>, Error>
+    where
+        T: WireColumns + ChainSortKey + Clone + Send + 'static,
+    {
+        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        run_with_optional_deadline(deadline, async move {
+            tracing::debug!(endpoint, "gRPC request");
+            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
+            let started = std::time::Instant::now();
+            let query = query?;
+            let ticks = match query.plan(self) {
+                Some(plan) => {
+                    // One independent top-level request per band. Each
+                    // spawned task acquires its OWN request permit; this
+                    // driver holds none while awaiting them, so the fan-out
+                    // can never deadlock the pool-sized semaphore (worst case
+                    // the bands serialize through it).
+                    let mut tasks = Vec::with_capacity(plan.bands.len());
+                    for band in &plan.bands {
+                        let query = query.band(band);
+                        let dispatch = self.shard_dispatch();
+                        // The span tags every event of the band's task, the
+                        // retry-sleep warnings included, with its window.
+                        let band_span = super::shard::band_span(band);
+                        tasks.push(super::shard::spawn_shard(tracing::Instrument::instrument(
+                            async move {
+                                let band_started = std::time::Instant::now();
+                                // Set as soon as any chunk parses to rows and
+                                // kept across attempts, so the join can refuse
+                                // to fold a rows-then-NotFound band to empty.
+                                let band_produced = AtomicBool::new(false);
+                                let outcome = async {
+                                    // Plain wait, not `acquire_request_permit`:
+                                    // `auto_plan` declines any pull issued inside
+                                    // a delivery handler, so a band only ever
+                                    // waits on permits whose holders make
+                                    // independent progress.
+                                    let _permit =
+                                        dispatch.semaphore.acquire().await.map_err(|_| {
+                                            Error::config_internal("request semaphore closed")
+                                        })?;
+                                    let (dispatch, query, band_produced) =
+                                        (&dispatch, &*query, &band_produced);
+                                    run_unary_retry_loop(
+                                        &dispatch.session,
+                                        &dispatch.retry,
+                                        endpoint,
+                                        |snap| async move {
+                                            let lease = dispatch.channel();
+                                            let stream = query
+                                                .open(&lease, dispatch.query_info(snap.uuid))
+                                                .await
+                                                .map_err(Error::from)?;
+                                            // The rows accumulate inside the
+                                            // attempt, so a band re-fetched after
+                                            // a mid-collect transient starts
+                                            // empty and the replay cannot
+                                            // duplicate rows.
+                                            collect_stream_typed(stream, parse, band_produced).await
+                                        },
+                                    )
+                                    .await
+                                }
+                                .await;
+                                if let Ok(typed_band) = &outcome {
+                                    tracing::debug!(
+                                        rows = typed_band.rows.len(),
+                                        elapsed_ms = band_started.elapsed().as_millis() as u64,
+                                        "shard band finished"
+                                    );
+                                }
+                                (band_produced.load(Ordering::Relaxed), outcome)
+                            },
+                            band_span,
+                        )));
+                    }
+                    // Join in band order (an empty band folds to zero rows),
+                    // then merge the typed bands into the output row order.
+                    // Any other band error fails the whole query, as a single
+                    // stream's error would.
+                    let ticks = super::shard::merge_typed_in_order(
+                        super::shard::join_shards(tasks).await?,
+                    )?;
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
+                        .record(started.elapsed().as_secs_f64() * 1_000.0);
+                    ticks
+                }
+                None => {
+                    // The permit releases as soon as the stream is drained,
+                    // before the response is parsed.
+                    let table = {
+                        let _permit = self.acquire_request_permit().await?;
+                        let query = &*query;
+                        run_unary_retry_loop(
+                            self.session(),
+                            &self.config().retry,
+                            endpoint,
+                            |snap| async move {
+                                let lease = self.channel();
+                                let stream = query
+                                    .open(&lease, self.build_query_info(snap.uuid))
+                                    .await
+                                    .map_err(Error::from)?;
+                                self.collect_stream(stream).await
+                            },
+                        )
+                        .await?
+                    };
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
+                        .record(started.elapsed().as_secs_f64() * 1_000.0);
+                    // Strict decode: a type mismatch in any cell fails the call.
+                    let rows = parse(&table)?;
+                    // The columns this response's wire carried and the root
+                    // each row belongs to, so the frame projects to the
+                    // terminal's exact column set.
+                    Ticks::new(rows, chunk_columns::<T>(&table))
+                }
+            };
+            // The wrong-API-for-this-workload signal, once per request, after
+            // the rows materialized.
+            warn_buffered_response_size(
+                endpoint,
+                ticks.len(),
+                std::mem::size_of::<T>(),
+                self.config().market_data.warn_on_buffered_threshold_bytes,
+            );
+            Ok(ticks)
+        })
+        .await
+    }
+
+    /// The streamed body of every tick builder (`stream`, `stream_async` and
+    /// their binding terminals) and of every raw stream: send `query` and
+    /// hand each chunk, parsed, to `callback`.
+    ///
+    /// `deadline` and `query` are as in [`Self::fetch_ticks`]. The callback
+    /// runs one chunk at a time, and a `Break` from it ends the whole call,
+    /// every band of a fan-out included. Under a bulk-fetch plan the bands
+    /// stream concurrently, each its own top-level request, and their chunks
+    /// reach the callback in arrival order (see `mdds/shard.rs`).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication or parsing failure,
+    /// [`Error::PartialShardFetch`] when some bands of a fan-out failed after
+    /// others delivered, and [`Error::Timeout`] when the deadline elapses
+    /// first.
+    pub(crate) async fn stream_ticks<T>(
+        &self,
+        endpoint: &'static str,
+        deadline: Option<std::time::Duration>,
+        query: Result<Box<dyn EndpointQuery>, Error>,
+        parse: TickParser<T>,
+        callback: &mut ChunkCallback<'_, T>,
+    ) -> Result<(), Error>
+    where
+        T: WireColumns + Send,
+    {
+        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        run_with_optional_deadline(deadline, async move {
+            tracing::debug!(endpoint, "gRPC streaming request");
+            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
+            let started = std::time::Instant::now();
+            let query = query?;
+            // Every band of a fan-out delivers through this one lock.
+            // `Mutex<C>` where `C: Send` keeps the future Send (the Python
+            // SDK's `spawn_awaitable` requires this).
+            let callback = tokio::sync::Mutex::new(callback);
+            let stopped = AtomicBool::new(false);
+            let (callback, stopped) = (&callback, &stopped);
+            match query.plan(self) {
+                Some(plan) => {
+                    let policy = &self.config().retry;
+                    let mut bands: Vec<ShardStreamFuture<'_>> =
+                        Vec::with_capacity(plan.bands.len());
+                    for band in &plan.bands {
+                        let query = query.band(band);
+                        bands.push(Box::pin(tracing::Instrument::instrument(
+                            async move {
+                                let band_started = std::time::Instant::now();
+                                // Per-band no-resume guard: a band that has
+                                // handed rows to the callback must not replay
+                                // from chunk zero, while a sibling's delivery
+                                // leaves this band's retry budget intact.
+                                let delivered = AtomicBool::new(false);
+                                let outcome = async {
+                                    // Each band takes its OWN permit; the
+                                    // joining driver holds none.
+                                    let _permit = self.acquire_request_permit().await?;
+                                    run_streaming_retry_loop(
+                                        self.session(),
+                                        policy,
+                                        endpoint,
+                                        &delivered,
+                                        |snap| {
+                                            self.deliver_ticks(
+                                                &*query, snap.uuid, parse, callback, &delivered,
+                                                stopped,
+                                            )
+                                        },
+                                    )
+                                    .await
+                                }
+                                .await;
+                                let delivered = delivered.load(Ordering::Relaxed);
+                                tracing::debug!(
+                                    delivered,
+                                    ok = outcome.is_ok(),
+                                    elapsed_ms = band_started.elapsed().as_millis() as u64,
+                                    "shard band finished"
+                                );
+                                (delivered, outcome)
+                            },
+                            super::shard::band_span(band),
+                        )));
+                    }
+                    super::shard::join_streaming_shards(&plan.bands, bands).await?;
+                }
+                None => {
+                    let _permit = self.acquire_request_permit().await?;
+                    let delivered = AtomicBool::new(false);
+                    run_streaming_retry_loop(
+                        self.session(),
+                        &self.config().retry,
+                        endpoint,
+                        &delivered,
+                        |snap| {
+                            self.deliver_ticks(
+                                &*query, snap.uuid, parse, callback, &delivered, stopped,
+                            )
+                        },
+                    )
+                    .await?;
+                }
+            }
             metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
                 .record(started.elapsed().as_secs_f64() * 1_000.0);
             Ok(())
@@ -409,131 +678,50 @@ impl MarketDataClient {
         .await
     }
 
-    /// Drain one server stream for the generated `.stream(handler)` and
-    /// `stream_ticks` paths: parse each chunk with `parser`, pair its rows
-    /// with the columns its wire carried, each row's root included, hand the
-    /// [`crate::columns::Ticks`] to the shared `handler` under its lock, and
-    /// mark `delivered` once a non-empty chunk has reached it (the no-resume
-    /// replay guard read by [`super::macros::run_streaming_retry_loop`]).
+    /// One attempt of a streamed call: open `query`'s server stream, parse
+    /// each chunk with `parse`, pair its rows with the columns its wire
+    /// carried, each row's root included, and hand the [`Ticks`] to
+    /// `callback` under its lock, marking `delivered` once a chunk with rows
+    /// has reached it (the no-resume guard read by
+    /// [`run_streaming_retry_loop`]).
     ///
-    /// Shared verbatim between the single-stream arm and each shard of a
-    /// bulk-fetch fan-out: the handler `Mutex` is what lets concurrent
-    /// shards forward into one user callback. The handler can end the call:
-    /// a `Break` stops this drain, and `stopped`, shared by every band of the
-    /// call, keeps any band from calling the handler again. The flag is read
-    /// and set under the handler lock, so no call can slip in after the one
-    /// that returned `Break`. The first parse failure is terminal: it breaks
-    /// the drain and surfaces after the stream is released.
-    ///
-    /// # Errors
-    ///
-    /// Propagates stream / decode errors from the chunk drain, or the
-    /// first `parser` failure.
-    pub(crate) async fn deliver_chunk_ticks<T, E, P, F>(
-        &self,
-        stream: ServerStreaming<proto::ResponseData>,
-        parser: P,
-        handler: &std::sync::Mutex<F>,
-        delivered: &std::sync::atomic::AtomicBool,
-        stopped: &std::sync::atomic::AtomicBool,
-    ) -> Result<(), Error>
-    where
-        T: crate::columns::WireColumns,
-        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
-        E: Into<Error>,
-        F: FnMut(crate::columns::Ticks<T>) -> ControlFlow<()> + Send,
-    {
-        let mut decode_error: Option<Error> = None;
-        let drain_result = self
-            .for_each_chunk_control(stream, |headers, rows| {
-                if decode_error.is_some() {
-                    return ControlFlow::Break(());
-                }
-                let chunk_table = proto::DataTable {
-                    headers: headers.to_vec(),
-                    data_table: rows.to_vec(),
-                };
-                match parser(&chunk_table) {
-                    Ok(rows) => {
-                        let columns = chunk_columns::<T>(&chunk_table);
-                        let ticks = crate::columns::Ticks::new(rows, columns);
-                        let delivered_nonempty = !ticks.is_empty();
-                        // The mutex is uncontended in steady state (chunks
-                        // of one call chain arrive one at a time; shards of
-                        // a fan-out serialize on it per chunk); a poisoned
-                        // mutex only surfaces if a handler panicked
-                        // mid-callback, which is already a hard error path.
-                        match handler.lock() {
-                            Ok(_) if stopped.load(std::sync::atomic::Ordering::Relaxed) => {
-                                ControlFlow::Break(())
-                            }
-                            Ok(mut h) => {
-                                let flow = (*h)(ticks);
-                                // Only a chunk that carried rows marks the
-                                // stream delivered: an empty chunk
-                                // (headers-only keepalive / terminator) hands
-                                // the handler no rows, so a refresh replay
-                                // from chunk zero would duplicate nothing, and
-                                // a recoverable `Unauthenticated` after only
-                                // empty chunks must not be forced terminal.
-                                if delivered_nonempty {
-                                    delivered.store(true, std::sync::atomic::Ordering::Relaxed);
-                                }
-                                if flow.is_break() {
-                                    stopped.store(true, std::sync::atomic::Ordering::Relaxed);
-                                }
-                                flow
-                            }
-                            Err(_) => ControlFlow::Continue(()),
-                        }
-                    }
-                    Err(e) => {
-                        decode_error = Some(e.into());
-                        ControlFlow::Break(())
-                    }
-                }
-            })
-            .await;
-        drain_result.and_then(|()| match decode_error {
-            Some(e) => Err(e),
-            None => Ok(()),
-        })
-    }
-
-    /// Async twin of [`Self::deliver_chunk_ticks`] for the `stream_async`
-    /// and `stream_ticks_async` terminals, with the same `Break` and
-    /// `stopped` contract.
-    ///
-    /// The handler lock is a `tokio::sync::Mutex` held across the handler
-    /// future's await: under a bulk-fetch fan-out, concurrent shard bands
-    /// deliver through one shared handler, and only a guard that survives
-    /// the await keeps handler executions from overlapping, the documented
-    /// one-call-at-a-time contract (a `std::sync` guard cannot be held
-    /// across an await). The chunk is parsed on the sync side and moved
-    /// into the handler; on a single stream the lock is uncontended.
+    /// The lock is held across the callback's await, so concurrent bands of
+    /// a fan-out never overlap callback runs. A `Break` from the callback
+    /// stops this drain, and `stopped`, shared by every band of the call,
+    /// keeps any band from opening a request or calling the callback again.
+    /// The flag is read and set under the lock, so no call slips in after
+    /// the one that returned `Break`. The first parse failure is terminal:
+    /// it breaks the drain and surfaces after the stream is released.
     ///
     /// # Errors
     ///
-    /// Same as [`Self::deliver_chunk_ticks`].
-    pub(crate) async fn deliver_chunk_ticks_async<T, E, P, F, HFut>(
+    /// Propagates open, stream and decode errors, or the first parse failure.
+    async fn deliver_ticks<T>(
         &self,
-        stream: ServerStreaming<proto::ResponseData>,
-        parser: P,
-        handler: &tokio::sync::Mutex<F>,
-        delivered: &std::sync::atomic::AtomicBool,
-        stopped: &std::sync::atomic::AtomicBool,
+        query: &dyn EndpointQuery,
+        uuid: String,
+        parse: TickParser<T>,
+        callback: &tokio::sync::Mutex<&mut ChunkCallback<'_, T>>,
+        delivered: &AtomicBool,
+        stopped: &AtomicBool,
     ) -> Result<(), Error>
     where
-        T: crate::columns::WireColumns,
-        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
-        E: Into<Error>,
-        F: FnMut(crate::columns::Ticks<T>) -> HFut + Send,
-        HFut: Future<Output = ControlFlow<()>> + Send,
+        T: WireColumns + Send,
     {
+        // The callback ended the call: a band still waiting to start opens
+        // no request.
+        if stopped.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        let lease = self.channel();
+        let stream = query
+            .open(&lease, self.build_query_info(uuid))
+            .await
+            .map_err(Error::from)?;
         let mut decode_error: Option<Error> = None;
-        // Marks the user handler await below as this client's delivery
-        // scope, so a same-client request awaited inside the handler fails
-        // fast instead of waiting on permits this pull holds (see
+        // Marks the callback's await as this client's delivery scope, so a
+        // same-client request awaited inside the handler fails fast instead
+        // of waiting on permits this pull holds (see
         // `acquire_request_permit`).
         let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
@@ -546,10 +734,10 @@ impl MarketDataClient {
                         headers,
                         data_table: rows,
                     };
-                    match parser(&chunk_table) {
+                    match parse(&chunk_table) {
                         Ok(rows) => {
                             let columns = chunk_columns::<T>(&chunk_table);
-                            Some(crate::columns::Ticks::new(rows, columns))
+                            Some(Ticks::new(rows, columns))
                         }
                         Err(e) => {
                             decode_error = Some(e.into());
@@ -560,20 +748,23 @@ impl MarketDataClient {
                 };
                 async move {
                     if let Some(ticks) = ticks {
+                        // Only a chunk with rows marks the stream delivered:
+                        // an empty chunk hands the callback nothing a replay
+                        // could duplicate.
                         let delivered_nonempty = !ticks.is_empty();
-                        let mut h = handler.lock().await;
-                        if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                        let mut callback = callback.lock().await;
+                        if stopped.load(Ordering::Relaxed) {
                             return ControlFlow::Break(());
                         }
-                        let user_fut = (*h)(ticks);
+                        let callback_fut = (*callback)(ticks);
                         if delivered_nonempty {
-                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                            delivered.store(true, Ordering::Relaxed);
                         }
-                        if super::client::in_delivery_scope(sem_addr, user_fut)
+                        if super::client::in_delivery_scope(sem_addr, callback_fut)
                             .await
                             .is_break()
                         {
-                            stopped.store(true, std::sync::atomic::Ordering::Relaxed);
+                            stopped.store(true, Ordering::Relaxed);
                             return ControlFlow::Break(());
                         }
                     }
@@ -589,6 +780,65 @@ impl MarketDataClient {
             Some(e) => Err(e),
             None => Ok(()),
         })
+    }
+
+    /// Send one generated endpoint's query and hand each chunk's column
+    /// headers and cells to `handler` as the vendor sends them, unconverted:
+    /// the body of every builder's `stream_tables`.
+    ///
+    /// The request goes upstream once as built, never split into bands, so
+    /// the rows keep the vendor's order. `deadline` resolves as on every
+    /// other call, and a `Break` from `handler` ends the call. Transient
+    /// failures are retried only until the first rows reach `handler`.
+    #[cfg(feature = "__internal")]
+    pub(crate) async fn stream_tables<F, Fut>(
+        &self,
+        endpoint: &'static str,
+        deadline: Option<std::time::Duration>,
+        query: &dyn EndpointQuery,
+        handler: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+        Fut: Future<Output = ControlFlow<()>>,
+    {
+        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        run_with_optional_deadline(deadline, async {
+            tracing::debug!(endpoint, "gRPC streaming request");
+            metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
+            let started = std::time::Instant::now();
+            let _permit = self.acquire_request_permit().await?;
+            let handler = tokio::sync::Mutex::new(handler);
+            let delivered = AtomicBool::new(false);
+            let (handler, delivered) = (&handler, &delivered);
+            run_streaming_retry_loop(
+                self.session(),
+                &self.config().retry,
+                endpoint,
+                delivered,
+                |snap| async move {
+                    let stream = {
+                        let lease = self.channel();
+                        query
+                            .open(&lease, self.build_query_info(snap.uuid))
+                            .await
+                            .map_err(Error::from)?
+                    };
+                    self.for_each_chunk_async_control(stream, |headers, rows| async move {
+                        if !rows.is_empty() {
+                            delivered.store(true, Ordering::Release);
+                        }
+                        (handler.lock().await)(headers, rows).await
+                    })
+                    .await
+                },
+            )
+            .await?;
+            metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => endpoint)
+                .record(started.elapsed().as_secs_f64() * 1_000.0);
+            Ok(())
+        })
+        .await
     }
 }
 

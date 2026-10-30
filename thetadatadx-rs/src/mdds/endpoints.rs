@@ -10,7 +10,6 @@ use std::future::IntoFuture;
 use std::pin::Pin;
 
 use crate::columns::Ticks;
-use crate::decode;
 use crate::error::Error;
 use crate::proto;
 
@@ -256,7 +255,7 @@ macro_rules! query_value {
     ($c:tt req Time [] $a:ident) => {
         normalize_time_of_day(&$a)
     };
-    // A builder owns its arguments; a list method borrows them.
+    // A builder's arguments are `String`s; a list method's are `&str`s.
     (() req $t:ident [] $a:ident) => {
         $a.clone()
     };
@@ -273,13 +272,13 @@ macro_rules! query_value {
             .unwrap_or_default()
     };
     ($c:tt opt Int $v:tt $a:ident) => {
-        $a
+        *$a
     };
     ($c:tt opt Float $v:tt $a:ident) => {
-        $a
+        *$a
     };
     ($c:tt opt Bool $v:tt $a:ident) => {
-        $a
+        *$a
     };
     // `interval` is the one defaulted string the wire does not make optional.
     ($c:tt opt Interval [$v:literal] $a:ident) => {
@@ -367,10 +366,23 @@ macro_rules! market_data_endpoint {
                 fn $name($($a: &str),*) -> $col;
                 with_deadline_fn: [<$name _with_deadline>];
                 tables_fn: [<$name _tables>];
-                grpc: [<get_ $name>];
-                request: [<$name:camel Request>];
                 query: [<$name:camel RequestQuery>] { $($f)* };
             }
+        }
+    };
+    // A list endpoint without optionals in the `builder` pass: its methods
+    // sit in the shared `impl` block, which cannot hold the `EndpointQuery`
+    // impl of its query, so that impl is emitted here.
+    (@emit [$($f:tt)*] builder list $name:ident StringList($col:literal) $doc:tt params {
+        all $all:tt req $req:tt opt [] $($rest:tt)*
+    }) => {
+        pastey::paste! {
+            endpoint_query!(
+                $name,
+                [<get_ $name>],
+                [<$name:camel Request>],
+                [<$name:camel RequestQuery>] { $($f)* }
+            );
         }
     };
     // A list endpoint with optionals: a builder.
@@ -443,9 +455,6 @@ macro_rules! market_data_endpoint {
             stream_endpoint! {
                 builder [<$name:camel Builder>];
                 fn $name($($a: $t),*) -> $item;
-                wire: $wire;
-                grpc: [<get_ $wire>];
-                request: [<$wire:camel Request>];
                 query: [<$wire:camel RequestQuery>] { $($f)* };
                 parse: crate::__parse_fn!($item);
                 $(dates: $d0 $(, $d)*;)?
