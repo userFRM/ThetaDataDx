@@ -25,8 +25,8 @@ pub mod headers;
 pub mod transport;
 
 // `parse_calendar_days_v3` and `parse_option_contracts_v3` are used by the
-// generated MDDS endpoint macros (`mdds_parsed_endpoints_generated.rs`) — keep
-// them always-compiled. The calendar day-type vocabulary is the typed
+// market-data endpoint builders (`parsed_endpoint!`), so keep them
+// always-compiled. The calendar day-type vocabulary is the typed
 // `crate::tdbe::CalendarStatus` enum carried on `CalendarDay.status` directly.
 pub use dual_type_columns::{parse_calendar_days_v3, parse_option_contracts_v3};
 pub use error::DecodeError;

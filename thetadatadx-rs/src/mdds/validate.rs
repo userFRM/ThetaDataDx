@@ -6,9 +6,9 @@
 //! the MDDS client macros ([`crate::mdds::macros`]) delegate to these
 //! functions.
 //!
-//! Build-time validators in `build_support/endpoints/` operate on the
-//! TOML surface spec and proto schema — a fundamentally different
-//! domain — so they remain separate.
+//! The SDK generators' validators in `build_support_bin/endpoints/` operate
+//! on the TOML surface spec and proto schema, a different domain, so they
+//! remain separate.
 
 use crate::mdds::endpoint_args::EndpointError;
 

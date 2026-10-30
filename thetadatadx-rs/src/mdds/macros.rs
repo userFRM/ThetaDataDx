@@ -1,7 +1,8 @@
-//! Macros invoked by generated endpoint code from `build_support/endpoints/`.
+//! Macros the endpoint table expands into (see `mdds::endpoints`).
 //!
-//! These macro_rules drive the builder-pattern gRPC wrappers emitted at build
-//! time as well as the handwritten streaming endpoints in [`crate::mdds`].
+//! These macro_rules drive the builder-pattern gRPC wrappers of every
+//! market-data endpoint as well as the handwritten streaming endpoints in
+//! [`crate::mdds`].
 //! They are declared with `#[macro_use]` in `lib.rs` so every sibling module
 //! can reference them.
 //!

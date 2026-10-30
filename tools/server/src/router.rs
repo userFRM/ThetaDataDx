@@ -159,9 +159,9 @@ pub fn build(state: AppState) -> Router {
 
 /// Mount the v3 REST path forms the core registry does not generate.
 ///
-/// Two families of route live here rather than in the core's
-/// `endpoint_surface.toml` so the core codegen and its drift guard stay
-/// untouched (server-level overrides are the cheaper, lower-risk change):
+/// Two families of route live here rather than in the core's endpoint
+/// table so the core registry and its drift guard stay untouched
+/// (server-level overrides are the cheaper, lower-risk change):
 ///
 /// 1. `request_type` **path-segment** routes (`C6`). The terminal serves
 ///    `request_type` as a path segment on three list routes; the registry

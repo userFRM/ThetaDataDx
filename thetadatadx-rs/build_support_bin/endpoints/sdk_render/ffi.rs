@@ -559,7 +559,6 @@ mod tests {
             param_type: param_type.to_string(),
             required: true,
             binding: "method".to_string(),
-            _arg_name: None,
             default: None,
         }
     }

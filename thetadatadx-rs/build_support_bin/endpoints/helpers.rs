@@ -1,17 +1,12 @@
 //! Cross-cutting helpers shared by every renderer.
 //!
-//! Shared between the build script (`build_support`) and the bin
-//! (`build_support_bin`) trees. Holds the cross-renderer items both
-//! contexts need: param classification (`is_*` filters), the in-house
-//! Rust client's `direct_*` type table, docstring composition, and the
-//! TOML-driven tick render map (`render_for`).
-//!
-//! Bin-only helpers (per-language SDK projection arg/literal renderers,
-//! FFI option mappers, CLI command derivations, etc.) live in
-//! `build_support_bin/endpoints/sdk_helpers.rs`.
+//! Holds param classification (`is_*` filters), docstring composition, and
+//! the TOML-driven tick parser map (`render_for`). Per-language SDK
+//! projection helpers (arg/literal renderers, FFI option mappers, CLI command
+//! derivations, etc.) live in `sdk_helpers.rs`.
 //!
 //! Anything that emits a multi-line chunk of target-language code belongs
-//! in a `render/` tree, not here.
+//! in `sdk_render/` or `docs_render/`, not here.
 //!
 //! ## Per-tick render map (TOML-driven)
 //!
@@ -30,14 +25,10 @@ use super::model::{GeneratedEndpoint, GeneratedParam};
 
 // ─────────────────────────── Render-map loader ─────────────────────────────
 
-/// Shared per-tick decoder-name map keyed by wire-collection plural
-/// (e.g. `"GreeksAllTicks"`). Only the `parser` name is shared between
-/// the build script (which emits the `MarketDataClient` direct path) and the
-/// bin (which emits the Python decode-bench dispatch arms). Per-language
-/// type names (`ffi_*`, `cpp_*`, `python_*`, `ts_*`, the in-house Rust
-/// `direct` name) live in tree-local render maps in
-/// `build_support/endpoints/build_helpers.rs` and
-/// `build_support_bin/endpoints/sdk_helpers.rs` respectively.
+/// Per-tick decoder-name map keyed by wire-collection plural (e.g.
+/// `"GreeksAllTicks"`), read for the Python decode-bench dispatch arms.
+/// Per-language type names (`ffi_*`, `cpp_*`, `python_*`, `ts_*`) live in
+/// the render map in `sdk_helpers.rs`.
 #[derive(Debug, Clone)]
 pub(super) struct TickRender {
     pub(super) parser: String,
@@ -243,8 +234,8 @@ pub(super) fn to_pascal_case(value: &str) -> String {
 // ───────────────────────── Direct (Rust) client tick map lookup ───────────
 
 /// Map a wire-collection plural to the generated `parse_*_ticks` function
-/// name. Shared because the bin's Python wrapper emitter also needs the
-/// fully-qualified parser path to forward decoded chunks.
+/// name. The Python wrapper emitter needs the fully-qualified parser path
+/// to forward decoded chunks.
 pub(super) fn direct_parser_name(return_type: &str) -> String {
     format!("decode::{}", render_for(return_type).parser)
 }

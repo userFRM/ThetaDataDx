@@ -68,15 +68,9 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
         }
     }
 
-    println!("cargo:rerun-if-changed={spec_path}");
-
-    // Fixture validation is intentionally NOT run here — it touches the
-    // upstream OpenAPI snapshot (via `endpoint_supports_expiration_wildcard`)
-    // which isn't packaged into the Python sdist. `build.rs` → `generate_all`
-    // never emits validators, so a missing fixture row would never reach a
-    // generated artifact from this path. The bin-only orchestrator
-    // (`build_support_bin/endpoints/sdk_render/sdk_files.rs`) invokes
-    // `validate_test_fixtures` explicitly.
+    // Fixture validation is not run here: only the live-validator matrix
+    // reads fixtures, and `sdk_render/sdk_files.rs` invokes
+    // `validate_test_fixtures` where it builds that matrix.
     Ok(ParsedEndpoints { endpoints })
 }
 
@@ -123,11 +117,6 @@ fn into_generated_enums(
     }
     Ok(enums)
 }
-
-// The `[test_fixtures]` cross-check + closed-set vocabulary live in
-// `build_support_bin/endpoints/fixture_validation.rs`. The build script
-// never emits validator code so it does not need that surface; the
-// bin-only `sdk_files` orchestrator wires it in directly.
 
 /// Resolve the reusable spec language in `endpoint_surface.toml` into concrete endpoints.
 ///
@@ -663,7 +652,6 @@ fn merge_surface_and_wire(
                     param_type: param.param_type,
                     required: param.required,
                     binding: param.binding,
-                    _arg_name: param.arg_name,
                     default: param.default,
                 }
             })

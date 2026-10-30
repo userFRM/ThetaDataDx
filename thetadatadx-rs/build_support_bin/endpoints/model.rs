@@ -24,10 +24,10 @@ pub(super) struct SurfaceSpec {
     #[serde(default)]
     pub(super) templates: HashMap<String, SurfaceTemplate>,
     pub(super) endpoints: Vec<SurfaceEndpoint>,
-    /// Live-validator fixture block. Schema-validation-only on the
-    /// build-script side — the bin tree reparses the TOML into its own
-    /// `TestFixtures` for emission. Declared here so
-    /// `deny_unknown_fields` rejects fixture typos at TOML-load time.
+    /// Live-validator fixture block, schema-validation-only here:
+    /// `test_fixtures.rs` reparses the TOML into its own `TestFixtures` for
+    /// emission. Declared here so `deny_unknown_fields` rejects fixture
+    /// typos at TOML-load time.
     #[serde(rename = "test_fixtures")]
     _test_fixtures: SurfaceTestFixtures,
     /// Global request-level options that appear on every endpoint via
@@ -44,12 +44,12 @@ pub(super) struct SurfaceSpec {
 
 /// A reusable wire string enum declared in `endpoint_surface.toml`.
 ///
-/// The shared parser only reads `name` (for `validate_enum_ref` matching)
-/// and `variants[].wire` (for default-value membership). The per-language
-/// names (`rust_name`, `variant.rust`, `variant.python`) are
-/// schema-validation-only here so `deny_unknown_fields` rejects typos in
-/// the build-script TOML parse; the bin tree reparses
-/// `endpoint_surface.toml` into its own `EnumProjection` for emission.
+/// The parser only reads `name` (for `validate_enum_ref` matching) and
+/// `variants[].wire` (for default-value membership). The per-language names
+/// (`rust_name`, `variant.rust`, `variant.python`) are
+/// schema-validation-only here so `deny_unknown_fields` rejects typos;
+/// `enum_projection.rs` reparses `endpoint_surface.toml` into its own
+/// `EnumProjection` for emission.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceEnum {
@@ -62,8 +62,8 @@ pub(super) struct SurfaceEnum {
 /// A single enum variant across Rust, Python, TypeScript, and wire strings.
 ///
 /// As with `SurfaceEnum`, the per-language identifier fields are
-/// schema-validation-only on the build-script side. The bin tree's
-/// `EnumProjection` reparses the TOML and consumes them.
+/// schema-validation-only here; `EnumProjection` reparses the TOML and
+/// consumes them.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceEnumVariant {
@@ -93,12 +93,10 @@ pub(super) struct SurfaceGlobalRequestOption {
 }
 
 /// Representative fixture values feeding the live-validator parameter-mode
-/// matrix. Schema-validation-only on the build-script side — every field is
-/// re-read from the same TOML by the bin tree's
-/// `build_support_bin/endpoints/test_fixtures.rs` into the bin-owned
-/// `TestFixtures`. The build script keeps this declaration solely to enforce
+/// matrix. Schema-validation-only here: `test_fixtures.rs` re-reads every
+/// field from the same TOML into `TestFixtures`. This declaration enforces
 /// `deny_unknown_fields` against the `[test_fixtures]` block at TOML-load
-/// time, catching typos as a build failure rather than a bin runtime error.
+/// time.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SurfaceTestFixtures {
@@ -206,8 +204,10 @@ pub(super) struct SurfaceParam {
     pub(super) enum_name: Option<String>,
     pub(super) required: bool,
     pub(super) binding: String,
-    #[serde(default)]
-    pub(super) arg_name: Option<String>,
+    /// Schema-validation-only: the Rust argument name comes from the
+    /// endpoint table.
+    #[serde(default, rename = "arg_name")]
+    _arg_name: Option<String>,
     #[serde(default)]
     pub(super) default: Option<String>,
 }
@@ -289,32 +289,22 @@ pub(super) struct GeneratedParam {
     pub(super) param_type: String,
     pub(super) required: bool,
     pub(super) binding: String,
-    /// In-house Rust client (`MarketDataClient`) arg-name override sourced
-    /// from `endpoint_surface.toml`. Only the build-script render path
-    /// honors this — the per-language SDK projection emitters drive
-    /// their arg names from `sdk_method_arg_name` instead. The
-    /// underscore prefix marks the field as build-side-only so the bin
-    /// compile unit (which also sees this struct via `#[path]`) does
-    /// not flag it as unread.
-    pub(super) _arg_name: Option<String>,
     pub(super) default: Option<String>,
 }
 
-/// Endpoint-surface enum reachable from the build script's validation
-/// pass.
+/// Endpoint-surface enum as the parser's validation pass sees it.
 ///
-/// Only the fields shared parser reads (`name` for validate_enum_ref
+/// Only the fields the parser reads (`name` for `validate_enum_ref`
 /// matching, `variants[].wire` for default-value membership) live here.
-/// The bin tree reads `rust_name`, `variant.rust`, `variant.python`
-/// directly off `SurfaceEnum` / `SurfaceEnumVariant` when emitting
-/// enum projections.
+/// The enum projections take the per-language names from `EnumProjection`,
+/// which reparses the TOML.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEnum {
     pub(super) name: String,
     pub(super) variants: Vec<GeneratedEnumVariant>,
 }
 
-/// A merged enum variant carrying the wire string the build script validates
+/// A merged enum variant carrying the wire string the parser validates
 /// default-value membership against.
 #[derive(Debug, Clone)]
 pub(super) struct GeneratedEnumVariant {
@@ -329,12 +319,9 @@ pub(super) struct GeneratedEndpoint {
     pub(super) description: String,
     pub(super) category: String,
     pub(super) subcategory: String,
-    /// REST path on the upstream service. Only the build-script
-    /// registry emitter reads this — the bin's per-language SDK
-    /// projection emitters drive their routing via the gRPC method
-    /// name on `MarketDataClient`. Underscore-prefixed so the bin compile
-    /// unit (which sees this struct via `#[path]`) does not flag it
-    /// as unread.
+    /// REST path on the upstream service, read by the docs-site renderer.
+    /// Underscore-prefixed because `generate_sdk_surfaces` compiles this
+    /// struct without `docs_render` and would otherwise flag it as unread.
     pub(super) _rest_path: String,
     pub(super) grpc_name: String,
     pub(super) request_type: String,

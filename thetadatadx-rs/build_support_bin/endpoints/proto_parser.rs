@@ -87,7 +87,6 @@ pub(super) fn load_proto_endpoints() -> Result<WireEndpoints, Box<dyn std::error
                 param_type,
                 required,
                 binding: String::new(),
-                _arg_name: None,
                 default: None,
             })
             .collect::<Vec<_>>();
@@ -127,7 +126,7 @@ fn is_simple_list_method(method: &str) -> bool {
 /// Convert `GetStockHistoryEod` → `stock_history_eod`.
 fn rpc_to_method(rpc_name: &str) -> String {
     // Strip leading "Get"
-    let name = rpc_name.strip_prefix("Get").unwrap_or(rpc_name); // build script: panic is intentional
+    let name = rpc_name.strip_prefix("Get").unwrap_or(rpc_name); // generator: panic is intentional
     // PascalCase → snake_case
     let mut result = String::new();
     for (i, ch) in name.chars().enumerate() {
@@ -135,7 +134,7 @@ fn rpc_to_method(rpc_name: &str) -> String {
             if i > 0 {
                 result.push('_');
             }
-            result.push(ch.to_lowercase().next().unwrap()); // build script: panic is intentional
+            result.push(ch.to_lowercase().next().unwrap()); // generator: panic is intentional
         } else {
             result.push(ch);
         }

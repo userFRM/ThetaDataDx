@@ -576,8 +576,8 @@ mod decode_generated {
 // Full glob for workspace bindings that use every generated parser.
 #[cfg(feature = "__internal")]
 pub use decode_generated::*;
-// Explicit subset for default builds: exactly the functions the generated MDDS
-// endpoint macros (`mdds_parsed_endpoints_generated.rs`) call via `decode::parse_*`.
+// Explicit subset for default builds: exactly the functions the market-data
+// endpoint builders (`parsed_endpoint!`) call via `decode::parse_*`.
 #[cfg(not(feature = "__internal"))]
 pub use decode_generated::{
     parse_eod_ticks, parse_greeks_all_ticks, parse_greeks_eod_ticks,

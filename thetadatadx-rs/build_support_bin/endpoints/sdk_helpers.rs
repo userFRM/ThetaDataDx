@@ -3,11 +3,10 @@
 //! These are the param-classification, naming, casing, per-language type
 //! tables, FFI / builder option mappers, arg-declaration / arg-literal
 //! renderers, and CLI command derivations consumed by the per-language
-//! SDK projection emitters. The build script never reaches them.
+//! SDK projection emitters.
 //!
-//! Shared cross-renderer utilities (the `direct_*` family the in-house
-//! Rust client also needs) stay in `build_support/endpoints/helpers.rs`.
-//! Each bin-side render file imports from both modules.
+//! Cross-renderer utilities stay in `helpers.rs`; each render file imports
+//! from both modules.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
