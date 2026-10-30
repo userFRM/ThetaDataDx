@@ -17,8 +17,8 @@ import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dtsPath = resolve(__dirname, '..', 'index.d.ts');
 
-// Mirrors the `[events.<Variant>]` `kind = "control"` sections in
-// `thetadatadx-rs/fpss_event_schema.toml`. Drift = test failure.
+// Mirrors the `control` entries of the streaming event table in
+// `thetadatadx-rs/src/surface/events.rs`. Drift = test failure.
 const CONTROL_VARIANTS = [
   { name: 'LoginSuccess',       kind: 'login_success',        payload: 'loginSuccess',       fields: ['permissions'] },
   { name: 'ContractAssigned',   kind: 'contract_assigned',    payload: 'contractAssigned',   fields: ['id', 'contract'] },

@@ -36,9 +36,9 @@ import importlib
 import pytest
 
 
-# (variant_name, expected_field_names) -- mirrors the
-# `[events.<Variant>]` `kind = "control"` sections in
-# `thetadatadx-rs/fpss_event_schema.toml`. Drift = test failure.
+# (variant_name, expected_field_names) -- mirrors the `control` entries
+# of the streaming event table in `thetadatadx-rs/src/surface/events.rs`.
+# Drift = test failure.
 CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
     ("LoginSuccess", ("permissions",)),
     ("ContractAssigned", ("id", "contract")),
@@ -115,7 +115,7 @@ def test_control_variant_field_getters(thetadatadx_mod, variant, fields):
     for field in fields:
         assert field in members, (
             f"thetadatadx.{variant} missing field getter '{field}'; "
-            f"check `[events.{variant}]` columns in fpss_event_schema.toml"
+            f"check the `{variant}` columns in thetadatadx-rs/src/surface/events.rs"
         )
 
 
