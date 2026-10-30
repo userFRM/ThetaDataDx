@@ -295,8 +295,7 @@ impl MarketDataClient {
     ///
     /// Returns an error for an endpoint that is not a flat file, and on
     /// network, authentication or decode failure.
-    #[doc(hidden)]
-    pub async fn stream_flat_file<F, Fut>(
+    pub(crate) async fn flat_file_chunks<F, Fut>(
         &self,
         endpoint: &str,
         date: &str,
