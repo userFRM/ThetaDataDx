@@ -14,8 +14,8 @@
 //!   * `docs/.vitepress/generated/*.json` — sidebar manifests imported
 //!     by `config.ts` so navigation can never drift from the registry.
 //!   * `docs/public/llms.txt` — one-line-per-page machine index.
-//!   * `docs/public/thetadatadx.yaml`: the `x-code-examples` of every
-//!     route, spliced into the hand-written OpenAPI document.
+//!   * `docs/public/thetadatadx.yaml`: every registry route of the OpenAPI
+//!     document, spliced between the hand-written head and tail.
 
 mod articles;
 mod lang;
@@ -139,11 +139,11 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
         file.contents = cleaned;
     }
 
-    // Written by hand around its examples, so spliced as it stands rather
-    // than normalized.
+    // Written by hand around its routes, so spliced as it stands rather than
+    // normalized.
     files.push(DocFile {
         relative_path: openapi::OPENAPI_PATH.into(),
-        contents: openapi::render_openapi_document(repo_root, &endpoints)?,
+        contents: openapi::render_openapi_document(repo_root, &endpoints, upstream)?,
     });
 
     Ok(files)

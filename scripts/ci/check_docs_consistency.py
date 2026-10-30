@@ -5,21 +5,15 @@ This script keeps the human-facing docs aligned with the current SDK and REST
 surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs, each derived from the list it heads
-- REST/OpenAPI path + operationId parity with the endpoint table
-  (`thetadatadx-rs/src/surface/endpoints.rs`)
-- per-route OpenAPI parameter names, required flags and defaults matching
-  the same registry, as its generated reference pages state them (a
-  generated client must not demand a parameter the server treats as
-  optional, nor hide the value an omitted one takes)
-- each option route's documented `expiration` pattern accepting the `*`
-  wildcard exactly where the pinned vendor spec accepts it
+- the OpenAPI path set matching the routes the server serves, its `servers`
+  block naming the local server, and no global security requirement
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
 - current server docs staying on the v3 path scheme and current defaults
 
-The generated reference tree, `llms.txt` and the OpenAPI `x-code-examples`
-are byte-verified by
+The generated reference tree, `llms.txt` and the OpenAPI routes, with their
+parameters checked against the endpoint table, are byte-verified by
 `cargo run -p xtask --bin generate_sdk_surfaces -- --check`
 in CI; the structural checks here are the cargo-free fast path the docs
 deploy workflow runs.
@@ -30,7 +24,6 @@ the workspace root from its own path so `cd` is not required.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 import re
 import subprocess
@@ -65,13 +58,6 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
-
-# The chain-wide note the docs generator renders onto an `expiration` row when
-# the vendor's pinned spec says that endpoint accepts the wildcard
-# (`EXPIRATION_WILDCARD_NOTE` in `docs_render/page.rs`). Our published contract
-# makes the same distinction with one parameter anchor per case, so the gate
-# reads the generator's answer rather than deriving its own.
-EXPIRATION_WILDCARD_NOTE = "Pass `*` to select all expirations for the underlying"
 
 # The MCP server source is the single source of truth for the tool surface a
 # connected `tools/list` returns: the registry market-data endpoints (one tool
@@ -148,67 +134,6 @@ SERVER_ONLY_PATHS = (
     served_v3_routes() - REST_PATHS - OPENAPI_UNDOCUMENTED_PARITY_ALIASES
 )
 
-# operationIds for the server-only routes documented in the OpenAPI contract.
-# The upstream endpoints derive their operationId from the registry name; the
-# server-only routes carry hand-authored operationIds, pinned here so the
-# operationId-set equality below neither rejects them nor lets an unrelated id
-# slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
-# contributes none.
-SERVER_ONLY_OPERATION_IDS = {
-    # Terminal system routes, mirrored 1:1 from the JVM terminal: an
-    # unauthenticated shutdown plus the two plain-text channel-health probes.
-    # The route paths carry the vendor's codenames verbatim; the operationIds
-    # describe the channel (streaming / market-data) to keep generated client
-    # method names free of the transport codename.
-    "terminalShutdown",
-    "terminalStreamingStatus",
-    "terminalMarketDataStatus",
-    # Path-segment / renamed `/v3` aliases mounted at the server level for
-    # endpoints the registry already exposes under a query-form or shorter
-    # path. Each dispatches to the same registry endpoint as its sibling but
-    # is a distinct OpenAPI operation, so it carries its own id rather than
-    # reusing the sibling's (operationIds must be unique).
-    "stockListDatesByRequestType",
-    "optionListDatesByRequestType",
-    "optionListContractsByRequestType",
-    "calendarToday",
-    "calendarYearHolidays",
-    "interestRateHistoryEodPath",
-}
-# Query params the OpenAPI contract documents that the endpoint registry does
-# not model. `format` is a server-side rendering knob (`tools/server`'s
-# `parse_response_format`), not an upstream request parameter, so it has no
-# registry row and must not read as parameter drift.
-OPENAPI_REST_ONLY_PARAMS = {"format"}
-
-# Server-only `/v3` route -> the registry endpoint it dispatches to, from
-# `register_v3_path_routes` in `tools/server/src/router.rs`. Each of these is
-# a second spelling of an endpoint the registry already serves (the terminal's
-# `{request_type}` path-segment forms and its three renamed routes), handled by
-# the same code with the same parameters, so the parameter check holds them to
-# the same registry row as their sibling. The `{request_type}` forms move that
-# one parameter from the query string into the path, which the check reads as
-# the required, default-less parameter the registry declares. The docs
-# generator renders each alias's `x-code-examples` from the same endpoint, so
-# the table is `ROUTE_ALIASES` beside it and is read from there.
-OPENAPI_ALIASES_RS = ROOT / "xtask/src/bin/generate_sdk_surfaces/endpoints/docs_render/openapi.rs"
-
-
-def openapi_alias_endpoints() -> dict[str, str]:
-    """`{alias path: endpoint name}` from the docs generator's `ROUTE_ALIASES`."""
-    text = OPENAPI_ALIASES_RS.read_text()
-    body = re.search(r"const ROUTE_ALIASES: [^=]*= &\[(.*?)\];", text, re.DOTALL)
-    entries = body.group(1) if body else ""
-    pairs = re.findall(r'\(\s*"(/v3/[^"]+)",\s*"(\w+)",?\s*\)', entries)
-    listed = entries.count('"/v3/')
-    if not pairs or len(pairs) != listed:
-        fail(
-            f"{rel(OPENAPI_ALIASES_RS)} ROUTE_ALIASES parsed to {len(pairs)} of {listed} "
-            f"entries (the table's layout changed: the gate would skip the routes it cannot read)"
-        )
-    return dict(pairs)
-
-
 # The registry endpoints: every table entry but the raw streams, which share
 # the route of the endpoint they stream and have no page of their own.
 REGISTRY_ENDPOINTS = [
@@ -216,11 +141,6 @@ REGISTRY_ENDPOINTS = [
     for shape, name, sub, rest in TABLE_ENTRIES
     if shape != "stream"
 ]
-
-
-def lower_camel(snake: str) -> str:
-    head, *tail = snake.split("_")
-    return head + "".join(part.capitalize() for part in tail)
 
 
 def fail(message: str) -> None:
@@ -591,23 +511,6 @@ def check_openapi() -> None:
             f"route set. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
-    actual_ops = {
-        match.group(1) for match in re.finditer(r"^\s*operationId:\s*(\S+)", text, re.MULTILINE)
-    }
-    # Registry endpoints derive their operationId from the registry name; the
-    # server-only routes carry their pinned hand-authored ids. The full set must
-    # match exactly so neither a dropped endpoint id nor a stray id slips by.
-    expected_ops = {
-        lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS
-    } | SERVER_ONLY_OPERATION_IDS
-    if actual_ops != expected_ops:
-        missing = sorted(expected_ops - actual_ops)
-        extra = sorted(actual_ops - expected_ops)
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} operationId set drifted. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
-        )
-
     # No global per-request security scheme. The server authenticates its
     # upstream connection once at startup; request paths carry no per-request
     # credential. The only allowed requirement is the route-scoped shutdown
@@ -866,30 +769,6 @@ def check_server_flag_defaults() -> None:
                 )
 
 
-def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]:
-    """Return the indented body under the first `header_re` line at/after `after`.
-
-    The body runs from the header line to the next line indented at or below the
-    header's own indentation (or end of file). Used to scope an enum/oneOf parse
-    to a single OpenAPI node so a later same-named key cannot bleed in. Returns
-    the body text and the absolute offset where it ends.
-    """
-    m = re.search(header_re, text[after:], re.MULTILINE)
-    if not m:
-        return "", len(text)
-    start = after + m.start()
-    header_indent = len(m.group(0)) - len(m.group(0).lstrip())
-    lines = text[start:].splitlines(keepends=True)
-    out: list[str] = [lines[0]]
-    pos = start + len(lines[0])
-    for line in lines[1:]:
-        if line.strip() and (len(line) - len(line.lstrip())) <= header_indent:
-            break
-        out.append(line)
-        pos += len(line)
-    return "".join(out), pos
-
-
 # A row of a generated reference page's `## Parameters` table: the name,
 # whether it is required, and the default (`-` when there is none).
 _PAGE_PARAM_ROW_RE = re.compile(
@@ -921,292 +800,6 @@ def reference_page_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
             name: (required == "yes", default or None) for name, required, default in rows
         }
     return params
-
-
-def registry_routes(value: Callable[[dict], object]) -> dict:
-    """`{documented path: value(endpoint)}` for every route the registry owns.
-
-    A server-only path alias is a second spelling of one endpoint, served by
-    the same code, so it carries that endpoint's value.
-    """
-    by_name = {ep["name"]: value(ep) for ep in REGISTRY_ENDPOINTS}
-    routes = {ep["rest_path"]: by_name[ep["name"]] for ep in REGISTRY_ENDPOINTS}
-    for alias, endpoint_name in openapi_alias_endpoints().items():
-        if endpoint_name not in by_name:
-            fail(
-                f"ROUTE_ALIASES maps {alias} to {endpoint_name!r}, which is "
-                f"not a registry endpoint"
-            )
-        routes[alias] = by_name[endpoint_name]
-    return routes
-
-
-def registry_route_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
-    """`{rest_path: {param: (required, default)}}` for every registry route.
-
-    The registry is the surface the SDK and `tools/server` actually implement,
-    so it is what the published contract has to agree with. A default is the
-    registry literal verbatim (`"*"`, `"1s"`, `"true"`), which is how the
-    OpenAPI scalar reads too.
-    """
-    pages = reference_page_params()
-    return registry_routes(
-        lambda endpoint: {
-            name: row for name, row in pages[endpoint["name"]].items() if name != "timeout_ms"
-        }
-    )
-
-
-# An `x-anchors` entry: `  <key>: &<anchor>` at the block's own indentation.
-_OPENAPI_ANCHOR_RE = re.compile(r"^  ([A-Za-z0-9_-]+): &([A-Za-z0-9_-]+)\s*$", re.MULTILINE)
-# A `parameters:` list item: `        - ` at the operation's item indentation.
-_OPENAPI_PARAM_ITEM_RE = re.compile(r"^        - ", re.MULTILINE)
-_OPENAPI_PARAM_ALIAS_RE = re.compile(r"\*([A-Za-z0-9_-]+)\s*$")
-
-
-def _openapi_param_fields(
-    block: str,
-) -> tuple[str, bool, str | None, str | None] | None:
-    """`(name, required, default, pattern)` for one OpenAPI parameter node.
-
-    `None` when the node carries no `name:`, which is how the non-parameter
-    anchors in `x-anchors` (the response envelope, the row schema) are passed
-    over. Each key is read at its first occurrence: a parameter node orders
-    them `name` / `in` / `required` / `schema.default` ahead of its
-    `description`, so prose quoting one of those words cannot be read as the
-    value.
-    """
-    name = re.search(r"^\s*(?:-\s+)?name:\s*(\S+)\s*$", block, re.MULTILINE)
-    if name is None:
-        return None
-    required = re.search(r"^\s*required:\s*(true|false)\s*$", block, re.MULTILINE)
-    default = re.search(r"^\s*default:\s*(\S.*?)\s*$", block, re.MULTILINE)
-    pattern = re.search(r"^\s*pattern:\s*(\S.*?)\s*$", block, re.MULTILINE)
-    return (
-        name.group(1),
-        required is not None and required.group(1) == "true",
-        default.group(1).strip("'\"") if default else None,
-        pattern.group(1).strip("'\"") if pattern else None,
-    )
-
-
-def openapi_route_params(
-    text: str, paths: set[str] | None = None
-) -> dict[str, dict[str, tuple[bool, str | None, str | None]]]:
-    """`{path: {param: (required, default, pattern)}}` as the spec declares it.
-
-    The spec writes most parameters once under `x-anchors` and aliases them per
-    route (`- *strike-param`), so the anchors are read first and an alias
-    resolves to its anchor's fields; a route that spells a parameter out inline
-    is read in place. Parsed rather than loaded because this gate is the
-    cargo-free, dependency-free fast path the docs deploy runs, and a YAML
-    library is not available to it.
-
-    `paths` restricts the read to the routes the caller is going to compare, so
-    a route outside that set is passed over rather than held to a parameter
-    shape this parser happens to understand.
-    """
-    anchors: dict[str, tuple[str, bool, str | None, str | None]] = {}
-    for match in _OPENAPI_ANCHOR_RE.finditer(text):
-        block, _ = _yaml_block(
-            text, rf"^  {re.escape(match.group(1))}: &{re.escape(match.group(2))}\s*$"
-        )
-        fields = _openapi_param_fields(block)
-        if fields is not None:
-            anchors[match.group(2)] = fields
-
-    routes: dict[str, dict[str, tuple[bool, str | None, str | None]]] = {}
-    for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
-        path = match.group(1)
-        if paths is not None and path not in paths:
-            continue
-        path_block, _ = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
-        params: dict[str, tuple[bool, str | None, str | None]] = {}
-        # A path may carry several operations; every one of their
-        # `parameters:` blocks is read, so a second method is never skipped.
-        position = 0
-        while True:
-            block, position = _yaml_block(
-                path_block, r"^      parameters:\s*$", after=position
-            )
-            if not block:
-                break
-            for item in _OPENAPI_PARAM_ITEM_RE.split(block)[1:]:
-                alias = _OPENAPI_PARAM_ALIAS_RE.fullmatch(item.strip())
-                if alias:
-                    fields = anchors.get(alias.group(1))
-                    if fields is None:
-                        fail(
-                            f"{rel(OPENAPI_YAML)} {path} aliases unknown "
-                            f"parameter anchor *{alias.group(1)}"
-                        )
-                else:
-                    fields = _openapi_param_fields(item)
-                    if fields is None:
-                        fail(
-                            f"{rel(OPENAPI_YAML)} {path} has a parameter "
-                            f"entry with no `name:`"
-                        )
-                params[fields[0]] = (fields[1], fields[2], fields[3])
-        routes[path] = params
-    return routes
-
-
-def check_openapi_parameters(
-    expected: dict[str, dict[str, tuple[bool, str | None]]] | None = None,
-) -> None:
-    """Every documented route's parameters must match the registry row.
-
-    Names, required flags and defaults are all compared. A parameter the spec
-    marks required that the registry makes optional forces every generated
-    client to send a value the server does not need; a missing default leaves
-    a reader with no way to know what omitting the parameter does.
-
-    Routes the registry does not own are not read at all: the system and
-    shutdown routes have no registry row, and a route added to the spec
-    ahead of the registry is the path-set assertion's business, not this one.
-    `checked` guards the other direction, where a spec reformat leaves the
-    parser matching nothing and the gate silently blind.
-
-    `expected` overrides the derived registry rows; the self-test passes
-    synthetic ones so the comparison is exercised on both sides.
-    """
-    if expected is None:
-        expected = registry_route_params()
-    documented = openapi_route_params(OPENAPI_YAML.read_text(), set(expected))
-    checked = 0
-    for path, want in sorted(expected.items()):
-        got = documented.get(path)
-        if got is None:
-            continue
-        checked += 1
-        extra = sorted(set(got) - set(want) - OPENAPI_REST_ONLY_PARAMS)
-        missing = sorted(set(want) - set(got))
-        if extra or missing:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} parameter set drifted from "
-                f"the endpoint table. missing={missing or '[]'} "
-                f"extra={extra or '[]'}"
-            )
-        for name in sorted(want):
-            want_required, want_default = want[name]
-            got_required, got_default, _ = got[name]
-            if want_required != got_required:
-                fail(
-                    f"{rel(OPENAPI_YAML)} {path} documents {name} as "
-                    f"required={got_required}, but the endpoint table declares "
-                    f"required={want_required}"
-                )
-            if want_default != got_default:
-                fail(
-                    f"{rel(OPENAPI_YAML)} {path} documents {name} with "
-                    f"default {got_default!r}, but the endpoint table declares "
-                    f"{want_default!r}"
-                )
-    if checked == 0:
-        fail(
-            f"{rel(OPENAPI_YAML)} parsed to no registry route parameters "
-            f"(the spec's layout changed: the gate would be blind to parameter drift)"
-        )
-
-
-def registry_route_endpoint_names() -> dict[str, str]:
-    """`{documented path: registry endpoint name}` for every route we own.
-
-    The endpoint name is the join key to the vendor snapshot, whose
-    `operationId` is the registry name verbatim. The server-only path aliases
-    resolve to the endpoint they dispatch to, so both spellings of one endpoint
-    answer to the same upstream row.
-    """
-    return registry_routes(lambda endpoint: endpoint["name"])
-
-
-def reference_page_expiration_wildcard() -> dict[str, bool]:
-    """`{endpoint name: accepts `expiration=*`}`, read off the generated pages.
-
-    The docs generator derives this per endpoint from the pinned vendor spec and
-    renders the chain-wide note onto the `expiration` row of the reference page
-    it writes, and the generator holds those pages to its own output byte for
-    byte. Reading the rendered answer leaves one parser of that spec instead of
-    a second one here, which had no reason to agree with the first and did not:
-    it counted commented-out parameter blocks as live ones.
-
-    An endpoint with no `expiration` row gets no entry. If the generator's note
-    is ever reworded, every option route reads as wildcard-rejecting and the
-    check below fails on the first one rather than passing quietly.
-    """
-    wildcard: dict[str, bool] = {}
-    for endpoint in REGISTRY_ENDPOINTS:
-        row = next(
-            (
-                line
-                for line in endpoint_page_path(endpoint).read_text().splitlines()
-                if line.startswith("| `expiration` |")
-            ),
-            None,
-        )
-        if row is not None:
-            wildcard[endpoint["name"]] = EXPIRATION_WILDCARD_NOTE in row
-    return wildcard
-
-
-def check_openapi_expiration_wildcard() -> None:
-    """A documented `expiration` accepts `*` exactly where upstream does.
-
-    The contract carries two expiration anchors, one whose pattern matches the
-    `*` wildcard and one whose pattern rejects it, and the choice is made per
-    route. Made by hand, the two spellings of one endpoint drifted apart and
-    published contradictory rules for the same request. The rule is asserted
-    against the pinned vendor snapshot instead, which is where the answer
-    actually lives.
-
-    The pattern is tested by matching it against `*` rather than by reading the
-    anchor's name or looking for an escaped asterisk, so it holds whatever way
-    a future pattern spells the wildcard.
-    """
-    endpoint_names = registry_route_endpoint_names()
-    wildcard = reference_page_expiration_wildcard()
-    documented = openapi_route_params(OPENAPI_YAML.read_text(), set(endpoint_names))
-    checked = 0
-    for path, params in sorted(documented.items()):
-        expiration = params.get("expiration")
-        if expiration is None:
-            continue
-        name = endpoint_names[path]
-        if name not in wildcard:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} documents an `expiration`, but the "
-                f"generated reference page for {name} carries no `expiration` row, "
-                f"so the wildcard rule cannot be verified"
-            )
-        pattern = expiration[2]
-        if pattern is None:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} documents `expiration` with no "
-                f"`pattern`, so it states no rule about the `*` wildcard"
-            )
-        try:
-            allows_wildcard = re.match(pattern, "*") is not None
-        except re.error as exc:
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} `expiration` pattern "
-                f"{pattern!r} is not a valid regular expression: {exc}"
-            )
-        checked += 1
-        if allows_wildcard != wildcard[name]:
-            upstream = "accepts" if wildcard[name] else "rejects"
-            ours = "accepts" if allows_wildcard else "rejects"
-            fail(
-                f"{rel(OPENAPI_YAML)} {path} documents an `expiration` that "
-                f"{ours} the `*` wildcard, but the generated reference page says "
-                f"{name} {upstream} it. Alias the matching expiration anchor."
-            )
-    if checked == 0:
-        fail(
-            f"{rel(OPENAPI_YAML)} parsed to no documented `expiration` "
-            f"parameters (the spec's layout changed: the gate would be blind to "
-            f"a wrong wildcard rule)"
-        )
 
 
 def _rust_str_array_items(text: str, const_name: str, path: Path) -> list[str]:
@@ -1546,8 +1139,7 @@ def check_tier_badges() -> None:
 
 
 def _selftest() -> int:
-    """Hermetic checks for the server flag-default derivation (G5) and the
-    OpenAPI parameter comparison.
+    """Hermetic checks for the server flag-default derivation (G5).
 
     Drives `server_arg_defaults`, `_parse_doc_flag_table`, and
     `_value_enum_render` on synthetic inputs:
@@ -1564,13 +1156,6 @@ def _selftest() -> int:
     * A documented default that disagrees with the source value is caught
       value-by-value, where a substring scan would miss a default that
       changed to a value still printed elsewhere.
-
-    The OpenAPI parameter cases drive `check_openapi_parameters` on a
-    synthetic spec against synthetic registry rows, so both sides of the
-    comparison are fixed here rather than tracking the live registry. A spec
-    that agrees is accepted; a required flag or a default moved on one side
-    only is refused; and a spec whose routes the parser cannot find is
-    refused rather than passing on an empty comparison.
     """
     import tempfile
 
@@ -1677,114 +1262,6 @@ def _selftest() -> int:
         finally:
             SERVER_MAIN_RS = saved_main
 
-    # --- OpenAPI parameter comparison ---------------------------------------
-    # One route, one aliased parameter and one inline one, so both resolution
-    # paths are exercised. `format` is the REST-only parameter the registry
-    # never carries and the comparison must forgive.
-    synthetic_spec = (
-        "x-anchors:\n"
-        "  strike-param: &strike-param\n"
-        "    name: strike\n"
-        "    in: query\n"
-        "    required: false\n"
-        "    schema:\n"
-        "      type: string\n"
-        "      default: '*'\n"
-        "    description: >-\n"
-        "      Prose that says required: true and default: 9 to prove neither\n"
-        "      is read out of a description.\n"
-        "  format-param: &format-param\n"
-        "    name: format\n"
-        "    in: query\n"
-        "    required: false\n"
-        "    schema:\n"
-        "      type: string\n"
-        "      default: csv\n"
-        "paths:\n"
-        "  /v3/option/snapshot/trade:\n"
-        "    get:\n"
-        "      operationId: optionSnapshotTrade\n"
-        "      parameters:\n"
-        "        - name: symbol\n"
-        "          in: query\n"
-        "          required: true\n"
-        "          schema:\n"
-        "            type: string\n"
-        "        - *strike-param\n"
-        "        - name: interval\n"
-        "          in: query\n"
-        "          required: false\n"
-        "          schema:\n"
-        "            type: string\n"
-        "            default: 1s\n"
-        "        - *format-param\n"
-        "      responses:\n"
-        "        '200':\n"
-        "          description: ok\n"
-    )
-    synthetic_rows = {
-        "/v3/option/snapshot/trade": {
-            "symbol": (True, None),
-            "strike": (False, "*"),
-            "interval": (False, "1s"),
-        }
-    }
-
-    global OPENAPI_YAML
-    saved_openapi = OPENAPI_YAML
-
-    def openapi_case(label: str, spec: str, rows: dict, *, refuse: bool) -> None:
-        """Run the parameter gate on `spec`; `refuse` says it must reject it."""
-        global OPENAPI_YAML
-        with tempfile.TemporaryDirectory() as td:
-            fake_spec = Path(td) / "thetadatadx.yaml"
-            fake_spec.write_text(spec, encoding="utf-8")
-            OPENAPI_YAML = fake_spec
-            try:
-                check_openapi_parameters(rows)
-            except SystemExit:
-                if not refuse:
-                    failures.append(
-                        f"openapi-params: {label} was refused but agrees with the rows"
-                    )
-            else:
-                if refuse:
-                    failures.append(f"openapi-params: {label} was accepted")
-            finally:
-                OPENAPI_YAML = saved_openapi
-
-    openapi_case("an agreeing spec", synthetic_spec, synthetic_rows, refuse=False)
-
-    # A required flag moved on the spec side only. The aliased parameter is
-    # the one moved, so an alias resolved to a stale or shared node would
-    # show up here too.
-    required_drift = synthetic_spec.replace(
-        "    name: strike\n    in: query\n    required: false\n",
-        "    name: strike\n    in: query\n    required: true\n",
-    )
-    if required_drift == synthetic_spec:
-        failures.append(
-            "openapi-params: the fixture no longer carries the optional "
-            "`strike` this case marks required, so the case proves nothing"
-        )
-    openapi_case("a required-flag drift", required_drift, synthetic_rows, refuse=True)
-
-    # A default moved on the registry side only.
-    moved_default = {
-        path: {**params, "interval": (False, "5s")}
-        for path, params in synthetic_rows.items()
-    }
-    openapi_case("a default drift", synthetic_spec, moved_default, refuse=True)
-
-    # A spec the parser finds no route in must fail rather than pass on an
-    # empty comparison.
-    openapi_case(
-        "a spec with no comparable route",
-        synthetic_spec,
-        {"/v3/stock/snapshot/trade": {"symbol": (True, None)}},
-        refuse=True,
-    )
-
     if failures:
         print("check_docs_consistency --selftest: FAILED")
         for f in failures:
@@ -1800,8 +1277,6 @@ def main() -> None:
     check_reference_pages()
     check_llms_txt()
     check_openapi()
-    check_openapi_parameters()
-    check_openapi_expiration_wildcard()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
     check_tier_badges()
