@@ -86,6 +86,10 @@ __internal = []
 mimalloc-allocator = ["dep:mimalloc"]
 
 [dependencies]
+# Builds the identifiers the endpoint tables derive (`get_<name>`,
+# `<Name>Builder`), which `macro_rules!` cannot do on stable Rust. Compile
+# time only: a proc macro with no dependencies.
+pastey = "0.2.3"
 # Protobuf message types for the MDDS wire contract; the gRPC client
 # in `src/grpc/` consumes these directly.
 prost = "=0.14.4"
