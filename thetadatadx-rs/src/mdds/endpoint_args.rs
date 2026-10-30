@@ -716,7 +716,7 @@ macro_rules! endpoint_dispatch {
             Fut: core::future::Future<Output = core::ops::ControlFlow<()>>,
         {
             match name {
-                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $handler } tables $shape $name $ret } },)*
+                $(stringify!($name) => crate::__resolve! { [$($key)*] for $name => dispatch_arm { { $client $args $handler } tables $shape $name $ret } },)*
                 _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
             }
         }
@@ -748,7 +748,7 @@ macro_rules! endpoint_dispatch {
             $args: &EndpointArgs,
         ) -> Result<EndpointOutput, EndpointError> {
             match name {
-                $(stringify!($name) => crate::__resolve! { [$($key)*] => dispatch_arm { { $client $args $handler } $shape $name $ret } },)*
+                $(stringify!($name) => crate::__resolve! { [$($key)*] for $name => dispatch_arm { { $client $args $handler } $shape $name $ret } },)*
                 _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
             }
         }
@@ -774,7 +774,7 @@ macro_rules! endpoint_dispatch {
             mut $handler: impl FnMut(*const core::ffi::c_void, usize, &crate::columns::ColumnPresence) -> core::ops::ControlFlow<()> + Send,
         ) -> Result<(), EndpointError> {
             match name {
-                $(stringify!($sname) => crate::__resolve! { [$($skey)*] => dispatch_arm { { $client $args $handler } chunk_stream $sname $sret } },)*
+                $(stringify!($sname) => crate::__resolve! { [$($skey)*] for $sname => dispatch_arm { { $client $args $handler } chunk_stream $sname $sret } },)*
                 _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
             }
         }
