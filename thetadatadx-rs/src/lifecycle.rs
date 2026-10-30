@@ -1,12 +1,5 @@
-//! Dispatcher thread lifecycle type shared across the workspace.
-//!
-//! Defining the enum once here eliminates three near-identical copies:
-//! - `thetadatadx-rs/src/client.rs` (`DispatcherSession`)
-//! - `thetadatadx-ffi/src/streaming.rs` (`FfpssDispatcherSession`)
-//! - `thetadatadx-py/src/fpss_client.rs` (`PyFpssDispatcherSession`)
-//!
-//! All three had identical shape: `Idle / Running { handle } / Failed { reason }`.
-//! A single canonical type removes the drift risk.
+//! Dispatcher thread lifecycle of the streaming service. Every binding's
+//! streaming front-end runs on the core service, so this is the only copy.
 
 /// Dispatcher thread lifecycle.
 ///

@@ -275,9 +275,6 @@ pub mod wire {
 pub use client::StreamService;
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
-pub use lifecycle::DispatcherSession;
-#[cfg(feature = "__internal")]
-#[doc(hidden)]
 pub use mdds::endpoint_args::{EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 #[cfg(feature = "__internal")]
 #[doc(hidden)]

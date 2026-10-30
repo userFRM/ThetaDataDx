@@ -3512,7 +3512,7 @@ export declare class StreamingClient {
   /**
    * Snapshot of per-contract subscriptions on the live session as an
    * array of `{ kind, contract }` objects (matching the unified
-   * client's `activeSubscriptions()` projection). Empty array when
+   * client's `activeSubscriptions()` projection). Throws when
    * streaming has not started.
    */
   activeSubscriptions(): any
@@ -3522,8 +3522,7 @@ export declare class StreamingClient {
    * as the unified client's `activeFullSubscriptions()`, where `kind` is
    * `"full_trades"` / `"full_open_interest"` and `contract` carries the
    * wire-level security type. Quote is never a valid full-stream kind,
-   * so any such row is dropped. Empty array when streaming has not
-   * started.
+   * so any such row is dropped. Throws when streaming has not started.
    */
   activeFullSubscriptions(): any
   /**
@@ -3578,8 +3577,6 @@ export declare class StreamingClient {
    * explicit-handoff semantics as the unified client: to resume after
    * this returns, call `startStreaming(callback)` again with a freshly
    * bound function; `reconnect()` throws because no callback is held.
-   *
-   * Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
    */
   stopStreaming(): void
   /**
@@ -3598,7 +3595,8 @@ export declare class StreamingClient {
    * installed callback, and re-applies the saved subscriptions through
    * the core's paced replay engine. Per-subscription failures surface as
    * a single error naming every contract that did not re-subscribe — the
-   * streaming session itself is already up at that point.
+   * streaming session itself is already up at that point. A retry after a
+   * failed reconnect replays the subscriptions the failed attempt saved.
    */
   reconnect(): Promise<void>
   /**
@@ -3614,7 +3612,7 @@ export declare class StreamingClient {
  * User-facing real-time-streaming sub-namespace returned by the
  * `client.stream` getter.
  *
- * Shares the parent client's connection and its registered streaming
+ * Shares the parent client's streaming service and its registered streaming
  * callback, so `startStreaming`, `stopStreaming`, `reconnect`, and the
  * subscription methods observe the same registration the unified client
  * does.
@@ -3719,7 +3717,7 @@ export declare class StreamView {
    * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
    * Quote is never a valid full-stream kind on the streaming wire, so
    * any such row from the core is dropped from the projection.
-   * Empty array when streaming has not started.
+   * Throws when streaming has not started.
    */
   activeFullSubscriptions(): any
   /**
