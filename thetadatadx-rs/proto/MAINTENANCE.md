@@ -28,8 +28,7 @@ proto/
 
 ../src/surface/ticks.rs     - tick table (every tick type the endpoints return)
 ../src/surface/endpoints.rs - endpoint table (every endpoint surface)
-../build.rs                - small build entrypoint
-../build_support/          - build-time generators and validators
+../src/bin/refresh_grpc_snapshot/ - regenerates the committed gRPC snapshot
 ```
 
 ## What happens on `cargo build`
@@ -38,14 +37,12 @@ The gRPC client stubs and message types are **not** compiled on a normal
 build. They are pre-generated and committed at
 `proto/beta_endpoints.snapshot.rs` (included directly by `src/lib.rs` and
 exposed at `crate::proto`), so a default `cargo build` needs no `protoc`.
-Regenerating them from `mdds.proto` happens only under the `grpc-codegen`
-feature; see "replace `mdds.proto`" below.
+The `refresh_grpc_snapshot` binary regenerates them from `mdds.proto` under
+the `grpc-codegen` feature; see "replace `mdds.proto`" below.
 
-Nothing is generated on a default build. The endpoint table in `src/surface/endpoints.rs` expands at compile time into the endpoint registry, the shared endpoint dispatch, and the `MarketDataClient` methods and builders, and the tick table in `src/surface/ticks.rs` into the tick structs, their `DataTable` decoders and their Arrow and Polars builders.
+Nothing is generated on a build; the crate has no build script. The endpoint table in `src/surface/endpoints.rs` expands at compile time into the endpoint registry, the shared endpoint dispatch, and the `MarketDataClient` methods and builders, and the tick table in `src/surface/ticks.rs` into the tick structs, their `DataTable` decoders and their Arrow and Polars builders.
 
-The build needs no `protoc`. Under the `grpc-codegen`
-feature the build additionally recompiles `mdds.proto` with `protoc` and
-drift-checks the committed snapshot; CI runs that check.
+CI runs `refresh_grpc_snapshot` and fails when it changes the committed snapshot, so a proto change cannot land without the stubs and message types generated from it.
 
 ## Endpoint table structure
 
@@ -155,8 +152,8 @@ When ThetaData ships a new version:
 2. Drop in the new `mdds.proto`
 3. Regenerate + commit the gRPC snapshot (this is the only step that needs
    `protoc`): `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`,
-   then commit the `proto/beta_endpoints.snapshot.rs` diff. CI drift-checks
-   this under `--features grpc-codegen`, so a stale snapshot fails the build.
+   then commit the `proto/beta_endpoints.snapshot.rs` diff. CI reruns the
+   refresh and fails when it changes the snapshot, so a stale one cannot land.
 4. If any RPCs were renamed or removed, the endpoint table entries that no longer match the wire contract fail to compile. Fix them.
 5. If new RPCs were added, add corresponding entries to the endpoint table; `generate_sdk_surfaces` fails until every RPC has one.
 6. If column layouts changed, update the tick table (`../src/surface/ticks.rs`) to match.

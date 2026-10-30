@@ -2,8 +2,8 @@
 //!
 //! The hand-written `stock_list_symbols` helper here is the
 //! foundation example. The full RPC surface is emitted into
-//! `crate::proto::beta_theta_terminal` by the codegen in
-//! `build_support/grpc/`, with one async function per
+//! `crate::proto::beta_theta_terminal` by the codegen of the
+//! `refresh_grpc_snapshot` binary, with one async function per
 //! server-streaming method in `mdds.proto`.
 
 use std::collections::HashMap;

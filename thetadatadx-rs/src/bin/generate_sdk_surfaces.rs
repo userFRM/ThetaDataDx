@@ -6,7 +6,7 @@
 //! Regenerate the checked-in SDK wrapper surfaces and the docs site from the
 //! endpoint table and the schema files.
 //!
-//! Normal crate builds only emit `OUT_DIR` artifacts. This helper keeps the
+//! Normal crate builds generate nothing. This helper keeps the
 //! checked-in FFI/SDK projections and docs pages explicit so CI can verify
 //! drift without mutating files as a side effect of `cargo build`. `--check`
 //! verifies the checked-in tree without writing.
