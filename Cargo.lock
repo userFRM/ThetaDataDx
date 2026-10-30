@@ -4682,7 +4682,6 @@ name = "xtask"
 version = "0.0.0"
 dependencies = [
  "heck",
- "pastey",
  "prost-build",
  "serde_json",
  "thetadatadx-rs",
