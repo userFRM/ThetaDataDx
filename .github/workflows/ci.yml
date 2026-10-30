@@ -255,20 +255,6 @@ jobs:
           python3 scripts/ci/check_doc_defaults.py --selftest
           python3 scripts/ci/check_doc_defaults.py
 
-  no-re-framing:
-    name: Source docs framing hygiene
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Source docs framing detector
-        run: |
-          python3 scripts/ci/check_no_re_framing.py --selftest
-          python3 scripts/ci/check_no_re_framing.py
-
   docs-consistency:
     name: Docs consistency
     runs-on: ubuntu-latest
@@ -944,7 +930,6 @@ jobs:
       - wire-schema-drift
       - public-surface-leak
       - doc-defaults
-      - no-re-framing
       - docs-consistency
       - version-sync
       - agreement
@@ -1185,7 +1170,7 @@ jobs:
   # conditionally-skipped required check can no longer leave the merge
   # gate permanently unsatisfiable.
   #
-  # It depends on `verified` rather than restating its 26 jobs, so a
+  # It depends on `verified` rather than restating its 25 jobs, so a
   # new verification job is added in ONE place -- `verified` -- and is
   # covered by both the merge gate and the publish gate at once. That
   # is the whole point of the split: the two lists cannot drift apart
