@@ -10,8 +10,7 @@
 //! sentinels, optional values) comes from `test_fixtures.rs`; `modes.rs`
 //! carries no fixture literals.
 //!
-//! Renderers in `render/*_validate.rs` format each mode for their target
-//! language.
+//! `sdk_render/validator.rs` renders the modes as the validators' cells.
 
 use std::collections::HashSet;
 
@@ -27,7 +26,7 @@ use super::test_fixtures::{category_symbol, mode_overrides, optional_value, type
 // [`test_modes_for`] from the endpoint's wire shape — list endpoints get one
 // mode, ContractSpec endpoints get the full wildcard cross-product, and so
 // on. Each mode carries language-agnostic string args so per-language
-// renderers (CLI / Python / C++) can format them appropriately.
+// renderers (Python / C++) can format them appropriately.
 
 /// One parameter-mode test cell to run against a live endpoint.
 #[derive(Debug, Clone)]
@@ -35,10 +34,10 @@ pub(super) struct TestMode {
     /// Mode identifier (`concrete`, `bulk_chain`, `iso_date`, ...). Used in
     /// validator output so failures point at a specific cell.
     pub(super) name: String,
-    /// One-sentence description of what this cell proves. Emitted as a
-    /// comment in the generated validators, as a field in the per-cell JSON
-    /// artifact, and shown in `validate_agreement.py` disagreement output so
-    /// a reviewer reading a FAIL immediately sees which feature broke.
+    /// One-sentence description of what this cell proves. Carried in each
+    /// validator cell and its per-cell JSON artifact, and shown in
+    /// `check_agreement.py` disagreement output so a reader of a FAIL
+    /// immediately sees which feature broke.
     pub(super) rationale: &'static str,
     /// Method-call positional arguments, in declaration order. Each entry is
     /// the language-agnostic string value (e.g. `"SPY"`, `"20260417"`,
@@ -52,19 +51,14 @@ pub(super) struct TestMode {
     /// Optional (builder-bound) parameter overrides to apply on this mode.
     /// Each entry is `(param_name, representative_value)`. Rendered per
     /// language: Python kwargs, C++ `EndpointRequestOptions{}.with_xxx()`.
-    /// CLI skips these (positional
-    /// clap args don't support targeted optional injection).
     pub(super) builder_overrides: Vec<(String, String)>,
 }
 
 /// One-sentence rationale describing what each mode proves.
 ///
-/// Surfaces in three places:
-/// * inline `# rationale:` comment in the generated validator scripts so a
-///   reader of `scripts/ci/check_python.py` sees per-cell intent;
-/// * `rationale` field in the per-cell JSON artifact; and
-/// * `validate_agreement.py` failure output, so a FAIL line carries the
-///   feature description not just the mode name.
+/// Surfaces in the validator cells, in the per-cell JSON artifact, and in
+/// `check_agreement.py` failure output, so a FAIL line carries the feature
+/// description not just the mode name.
 ///
 /// Kept ≤100 chars so it fits on one line in failure tables. Per-optional
 /// `with_<name>` modes are produced from

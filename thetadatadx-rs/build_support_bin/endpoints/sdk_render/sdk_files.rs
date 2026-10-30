@@ -9,7 +9,7 @@
 use std::path::Path;
 
 use super::super::table::{self, REQUEST_OPTIONS};
-use super::{config_accessors, cpp, cpp_validate, ffi, python_stub, python_validate};
+use super::{config_accessors, cpp, ffi, python_stub, validator};
 
 struct GeneratedSourceFile {
     relative_path: &'static str,
@@ -149,12 +149,12 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_cpp_stream_defs(&endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "scripts/ci/check_python.py",
-            contents: python_validate::render_python_validate(&endpoints),
+            relative_path: "scripts/ci/data/live_cells.json",
+            contents: validator::render_cells_json(&endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/examples/validate.cpp",
-            contents: cpp_validate::render_cpp_validate(&endpoints),
+            relative_path: "thetadatadx-cpp/examples/validate_cells.inc",
+            contents: validator::render_cpp_cells(&endpoints),
         },
     ])
 }
