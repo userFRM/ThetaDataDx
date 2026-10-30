@@ -72,9 +72,9 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    outright; a downstream f64 reparse can drop them silently), so we
    collapse all three to a single unambiguous sentinel
 4. date-shaped fields (`date`, `expiration`, or ending in `_date`):
-   value `0` -> `None`. Every SDK emits the sentinel verbatim (Python
-   `thetadatadx-py/src/tick_columnar.rs:7,38`; server `cell` in
-   `tools/server/src/format.rs`). Without this normalization,
+   value `0` -> `None`. Every SDK emits the sentinel verbatim (the Python
+   tick classes, `py_tick!` in `thetadatadx-py/src/ticks.rs`; server `cell`
+   in `tools/server/src/format.rs`). Without this normalization,
    a producer that happens to see `date == 0` (no-data cell, pre-market
    snapshot) would false-diff against one that serializes the same
    cell as `null`.
@@ -186,14 +186,15 @@ _MS_FIELD_NAMES: frozenset[str] = frozenset(
 _STRIKE_FIELD_NAMES: frozenset[str] = frozenset({"strike"})
 
 # Right-shaped field names. Tick types emit `right` as `"C" / "P" / ""`
-# (Python `tick_columnar.rs:41`); `OptionContract` uses raw int 67/80/0.
+# (`py_tick!` in `thetadatadx-py/src/ticks.rs`); `OptionContract` uses raw int
+# 67/80/0.
 # Empty string OR int 0 are both sentinels -> None.
 _RIGHT_FIELD_NAMES: frozenset[str] = frozenset({"right"})
 
 # Union of all sentinel-shaped field names for omit-vs-null normalization.
 # A producer that omits the field (the server, for a column its upstream
 # table lacks) is equivalent to one that emits `null` or the raw sentinel
-# value (Python tick_columnar emits 0/`""` verbatim). The consumer strips
+# value (the Python tick classes carry 0/`""` verbatim). The consumer strips
 # post-canonical `None` values for these fields so all three shapes converge
 # to "absent".
 _SENTINEL_SHAPED_FIELDS: frozenset[str] = (
