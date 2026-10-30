@@ -91,28 +91,6 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
         run: ./build/cpp/thetadatadx_streaming_smoke creds.txt
-      - name: FLATFILES synthetic golden (decoder)
-        # Runs against a hand-built blob in the repo; no live wire. This
-        # is the always-on regression gate for the FIT decoder + CSV
-        # writer. Fast and deterministic.
-        run: cargo test --features __test-helpers --test flatfiles_synthetic_golden -- --nocapture
-      - name: FLATFILES byte-match (vendor reference)
-        run: |
-          # Single env var gates the whole byte-match contract:
-          # THETADATADX_FLATFILE_FIXTURES_PATH points at a directory
-          # containing OPTION-OPEN_INTEREST-20260428.csv and
-          # OPTION-EOD-20260428.csv. When unset (or pointing at a
-          # missing directory / missing fixture), the test prints a
-          # one-line skip diagnostic and passes — matching the CI
-          # steady state where the gigabyte-scale vendor reference
-          # fixtures are not checked into the repo (tracked under
-          # #453). Once a fixture lands in the runner image (or is
-          # restored from cache / artefact), set the env var below to
-          # enable byte-match validation:
-          #
-          # env:
-          #   THETADATADX_FLATFILE_FIXTURES_PATH: ${{ runner.temp }}/thetadatadx-fixtures
-          cargo test --features live-tests,__test-helpers --test flatfiles_byte_match -- --nocapture
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})
     needs: [preflight, smoke]

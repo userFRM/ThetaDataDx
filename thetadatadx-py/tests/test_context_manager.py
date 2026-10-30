@@ -441,8 +441,6 @@ def test_close_makes_client_unusable(client) -> None:
         _ = client.market_data
     with pytest.raises(RuntimeError, match="closed"):
         _ = client.stream
-    with pytest.raises(RuntimeError, match="closed"):
-        _ = client.flat_files
     # Idempotent: a second close on the released client is a no-op.
     client.close()
 

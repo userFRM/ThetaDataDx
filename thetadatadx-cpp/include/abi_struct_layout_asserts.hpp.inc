@@ -5,7 +5,7 @@
 // structs below are declared by hand on both sides, so these
 // hand-written asserts are the only thing that fails the build if a
 // field width, padding gap, or member order drifts from the Rust
-// definitions in `thetadatadx-ffi/src` (`types.rs`, `streaming.rs`, `flatfiles.rs`).
+// definitions in `thetadatadx-ffi/src` (`types.rs`, `streaming.rs`).
 //
 // Sizes and offsets are the LP64 layout (x86_64 / aarch64 Linux, macOS)
 // of the matching `#[repr(C)]` structs.
@@ -97,15 +97,6 @@ static_assert(offsetof(ThetaDataDxArrowBytes, len) == 8,
               "ThetaDataDxArrowBytes::len offset drifted from Rust");
 static_assert(sizeof(ThetaDataDxArrowBytes) == 16,
               "ThetaDataDxArrowBytes total size drifted from Rust");
-
-// ── ThetaDataDxFlatFileBytes (thetadatadx-ffi/src/flatfiles.rs) ──
-// Layout-identical to ThetaDataDxArrowBytes by contract.
-static_assert(offsetof(ThetaDataDxFlatFileBytes, data) == 0,
-              "ThetaDataDxFlatFileBytes::data offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxFlatFileBytes, len) == 8,
-              "ThetaDataDxFlatFileBytes::len offset drifted from Rust");
-static_assert(sizeof(ThetaDataDxFlatFileBytes) == 16,
-              "ThetaDataDxFlatFileBytes total size drifted from Rust");
 
 // ── ThetaDataDxEndpointRequestOptions ──
 static_assert(offsetof(ThetaDataDxEndpointRequestOptions, venue) == 0,

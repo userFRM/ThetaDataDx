@@ -310,13 +310,11 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             StreamErrorKind::ProtocolError => StreamError::new_err(e.to_string()),
             _ => StreamError::new_err(e.to_string()),
         },
-        // FlatFiles availability, partial-reconnect, and partial
-        // shard-fetch failures are streaming-surface faults; route them
-        // to `StreamError` so a `except StreamError` clause behaves
-        // identically to the C++ and C ABI mapping (both pin these to
-        // the stream discriminant).
-        thetadatadx::Error::FlatFilesUnavailable(_)
-        | thetadatadx::Error::PartialReconnect { .. }
+        // Partial-reconnect and partial shard-fetch failures are
+        // streaming-surface faults; route them to `StreamError` so a
+        // `except StreamError` clause behaves identically to the C++ and
+        // C ABI mapping (both pin these to the stream discriminant).
+        thetadatadx::Error::PartialReconnect { .. }
         | thetadatadx::Error::PartialShardFetch { .. } => StreamError::new_err(e.to_string()),
         // Catch-all for future `#[non_exhaustive]` variants added on the
         // Rust side. We keep the build green and route to the root class
@@ -559,22 +557,6 @@ mod tests {
 
             let toml = to_py_err(thetadatadx::Error::config_toml("expected `]`"));
             assert_exception_class(py, &toml, "ConfigError");
-        });
-    }
-
-    #[test]
-    fn flatfiles_unavailable_maps_to_stream_error() {
-        // FlatFiles availability failures are a streaming-surface fault;
-        // they route to `StreamError` so the class matches the C++ / C
-        // ABI mapping (both pin this to the stream discriminant).
-        Python::initialize();
-        Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::FlatFilesUnavailable(
-                thetadatadx::flatfiles::FlatFilesUnavailableReason::RequestRejected {
-                    server_message: "no subscription".into(),
-                },
-            ));
-            assert_exception_class(py, &err, "StreamError");
         });
     }
 

@@ -190,7 +190,3 @@ The [local server](/server/) answers `/v3/{option,stock,index}/flat_file/{datase
 | `format` | no | `csv` (default), `json`, `json_legacy`, `ndjson` (alias `jsonl`) or `html`. |
 
 In CSV every text and price cell is quoted and a price keeps its decimal point (`"SPY",20261030,"808.0","P",...`); `json` wraps the rows in a `response` array with prices as strings. The body is byte for byte the file the `_to_path` calls write. A refusal before any data, such as a date outside the window, answers with its own status, like every other route. A download that fails after the first bytes ends in a broken transfer, never a short file that reads as complete.
-
-## The `flat_files` API
-
-The `flat_files` view (`client.flat_files()` in Rust and C++, `client.flat_files` in Python, `client.flatFiles` in TypeScript) and the `flatfile_*` functions request flat files from the vendor's older flat-file service. That service serves five of the datasets above: option trade-quote, open interest and EOD, and stock trade-quote and EOD. It does not serve the quote files or index EOD, and it writes its own CSV layout. The endpoints above are the complete set.

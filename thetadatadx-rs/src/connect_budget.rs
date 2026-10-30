@@ -10,8 +10,8 @@
 //! connection is gone dials a new one.
 //!
 //! Every path that opens a connection takes a slot here first: the
-//! market-data channel dial (and so the pool's open at startup), the
-//! streaming client's connect and reconnect, and the flat-file session.
+//! market-data channel dial (and so the pool's open at startup) and the
+//! streaming client's connect and reconnect.
 //! An established connection never touches the budget, so nothing on
 //! the request path pays for it.
 //!

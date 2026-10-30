@@ -1,8 +1,8 @@
 // Arrow-IPC terminal on the history result vectors (M.2).
 //
-// Mirrors the FlatFiles `FlatFileRowList::to_arrow_ipc()` exit for the
-// typed history rows: `thetadatadx::<tick>_to_arrow_ipc(std::vector<Tick>)`
-// serialises the rows to an Arrow IPC stream so a C++ caller can hand the
+// The typed history rows' columnar exit:
+// `thetadatadx::<tick>_to_arrow_ipc(std::vector<Tick>)` serialises the rows
+// to an Arrow IPC stream so a C++ caller can hand the
 // bytes to arrow-cpp — the same columnar exit Python exposes via
 // `<TickName>List.to_arrow()`. Offline: builds tick vectors in-process and
 // checks the serialiser returns a well-formed, non-empty IPC stream

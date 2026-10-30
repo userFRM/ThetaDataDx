@@ -1429,217 +1429,6 @@ mod retry_setter_tests {
 }
 
 #[cfg(test)]
-mod flatfiles_setter_tests {
-    //! Offline tests for the three `FlatFilesConfig` field
-    //! setters/getters on the FFI surface — cross-binding parity with
-    //! Python / TypeScript / C++. The `backoff_for_attempt` /
-    //! `production_defaults` helpers stay Rust-only; this module pins
-    //! only field round-trip across the C ABI.
-
-    #[test]
-    fn flatfiles_max_attempts_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        assert!(!cfg.is_null());
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut got: u32 = 0;
-            // Default seeded from FlatFilesConfig::production_defaults().
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_max_attempts(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 10);
-            for n in [0u32, 1, 3, 5, 10, 100] {
-                super::thetadatadx_config_set_flatfiles_max_attempts(cfg, n);
-                assert_eq!((*cfg).inner.flatfiles.max_attempts, n);
-                assert_eq!(
-                    super::thetadatadx_config_get_flatfiles_max_attempts(cfg, &mut got),
-                    0
-                );
-                assert_eq!(got, n);
-            }
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flatfiles_initial_backoff_secs_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut got: u64 = 0;
-            // Default seeded from FlatFilesConfig::production_defaults().
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 1);
-            for secs in [0u64, 1, 2, 4, 10, 60, 3600] {
-                super::thetadatadx_config_set_flatfiles_initial_backoff_secs(cfg, secs);
-                assert_eq!(
-                    (*cfg).inner.flatfiles.initial_backoff,
-                    std::time::Duration::from_secs(secs),
-                );
-                assert_eq!(
-                    super::thetadatadx_config_get_flatfiles_initial_backoff_secs(cfg, &mut got),
-                    0
-                );
-                assert_eq!(got, secs);
-            }
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flatfiles_max_backoff_secs_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut got: u64 = 0;
-            // Default seeded from FlatFilesConfig::production_defaults().
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 30);
-            for secs in [0u64, 1, 4, 10, 60, 3600, 86_400] {
-                super::thetadatadx_config_set_flatfiles_max_backoff_secs(cfg, secs);
-                assert_eq!(
-                    (*cfg).inner.flatfiles.max_backoff,
-                    std::time::Duration::from_secs(secs),
-                );
-                assert_eq!(
-                    super::thetadatadx_config_get_flatfiles_max_backoff_secs(cfg, &mut got),
-                    0
-                );
-                assert_eq!(got, secs);
-            }
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flatfiles_connect_timeout_secs_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut got: u64 = 0;
-            // Default seeded from FlatFilesConfig::production_defaults().
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_connect_timeout_secs(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 10);
-            for secs in [0u64, 1, 4, 10, 60, 3600] {
-                super::thetadatadx_config_set_flatfiles_connect_timeout_secs(cfg, secs);
-                assert_eq!((*cfg).inner.flatfiles.connect_timeout_secs, secs);
-                assert_eq!(
-                    super::thetadatadx_config_get_flatfiles_connect_timeout_secs(cfg, &mut got),
-                    0
-                );
-                assert_eq!(got, secs);
-            }
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flatfiles_read_timeout_secs_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut got: u64 = 0;
-            // Default seeded from FlatFilesConfig::production_defaults().
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_read_timeout_secs(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 60);
-            for secs in [0u64, 1, 4, 10, 60, 3600, 86_400] {
-                super::thetadatadx_config_set_flatfiles_read_timeout_secs(cfg, secs);
-                assert_eq!((*cfg).inner.flatfiles.read_timeout_secs, secs);
-                assert_eq!(
-                    super::thetadatadx_config_get_flatfiles_read_timeout_secs(cfg, &mut got),
-                    0
-                );
-                assert_eq!(got, secs);
-            }
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flatfiles_setters_null_handle_returns_minus_one_or_noop() {
-        // SAFETY: passing null to thetadatadx_config_* is the documented FFI
-        // contract — getter returns sentinel, setter no-ops.
-        unsafe {
-            super::thetadatadx_config_set_flatfiles_max_attempts(std::ptr::null_mut(), 3);
-            super::thetadatadx_config_set_flatfiles_initial_backoff_secs(std::ptr::null_mut(), 1);
-            super::thetadatadx_config_set_flatfiles_max_backoff_secs(std::ptr::null_mut(), 4);
-            super::thetadatadx_config_set_flatfiles_connect_timeout_secs(std::ptr::null_mut(), 10);
-            super::thetadatadx_config_set_flatfiles_read_timeout_secs(std::ptr::null_mut(), 60);
-            let mut got_n: u32 = 0;
-            let mut got_secs: u64 = 0;
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_max_attempts(std::ptr::null(), &mut got_n),
-                -1
-            );
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_initial_backoff_secs(
-                    std::ptr::null(),
-                    &mut got_secs
-                ),
-                -1
-            );
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_max_backoff_secs(
-                    std::ptr::null(),
-                    &mut got_secs
-                ),
-                -1
-            );
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_connect_timeout_secs(
-                    std::ptr::null(),
-                    &mut got_secs
-                ),
-                -1
-            );
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_read_timeout_secs(
-                    std::ptr::null(),
-                    &mut got_secs
-                ),
-                -1
-            );
-        }
-    }
-
-    #[test]
-    fn flatfiles_field_setters_compose_into_consistent_config() {
-        // After mutating all three fields the `DirectConfig.flatfiles`
-        // struct must reflect the composed shape — proves the setters
-        // target the same underlying field rather than duplicating state.
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            super::thetadatadx_config_set_flatfiles_max_attempts(cfg, 5);
-            super::thetadatadx_config_set_flatfiles_initial_backoff_secs(cfg, 2);
-            super::thetadatadx_config_set_flatfiles_max_backoff_secs(cfg, 30);
-            super::thetadatadx_config_set_flatfiles_connect_timeout_secs(cfg, 15);
-            super::thetadatadx_config_set_flatfiles_read_timeout_secs(cfg, 90);
-            let ff = &(*cfg).inner.flatfiles;
-            assert_eq!(ff.max_attempts, 5);
-            assert_eq!(ff.initial_backoff, std::time::Duration::from_secs(2));
-            assert_eq!(ff.max_backoff, std::time::Duration::from_secs(30));
-            assert_eq!(ff.connect_timeout_secs, 15);
-            assert_eq!(ff.read_timeout_secs, 90);
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-}
-
-#[cfg(test)]
 mod auth_metrics_setter_tests {
     //! Offline tests for the `AuthConfig` (`nexus_url` / `client_type`)
     //! and `MetricsConfig` (`port`) field setters/getters on the FFI
@@ -1845,8 +1634,7 @@ mod auth_metrics_setter_tests {
 mod resilience_knob_tests {
     //! Round-trip coverage for the connection-resilience knobs across
     //! the C ABI: every setter/getter pair added for the reconnect
-    //! engine, the streaming transport, the market-data retry envelope, and
-    //! the flatfile jitter toggle.
+    //! engine, the streaming transport, and the market-data retry envelope.
 
     #[test]
     fn reconnect_budget_getters_read_auto_limits() {
@@ -2137,7 +1925,7 @@ mod resilience_knob_tests {
     }
 
     #[test]
-    fn retry_envelope_and_flatfiles_jitter_round_trip() {
+    fn retry_envelope_round_trip() {
         let cfg = super::thetadatadx_config_production();
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
@@ -2153,19 +1941,6 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(got, 0);
-
-            let mut jitter = false;
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_jitter(cfg, &mut jitter),
-                0
-            );
-            assert!(jitter, "flatfile jitter defaults on");
-            super::thetadatadx_config_set_flatfiles_jitter(cfg, false);
-            assert_eq!(
-                super::thetadatadx_config_get_flatfiles_jitter(cfg, &mut jitter),
-                0
-            );
-            assert!(!jitter);
 
             super::thetadatadx_config_free(cfg);
         }

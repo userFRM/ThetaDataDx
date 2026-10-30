@@ -9,8 +9,8 @@ Pins the contract that:
   (``thetadatadx_fpss_connect`` allocates, ``thetadatadx_fpss_set_callback`` opens
   the network).
 * ``MarketDataClient(creds, config)`` opens ONLY the MDDS gRPC channel
-  plus the Nexus HTTP authentication. It exposes the market-data /
-  FLATFILES surface but raises ``AttributeError`` on every
+  plus the Nexus HTTP authentication. It exposes the market-data
+  surface but raises ``AttributeError`` on every
   FPSS-touching method (``subscribe`` / ``start_streaming`` / etc.).
 * The bundled ``Client`` continues to expose its unified
   surface unchanged.

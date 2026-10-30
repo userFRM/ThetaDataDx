@@ -674,13 +674,12 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => "NetworkError",
             _ => "StreamError",
         },
-        // FlatFiles availability, partial-reconnect, and partial
-        // shard-fetch failures are streaming-surface faults; pin them to
-        // `StreamError` so a `catch (e instanceof StreamError)` clause
-        // behaves identically to the C++ and C ABI mapping (both route
-        // these to the stream discriminant).
-        thetadatadx::Error::FlatFilesUnavailable(_)
-        | thetadatadx::Error::PartialReconnect { .. }
+        // Partial-reconnect and partial shard-fetch failures are
+        // streaming-surface faults; pin them to `StreamError` so a
+        // `catch (e instanceof StreamError)` clause behaves identically to
+        // the C++ and C ABI mapping (both route these to the stream
+        // discriminant).
+        thetadatadx::Error::PartialReconnect { .. }
         | thetadatadx::Error::PartialShardFetch { .. } => "StreamError",
         _ => "ThetaDataError",
     }
@@ -1128,7 +1127,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`marketData` / `stream` / `flatFiles`)
+    /// Every surface the client vends (`marketData` / `stream`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -1251,7 +1250,7 @@ impl Client {
     /// handle, and releases the registered callback back to V8. Taking the
     /// handle out of its slot and dropping it frees the market-data gRPC channel
     /// pool once no vended surface still co-owns it, and makes the client
-    /// UNUSABLE — every subsequent `marketData` / `stream` / `flatFiles` access
+    /// UNUSABLE: every subsequent `marketData` / `stream` access
     /// rejects with "client is closed". Safe to call more than once (a second
     /// close finds an empty slot and is a no-op) and safe on a client that only
     /// ran market-data queries.
@@ -1958,14 +1957,10 @@ impl StreamView {
 
 // SDK configuration class. Adds `Config` napi class with
 // `production()` / `dev()` / `stage()` factories plus the full setter
-// surface for market-data pool sizing, retry policy, reconnect policy,
-// and flat-file backoff.
+// surface for market-data pool sizing, retry policy and reconnect policy.
 mod config_class;
 pub use config_class::Config;
 mod config_accessors;
-
-// Hand-written FLATFILES bindings — dynamic schema, see module docs.
-mod flatfile_methods;
 
 // Hand-written support for the pull-based Arrow `RecordBatch` reader —
 // the napi handle (`RecordBatchStreamHandle`) the generated

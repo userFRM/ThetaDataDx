@@ -334,18 +334,16 @@ tick_array_free!(
 //  Arrow IPC terminal for in-band history tick rows
 // ═══════════════════════════════════════════════════════════════════════
 //
-// Mirrors the FlatFiles `thetadatadx_flatfile_rows_to_arrow_ipc` terminal for the
-// typed history rows: a C++ caller holding a `std::vector<EodTick>` (or any
-// other tick vector) serialises it to an Arrow IPC stream and hands the
-// bytes to arrow-cpp, the same columnar exit Python exposes via
+// The typed history rows' columnar exit: a C++ caller holding a
+// `std::vector<EodTick>` (or any other tick vector) serialises it to an Arrow
+// IPC stream and hands the bytes to arrow-cpp, the same exit Python exposes via
 // `<TickName>List.to_arrow()`. The tick structs are the layout-pinned
 // `thetadatadx::*Tick` types the history endpoints already return, so the bytes go
 // straight through `TicksArrowExt::to_arrow` with no re-marshaling.
 
 /// Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
 /// `thetadatadx_*_to_arrow_ipc` terminals. Caller MUST free with
-/// `thetadatadx_arrow_bytes_free`. Distinct from `ThetaDataDxFlatFileBytes` only in name —
-/// the layout is identical so a future merge stays ABI-compatible.
+/// `thetadatadx_arrow_bytes_free`.
 #[repr(C)]
 pub struct ThetaDataDxArrowBytes {
     /// Pointer to the first byte of the IPC stream; null when empty.
@@ -377,31 +375,25 @@ impl ThetaDataDxArrowBytes {
         Self::EMPTY
     }
 
+    /// Leak a non-empty buffer to the caller. The pointer comes from
+    /// `Box::into_raw` on a `Box<[u8]>`, so the matching free path is
+    /// `Box::from_raw(slice_from_raw_parts_mut(ptr, len))`.
     pub(crate) fn from_vec(buf: Vec<u8>) -> Self {
         if buf.is_empty() {
             return Self::EMPTY;
         }
-        let (data, len) = box_buf(buf);
-        Self { data, len }
+        let boxed = buf.into_boxed_slice();
+        let len = boxed.len();
+        Self {
+            data: Box::into_raw(boxed) as *const u8,
+            len,
+        }
     }
-}
-
-/// Leak a non-empty byte buffer as a raw `(ptr, len)` pair owned by the
-/// caller. The pointer comes from `Box::into_raw` on a `Box<[u8]>`, so the
-/// matching free path is `Box::from_raw(slice_from_raw_parts_mut(ptr, len))`.
-/// Shared by [`ThetaDataDxArrowBytes::from_vec`] and
-/// `ThetaDataDxFlatFileBytes::from_vec` (each keeps its own empty-sentinel guard
-/// and distinct `#[repr(C)]` name).
-pub(crate) fn box_buf(buf: Vec<u8>) -> (*const u8, usize) {
-    let boxed = buf.into_boxed_slice();
-    let len = boxed.len();
-    let data = Box::into_raw(boxed) as *const u8;
-    (data, len)
 }
 
 /// Serialise a `&[$tick]` to Arrow IPC bytes through the shared
 /// `TicksArrowExt::to_arrow` + IPC `StreamWriter` path. An empty input is a
-/// valid zero-row stream (matching the FlatFiles terminal and Python).
+/// valid zero-row stream (matching Python).
 /// Returns `(data=null, len=0)` on error with `thetadatadx_last_error()` set.
 macro_rules! tick_array_to_arrow_ipc {
     ($fn_name:ident, $tick:ty) => {

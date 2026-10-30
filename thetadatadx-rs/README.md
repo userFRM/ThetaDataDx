@@ -215,8 +215,6 @@ let path = client
     .await?;
 ```
 
-The `flatfile_*` functions and the `flat_files()` view read the vendor's older flat-file service, which serves five of those datasets.
-
 ## DataFrames
 
 With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface (zero-copy, with no row-by-row iteration):

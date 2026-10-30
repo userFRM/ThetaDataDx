@@ -120,33 +120,6 @@ impl std::fmt::Display for StreamErrorKind {
 #[derive(Error, Debug, Clone)]
 #[non_exhaustive]
 pub enum DecodeErrorKind {
-    /// A FIE/FIT-encoded row contained fewer columns than the schema
-    /// declares (or more, in the truncation-detection sense — the
-    /// shape did not match).
-    #[error("truncated row at index {row_idx}: expected {expected_columns}, got {actual_columns}")]
-    TruncatedRow {
-        /// Zero-based index of the offending row.
-        row_idx: usize,
-        /// Number of columns the schema declares.
-        expected_columns: usize,
-        /// Number of columns actually present in the row.
-        actual_columns: usize,
-    },
-    /// A column declared as one Arrow / FlatFile value variant carried a
-    /// value of a different variant.
-    #[error(
-        "type mismatch at row {row_idx} column {column_name:?}: expected {expected:?}, got {actual:?}"
-    )]
-    ColumnTypeMismatch {
-        /// Zero-based index of the row whose cell failed type validation.
-        row_idx: usize,
-        /// Name of the column whose value type did not match the schema.
-        column_name: String,
-        /// Value type the schema declared for the column.
-        expected: String,
-        /// Value type actually carried by the cell.
-        actual: String,
-    },
     /// Protobuf deserialization failure.
     #[error("protobuf decode: {0}")]
     Protobuf(String),
@@ -154,11 +127,6 @@ pub enum DecodeErrorKind {
     /// per-cell value type mismatch).
     #[error("codec: {0}")]
     Codec(String),
-    /// Arrow `RecordBatch` construction failure (downstream of the
-    /// decode step — schema/length mismatch surfaced by the Arrow
-    /// builder layer).
-    #[error("arrow: {0}")]
-    Arrow(String),
 }
 
 /// Categorized decompression failures.
@@ -354,8 +322,8 @@ impl std::fmt::Display for GrpcStatusKind {
 /// use thetadatadx::error::{Error, ConfigErrorKind, DecodeErrorKind, GrpcStatusKind};
 ///
 /// match err {
-///     Error::Decode { kind: DecodeErrorKind::TruncatedRow { row_idx, .. }, .. } => {
-///         tracing::warn!(row_idx, "row was truncated; retrying");
+///     Error::Decode { kind: DecodeErrorKind::Codec(detail), .. } => {
+///         tracing::warn!(%detail, "a cell failed to decode");
 ///     }
 ///     Error::Config { kind: ConfigErrorKind::OutOfRange { field, value, min, max }, .. } => {
 ///         eprintln!("config field {field} value {value} must be in [{min}, {max}]");
@@ -492,21 +460,6 @@ pub enum Error {
         /// Configured budget in milliseconds.
         duration_ms: u64,
     },
-
-    /// FLATFILES request, stream, or decode failed for the requested
-    /// flat-file format.
-    ///
-    /// Returned by [`crate::Client::flatfile_request`] and the
-    /// per-data-type convenience methods when the FLATFILES surface is
-    /// unavailable or cannot complete the request. This may reflect
-    /// authentication rejection, request rejection, stream interruption
-    /// or truncation, or decode failure for any supported
-    /// [`crate::flatfiles::FlatFileFormat`] (CSV or JSONL).
-    /// Carries a structured [`crate::flatfiles::FlatFilesUnavailableReason`]
-    /// so the caller can decide whether to retry, fall back, or surface
-    /// the underlying server error to the user.
-    #[error("FLATFILES unavailable: {0}")]
-    FlatFilesUnavailable(crate::flatfiles::FlatFilesUnavailableReason),
 
     /// `reconnect_streaming` succeeded in re-establishing the FPSS session
     /// but failed to restore one or more of the previously active
@@ -745,60 +698,6 @@ impl Error {
         }
     }
 
-    /// Build a `Decode` error categorized as an Arrow construction
-    /// failure.
-    #[must_use]
-    pub fn decode_arrow(message: impl Into<String>) -> Self {
-        let message = message.into();
-        Self::Decode {
-            kind: DecodeErrorKind::Arrow(message.clone()),
-            message,
-            source: None,
-        }
-    }
-
-    /// Build a `Decode` error categorized as a truncated row.
-    #[must_use]
-    pub fn decode_truncated_row(
-        row_idx: usize,
-        expected_columns: usize,
-        actual_columns: usize,
-    ) -> Self {
-        let kind = DecodeErrorKind::TruncatedRow {
-            row_idx,
-            expected_columns,
-            actual_columns,
-        };
-        let message = kind.to_string();
-        Self::Decode {
-            kind,
-            message,
-            source: None,
-        }
-    }
-
-    /// Build a `Decode` error categorized as a column type mismatch.
-    #[must_use]
-    pub fn decode_column_type_mismatch(
-        row_idx: usize,
-        column_name: impl Into<String>,
-        expected: impl Into<String>,
-        actual: impl Into<String>,
-    ) -> Self {
-        let kind = DecodeErrorKind::ColumnTypeMismatch {
-            row_idx,
-            column_name: column_name.into(),
-            expected: expected.into(),
-            actual: actual.into(),
-        };
-        let message = kind.to_string();
-        Self::Decode {
-            kind,
-            message,
-            source: None,
-        }
-    }
-
     // ─── Decompress constructors ────────────────────────────────────────
 
     /// Build a `Decompress` error categorized as a zstd codec failure.
@@ -984,50 +883,6 @@ mod tests {
     }
 
     #[test]
-    fn decode_truncated_row_roundtrip() {
-        let err = Error::decode_truncated_row(7, 5, 3);
-        match err {
-            Error::Decode {
-                kind:
-                    DecodeErrorKind::TruncatedRow {
-                        row_idx,
-                        expected_columns,
-                        actual_columns,
-                    },
-                ..
-            } => {
-                assert_eq!(row_idx, 7);
-                assert_eq!(expected_columns, 5);
-                assert_eq!(actual_columns, 3);
-            }
-            other => panic!("expected TruncatedRow, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn decode_column_type_mismatch_roundtrip() {
-        let err = Error::decode_column_type_mismatch(2, "price", "Float64", "Utf8");
-        match err {
-            Error::Decode {
-                kind:
-                    DecodeErrorKind::ColumnTypeMismatch {
-                        row_idx,
-                        column_name,
-                        expected,
-                        actual,
-                    },
-                ..
-            } => {
-                assert_eq!(row_idx, 2);
-                assert_eq!(column_name, "price");
-                assert_eq!(expected, "Float64");
-                assert_eq!(actual, "Utf8");
-            }
-            other => panic!("expected ColumnTypeMismatch, got {other:?}"),
-        }
-    }
-
-    #[test]
     fn decode_protobuf_kind_carried() {
         let err = Error::decode_protobuf("invalid wire tag");
         assert!(matches!(
@@ -1046,18 +901,6 @@ mod tests {
             err,
             Error::Decode {
                 kind: DecodeErrorKind::Codec(_),
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn decode_arrow_kind_carried() {
-        let err = Error::decode_arrow("schema length mismatch");
-        assert!(matches!(
-            err,
-            Error::Decode {
-                kind: DecodeErrorKind::Arrow(_),
                 ..
             }
         ));

@@ -148,18 +148,6 @@ python = true
 typescript = true
 cpp = true          # exposed as `thetadatadx::FluentSecType`
 
-[[class]]
-name = "FlatFilesNamespace"
-python = true
-typescript = true
-cpp = true          # exposed as `thetadatadx::FlatFiles`
-
-[[class]]
-name = "FlatFileRowList"
-python = true
-typescript = true
-cpp = true
-
 # ── Typed exception hierarchy.
 #
 # The canonical leaf class names (`NotFoundError`,
@@ -601,16 +589,13 @@ ffi = true
 
 # ── Client (the unified entry-point client) ──
 #
-# The unified `Client` exposes its data surfaces through three view
-# accessors — `marketData`, `stream`, and `flatFiles` — each returning a
-# cheap handle clone over the inner client. They are symmetric across
-# Python (`#[getter]`), TypeScript (`#[napi(getter)]`), C++ (a member
-# accessor), and Rust (`Client::flat_files()` returning a borrowed
-# `FlatFiles` view), and the reverse-orphan scan below fails if any
-# binding drops or renames one without the matrix recording it. The
-# `flatFiles` row carries the Rust column so the Rust core accessor is
-# machine-checked alongside the other three; `marketData` / `stream`
-# stay on the existing three-binding columns.
+# The unified `Client` exposes its data surfaces through two view
+# accessors, `marketData` and `stream`, each returning a cheap handle
+# clone over the inner client. They are symmetric across Python
+# (`#[getter]`), TypeScript (`#[napi(getter)]`), C++ (a member accessor),
+# and Rust (`Client::market_data()` / `Client::stream()`), and the
+# reverse-orphan scan below fails if any binding drops or renames one
+# without the matrix recording it.
 
 [[method]]
 class = "Client"
@@ -633,35 +618,6 @@ cpp = true
 rust = true         # `Client::stream()` view accessor
 [method.signature]
 returns = "StreamView"
-
-[[method]]
-class = "Client"
-name = "flatFiles"
-python = true
-typescript = true
-cpp = true
-rust = true         # `Client::flat_files()` view accessor
-[method.signature]
-returns = "FlatFilesNamespace"
-
-# The standalone market-data client exposes the same accessor: flat files are
-# account-authenticated market data with no streaming leg, so a market-data-only
-# handle reaches them without the unified client. Genuinely enforced on every
-# binding so a future drop/rename of the accessor trips the gate. Python is the
-# explicit `#[getter] flat_files` on the `MarketDataClient` pyclass (a static
-# accessor, not the `__getattr__` forward, so the collector sees it); TypeScript
-# is the napi `flatFiles` getter on `MarketDataClient`; C++ and Rust are the
-# `MarketDataClient::flat_files()` view accessor (Rust harvested from
-# `impl MarketDataClient` in `mdds/client.rs`).
-[[method]]
-class = "MarketDataClient"
-name = "flatFiles"
-python = true
-typescript = true
-cpp = true
-rust = true         # `MarketDataClient::flat_files()` view accessor
-[method.signature]
-returns = "FlatFilesNamespace"
 
 # Deterministic base-client teardown (issue #1069). `close()` stops streaming
 # if live and releases the client; the language context-manager / RAII wrappers
@@ -788,132 +744,6 @@ returns = "Client"
 # Both are pure sugar over surfaces already at full cross-binding parity,
 # so they are deliberately not enrolled as rows (a binding twin is not
 # expected and their absence is not a gap).
-
-# ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
-#
-# The `flatFiles` accessor above returns the flat-file namespace; the rows
-# below pin the fetch methods ON that namespace so the surface is machine-checked
-# across bindings and cannot silently drift or drop on one of them. Five named
-# convenience methods cover exactly the `(SecType, ReqType)` pairs the flat-file
-# distribution serves (option trade_quote / open_interest / eod and stock
-# trade_quote / eod); `request` is the generic string-keyed dispatcher behind them.
-# The namespace class is named `FlatFilesNamespace` on Python and TypeScript,
-# `FlatFiles` on C++, and `FlatFiles` (the borrowed view returned by
-# `Client::flat_files()`) in the Rust core; the row carries the canonical name
-# and the per-binding class maps route it to each binding's class body. Per-
-# language method spelling is snake_case on the Python pyclass, camelCase on the
-# TypeScript napi class, snake_case on the C++ class, and snake_case on the Rust
-# view — the per-binding resolvers derive each form from the row name. Every row
-# carries the Rust column so the Rust `FlatFiles` view is machine-checked
-# alongside the other three bindings, closing the access-shape asymmetry where
-# Rust reached flat files only through standalone free functions. The reverse-
-# orphan scan over this namespace fails if a binding grows a fetch method with no
-# enrolling row, so a future dataset accessor cannot ship untracked.
-
-# The five named fetch convenience methods share one shape: a single
-# date-string param, returning the decoded row collection. Rust takes `&str`
-# and returns the owned `Vec<FlatFileRow>` (the `FlatFileRowList` return
-# canonical carries that per-binding split); the managed bindings take their
-# String spelling and return the `FlatFileRowList` value object.
-[[method]]
-class = "FlatFilesNamespace"
-name = "optionTradeQuote"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String"]
-returns = "FlatFileRowList"
-
-[[method]]
-class = "FlatFilesNamespace"
-name = "optionOpenInterest"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String"]
-returns = "FlatFileRowList"
-
-[[method]]
-class = "FlatFilesNamespace"
-name = "optionEod"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String"]
-returns = "FlatFileRowList"
-
-[[method]]
-class = "FlatFilesNamespace"
-name = "stockTradeQuote"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String"]
-returns = "FlatFileRowList"
-
-[[method]]
-class = "FlatFilesNamespace"
-name = "stockEod"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String"]
-returns = "FlatFileRowList"
-
-# The generic string-keyed dispatcher. The managed bindings take three String
-# params (sec-type, req-type, date); the Rust core takes the typed
-# `(SecType, ReqType, &str)` enums, so its param list is a per-lang override
-# (typed enums have no managed twin to pin canonically). Same row-collection
-# return as the named convenience methods.
-[[method]]
-class = "FlatFilesNamespace"
-name = "request"
-python = true
-typescript = true
-cpp = true
-rust = true
-[method.signature]
-params = ["String", "String", "String"]
-returns = "FlatFileRowList"
-rust_params = ["FlatFileSecType", "FlatFileReqType", "String"]
-
-# The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
-# wire format (csv / jsonl) without decoding into rows. Its home class and method
-# spelling diverge per binding: Python exposes it on the unified `Client` as
-# `flatfile_to_path` (one word), TypeScript on `Client` (and `MarketDataClient`)
-# as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`, and the Rust
-# core as `FlatFiles::to_path` on the `Client::flat_files()` view. A single row
-# pins all four; the per-binding home-class + name override below routes the
-# canonical row to each binding's actual symbol so the divergence reads as
-# convention, not drift, and a drop on any binding trips the gate.
-[[method]]
-class = "FlatFilesNamespace"
-name = "flatFileToPath"
-python = true
-typescript = true
-cpp = true
-rust = true         # `FlatFiles::to_path` on the `Client::flat_files()` view
-# Five params (sec-type, req-type, date, dest-path, wire-format). The first
-# three are Strings everywhere; the dest-path + format diverge per binding
-# (typed `impl AsRef<Path>` + `FlatFileFormat` enum on Rust; an optional
-# format String on the managed bindings), so the param list is pinned per
-# lang. The return is the written path (managed String / Rust `PathBuf`) or
-# `void` (C++ writes in place) — carried by the `WrittenPath` canonical.
-[method.signature]
-params = ["String", "String", "String", "String", "Option<String>"]
-returns = "WrittenPath"
-cpp_params = ["String", "String", "String", "String", "String"]
-rust_params = ["FlatFileSecType", "FlatFileReqType", "String", "DestPath", "FlatFileFormat"]
 
 # ── StreamView signature specs (the `client.stream()` lifecycle view) ──
 #
@@ -1927,83 +1757,6 @@ cpp = true
 returns = "u64"
 skip_langs = ["ts_napi"]
 
-# ── FlatFileRowList (the decoded flat-file row vector) ──
-#
-# `count` and `toArrowIpc` are the two cross-binding-meaningful methods;
-# each binding spells them idiomatically, routed via METHOD_BINDING_OVERRIDES
-# (`count` -> Python `__len__` / TypeScript `len` / C++ `size`; `toArrowIpc`
-# -> Python `to_arrow` / TypeScript `toArrowIpc` / C++ `to_arrow_ipc`). The
-# remaining materializers are intentionally per-language and recorded as
-# asymmetric rows. The emptiness idiom (`__bool__` / `isEmpty`) carries no
-# cross-binding contract and is in FLATFILE_ROWLIST_EXEMPT_METHODS.
-[[method]]
-class = "FlatFileRowList"
-name = "count"
-python = true
-typescript = true
-cpp = true
-# Decoded row count: one usize element count across all bindings.
-[method.signature]
-returns = "usize"
-
-[[method]]
-class = "FlatFileRowList"
-name = "toArrowIpc"
-python = true
-typescript = true
-cpp = true
-# Arrow IPC stream bytes: a Python bytes object, a Node Buffer, a C++ byte
-# vector.
-[method.signature]
-returns = "Bytes"
-
-[[method]]
-class = "FlatFileRowList"
-name = "toPandas"
-python = true       # pandas materializer — Python only
-typescript = false
-cpp = false
-[method.signature]
-returns = "PyObject"
-
-[[method]]
-class = "FlatFileRowList"
-name = "toPolars"
-python = true       # polars materializer — Python only
-typescript = false
-cpp = false
-[method.signature]
-returns = "PyObject"
-
-[[method]]
-class = "FlatFileRowList"
-name = "toList"
-python = true       # list-of-dicts materializer — Python only
-typescript = false
-cpp = false
-[method.signature]
-returns = "PyObject"
-
-[[method]]
-class = "FlatFileRowList"
-name = "toJson"
-python = false
-typescript = true   # JSON-string materializer — TypeScript only
-cpp = false
-[method.signature]
-returns = "String"
-
-[[method]]
-class = "FlatFileRowList"
-name = "get"
-python = false
-typescript = false
-cpp = true          # raw-handle accessor for zero-copy bridges — C++ only
-# Returns the borrowed C-ABI handle pointer for zero-copy bridges — a raw
-# `const ThetaDataDxFlatFileRowList*`, compared by exact C-ABI spelling.
-[method.signature]
-cpp_returns = "const ThetaDataDxFlatFileRowList*"
-
 # ── Config lifecycle setters with non-scalar shapes ──
 #
 # These ride the method matrix (not only the scalar setter/getter parity)
@@ -2284,8 +2037,8 @@ ffi = false
 # ─── C-ABI streaming-batch / borrowed-handle externs ───────────────────
 #
 # A small family of hand-written `extern "C"` symbols underpins the columnar
-# streaming reader, the flat-file Arrow bridge, and the borrowed market-data
-# handle. `check_c_abi_completeness` holds their names to `thetadatadx.h` and
+# streaming reader and the borrowed market-data handle.
+# `check_c_abi_completeness` holds their names to `thetadatadx.h` and
 # the C++ wrappers call them, but nothing else compares a parameter list, so
 # each `[[ffi_symbol]]` row pins one by its `[ffi_symbol.signature]`: the
 # extern's declared C param list and return, read from
@@ -2335,38 +2088,3 @@ name = "record_batch_stream_free"
 params = ["*mut ThetaDataDxRecordBatchStream"]
 returns = "()"
 
-[[ffi_symbol]]
-name = "flatfile_rows_to_arrow_ipc"
-[ffi_symbol.signature]
-params = ["*const ThetaDataDxFlatFileRowList"]
-returns = "ThetaDataDxFlatFileBytes"
-
-# Flat files from the standalone market-data client. Flat files are pure
-# account-authenticated market data, so the borrowed `MarketDataClient` handle
-# exposes the identical fetch surface as the unified client's
-# `thetadatadx_flatfile_*`. These two hand-written externs back the C++
-# `MarketDataClient::flat_files()` view (Python and TypeScript reach the same
-# surface through their unified-client-backed handles).
-[[ffi_symbol]]
-name = "market_data_flatfile_request_decoded"
-[ffi_symbol.signature]
-params = [
-    "*const ThetaDataDxMarketDataClient",
-    "*const c_char",
-    "*const c_char",
-    "*const c_char",
-]
-returns = "*mut ThetaDataDxFlatFileRowList"
-
-[[ffi_symbol]]
-name = "market_data_flatfile_request_to_path"
-[ffi_symbol.signature]
-params = [
-    "*const ThetaDataDxMarketDataClient",
-    "*const c_char",
-    "*const c_char",
-    "*const c_char",
-    "*const c_char",
-    "*const c_char",
-]
-returns = "i32"

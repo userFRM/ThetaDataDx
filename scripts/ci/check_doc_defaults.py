@@ -151,29 +151,9 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["streaming.keepalive_interval_secs"] = _norm_int(streaming["keepalive_interval_secs"])
     canon["streaming.keepalive_retries"] = _norm_int(streaming["keepalive_retries"])
 
-    # FpssConfig bounds — the documented FLATFILES / FPSS validation
-    # range that a doc comment also asserts.
+    # FpssConfig bounds: the documented FPSS validation range that a doc
+    # comment also asserts.
     streaming_src = _read(CONFIG_DIR / "fpss.rs", root)
-
-    # FlatFilesConfig::production_defaults — second-unit Durations + count.
-    ff = _struct_literal_fields(
-        _block_after(
-            _read(CONFIG_DIR / "flatfiles.rs", root), "fn production_defaults()"
-        )
-    )
-    canon["flatfiles.max_attempts"] = _norm_int(ff["max_attempts"])
-    canon["flatfiles.initial_backoff_secs"] = _duration_secs(ff["initial_backoff"])
-    canon["flatfiles.max_backoff_secs"] = _duration_secs(ff["max_backoff"])
-    canon["flatfiles.connect_timeout_secs"] = _norm_int(ff["connect_timeout_secs"])
-    canon["flatfiles.read_timeout_secs"] = _norm_int(ff["read_timeout_secs"])
-
-    # FlatFilesConfig bounds — `MAX_ATTEMPTS: ... = 1..=100`.
-    ff_src = _read(CONFIG_DIR / "flatfiles.rs", root)
-    m = re.search(r"MAX_ATTEMPTS:[^=]*=\s*([0-9_]+)\s*..=\s*([0-9_]+)", ff_src)
-    if not m:
-        raise ValueError("could not parse flatfiles MAX_ATTEMPTS bounds")
-    canon["flatfiles.max_attempts.range_lo"] = _norm_int(m.group(1))
-    canon["flatfiles.max_attempts.range_hi"] = _norm_int(m.group(2))
 
     # ReconnectConfig::production_defaults — millisecond cadence knobs.
     rc = _struct_literal_fields(
@@ -555,24 +535,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
         SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
         SurfaceField("retry.max_elapsed_secs", _re(r"set_retry_max_elapsed_secs\b")),
-        SurfaceField(
-            "flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")
-        ),
-        SurfaceField(
-            "flatfiles.initial_backoff_secs",
-            _re(r"set_flatfiles_initial_backoff_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
-        ),
-        SurfaceField(
-            "flatfiles.connect_timeout_secs",
-            _re(r"set_flatfiles_connect_timeout_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.read_timeout_secs",
-            _re(r"set_flatfiles_read_timeout_secs\b"),
-        ),
     ]
     surfaces.append(ffi)
 
@@ -626,24 +588,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
         SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
         SurfaceField("retry.max_elapsed_secs", _re(r"set_retry_max_elapsed_secs\b")),
-        SurfaceField(
-            "flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")
-        ),
-        SurfaceField(
-            "flatfiles.initial_backoff_secs",
-            _re(r"set_flatfiles_initial_backoff_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
-        ),
-        SurfaceField(
-            "flatfiles.connect_timeout_secs",
-            _re(r"set_flatfiles_connect_timeout_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.read_timeout_secs",
-            _re(r"set_flatfiles_read_timeout_secs\b"),
-        ),
     ]
     surfaces.append(cpp_h)
 
@@ -684,22 +628,6 @@ def build_surfaces() -> list[Surface]:
         ),
         SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
         SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
-        SurfaceField("flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")),
-        SurfaceField(
-            "flatfiles.initial_backoff_secs",
-            _re(r"set_flatfiles_initial_backoff_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.max_backoff_secs", _re(r"set_flatfiles_max_backoff_secs\b")
-        ),
-        SurfaceField(
-            "flatfiles.connect_timeout_secs",
-            _re(r"set_flatfiles_connect_timeout_secs\b"),
-        ),
-        SurfaceField(
-            "flatfiles.read_timeout_secs",
-            _re(r"set_flatfiles_read_timeout_secs\b"),
-        ),
     ]
     surfaces.append(ts)
 
@@ -739,22 +667,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("retry.max_delay_ms", _re(r"^\s*retry_max_delay_ms:")),
         SurfaceField("retry.max_attempts", _re(r"^\s*retry_max_attempts:")),
         SurfaceField("retry.max_elapsed_secs", _re(r"^\s*retry_max_elapsed_secs:")),
-        SurfaceField("flatfiles.max_attempts", _re(r"^\s*flatfiles_max_attempts:")),
-        SurfaceField(
-            "flatfiles.initial_backoff_secs",
-            _re(r"^\s*flatfiles_initial_backoff_secs:"),
-        ),
-        SurfaceField(
-            "flatfiles.max_backoff_secs", _re(r"^\s*flatfiles_max_backoff_secs:")
-        ),
-        SurfaceField(
-            "flatfiles.connect_timeout_secs",
-            _re(r"^\s*flatfiles_connect_timeout_secs:"),
-        ),
-        SurfaceField(
-            "flatfiles.read_timeout_secs",
-            _re(r"^\s*flatfiles_read_timeout_secs:"),
-        ),
         SurfaceField("streaming.timeout_ms", _re(r"^\s*streaming_timeout_ms:")),
         SurfaceField(
             "streaming.keepalive_idle_secs", _re(r"^\s*streaming_keepalive_idle_secs:")
@@ -838,23 +750,6 @@ impl FpssConfig {
     }
 }
 """
-    flatfiles_rs = """
-impl FlatFilesConfig {
-    pub fn production_defaults() -> Self {
-        Self {
-            max_attempts: 10,
-            initial_backoff: Duration::from_secs(1),
-            max_backoff: Duration::from_secs(30),
-            jitter: true,
-            connect_timeout_secs: 10,
-            read_timeout_secs: 60,
-        }
-    }
-}
-pub mod bounds {
-    pub const MAX_ATTEMPTS: std::ops::RangeInclusive<u32> = 1..=100;
-}
-"""
     reconnect_rs = """
 impl ReconnectConfig {
     pub fn production_defaults() -> Self {
@@ -932,12 +827,6 @@ impl MddsConfig {
                 "Set the read timeout (ms). Default `3_000`.",
             ],
         }
-        set thetadatadx_config_set_flatfiles_max_attempts(n: u32) [flatfiles.max_attempts] {
-            param: n,
-            doc: [
-                "Set the flatfile attempt budget. Default `10`. Validated to `[1, 100]`.",
-            ],
-        }
 """
     ffi_good = ffi_bad.replace("Default `2_000`", "Default `250`")
 
@@ -945,7 +834,6 @@ impl MddsConfig {
         cfg = root / CONFIG_DIR
         cfg.mkdir(parents=True, exist_ok=True)
         (cfg / "fpss.rs").write_text(fpss_rs, encoding="utf-8")
-        (cfg / "flatfiles.rs").write_text(flatfiles_rs, encoding="utf-8")
         (cfg / "reconnect.rs").write_text(reconnect_rs, encoding="utf-8")
         (cfg / "retry.rs").write_text(retry_rs, encoding="utf-8")
         (cfg / "mdds.rs").write_text(mdds_rs, encoding="utf-8")
@@ -957,7 +845,6 @@ impl MddsConfig {
     synthetic.fields = [
         SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
         SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
-        SurfaceField("flatfiles.max_attempts", _re(r"set_flatfiles_max_attempts\b")),
     ]
 
     with tempfile.TemporaryDirectory() as td:
@@ -993,7 +880,7 @@ impl MddsConfig {
                 f"({planted[0].documented} vs {planted[0].canonical})"
             )
             return 1
-        # The two correct fields must NOT be flagged.
+        # The correct field must NOT be flagged.
         if any(m.field_id != "reconnect.wait_ms" for m in bad):
             print(
                 "selftest FAILED: a correct default was flagged "

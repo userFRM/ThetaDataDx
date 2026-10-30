@@ -1,7 +1,7 @@
 //! Eastern Time + DST primitives.
 //!
 //! Canonical Eastern-time conversion module reused by `thetadatadx` (mdds
-//! decode + flatfiles) and the `tdbe` latency path. No external timezone
+//! decode) and the `tdbe` latency path. No external timezone
 //! crate dependencies — pure civil-date arithmetic with the documented US
 //! DST rules.
 //!

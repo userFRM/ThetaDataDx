@@ -94,9 +94,6 @@ target_link_libraries(thetadatadx_streaming_smoke PRIVATE thetadatadx_cpp)
 add_executable(thetadatadx_market_data_stream_smoke examples/market_data_stream_smoke.cpp)
 target_link_libraries(thetadatadx_market_data_stream_smoke PRIVATE thetadatadx_cpp)
 
-add_executable(thetadatadx_flatfiles_example examples/flatfiles_trade_quotes_to_arrow.cpp)
-target_link_libraries(thetadatadx_flatfiles_example PRIVATE thetadatadx_cpp)
-
 # ── Tests (Catch2-based) ──
 #
 # Opt-in via `-DTHETADATADX_CPP_BUILD_TESTS=ON`. The default is OFF so

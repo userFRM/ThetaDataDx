@@ -21,7 +21,6 @@ mod async_runtime;
 mod bench_streaming;
 mod coerce;
 mod errors;
-mod flatfile_methods;
 mod fluent;
 mod fpss_client;
 mod logging_bridge;
@@ -944,7 +943,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`market_data` / `stream` / `flat_files`)
+    /// Every surface the client vends (`market_data` / `stream`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -1665,8 +1664,6 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "last_connected_addr",
     // Arrow RecordBatch reader — StreamView.
     "batches",
-    // FLATFILES namespace getter.
-    "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
     // `Client` — they live on `StreamingSession` (returned
     // by `client.streaming(callback)`) per their natural lifecycle
@@ -1677,9 +1674,9 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 
 /// Allowlisted names that stay on `Client` and resolve directly rather
 /// than via the `client.stream` [`StreamView`] surface. The stream-view
-/// proxy set is [`ALLOWED_UNIFIED_PROXY_METHODS`] minus these two, derived
+/// proxy set is [`ALLOWED_UNIFIED_PROXY_METHODS`] minus these, derived
 /// inline in `AsyncClient.__getattr__` so the lists cannot drift.
-const DIRECT_ON_CLIENT: [&str; 2] = ["streaming", "flat_files"];
+const DIRECT_ON_CLIENT: [&str; 1] = ["streaming"];
 
 /// Hand-written `#[pymethods]` entries reachable through `Client`. The
 /// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below requires every
@@ -1697,9 +1694,6 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "await_drain",
     // Hand-written streaming-session factory (stays on `Client`).
     "streaming",
-    // FLATFILES namespace getter (lives in `flatfile_methods.rs`,
-    // stays on `Client`).
-    "flat_files",
     // Subscription management — hand-written to accept polymorphic
     // `Subscription` PyAny inputs; lives on the `client.stream`
     // `StreamView` surface (lib.rs).
@@ -1911,13 +1905,6 @@ impl AsyncClient {
         if name.ends_with("_async") {
             let market_data = bound.getattr("market_data")?;
             if let Ok(method) = market_data.getattr(name) {
-                return Ok(method.unbind());
-            }
-            // The flat-file dataset terminals (`option_eod_async`, ...) live on
-            // the `flat_files` namespace; `flatfile_to_path_async` lives on
-            // `Client` itself.
-            let flat_files = bound.getattr("flat_files")?;
-            if let Ok(method) = flat_files.getattr(name) {
                 return Ok(method.unbind());
             }
             return Ok(bound.getattr(name)?.unbind());
@@ -2536,8 +2523,6 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<mdds_client::MarketDataClient>()?;
     m.add_class::<StreamingSession>()?;
     fluent::register(m)?;
-    m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
-    m.add_class::<flatfile_methods::FlatFileRowList>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
     market_data::register_market_data_builders(m)?;

@@ -7,8 +7,7 @@ the jitter mode, the wall-clock envelope and per-class budgets, the
 subscription-replay pacing knobs, the streaming transport knobs (timeouts,
 ping cadence, ring size, read slice, keepalive schedule,
 host selection + shuffle seed), the market-data-channel retry envelope,
-the flatfile jitter toggle, and the custom reconnect callback
-registration. The reconnect-engine semantics themselves are exercised
+and the custom reconnect callback registration. The reconnect-engine semantics themselves are exercised
 in the Rust unit tests; this file pins only that the Python surface
 forwards values without dropping them and rejects invalid input at
 the boundary.
@@ -123,7 +122,7 @@ def test_streaming_transport_defaults_and_round_trip():
     assert cfg.streaming_keepalive_retries == 4
 
 
-# ─── Market-data retry envelope + flatfile jitter ────────────────────
+# ─── Market-data retry envelope ──────────────────────────────────────
 
 
 def test_retry_envelope_defaults_and_round_trip():
@@ -133,16 +132,6 @@ def test_retry_envelope_defaults_and_round_trip():
     assert cfg.retry_max_elapsed_secs == 300
     cfg.retry_max_elapsed_secs = 0  # disables the envelope
     assert cfg.retry_max_elapsed_secs == 0
-
-
-def test_flatfiles_budget_defaults_and_jitter_round_trip():
-    mod = _import_module()
-    cfg = mod.Config.production()
-    assert cfg.flatfiles_max_attempts == 10
-    assert cfg.flatfiles_max_backoff_secs == 30
-    assert cfg.flatfiles_jitter is True
-    cfg.flatfiles_jitter = False
-    assert cfg.flatfiles_jitter is False
 
 
 # ─── Client observability surface ───────────────────────────────────

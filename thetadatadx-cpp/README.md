@@ -232,8 +232,6 @@ Each file also writes straight to disk, exactly as the terminal writes it, throu
 client.market_data().option_flat_file_trade_quote_to_path("20260428", "trade_quotes.csv");
 ```
 
-The `flat_files()` view on `thetadatadx::Client` (`option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, `request(...)`, `to_path(...)`) reads the vendor's older flat-file service, which serves five of those datasets and rejects an unserved `(security, request)` pair with a typed invalid-parameter error.
-
 ## Endpoint coverage
 
 81 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.

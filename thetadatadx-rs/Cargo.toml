@@ -218,7 +218,7 @@ polars = { version = "0.55.2", optional = true, default-features = false }
 # optional `frames` feature only.
 arrow-array = { version = "60.0.0", optional = true }
 arrow-schema = { version = "60.0.0", optional = true }
-# JSON encoder for the FLATFILES `Format::Jsonl` output.
+# JSON for the Nexus authentication exchange and the generated docs pages.
 serde_json = "1.0.137"
 # SIMD JSON parser/serializer backing the canonical JSON helpers in the
 # data-format layer (`tdbe::json_canon`): finite-or-null sanitisation and
@@ -399,16 +399,6 @@ required-features = ["__test-helpers"]
 [[test]]
 name = "grpc_stock_list_symbols"
 path = "tests/grpc_stock_list_symbols.rs"
-required-features = ["__test-helpers"]
-
-[[test]]
-name = "flatfiles_byte_match"
-path = "tests/flatfiles_byte_match.rs"
-required-features = ["__test-helpers"]
-
-[[test]]
-name = "flatfiles_synthetic_golden"
-path = "tests/flatfiles_synthetic_golden.rs"
 required-features = ["__test-helpers"]
 
 [[test]]
