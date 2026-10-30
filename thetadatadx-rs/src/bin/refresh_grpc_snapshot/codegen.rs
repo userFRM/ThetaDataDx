@@ -97,7 +97,7 @@ impl ServiceGenerator for ChannelServiceGenerator {
         buf.push_str(&service.proto_name);
         buf.push_str("` service.\n");
         buf.push_str("///\n/// Generated from `proto/mdds.proto` by\n");
-        buf.push_str("/// `thetadatadx-rs/build_support/grpc/`.\n");
+        buf.push_str("/// `refresh_grpc_snapshot`.\n");
         buf.push_str("pub mod ");
         buf.push_str(&mod_name);
         buf.push_str(" {\n");
