@@ -4,8 +4,8 @@
 //! `DirectConfig` value is written once, in `__config!`. The C ABI expands it
 //! into its entry points, Python into the `Config` properties, TypeScript
 //! into the `Config` setters and getters, and `generate_sdk_surfaces` into the
-//! C header's declarations and the C++ `Config` methods. Accessors with their
-//! own logic (the ring size, the
+//! C header's declarations, the C++ `Config` methods and the Python type
+//! stub's `Config` properties. Accessors with their own logic (the ring size, the
 //! worker threads, the consumer CPU, the reconnect policy and callback) are
 //! written by hand in each binding.
 //!
@@ -136,7 +136,7 @@ macro_rules! __config {
                 py_doc: [
                     "Set the reconnect delay (ms) honoured for generic transient",
                     "disconnects (TimedOut, ServerRestarting, Unspecified, …).",
-                    "Plumbed through to the streaming I/O loop at connect time.",
+                    "Applied to the streaming session at connect time.",
                     "Default ``250``.",
                 ],
                 ts_doc: [
@@ -364,8 +364,8 @@ macro_rules! __config {
                 ],
                 py_doc: [
                     "Set the streaming read timeout (ms): the no-frames deadline after",
-                    "which the streaming I/O loop declares the session dead and",
-                    "reconnects. Default ``10_000``; validated to ``[100, 60_000]``.",
+                    "which the streaming session is declared dead and reconnects.",
+                    "Default ``10_000``; validated to ``[100, 60_000]``.",
                 ],
                 ts_doc: [
                     "Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000n`; validated to `[100, 60_000]` at connect.",
@@ -904,8 +904,9 @@ macro_rules! __config {
                     "@c set_market_data_host.",
                 ],
                 py_doc: [
-                    "Override the market-data gRPC port. Companion to `market_data_host`:",
-                    "same rationale and same test-only usage.",
+                    "Set the market-data gRPC port. The environment factories set it;",
+                    "override it together with ``market_data_host`` to reach the",
+                    "market-data service at another address.",
                 ],
                 ts_doc: [
                     "Override the market-data gRPC port. Companion to `setMarketDataHost`:",
@@ -953,7 +954,7 @@ macro_rules! __config {
                 py_doc: [
                     "Set the warning threshold (in bytes) for buffered (non-streaming)",
                     "historical responses. Endpoints whose decoded total exceeds this",
-                    "value log a `tracing::warn!` pointing the caller at the",
+                    "value log a warning pointing the caller at the",
                     "``.stream()`` surface; the data is still delivered. ``0``",
                     "disables the warning entirely. Default is ``100 * 1024 * 1024``",
                     "(100 MiB).",
@@ -1019,8 +1020,8 @@ macro_rules! __config {
                 ],
                 py_doc: [
                     "Set the default per-request deadline (in seconds) for market-data",
-                    "queries. Bounds every request that did not call",
-                    "``with_deadline(...)``, so a live-but-silent stream resolves to a",
+                    "queries. Bounds every request that did not set its own",
+                    "``timeout_ms``, so a live-but-silent stream resolves to a",
                     "timeout instead of blocking forever. ``0`` no longer disables the",
                     "default: it is floored to the ``300``-second default at request time,",
                     "so the deadline always applies. Default is ``300`` (5 minutes).",
@@ -1812,10 +1813,8 @@ macro_rules! __config {
                     "rejects the value (null handle or non-UTF-8 input).",
                 ],
                 py_doc: [
-                    "Override the market-data gRPC host. Used by structural tests that",
-                    "need to point the market-data channel at a known-refused endpoint",
-                    "to prove the streaming-only surface never opens it; production",
-                    "code paths should keep the `Config::production()` default.",
+                    "Set the market-data gRPC host. The environment factories set it;",
+                    "override it to reach the market-data service at another address.",
                 ],
                 ts_doc: [
                     "Override the market-data gRPC host. Companion to `setMarketDataPort`.",

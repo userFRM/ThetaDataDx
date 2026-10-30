@@ -5,7 +5,8 @@
 //! conversion from the core [`crate::fpss::StreamEvent`]; the C ABI into its
 //! `#[repr(C)]` event structs, the tagged `ThetaDataDxStreamEvent` and its
 //! converter. `generate_sdk_surfaces` expands it too, to render the C header
-//! mirror, the C++ layout asserts and the streaming reference pages.
+//! mirror, the C++ layout asserts, the Python type stub's event classes and
+//! the streaming reference pages.
 //!
 //! A consumer passes the name of one of its own macros and receives every
 //! entry, in table order, after the tokens it passed:
@@ -72,7 +73,7 @@ macro_rules! __events {
                 doc: "Streaming server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).",
                 from: ContractAssigned { id, contract },
                 columns: [
-                    id: i32 = (*id) "Wire-internal contract id the FPSS server assigns to this contract.",
+                    id: i32 = (*id) "Wire-internal contract id the streaming server assigns to this contract.",
                     contract: Contract = (contract) "Contract this event refers to.",
                 ],
             }

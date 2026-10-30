@@ -579,50 +579,47 @@ def build_surfaces() -> list[Surface]:
     ]
     surfaces.append(ts)
 
-    # Shipped Python type stub (`.pyi`). The default sits inline on the
-    # attribute docstring; the anchor is the typed attribute line.
-    pyi = Surface(
-        "python.pyi",
-        pathlib.Path("thetadatadx-py/python/thetadatadx/__init__.pyi"),
-        doc_direction="below",
-    )
+    # Python docstrings, written in the config table: the `Config`
+    # properties carry them and the type stub renders the same text. The
+    # anchor is the C symbol of the entry the property is expanded from.
+    pyi = Surface("python", CONFIG_TABLE, table_doc="py_doc")
     pyi.fields = [
-        SurfaceField("reconnect.max_attempts", _re(r"^\s*reconnect_max_attempts:")),
+        SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(
             "reconnect.max_server_restart_attempts",
-            _re(r"^\s*reconnect_max_server_restart_attempts:"),
+            _re(r"set_reconnect_max_server_restart_attempts\b"),
         ),
         SurfaceField(
-            "reconnect.max_elapsed_secs", _re(r"^\s*reconnect_max_elapsed_secs:")
+            "reconnect.max_elapsed_secs", _re(r"set_reconnect_max_elapsed_secs\b")
         ),
-        SurfaceField("reconnect.wait_ms", _re(r"^\s*reconnect_wait_ms:")),
-        SurfaceField("reconnect.wait_max_ms", _re(r"^\s*reconnect_wait_max_ms:")),
+        SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
+        SurfaceField("reconnect.wait_max_ms", _re(r"set_reconnect_wait_max_ms\b")),
         SurfaceField(
             "reconnect.wait_rate_limited_ms",
-            _re(r"^\s*reconnect_wait_rate_limited_ms:"),
+            _re(r"set_reconnect_wait_rate_limited_ms\b"),
         ),
         SurfaceField(
             "reconnect.wait_server_restart_ms",
-            _re(r"^\s*reconnect_wait_server_restart_ms:"),
+            _re(r"set_reconnect_wait_server_restart_ms\b"),
         ),
         SurfaceField(
-            "reconnect.replay_burst_size", _re(r"^\s*reconnect_replay_burst_size:")
+            "reconnect.replay_burst_size", _re(r"set_reconnect_replay_burst_size\b")
         ),
         SurfaceField(
-            "reconnect.replay_pace_ms", _re(r"^\s*reconnect_replay_pace_ms:")
+            "reconnect.replay_pace_ms", _re(r"set_reconnect_replay_pace_ms\b")
         ),
-        SurfaceField("retry.initial_delay_ms", _re(r"^\s*retry_initial_delay_ms:")),
-        SurfaceField("retry.max_delay_ms", _re(r"^\s*retry_max_delay_ms:")),
-        SurfaceField("retry.max_attempts", _re(r"^\s*retry_max_attempts:")),
-        SurfaceField("retry.max_elapsed_secs", _re(r"^\s*retry_max_elapsed_secs:")),
-        SurfaceField("streaming.timeout_ms", _re(r"^\s*streaming_timeout_ms:")),
+        SurfaceField("retry.initial_delay_ms", _re(r"set_retry_initial_delay_ms\b")),
+        SurfaceField("retry.max_delay_ms", _re(r"set_retry_max_delay_ms\b")),
+        SurfaceField("retry.max_attempts", _re(r"set_retry_max_attempts\b")),
+        SurfaceField("retry.max_elapsed_secs", _re(r"set_retry_max_elapsed_secs\b")),
+        SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),
         SurfaceField(
-            "streaming.keepalive_idle_secs", _re(r"^\s*streaming_keepalive_idle_secs:")
+            "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
         SurfaceField(
-            "streaming.keepalive_interval_secs", _re(r"^\s*streaming_keepalive_interval_secs:")
+            "streaming.keepalive_interval_secs", _re(r"set_streaming_keepalive_interval_secs\b")
         ),
-        SurfaceField("streaming.keepalive_retries", _re(r"^\s*streaming_keepalive_retries:")),
+        SurfaceField("streaming.keepalive_retries", _re(r"set_streaming_keepalive_retries\b")),
     ]
     surfaces.append(pyi)
 

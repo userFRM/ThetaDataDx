@@ -177,15 +177,37 @@ fn render_live_cells() -> Vec<GeneratedSourceFile> {
 }
 
 /// Files whose generated region is spliced between marker comments while
-/// the rest of the file stays hand-maintained. Today this carries only the
-/// Python type stub's `MarketDataView` endpoint surface, projected from the
-/// endpoint table.
+/// the rest of the file stays hand-maintained: the regions of the Python
+/// type stub projected from the config, streaming event, tick and endpoint
+/// tables.
 fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::Error>> {
+    use crate::fpss_events::python_stub as events;
+    use crate::ticks::python_stub as ticks;
     let endpoints = table::endpoints();
-    Ok(vec![SplicedSourceFile {
-        relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
-        begin_marker: python_stub::STUB_BEGIN_MARKER,
-        end_marker: python_stub::STUB_END_MARKER,
-        region: python_stub::render_python_market_data_view_stub(&endpoints),
-    }])
+    Ok(vec![
+        SplicedSourceFile {
+            relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
+            begin_marker: config_accessors::PY_BEGIN_MARKER,
+            end_marker: config_accessors::PY_END_MARKER,
+            region: config_accessors::render_python_config_properties(),
+        },
+        SplicedSourceFile {
+            relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
+            begin_marker: events::BEGIN_MARKER,
+            end_marker: events::END_MARKER,
+            region: events::render_python_event_stubs(),
+        },
+        SplicedSourceFile {
+            relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
+            begin_marker: ticks::BEGIN_MARKER,
+            end_marker: ticks::END_MARKER,
+            region: ticks::render_python_tick_stubs(),
+        },
+        SplicedSourceFile {
+            relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
+            begin_marker: python_stub::STUB_BEGIN_MARKER,
+            end_marker: python_stub::STUB_END_MARKER,
+            region: python_stub::render_python_market_data_view_stub(&endpoints),
+        },
+    ])
 }

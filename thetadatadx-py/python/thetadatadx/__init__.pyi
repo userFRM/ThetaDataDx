@@ -21,10 +21,11 @@ Type checkers discover these annotations through the ``py.typed`` marker
 (PEP 561) shipped alongside this file.
 """
 
-# Per-endpoint market-data builders and typed `<Tick>List` wrappers share
-# one structural shape and resolve through the module-level `__getattr__`
-# to `Any`; only the load-bearing public surface is annotated explicitly
-# here.
+# The per-endpoint market-data builders resolve through the module-level
+# `__getattr__` to `Any`; everything else public is annotated here. The
+# event classes, the `Config` properties, the tick classes and the
+# market-data methods are generated from the tables the runtime is built
+# from.
 
 from __future__ import annotations
 
@@ -34,14 +35,19 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Generic,
+    Iterator,
     List,
     Literal,
     Optional,
+    Self,
     Sequence,
     Tuple,
     Type,
+    TypeVar,
     Union,
     final,
+    overload,
 )
 
 # PEP 396 — package version string, resolved at import time from the
@@ -198,84 +204,255 @@ class Config:
         """
         ...
 
-    market_data_host: str
-    """Hostname of the market-data server."""
+    # --- BEGIN GENERATED CONFIG PROPERTIES (config table) ---
+    # Generated from the config table; do not edit by hand.
+    reconnect_wait_ms: int
+    """Set the reconnect delay (ms) honoured for generic transient
+    disconnects (TimedOut, ServerRestarting, Unspecified, …).
+    Applied to the streaming session at connect time.
+    Default ``250``.
+    """
+    reconnect_wait_rate_limited_ms: int
+    """Set the reconnect delay (ms) honoured for ``TooManyRequests``
+    rate-limited disconnects. Default ``130_000`` (matches the
+    JVM terminal's 130 s rate-limit cooldown).
+    """
+    reconnect_wait_max_ms: int
+    """Set the cap (ms) on the exponential generic-transient reconnect
+    ladder. The ladder starts at ``reconnect_wait_ms`` and doubles
+    per consecutive attempt up to this value. Default ``30_000``.
+    """
+    reconnect_wait_server_restart_ms: int
+    """Set the flat reconnect cadence (ms) for ``ServerRestarting``
+    disconnects. Default ``5_000``.
+    """
+    reconnect_replay_burst_size: int
+    """Set the subscription-replay burst size used after an
+    auto-reconnect: frames are written in bursts of this many, each
+    burst flushed and followed by a jittered ``replay_pace_ms``
+    pause. Minimum ``1`` (validated at connect). Default ``50``.
+    """
+    reconnect_replay_pace_ms: int
+    """Set the pause (ms) between subscription-replay bursts after an
+    auto-reconnect. ``0`` removes the pause. Default ``5``.
+    """
+    streaming_timeout_ms: int
+    """Set the streaming read timeout (ms): the no-frames deadline after
+    which the streaming session is declared dead and reconnects.
+    Default ``10_000``; validated to ``[100, 60_000]``.
+    """
+    streaming_connect_timeout_ms: int
+    """Set the per-server connect timeout (ms) for the streaming
+    connection. Default
+    ``2_000``; validated to ``[1_000, 60_000]``.
+    """
+    streaming_ping_interval_ms: int
+    """Set the streaming heartbeat ping interval (ms). Default ``100``;
+    validated to ``[100, 300_000]``.
+    """
+    streaming_io_read_slice_ms: int
+    """Set the per-iteration blocking-read slice (ms) for the
+    streaming I/O loop. Default ``25``; validated to ``[10, 500]``.
+    """
+    streaming_keepalive_idle_secs: int
+    """Set the TCP keepalive idle time (seconds) before the first
+    kernel probe on a silent streaming socket. Default ``5``;
+    validated to ``[1, 7_200]``.
+    """
+    streaming_keepalive_interval_secs: int
+    """Set the interval (seconds) between TCP keepalive probes.
+    Default ``2``; validated to ``[1, 75]``.
+    """
+    streaming_keepalive_retries: int
+    """Set the number of unanswered TCP keepalive probes after which
+    the kernel declares the streaming connection dead (where the
+    platform exposes the knob). Default ``2``; validated to
+    ``[1, 10]``.
+    """
+    wait_mode: Literal["spin", "busyspin", "park", "backoff"]
+    """Set how the streaming consumer waits when the event ring is empty.
+    Accepts ``"spin"`` (default), ``"busyspin"``, ``"park"``, or
+    ``"backoff"`` (case-insensitive). ``"spin"`` and ``"busyspin"`` both hold
+    ~100% of one core and differ only in jitter; only ``"park"`` and
+    ``"backoff"`` lower idle CPU. The park / backoff sleep length is
+    ``park_interval_us``.
+    """
+    park_interval_us: int
+    """Set the park / backoff idle sleep length in microseconds for the streaming
+    consumer. Used only when the wait mode is ``"park"`` or ``"backoff"``.
+    Validated ``[50, 1000000]`` at connect time. Default ``1000`` (= 1 ms).
+    """
+    retry_max_elapsed_secs: int
+    """Set the wall-clock envelope (seconds) for one
+    market-data-channel retry sequence, measured from the first
+    attempt. ``0`` disables the envelope (attempt budget only).
+    Default ``300``.
+    """
+    retry_initial_delay_ms: int
+    """Set the initial backoff delay (ms) for the market-data-channel retry policy.
+    Default ``250``. Subsequent retries double from here, capped
+    at :attr:`retry_max_delay_ms`.
+    """
+    retry_max_delay_ms: int
+    """Set the upper-bound backoff delay (ms) for the
+    market-data-channel retry policy. Default ``30_000`` (30 s).
+    """
+    retry_max_attempts: int
+    """Set the total attempt budget for the market-data-channel retry policy. ``1``
+    disables retry (single call only); higher values permit retries
+    up to ``max_attempts - 1`` after the initial call. Default ``20``.
+    """
+    retry_jitter: bool
+    """Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
+    ``True``. ``False`` gives the deterministic backoff schedule
+    ``min(max_delay, initial * 2^attempt)``, useful for tests that
+    need to assert exact timings.
+    """
     market_data_port: int
-    """TCP port of the market-data server."""
+    """Set the market-data gRPC port. The environment factories set it;
+    override it together with ``market_data_host`` to reach the
+    market-data service at another address.
+    """
     warn_on_buffered_threshold_bytes: int
-    """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
+    """Set the warning threshold (in bytes) for buffered (non-streaming)
+    historical responses. Endpoints whose decoded total exceeds this
+    value log a warning pointing the caller at the
+    ``.stream()`` surface; the data is still delivered. ``0``
+    disables the warning entirely. Default is ``100 * 1024 * 1024``
+    (100 MiB).
+
+    Examples
+    --------
+        cfg = Config.production()
+        cfg.warn_on_buffered_threshold_bytes = 50 * 1024 * 1024
+    """
     request_timeout_secs: int
-    """Default per-request deadline, in seconds, for market-data queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` no longer disables the default: it is floored to the ``300``-second default at request time. The default is ``300`` (5 minutes)."""
+    """Set the default per-request deadline (in seconds) for market-data
+    queries. Bounds every request that did not set its own
+    ``timeout_ms``, so a live-but-silent stream resolves to a
+    timeout instead of blocking forever. ``0`` no longer disables the
+    default: it is floored to the ``300``-second default at request time,
+    so the deadline always applies. Default is ``300`` (5 minutes).
+
+    Examples
+    --------
+        cfg = Config.production()
+        cfg.request_timeout_secs = 120
+    """
     market_data_stream_window_size_kb: int
-    """Initial per-stream HTTP/2 flow-control window (KB) for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time. The default is ``8192`` (8 MiB)."""
+    """Set the initial per-stream HTTP/2 flow-control window (in KB) for the
+    market-data gRPC channel. A larger window raises the throughput ceiling
+    on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
+    is clamped into ``[64, 2_097_151]`` KB at validate/connect time.
+    Default is ``8192`` (8 MiB).
+
+    Examples
+    --------
+        cfg = Config.production()
+        cfg.market_data_stream_window_size_kb = 4096
+    """
     market_data_connection_window_size_kb: int
-    """Initial connection-level HTTP/2 flow-control window (KB) for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time. The default is ``16384`` (16 MiB)."""
+    """Set the initial connection-level HTTP/2 flow-control window (in KB) for
+    the market-data gRPC channel. A larger window raises the throughput
+    ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+    The value is clamped into ``[64, 2_097_151]`` KB at validate/connect
+    time. Default is ``16384`` (16 MiB).
+
+    Examples
+    --------
+        cfg = Config.production()
+        cfg.market_data_connection_window_size_kb = 16384
+    """
     bulk_fetch: Literal["auto", "off"]
-    """Automatic bulk-fetch sharding policy for history pulls (buffered and chunk-streaming alike). ``"auto"`` (the default) splits a large history pull's requested time or date range into equal concurrent bands across the account's concurrent-request budget — buffered pulls are merged back into exactly the rows of the single-stream response, single-contract, stock, and index pulls in the exact single-stream order and option-chain pulls in a deterministic canonical order grouped by expiration, strike, and right; streaming pulls forward each band's chunks as they arrive, every chunk exactly once but interleaved across bands in arrival order; small pulls are never sharded. ``"off"`` runs every query as a single stream, in the server's own row and chunk order. The setter accepts either value case-insensitively and raises ``ValueError`` otherwise."""
+    """Automatic bulk-fetch sharding policy for history pulls (buffered and
+    chunk-streaming alike). Accepts ``"auto"`` (default: a large history
+    pull's requested time or date range is split into equal concurrent
+    bands across the account's concurrent-request budget; buffered
+    pulls are merged back
+    into exactly the rows of the single-stream response, single-contract,
+    stock, and index pulls in the exact single-stream order and
+    option-chain pulls in a deterministic canonical order grouped by
+    expiration, strike, and right; streaming pulls forward each band's
+    chunks as they arrive, every chunk exactly once but interleaved
+    across bands in arrival order; small pulls are never sharded) or
+    ``"off"`` (every query runs as a single stream, in the server's own
+    row and chunk order), case-insensitive.
+    """
     shard_concurrency: Optional[int]
-    """Upper bound on concurrent sub-requests per sharded bulk fetch. ``None`` (the default) uses the full concurrent-request budget (the channel-pool size resolved from :attr:`max_concurrent_requests`); an ``int`` caps the fan-out. The applied value is clamped into ``[1, pool_size]`` when a plan is built, and validation floors an explicit ``0`` to ``1``."""
+    """Upper bound on concurrent sub-requests per sharded bulk fetch.
+    ``None`` (the default) uses the full concurrent-request budget (the
+    channel-pool size resolved from ``max_concurrent_requests``); an
+    ``int`` caps the fan-out. The applied value is clamped into
+    ``[1, pool_size]`` when a plan is built, and validation floors an
+    explicit ``0`` to ``1``.
+    """
     max_concurrent_requests: Optional[int]
-    """Concurrent in-flight market-data requests: the gRPC channel-pool and request-semaphore size, resolved at connect time. ``None`` (the default) sizes the pool to your account's subscription tier from the auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is used verbatim with no client-side cap — the allowance is enforced server-side, so an account boosted above its base tier sets the boosted value and runs that wide. Requests past the allowance are retried with backoff. Validation floors an explicit ``0`` to ``1``."""
+    """Number of concurrent in-flight market-data requests (gRPC channel-pool
+    + request-semaphore size, resolved at connect time). ``None`` (the
+    default) sizes the pool to the account's subscription tier from the
+    auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is
+    used verbatim with no client-side cap; the allowance is enforced
+    server-side, so a boosted account sets its boosted value. Requests
+    past the allowance are retried with backoff. Validation floors an
+    explicit ``0`` to ``1``.
+
+    Examples
+    --------
+        cfg = Config.production()
+        cfg.max_concurrent_requests = 32
+    """
+    reconnect_max_attempts: int
+    """Set the per-class transient-failure attempt budget for the
+    auto-reconnect path. Default `30`. No effect unless the
+    reconnect policy is `Auto`.
+    """
+    reconnect_max_rate_limited_attempts: int
+    """Set the per-class rate-limited (`TooManyRequests`) attempt budget
+    for the auto-reconnect path. Default `100`. No effect unless the
+    reconnect policy is `Auto`.
+    """
+    reconnect_max_server_restart_attempts: int
+    """Set the ``ServerRestarting`` reconnect attempt budget. Default
+    ``60``. No effect unless the reconnect policy is ``Auto``.
+    """
+    reconnect_max_elapsed_secs: int
+    """Set the wall-clock reconnect envelope (seconds) for the
+    generic-transient and server-restart classes, measured from the
+    first attempt of a consecutive-reconnect sequence. ``0``
+    disables the envelope (attempt budgets only). Default ``300``.
+    No effect unless the reconnect policy is ``Auto``.
+    """
+    reconnect_stable_window_secs: int
+    """Set the continuous successful-data-flow window (in seconds)
+    after which the auto-reconnect attempt counters reset. Default
+    ``60``. No effect unless the reconnect policy is ``Auto``.
+    """
+    nexus_url: str
+    """Set the Nexus auth URL. Default matches the upstream production
+    endpoint; override to redirect at a staging cluster.
+    """
+    client_type: str
+    """Set the ``QueryInfo.client_type`` identifier. Default is
+    ``"rust-thetadatadx"``; override to identify a deployment fleet
+    in server-side dashboards.
+    """
+    market_data_host: str
+    """Set the market-data gRPC host. The environment factories set it;
+    override it to reach the market-data service at another address.
+    """
+    reconnect_jitter: Literal["full", "none"]
+    """Set the jitter strategy applied to every reconnect delay.
+    Accepts ``"full"`` (default) or ``"none"`` (case-insensitive).
+    """
+    # --- END GENERATED CONFIG PROPERTIES ---
     reconnect_policy: str
     """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
-    reconnect_max_attempts: int
-    """Maximum consecutive reconnect attempts on the generic-transient failure class before the session gives up (default 30)."""
-    reconnect_max_rate_limited_attempts: int
-    """Maximum consecutive reconnect attempts on the rate-limited (TooManyRequests) failure class, tracked independently of :attr:`reconnect_max_attempts`."""
-    reconnect_max_server_restart_attempts: int
-    """Maximum consecutive reconnect attempts on the ServerRestarting failure class, budgeting pool bounces (default 60)."""
-    reconnect_max_elapsed_secs: int
-    """Wall-clock envelope, in seconds, bounding a consecutive-reconnect sequence (default 300; ``0`` disables the envelope)."""
-    reconnect_stable_window_secs: int
-    """Connected duration, in seconds, after which a session is considered stable and the consecutive-reconnect counters reset."""
-    reconnect_wait_ms: int
-    """Initial delay, in milliseconds, of the generic-transient exponential back-off ladder (default 250), doubling up to :attr:`reconnect_wait_max_ms`."""
-    reconnect_wait_max_ms: int
-    """Ceiling, in milliseconds, of the generic-transient exponential back-off ladder (default 30_000)."""
-    reconnect_wait_rate_limited_ms: int
-    """Back-off floor, in milliseconds, applied to the rate-limited (TooManyRequests) failure class (default 130_000)."""
-    reconnect_wait_server_restart_ms: int
-    """Flat reconnect cadence, in milliseconds, applied to the ServerRestarting failure class (default 5_000)."""
-    reconnect_jitter: Literal["full", "none"]
-    """Jitter strategy applied to every reconnect delay: ``"full"`` (default) or ``"none"``."""
-    reconnect_replay_burst_size: int
-    """Number of subscription-replay frames sent per burst after an auto-reconnect (default 50, minimum 1)."""
-    reconnect_replay_pace_ms: int
-    """Jittered pause, in milliseconds, between subscription-replay bursts after an auto-reconnect (default 5; ``0`` removes the pause)."""
     reconnect_callback: Optional[Callable[[int, int], Optional[int]]]
     """Custom reconnect policy: a callable ``(reason: int, attempt: int) -> Optional[int]`` returning the reconnect delay in milliseconds, or ``None`` to stop (the stream then emits the terminal :class:`ReconnectsExhausted` event). Runs on an SDK streaming thread; permanent disconnect reasons never reach it. Assign ``None`` to restore the auto policy. Write-only: the configured callable cannot be read back (:attr:`reconnect_policy` then reports ``"custom"``)."""
     worker_threads: Optional[int]
     """Async worker-thread count for the embedded runtime. ``None`` defers to the default sizing; an ``int`` (including ``0``, which clamps to ``1``) pins the worker count."""
-    retry_initial_delay_ms: int
-    """Initial delay, in milliseconds, of the market-data-request retry back-off (default 250)."""
-    retry_max_delay_ms: int
-    """Ceiling, in milliseconds, of the market-data-request retry back-off (default 30_000)."""
-    retry_max_attempts: int
-    """Maximum market-data-request retry attempts (default 20)."""
-    retry_max_elapsed_secs: int
-    """Wall-clock envelope, in seconds, bounding the market-data-request retry loop (default 300; ``0`` disables the envelope)."""
-    retry_jitter: bool
-    """Whether jitter is applied to market-data-request retry delays (default ``True``)."""
-    nexus_url: str
-    """Authentication endpoint URL (defaults to the production endpoint)."""
-    client_type: str
-    """Client-type identifier sent during authentication (defaults to ``"rust-thetadatadx"``)."""
-    streaming_timeout_ms: int
-    """No-frames deadline, in milliseconds, for the streaming connection (default 10_000)."""
-    streaming_connect_timeout_ms: int
-    """Connect timeout, in milliseconds, for opening a streaming connection."""
-    streaming_ping_interval_ms: int
-    """Interval, in milliseconds, between client-side streaming heartbeats."""
     streaming_ring_size: int
     """Capacity, in slots, of the streaming event ring; must be a power of two from 64 to ``2**24``, otherwise connecting raises."""
-    streaming_io_read_slice_ms: int
-    """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
-    streaming_keepalive_idle_secs: int
-    """Idle time, in seconds, before kernel-side TCP keepalive probing begins on the streaming socket (default 5)."""
-    streaming_keepalive_interval_secs: int
-    """Interval, in seconds, between kernel-side TCP keepalive probes on the streaming socket (default 2)."""
-    streaming_keepalive_retries: int
-    """Number of unanswered kernel-side TCP keepalive probes before the streaming socket is declared dead (default 2)."""
     @property
     def market_data_environment(self) -> Literal["PROD", "STAGE"]:
         """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The market-data and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""
@@ -284,10 +461,6 @@ class Config:
         """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster, ``"STAGE"`` for the staging cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
     consumer_cpu: Optional[int]
     """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
-    wait_mode: Literal["spin", "busyspin", "park", "backoff"]
-    """How the streaming consumer waits when the event ring is empty. ``"spin"`` (default) and ``"busyspin"`` both hold ~100% of one core and differ only in jitter; only ``"park"`` and ``"backoff"`` lower idle CPU. ``"backoff"`` is the hands-free low-latency-when-active / low-CPU-when-idle choice. The park / backoff sleep length is :attr:`park_interval_us`."""
-    park_interval_us: int
-    """Park / backoff idle sleep length in microseconds (default ``1000``, = 1 ms); used only when :attr:`wait_mode` is ``"park"`` or ``"backoff"``. Worst-case delivery latency added per parked event. The OS timer honors sleeps down to ~50us (below that, kernel timer slack dominates, so 50 is the floor); a 100us park is a valid low-latency option (a few percent of a core in live premarket (versus ~100% for spin)). Validated ``[50, 1000000]`` at connect time."""
 
     def __repr__(self) -> str:
         """Return a representation with the host, port, and stream-host count."""
@@ -777,35 +950,153 @@ class Subscription:
 # concrete class (`match event: case Quote(): ...`) or read `event.kind`.
 # ─────────────────────────────────────────────────────────────────────
 
+# --- BEGIN GENERATED STREAMING EVENTS (event table) ---
+# Generated from the streaming event table; do not edit by hand. Run
+# `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.
+
+
+@final
+class IndexMarketValue:
+    """Streaming index MarketValue tick (wire code 25, index contracts): `ms_of_day`, `date` and `market_price` as the feed sent them; an index has no bid/ask. Per-contract only (no full-stream variant)."""
+
+    contract: ContractRef
+    """Contract this event refers to."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
+    market_price: float
+    """Index market value (dollars): the vendor's indicative figure, the index level moved by a random 1 to 5 cents. The exact level is the index price."""
+    date: int
+    """Trading date as `YYYYMMDD`."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"index_market_value"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
+class MarketValue:
+    """Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask; `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant)."""
+
+    contract: ContractRef
+    """Contract this event refers to."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
+    market_bid: float
+    """Calculated market bid (dollars), nudged from the quote bid."""
+    market_ask: float
+    """Calculated market ask (dollars), nudged from the quote ask."""
+    market_price: float
+    """Integer midpoint of `market_bid` / `market_ask` (dollars)."""
+    date: int
+    """Trading date as `YYYYMMDD`."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"market_value"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
+class Ohlcvc:
+    """Streaming OHLCVC bar."""
+
+    contract: ContractRef
+    """Contract this event refers to."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
+    open: float
+    """Opening price of the bar."""
+    high: float
+    """Highest traded price within the bar."""
+    low: float
+    """Lowest traded price within the bar."""
+    close: float
+    """Closing price of the bar."""
+    volume: int
+    """Total traded volume within the bar, in contracts/shares."""
+    count: int
+    """Number of trades aggregated into the bar."""
+    date: int
+    """Trading date as `YYYYMMDD`."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"ohlcvc"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
+class OpenInterest:
+    """Streaming OpenInterest tick."""
+
+    contract: ContractRef
+    """Contract this event refers to."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
+    open_interest: int
+    """Number of outstanding open contracts."""
+    date: int
+    """Trading date as `YYYYMMDD`."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"open_interest"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
 
 @final
 class Quote:
-    """A real-time Quote tick — top-of-book bid / ask for one contract."""
+    """Streaming Quote tick."""
 
     contract: ContractRef
-    """The contract this quote is for."""
+    """Contract this event refers to."""
     ms_of_day: int
-    """Milliseconds since midnight Eastern Time when the quote was recorded."""
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
     bid_size: int
-    """Number of contracts or shares resting at the bid."""
+    """Number of contracts/shares resting at the bid."""
     bid_exchange: int
     """Exchange code posting the bid."""
     bid: float
-    """Bid price in dollars."""
+    """Bid price."""
     bid_condition: int
     """Quote condition code for the bid."""
     ask_size: int
-    """Number of contracts or shares resting at the ask."""
+    """Number of contracts/shares resting at the ask."""
     ask_exchange: int
     """Exchange code posting the ask."""
     ask: float
-    """Ask price in dollars."""
+    """Ask price."""
     ask_condition: int
     """Quote condition code for the ask."""
     date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
+    """Trading date as `YYYYMMDD`."""
     received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
 
     @property
     def kind(self) -> str:
@@ -819,26 +1110,26 @@ class Quote:
 
 @final
 class Trade:
-    """A real-time Trade tick — one executed print for a contract."""
+    """Streaming Trade tick."""
 
     contract: ContractRef
-    """The contract this trade is for."""
+    """Contract this event refers to."""
     ms_of_day: int
-    """Milliseconds since midnight Eastern Time when the trade printed."""
+    """Milliseconds since midnight Eastern Time when the event was recorded."""
     sequence: int
-    """Exchange sequence number ordering trades within the day."""
+    """Exchange sequence number for ordering trades within the day."""
     condition: int
     """Primary trade condition code."""
     size: int
-    """Trade size in contracts or shares."""
+    """Trade size in contracts/shares."""
     exchange: int
     """Exchange code where the trade printed."""
     price: float
-    """Trade price in dollars."""
+    """Trade price."""
     date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
+    """Trading date as `YYYYMMDD`."""
     received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
+    """Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."""
 
     @property
     def kind(self) -> str:
@@ -851,144 +1142,8 @@ class Trade:
 
 
 @final
-class OpenInterest:
-    """A real-time OpenInterest tick — open-contract count for an option."""
-
-    contract: ContractRef
-    """The contract this open-interest tick is for."""
-    ms_of_day: int
-    """Milliseconds since midnight Eastern Time when the open interest was recorded."""
-    open_interest: int
-    """Number of outstanding open contracts."""
-    date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
-    received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
-
-    @property
-    def kind(self) -> str:
-        """Event kind discriminator (``"open_interest"``)."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation of the event."""
-        ...
-
-
-@final
-class Ohlcvc:
-    """An OHLCVC bar (wire code 24)."""
-
-    contract: ContractRef
-    """The contract this bar is for."""
-    ms_of_day: int
-    """Milliseconds since midnight Eastern Time at the bar's open."""
-    open: float
-    """Opening price of the bar in dollars."""
-    high: float
-    """Highest traded price within the bar in dollars."""
-    low: float
-    """Lowest traded price within the bar in dollars."""
-    close: float
-    """Closing price of the bar in dollars."""
-    volume: int
-    """Total traded volume within the bar, in contracts or shares."""
-    count: int
-    """Number of trades aggregated into the bar."""
-    date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
-    received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
-
-    @property
-    def kind(self) -> str:
-        """Event kind discriminator (``"ohlcvc"``)."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation of the event."""
-        ...
-
-
-@final
-class MarketValue:
-    """A real-time MarketValue tick — a theoretical market value derived from the live bid/ask."""
-
-    contract: ContractRef
-    """The contract this market-value tick is for."""
-    ms_of_day: int
-    """Milliseconds since midnight Eastern Time when the market value was recorded."""
-    market_bid: float
-    """Quote bid after a size-imbalance and spread-aware adjustment, in dollars."""
-    market_ask: float
-    """Quote ask after a size-imbalance and spread-aware adjustment, in dollars."""
-    market_price: float
-    """Midpoint of ``market_bid`` and ``market_ask``, in dollars."""
-    date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
-    received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
-
-    @property
-    def kind(self) -> str:
-        """Event kind discriminator (``"market_value"``)."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation of the event."""
-        ...
-
-
-@final
-class IndexMarketValue:
-    """A real-time index MarketValue tick: the vendor's indicative index figure."""
-
-    contract: ContractRef
-    """The index this market-value tick is for."""
-    ms_of_day: int
-    """Milliseconds since midnight Eastern Time when the market value was recorded."""
-    market_price: float
-    """The indicative index market price, in dollars: the index level moved by a
-    random 1 to 5 cents up or down, as the vendor serves it. The exact level is
-    the index price subscription. An index has no NBBO, so this is not a midpoint
-    of anything and there is no ``market_bid`` or ``market_ask`` beside it."""
-    date: int
-    """Trading date as a ``YYYYMMDD`` integer."""
-    received_at_ns: int
-    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
-
-    @property
-    def kind(self) -> str:
-        """Event kind discriminator (``"index_market_value"``)."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation of the event."""
-        ...
-
-
-@final
-class ContractAssigned:
-    """The server assigned a numeric id to a subscribed contract."""
-
-    id: int
-    """Wire-internal numeric id the server assigned to this contract."""
-    contract: ContractRef
-    """The contract associated with the assigned id."""
-
-    @property
-    def kind(self) -> str:
-        """Event kind discriminator (``"contract_assigned"``)."""
-        ...
-
-    def __repr__(self) -> str:
-        """Return a representation of the event."""
-        ...
-
-
-@final
 class Connected:
-    """The streaming connection has been established."""
+    """Streaming server connection ack (wire code 4). Carries no payload."""
 
     @property
     def kind(self) -> str:
@@ -1001,36 +1156,17 @@ class Connected:
 
 
 @final
-class Disconnected:
-    """The connection ended.
+class ContractAssigned:
+    """Streaming server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options)."""
 
-    ``reason`` is the server's own code when the server sent a disconnect
-    message, and otherwise the code the client has always reported for the
-    way the connection ended. ``cause`` says which of those happened.
-    """
-
-    reason: int
-    """Numeric disconnect reason code; see :attr:`reason_name` for the symbolic form."""
-    cause: int
-    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
-    cause_io_error_kind: str
-    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
-    cause_timeout_ms: int
-    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
+    id: int
+    """Wire-internal contract id the streaming server assigns to this contract."""
+    contract: ContractRef
+    """Contract this event refers to."""
 
     @property
     def kind(self) -> str:
-        """Event kind discriminator (``"disconnected"``)."""
-        ...
-
-    @property
-    def reason_name(self) -> str:
-        """The disconnect reason as a symbolic name (e.g. ``"TooManyRequests"``)."""
-        ...
-
-    @property
-    def cause_name(self) -> str:
-        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
+        """Event kind discriminator (``"contract_assigned"``)."""
         ...
 
     def __repr__(self) -> str:
@@ -1039,19 +1175,31 @@ class Disconnected:
 
 
 @final
-class ParseError:
-    """A streaming protocol-level parse error.
+class Disconnected:
+    """Streaming connection ended. `reason` is the integer disconnect code: the server's own when the server sent a disconnect message (wire code 12), and otherwise the code the client has always reported for the way the connection ended (4 TimedOut for its own read deadline, -1 Unspecified for a socket that closed or failed). Read the resolved reason-name field for its symbolic name, and the cause field for where the disconnect came from."""
 
-    Named ``ParseError`` so streaming events stay distinct from the SDK
-    exception hierarchy.
-    """
-
-    message: str
-    """Human-readable description of the parse failure."""
+    reason: int
+    """Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended."""
+    cause: int
+    """Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline."""
+    cause_io_error_kind: str
+    """Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause."""
+    cause_timeout_ms: int
+    """Client read deadline that expired, in milliseconds. Zero for every other cause."""
 
     @property
     def kind(self) -> str:
-        """Event kind discriminator (``"parse_error"``)."""
+        """Event kind discriminator (``"disconnected"``)."""
+        ...
+
+    @property
+    def reason_name(self) -> str:
+        """Resolved disconnect-reason name (e.g. `"TooManyRequests"`, `"InvalidCredentials"`, `"Unspecified"` for unknown codes). Derived from the wire-level `reason` integer."""
+        ...
+
+    @property
+    def cause_name(self) -> str:
+        """Resolved disconnect-cause name: `"ServerSent"`, `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or `"ReadTimeout"`. Derived from the `cause` integer."""
         ...
 
     def __repr__(self) -> str:
@@ -1061,10 +1209,10 @@ class ParseError:
 
 @final
 class LoginSuccess:
-    """A successful login acknowledgement carrying the granted permissions."""
+    """Streaming login succeeded. `permissions` is the server's opaque bundle string; diagnostic metadata only; for feature gating use the Nexus REST subscription tiers."""
 
     permissions: str
-    """Server-supplied entitlement string from the login acknowledgement; opaque diagnostic metadata, not a structured permission set."""
+    """Server "Bundle" string copied verbatim from the METADATA frame; opaque diagnostic metadata."""
 
     @property
     def kind(self) -> str:
@@ -1078,7 +1226,7 @@ class LoginSuccess:
 
 @final
 class MarketClose:
-    """A market-close signal. Carries no payload."""
+    """Streaming market-close signal (wire code 32). Carries no payload."""
 
     @property
     def kind(self) -> str:
@@ -1092,7 +1240,7 @@ class MarketClose:
 
 @final
 class MarketOpen:
-    """A market-open signal. Carries no payload."""
+    """Streaming market-open signal (wire code 30). Carries no payload."""
 
     @property
     def kind(self) -> str:
@@ -1105,11 +1253,28 @@ class MarketOpen:
 
 
 @final
+class ParseError:
+    """Streaming protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`)."""
+
+    message: str
+    """Human-readable error text from the server."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"parse_error"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
 class Ping:
-    """A server heartbeat carrying an opaque payload."""
+    """Streaming server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics."""
 
     payload: bytes
-    """Raw heartbeat payload bytes, preserved for diagnostics."""
+    """Raw frame payload bytes, preserved for diagnostics."""
 
     @property
     def kind(self) -> str:
@@ -1123,7 +1288,7 @@ class Ping:
 
 @final
 class Reconnected:
-    """Auto-reconnect succeeded — the connection is live again."""
+    """Streaming auto-reconnect succeeded; connection is live again. Carries no payload."""
 
     @property
     def kind(self) -> str:
@@ -1137,7 +1302,7 @@ class Reconnected:
 
 @final
 class ReconnectedServer:
-    """A server-side reconnect acknowledgement."""
+    """Streaming server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated."""
 
     @property
     def kind(self) -> str:
@@ -1151,20 +1316,20 @@ class ReconnectedServer:
 
 @final
 class Reconnecting:
-    """Auto-reconnect is about to attempt a reconnection."""
+    """Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. `reason` and the cause fields describe the disconnect that triggered the attempt."""
 
     reason: int
-    """Numeric disconnect reason code that triggered the reconnect attempt; see :attr:`reason_name` for the symbolic form."""
+    """Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended."""
     cause: int
-    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
+    """Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline."""
     cause_io_error_kind: str
-    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
+    """Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause."""
     cause_timeout_ms: int
-    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
+    """Client read deadline that expired, in milliseconds. Zero for every other cause."""
     attempt: int
-    """One-based index of this reconnect attempt."""
+    """1-based index of this reconnect attempt."""
     delay_ms: int
-    """Delay, in milliseconds, before this reconnect attempt fires."""
+    """Delay, in milliseconds, before the attempt fires."""
 
     @property
     def kind(self) -> str:
@@ -1173,12 +1338,12 @@ class Reconnecting:
 
     @property
     def reason_name(self) -> str:
-        """The disconnect reason as a symbolic name."""
+        """Resolved disconnect-reason name (e.g. `"TooManyRequests"`, `"InvalidCredentials"`, `"Unspecified"` for unknown codes). Derived from the wire-level `reason` integer."""
         ...
 
     @property
     def cause_name(self) -> str:
-        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
+        """Resolved disconnect-cause name: `"ServerSent"`, `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or `"ReadTimeout"`. Derived from the `cause` integer."""
         ...
 
     def __repr__(self) -> str:
@@ -1188,23 +1353,18 @@ class Reconnecting:
 
 @final
 class ReconnectsExhausted:
-    """Auto-reconnect stopped without a user-initiated shutdown —
-    terminal for the session. Emitted on budget / wall-clock-envelope
-    exhaustion, a permanent disconnect reason, a manual policy, or a
-    custom policy returning ``None``. ``attempts`` is the number of
-    consecutive reconnect attempts consumed (0 when no reconnect was
-    attempted)."""
+    """Streaming auto-reconnect stopped without a user-initiated shutdown; terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name and the cause field for where that drop came from. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted)."""
 
     reason: int
-    """Numeric disconnect reason code of the final drop before recovery was abandoned; see :attr:`reason_name` for the symbolic form."""
+    """Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended."""
     cause: int
-    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
+    """Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline."""
     cause_io_error_kind: str
-    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
+    """Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause."""
     cause_timeout_ms: int
-    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
+    """Client read deadline that expired, in milliseconds. Zero for every other cause."""
     attempts: int
-    """Number of consecutive reconnect attempts consumed before giving up (``0`` when no reconnect was attempted)."""
+    """Number of consecutive reconnect attempts consumed before giving up."""
 
     @property
     def kind(self) -> str:
@@ -1213,12 +1373,12 @@ class ReconnectsExhausted:
 
     @property
     def reason_name(self) -> str:
-        """The disconnect reason as a symbolic name."""
+        """Resolved disconnect-reason name (e.g. `"TooManyRequests"`, `"InvalidCredentials"`, `"Unspecified"` for unknown codes). Derived from the wire-level `reason` integer."""
         ...
 
     @property
     def cause_name(self) -> str:
-        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
+        """Resolved disconnect-cause name: `"ServerSent"`, `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or `"ReadTimeout"`. Derived from the `cause` integer."""
         ...
 
     def __repr__(self) -> str:
@@ -1228,12 +1388,12 @@ class ReconnectsExhausted:
 
 @final
 class ReqResponse:
-    """A response to a subscription request, identified by ``req_id``."""
+    """Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms)."""
 
     req_id: int
     """Identifier of the subscription request this response answers."""
     result: int
-    """Numeric outcome code of the subscription request."""
+    """Outcome of the subscription request."""
 
     @property
     def kind(self) -> str:
@@ -1247,7 +1407,7 @@ class ReqResponse:
 
 @final
 class Restart:
-    """A server-initiated stream restart."""
+    """Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt."""
 
     @property
     def kind(self) -> str:
@@ -1261,7 +1421,7 @@ class Restart:
 
 @final
 class ServerError:
-    """A server-error message carrying a human-readable description."""
+    """Streaming server-error message (wire code 11)."""
 
     message: str
     """Human-readable error text from the server."""
@@ -1278,7 +1438,7 @@ class ServerError:
 
 @final
 class UnknownControl:
-    """A control event the SDK does not yet recognise."""
+    """Streaming control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates; keep dispatch logic forward-compatible by handling this variant. Carries no payload."""
 
     @property
     def kind(self) -> str:
@@ -1292,10 +1452,10 @@ class UnknownControl:
 
 @final
 class UnknownFrame:
-    """A frame with an unrecognised wire code, surfaced with its raw bytes."""
+    """Streaming server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports."""
 
     code: int
-    """Unrecognised wire frame code reported by the server."""
+    """Unrecognized frame code reported by the server."""
     payload: bytes
     """Raw frame payload bytes, preserved for diagnostics."""
 
@@ -1309,9 +1469,2008 @@ class UnknownFrame:
         ...
 
 
+# --- END GENERATED STREAMING EVENTS ---
+
+
 # Union of every streaming event class delivered to the callback. Opaque
 # to type checkers; narrow at runtime via `match` / `isinstance`.
 StreamEvent = Any
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Tick rows and their typed lists, returned by the market-data methods
+# ─────────────────────────────────────────────────────────────────────
+
+# --- BEGIN GENERATED TICK CLASSES (tick table) ---
+# Generated from the tick table; do not edit by hand. Run
+# `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.
+
+_Row = TypeVar("_Row")
+
+
+class _TickList(Generic[_Row]):
+    """Supports `len()`, indexing, slicing and iteration, and converts with
+    `.to_list()`, `.to_arrow()`, `.to_pandas()` and `.to_polars()`.
+    """
+
+    def __new__(cls, ticks: Sequence[_Row] = ...) -> Self: ...
+    def __len__(self) -> int: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+    @overload
+    def __getitem__(self, key: int) -> _Row: ...
+    @overload
+    def __getitem__(self, key: slice) -> Self: ...
+    def __iter__(self) -> Iterator[_Row]: ...
+    def to_list(self) -> List[_Row]:
+        """Return a plain Python `list` of the rows."""
+        ...
+
+    def to_arrow(self) -> Any:
+        """Return a `pyarrow.Table` of the rows, carrying only the columns the response sent."""
+        ...
+
+    def to_pandas(self) -> Any:
+        """Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`. Requires pandas and pyarrow:
+        `pip install thetadatadx-py[pandas]`.
+        """
+        ...
+
+    def to_polars(self) -> Any:
+        """Return a `polars.DataFrame` via `polars.from_arrow`. Requires polars and pyarrow:
+        `pip install thetadatadx-py[polars]`.
+        """
+        ...
+
+
+@final
+class CalendarDay:
+    """Calendar day. Market open/close schedule."""
+
+    def __new__(
+        cls,
+        *,
+        date: int = ...,
+        open_time: int = ...,
+        close_time: int = ...,
+        status: str,
+    ) -> CalendarDay: ...
+
+    date: int
+    """Calendar date as a YYYYMMDD integer. 0 when the server omits the column (single-day endpoints)."""
+    open_time: int
+    """Market open time, milliseconds since midnight ET."""
+    close_time: int
+    """Market close time, milliseconds since midnight ET."""
+    status: str
+    """Vendor day classification: open, early_close, full_close, or weekend."""
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class CalendarDayList(_TickList[CalendarDay]):
+    """Typed list of `CalendarDay` rows, returned by every market-data endpoint whose
+    response is `CalendarDay`.
+    """
+
+
+@final
+class EodTick:
+    """End-of-day tick. Full EOD snapshot with OHLC + quote."""
+
+    def __new__(
+        cls,
+        *,
+        created_ms_of_day: int = ...,
+        last_trade_ms_of_day: int = ...,
+        open: float = ...,
+        high: float = ...,
+        low: float = ...,
+        close: float = ...,
+        volume: int = ...,
+        count: int = ...,
+        bid_size: int = ...,
+        bid_exchange: Optional[int] = ...,
+        bid: float = ...,
+        bid_condition: Optional[int] = ...,
+        ask_size: int = ...,
+        ask_exchange: Optional[int] = ...,
+        ask: float = ...,
+        ask_condition: Optional[int] = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> EodTick: ...
+
+    created_ms_of_day: int
+    """EOD report creation time (NOT a trade time), milliseconds since midnight ET."""
+    last_trade_ms_of_day: int
+    """Time of the day's last trade, milliseconds since midnight ET. 0 when no trades printed that day."""
+    open: float
+    """Opening trade price. 0.0 when no trades printed that day."""
+    high: float
+    """Highest traded price. 0.0 when no trades printed that day."""
+    low: float
+    """Lowest traded price. 0.0 when no trades printed that day."""
+    close: float
+    """Closing traded price. 0.0 when no trades printed that day."""
+    volume: int
+    """Number of contracts or shares traded."""
+    count: int
+    """Number of trades."""
+    bid_size: int
+    """Last NBBO bid size."""
+    bid_exchange: Optional[int]
+    """Exchange code of the NBBO bid. `None` when the response carried no such column."""
+    bid: float
+    """Last NBBO bid price."""
+    bid_condition: Optional[int]
+    """Quote condition code on the bid side. `None` when the response carried no such column."""
+    ask_size: int
+    """Last NBBO ask size."""
+    ask_exchange: Optional[int]
+    """Exchange code of the NBBO ask. `None` when the response carried no such column."""
+    ask: float
+    """Last NBBO ask price."""
+    ask_condition: Optional[int]
+    """Quote condition code on the ask side. `None` when the response carried no such column."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def created_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `created_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def last_trade_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `last_trade_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class EodTickList(_TickList[EodTick]):
+    """Typed list of `EodTick` rows, returned by every market-data endpoint whose
+    response is `EodTick`.
+    """
+
+
+@final
+class GreeksAllTick:
+    """Full union Greeks tick -- every Greek the v3 server publishes on the
+    `option_*_greeks_all` and `option_*_greeks_eod` endpoints.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid: float = ...,
+        ask: float = ...,
+        implied_volatility: float = ...,
+        delta: float = ...,
+        gamma: float = ...,
+        theta: float = ...,
+        vega: float = ...,
+        rho: float = ...,
+        iv_error: float = ...,
+        vanna: float = ...,
+        charm: float = ...,
+        vomma: float = ...,
+        veta: float = ...,
+        speed: float = ...,
+        zomma: float = ...,
+        color: float = ...,
+        ultima: float = ...,
+        d1: float = ...,
+        d2: float = ...,
+        dual_delta: float = ...,
+        dual_gamma: float = ...,
+        epsilon: float = ...,
+        lambda_: float = ...,
+        vera: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> GreeksAllTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid: float
+    """Last NBBO bid price."""
+    ask: float
+    """Last NBBO ask price."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    delta: float
+    """Sensitivity of the option value to a one-dollar move in the underlying."""
+    gamma: float
+    """Rate of change of delta with respect to the underlying price."""
+    theta: float
+    """Sensitivity of the option value to the passage of time."""
+    vega: float
+    """Sensitivity of the option value to a change in implied volatility."""
+    rho: float
+    """Sensitivity of the option value to the risk-free rate."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    vanna: float
+    """Sensitivity of delta to a change in implied volatility."""
+    charm: float
+    """Rate of change of delta over time."""
+    vomma: float
+    """Sensitivity of vega to a change in implied volatility."""
+    veta: float
+    """Rate of change of vega over time."""
+    speed: float
+    """Rate of change of gamma with respect to the underlying price."""
+    zomma: float
+    """Sensitivity of gamma to a change in implied volatility."""
+    color: float
+    """Rate of change of gamma over time."""
+    ultima: float
+    """Sensitivity of vomma to a change in implied volatility."""
+    d1: float
+    """Black-Scholes d1 intermediate term."""
+    d2: float
+    """Black-Scholes d2 intermediate term."""
+    dual_delta: float
+    """Sensitivity of the option value to the strike price."""
+    dual_gamma: float
+    """Second derivative of the option value with respect to the strike."""
+    epsilon: float
+    """Sensitivity of the option value to the dividend yield."""
+    lambda_: float
+    """Percent change in the option value per percent change in the underlying."""
+    vera: float
+    """Sensitivity of rho to a change in implied volatility."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class GreeksAllTickList(_TickList[GreeksAllTick]):
+    """Typed list of `GreeksAllTick` rows, returned by every market-data endpoint whose
+    response is `GreeksAllTick`.
+    """
+
+
+@final
+class GreeksEodTick:
+    """End-of-day union Greeks tick -- every Greek the v3 server publishes on
+    `option_history_greeks_eod`, paired with the twelve EOD trade/quote
+    context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
+    `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
+    `ask_exchange`, `ask_condition`) that identify the daily bar + closing
+    NBBO snapshot the Greeks were calculated against.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        open: float = ...,
+        high: float = ...,
+        low: float = ...,
+        close: float = ...,
+        volume: int = ...,
+        count: int = ...,
+        bid_size: int = ...,
+        bid_exchange: Optional[int] = ...,
+        bid: float = ...,
+        bid_condition: Optional[int] = ...,
+        ask_size: int = ...,
+        ask_exchange: Optional[int] = ...,
+        ask: float = ...,
+        ask_condition: Optional[int] = ...,
+        delta: float = ...,
+        theta: float = ...,
+        vega: float = ...,
+        rho: float = ...,
+        epsilon: float = ...,
+        lambda_: float = ...,
+        gamma: float = ...,
+        vanna: float = ...,
+        charm: float = ...,
+        vomma: float = ...,
+        veta: float = ...,
+        vera: float = ...,
+        speed: float = ...,
+        zomma: float = ...,
+        color: float = ...,
+        ultima: float = ...,
+        d1: float = ...,
+        d2: float = ...,
+        dual_delta: float = ...,
+        dual_gamma: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> GreeksEodTick: ...
+
+    ms_of_day: int
+    """EOD report creation time, milliseconds since midnight ET."""
+    open: float
+    """Opening trade price."""
+    high: float
+    """Highest traded price."""
+    low: float
+    """Lowest traded price."""
+    close: float
+    """Closing traded price."""
+    volume: int
+    """Number of contracts or shares traded."""
+    count: int
+    """Number of trades."""
+    bid_size: int
+    """Last NBBO bid size."""
+    bid_exchange: Optional[int]
+    """Exchange code of the NBBO bid. `None` when the response carried no such column."""
+    bid: float
+    """Last NBBO bid price."""
+    bid_condition: Optional[int]
+    """Quote condition code on the bid side. `None` when the response carried no such column."""
+    ask_size: int
+    """Last NBBO ask size."""
+    ask_exchange: Optional[int]
+    """Exchange code of the NBBO ask. `None` when the response carried no such column."""
+    ask: float
+    """Last NBBO ask price."""
+    ask_condition: Optional[int]
+    """Quote condition code on the ask side. `None` when the response carried no such column."""
+    delta: float
+    """Sensitivity of the option value to a one-dollar move in the underlying."""
+    theta: float
+    """Sensitivity of the option value to the passage of time."""
+    vega: float
+    """Sensitivity of the option value to a change in implied volatility."""
+    rho: float
+    """Sensitivity of the option value to the risk-free rate."""
+    epsilon: float
+    """Sensitivity of the option value to the dividend yield."""
+    lambda_: float
+    """Percent change in the option value per percent change in the underlying."""
+    gamma: float
+    """Rate of change of delta with respect to the underlying price."""
+    vanna: float
+    """Sensitivity of delta to a change in implied volatility."""
+    charm: float
+    """Rate of change of delta over time."""
+    vomma: float
+    """Sensitivity of vega to a change in implied volatility."""
+    veta: float
+    """Rate of change of vega over time."""
+    vera: float
+    """Sensitivity of rho to a change in implied volatility."""
+    speed: float
+    """Rate of change of gamma with respect to the underlying price."""
+    zomma: float
+    """Sensitivity of gamma to a change in implied volatility."""
+    color: float
+    """Rate of change of gamma over time."""
+    ultima: float
+    """Sensitivity of vomma to a change in implied volatility."""
+    d1: float
+    """Black-Scholes d1 intermediate term."""
+    d2: float
+    """Black-Scholes d2 intermediate term."""
+    dual_delta: float
+    """Sensitivity of the option value to the strike price."""
+    dual_gamma: float
+    """Second derivative of the option value with respect to the strike."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class GreeksEodTickList(_TickList[GreeksEodTick]):
+    """Typed list of `GreeksEodTick` rows, returned by every market-data endpoint whose
+    response is `GreeksEodTick`.
+    """
+
+
+@final
+class GreeksFirstOrderTick:
+    """First-order Greeks tick -- the strict column subset emitted by the
+    vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
+    / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
+    the underlying snapshot used to derive each Greek.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid: float = ...,
+        ask: float = ...,
+        delta: float = ...,
+        theta: float = ...,
+        vega: float = ...,
+        rho: float = ...,
+        epsilon: float = ...,
+        lambda_: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> GreeksFirstOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid: float
+    """Last NBBO bid price."""
+    ask: float
+    """Last NBBO ask price."""
+    delta: float
+    """Sensitivity of the option value to a one-dollar move in the underlying."""
+    theta: float
+    """Sensitivity of the option value to the passage of time."""
+    vega: float
+    """Sensitivity of the option value to a change in implied volatility."""
+    rho: float
+    """Sensitivity of the option value to the risk-free rate."""
+    epsilon: float
+    """Sensitivity of the option value to the dividend yield."""
+    lambda_: float
+    """Percent change in the option value per percent change in the underlying."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class GreeksFirstOrderTickList(_TickList[GreeksFirstOrderTick]):
+    """Typed list of `GreeksFirstOrderTick` rows, returned by every market-data endpoint whose
+    response is `GreeksFirstOrderTick`.
+    """
+
+
+@final
+class GreeksSecondOrderTick:
+    """Second-order Greeks tick -- the strict column subset emitted by the
+    vendor's `option_*_greeks_second_order` endpoints (gamma / vanna /
+    charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the
+    underlying snapshot.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid: float = ...,
+        ask: float = ...,
+        gamma: float = ...,
+        vanna: float = ...,
+        charm: float = ...,
+        vomma: float = ...,
+        veta: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> GreeksSecondOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid: float
+    """Last NBBO bid price."""
+    ask: float
+    """Last NBBO ask price."""
+    gamma: float
+    """Rate of change of delta with respect to the underlying price."""
+    vanna: float
+    """Sensitivity of delta to a change in implied volatility."""
+    charm: float
+    """Rate of change of delta over time."""
+    vomma: float
+    """Sensitivity of vega to a change in implied volatility."""
+    veta: float
+    """Rate of change of vega over time."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class GreeksSecondOrderTickList(_TickList[GreeksSecondOrderTick]):
+    """Typed list of `GreeksSecondOrderTick` rows, returned by every market-data endpoint whose
+    response is `GreeksSecondOrderTick`.
+    """
+
+
+@final
+class GreeksThirdOrderTick:
+    """Third-order Greeks tick -- the strict column subset emitted by the
+    vendor's `option_*_greeks_third_order` endpoints (speed / zomma /
+    color / ultima) plus the bid/ask quote pair, the IV pair, and the
+    underlying snapshot. The vendor's third-order schema does not publish
+    `vera`.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid: float = ...,
+        ask: float = ...,
+        speed: float = ...,
+        zomma: float = ...,
+        color: float = ...,
+        ultima: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> GreeksThirdOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid: float
+    """Last NBBO bid price."""
+    ask: float
+    """Last NBBO ask price."""
+    speed: float
+    """Rate of change of gamma with respect to the underlying price."""
+    zomma: float
+    """Sensitivity of gamma to a change in implied volatility."""
+    color: float
+    """Rate of change of gamma over time."""
+    ultima: float
+    """Sensitivity of vomma to a change in implied volatility."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class GreeksThirdOrderTickList(_TickList[GreeksThirdOrderTick]):
+    """Typed list of `GreeksThirdOrderTick` rows, returned by every market-data endpoint whose
+    response is `GreeksThirdOrderTick`.
+    """
+
+
+@final
+class IndexPriceAtTimeTick:
+    """Index price-at-time tick -- the trade-shaped row the v3 server
+    publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
+    `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
+    columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
+    `exchange` -- including the SIP-exchange attribution field.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        date: int = ...,
+    ) -> IndexPriceAtTimeTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Index value at the requested time."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class IndexPriceAtTimeTickList(_TickList[IndexPriceAtTimeTick]):
+    """Typed list of `IndexPriceAtTimeTick` rows, returned by every market-data endpoint whose
+    response is `IndexPriceAtTimeTick`.
+    """
+
+
+@final
+class InterestRateTick:
+    """Interest rate tick. End-of-day interest rate (percent)."""
+
+    def __new__(
+        cls,
+        *,
+        date: int = ...,
+        rate: float = ...,
+    ) -> InterestRateTick: ...
+
+    date: int
+    """Report creation date as a YYYYMMDD integer."""
+    rate: float
+    """Interest rate expressed as a percent (1.25 means 1.25%)."""
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class InterestRateTickList(_TickList[InterestRateTick]):
+    """Typed list of `InterestRateTick` rows, returned by every market-data endpoint whose
+    response is `InterestRateTick`.
+    """
+
+
+@final
+class IntervalQuoteTick:
+    """Interval quote tick. The NBBO in effect at one interval."""
+
+    def __new__(
+        cls,
+        *,
+        interval_ms_of_day: int = ...,
+        quote_ms_of_day: int = ...,
+        bid_size: int = ...,
+        bid_exchange: Optional[int] = ...,
+        bid: float = ...,
+        bid_condition: Optional[int] = ...,
+        ask_size: int = ...,
+        ask_exchange: Optional[int] = ...,
+        ask: float = ...,
+        ask_condition: Optional[int] = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> IntervalQuoteTick: ...
+
+    interval_ms_of_day: int
+    """Time of the interval the row samples, milliseconds since midnight ET."""
+    quote_ms_of_day: int
+    """Time the quote in effect at the interval was reported, milliseconds since midnight ET."""
+    bid_size: int
+    """NBBO bid size."""
+    bid_exchange: Optional[int]
+    """Exchange code of the NBBO bid. `None` when the response carried no such column."""
+    bid: float
+    """NBBO bid price."""
+    bid_condition: Optional[int]
+    """Quote condition code on the bid side. `None` when the response carried no such column."""
+    ask_size: int
+    """NBBO ask size."""
+    ask_exchange: Optional[int]
+    """Exchange code of the NBBO ask. `None` when the response carried no such column."""
+    ask: float
+    """NBBO ask price."""
+    ask_condition: Optional[int]
+    """Quote condition code on the ask side. `None` when the response carried no such column."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def interval_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `interval_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def quote_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class IntervalQuoteTickList(_TickList[IntervalQuoteTick]):
+    """Typed list of `IntervalQuoteTick` rows, returned by every market-data endpoint whose
+    response is `IntervalQuoteTick`.
+    """
+
+
+@final
+class IvTick:
+    """Implied volatility tick."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid: float = ...,
+        bid_implied_volatility: float = ...,
+        midpoint: float = ...,
+        implied_volatility: float = ...,
+        ask: float = ...,
+        ask_implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> IvTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid: float
+    """Last NBBO bid price."""
+    bid_implied_volatility: float
+    """Implied volatility solved at the bid price. The vendor names this column `BID_IMPLIED_VOL`."""
+    midpoint: float
+    """Midpoint of the bid and ask prices."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    ask: float
+    """Last NBBO ask price."""
+    ask_implied_volatility: float
+    """Implied volatility solved at the ask price. The vendor names this column `ASK_IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class IvTickList(_TickList[IvTick]):
+    """Typed list of `IvTick` rows, returned by every market-data endpoint whose
+    response is `IvTick`.
+    """
+
+
+@final
+class MarketValueTick:
+    """Market value tick -- quoted bid/ask/price for a symbol."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        market_bid: float = ...,
+        market_ask: float = ...,
+        market_price: float = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> MarketValueTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    market_bid: float
+    """Last market bid."""
+    market_ask: float
+    """Last market ask."""
+    market_price: float
+    """Market value derived from the last NBBO."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class MarketValueTickList(_TickList[MarketValueTick]):
+    """Typed list of `MarketValueTick` rows, returned by every market-data endpoint whose
+    response is `MarketValueTick`.
+    """
+
+
+@final
+class OhlcTick:
+    """OHLC tick. Aggregated bar data including SIP-rule VWAP."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        open: float = ...,
+        high: float = ...,
+        low: float = ...,
+        close: float = ...,
+        volume: int = ...,
+        count: int = ...,
+        vwap: float = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> OhlcTick: ...
+
+    ms_of_day: int
+    """Opening time of the bar, milliseconds since midnight ET."""
+    open: float
+    """Opening trade price."""
+    high: float
+    """Highest traded price."""
+    low: float
+    """Lowest traded price."""
+    close: float
+    """Closing traded price."""
+    volume: int
+    """Number of contracts or shares traded."""
+    count: int
+    """Number of trades."""
+    vwap: float
+    """Volume-weighted average price of the session."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class OhlcTickList(_TickList[OhlcTick]):
+    """Typed list of `OhlcTick` rows, returned by every market-data endpoint whose
+    response is `OhlcTick`.
+    """
+
+
+@final
+class OpenInterestTick:
+    """Open interest tick."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        open_interest: int = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> OpenInterestTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    open_interest: int
+    """Total outstanding contracts."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class OpenInterestTickList(_TickList[OpenInterestTick]):
+    """Typed list of `OpenInterestTick` rows, returned by every market-data endpoint whose
+    response is `OpenInterestTick`.
+    """
+
+
+@final
+class OptionContract:
+    """Option contract. Contract specification."""
+
+    def __new__(
+        cls,
+        *,
+        symbol: str = ...,
+        expiration: int = ...,
+        strike: float = ...,
+        right: str = ...,
+    ) -> OptionContract: ...
+
+    symbol: str
+    """Underlying symbol of the contract."""
+    expiration: int
+    """Expiration date of the contract as a YYYYMMDD integer."""
+    strike: float
+    """Strike price of the contract in dollars."""
+    right: str
+    """Contract right: 'C' for a call, 'P' for a put."""
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class OptionContractList(_TickList[OptionContract]):
+    """Typed list of `OptionContract` rows, returned by every market-data endpoint whose
+    response is `OptionContract`.
+    """
+
+
+@final
+class PriceTick:
+    """Price tick. Generic price data point."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        price: float = ...,
+        date: int = ...,
+    ) -> PriceTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    price: float
+    """Index value."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class PriceTickList(_TickList[PriceTick]):
+    """Typed list of `PriceTick` rows, returned by every market-data endpoint whose
+    response is `PriceTick`.
+    """
+
+
+@final
+class QuoteTick:
+    """Quote tick. NBBO quote data."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        bid_size: int = ...,
+        bid_exchange: Optional[int] = ...,
+        bid: float = ...,
+        bid_condition: Optional[int] = ...,
+        ask_size: int = ...,
+        ask_exchange: Optional[int] = ...,
+        ask: float = ...,
+        ask_condition: Optional[int] = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> QuoteTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    bid_size: int
+    """Last NBBO bid size."""
+    bid_exchange: Optional[int]
+    """Exchange code of the NBBO bid. `None` when the response carried no such column."""
+    bid: float
+    """Last NBBO bid price."""
+    bid_condition: Optional[int]
+    """Quote condition code on the bid side. `None` when the response carried no such column."""
+    ask_size: int
+    """Last NBBO ask size."""
+    ask_exchange: Optional[int]
+    """Exchange code of the NBBO ask. `None` when the response carried no such column."""
+    ask: float
+    """Last NBBO ask price."""
+    ask_condition: Optional[int]
+    """Quote condition code on the ask side. `None` when the response carried no such column."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class QuoteTickList(_TickList[QuoteTick]):
+    """Typed list of `QuoteTick` rows, returned by every market-data endpoint whose
+    response is `QuoteTick`.
+    """
+
+
+@final
+class TradeGreeksAllTick:
+    """Per-trade union Greeks tick -- every Greek the v3 server publishes on
+    `option_history_trade_greeks_all`, paired with the trade-side execution
+    columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
+    `exchange`, `price`) that identify which OPRA print each Greek was
+    calculated against.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        delta: float = ...,
+        theta: float = ...,
+        vega: float = ...,
+        rho: float = ...,
+        epsilon: float = ...,
+        lambda_: float = ...,
+        gamma: float = ...,
+        vanna: float = ...,
+        charm: float = ...,
+        vomma: float = ...,
+        veta: float = ...,
+        vera: float = ...,
+        speed: float = ...,
+        zomma: float = ...,
+        color: float = ...,
+        ultima: float = ...,
+        d1: float = ...,
+        d2: float = ...,
+        dual_delta: float = ...,
+        dual_gamma: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeGreeksAllTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    delta: float
+    """Sensitivity of the option value to a one-dollar move in the underlying."""
+    theta: float
+    """Sensitivity of the option value to the passage of time."""
+    vega: float
+    """Sensitivity of the option value to a change in implied volatility."""
+    rho: float
+    """Sensitivity of the option value to the risk-free rate."""
+    epsilon: float
+    """Sensitivity of the option value to the dividend yield."""
+    lambda_: float
+    """Percent change in the option value per percent change in the underlying."""
+    gamma: float
+    """Rate of change of delta with respect to the underlying price."""
+    vanna: float
+    """Sensitivity of delta to a change in implied volatility."""
+    charm: float
+    """Rate of change of delta over time."""
+    vomma: float
+    """Sensitivity of vega to a change in implied volatility."""
+    veta: float
+    """Rate of change of vega over time."""
+    vera: float
+    """Sensitivity of rho to a change in implied volatility."""
+    speed: float
+    """Rate of change of gamma with respect to the underlying price."""
+    zomma: float
+    """Sensitivity of gamma to a change in implied volatility."""
+    color: float
+    """Rate of change of gamma over time."""
+    ultima: float
+    """Sensitivity of vomma to a change in implied volatility."""
+    d1: float
+    """Black-Scholes d1 intermediate term."""
+    d2: float
+    """Black-Scholes d2 intermediate term."""
+    dual_delta: float
+    """Sensitivity of the option value to the strike price."""
+    dual_gamma: float
+    """Second derivative of the option value with respect to the strike."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeGreeksAllTickList(_TickList[TradeGreeksAllTick]):
+    """Typed list of `TradeGreeksAllTick` rows, returned by every market-data endpoint whose
+    response is `TradeGreeksAllTick`.
+    """
+
+
+@final
+class TradeGreeksFirstOrderTick:
+    """Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
+    / lambda) paired with the trade-side execution columns identifying the
+    OPRA print each Greek was calculated against.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        delta: float = ...,
+        theta: float = ...,
+        vega: float = ...,
+        rho: float = ...,
+        epsilon: float = ...,
+        lambda_: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeGreeksFirstOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    delta: float
+    """Sensitivity of the option value to a one-dollar move in the underlying."""
+    theta: float
+    """Sensitivity of the option value to the passage of time."""
+    vega: float
+    """Sensitivity of the option value to a change in implied volatility."""
+    rho: float
+    """Sensitivity of the option value to the risk-free rate."""
+    epsilon: float
+    """Sensitivity of the option value to the dividend yield."""
+    lambda_: float
+    """Percent change in the option value per percent change in the underlying."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeGreeksFirstOrderTickList(_TickList[TradeGreeksFirstOrderTick]):
+    """Typed list of `TradeGreeksFirstOrderTick` rows, returned by every market-data endpoint whose
+    response is `TradeGreeksFirstOrderTick`.
+    """
+
+
+@final
+class TradeGreeksImpliedVolatilityTick:
+    """Per-trade implied-volatility tick (single `implied_volatility` +
+    `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
+    `IvTick`) paired with the trade-side execution columns identifying the
+    OPRA print the IV was calculated against.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeGreeksImpliedVolatilityTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeGreeksImpliedVolatilityTickList(_TickList[TradeGreeksImpliedVolatilityTick]):
+    """Typed list of `TradeGreeksImpliedVolatilityTick` rows, returned by every market-data endpoint whose
+    response is `TradeGreeksImpliedVolatilityTick`.
+    """
+
+
+@final
+class TradeGreeksSecondOrderTick:
+    """Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
+    veta) paired with the trade-side execution columns identifying the OPRA
+    print each Greek was calculated against.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        gamma: float = ...,
+        vanna: float = ...,
+        charm: float = ...,
+        vomma: float = ...,
+        veta: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeGreeksSecondOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    gamma: float
+    """Rate of change of delta with respect to the underlying price."""
+    vanna: float
+    """Sensitivity of delta to a change in implied volatility."""
+    charm: float
+    """Rate of change of delta over time."""
+    vomma: float
+    """Sensitivity of vega to a change in implied volatility."""
+    veta: float
+    """Rate of change of vega over time."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeGreeksSecondOrderTickList(_TickList[TradeGreeksSecondOrderTick]):
+    """Typed list of `TradeGreeksSecondOrderTick` rows, returned by every market-data endpoint whose
+    response is `TradeGreeksSecondOrderTick`.
+    """
+
+
+@final
+class TradeGreeksThirdOrderTick:
+    """Per-trade third-order Greeks tick (speed / zomma / color / ultima)
+    paired with the trade-side execution columns identifying the OPRA print
+    each Greek was calculated against. The vendor's third-order schema does
+    not publish `vera`.
+    """
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        speed: float = ...,
+        zomma: float = ...,
+        color: float = ...,
+        ultima: float = ...,
+        implied_volatility: float = ...,
+        iv_error: float = ...,
+        underlying_ms_of_day: int = ...,
+        underlying_price: float = ...,
+        date: int = ...,
+        underlying_date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeGreeksThirdOrderTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    speed: float
+    """Rate of change of gamma with respect to the underlying price."""
+    zomma: float
+    """Sensitivity of gamma to a change in implied volatility."""
+    color: float
+    """Rate of change of gamma over time."""
+    ultima: float
+    """Sensitivity of vomma to a change in implied volatility."""
+    implied_volatility: float
+    """Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`."""
+    iv_error: float
+    """Residual pricing error of the implied-volatility solve."""
+    underlying_ms_of_day: int
+    """Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    underlying_price: float
+    """Underlying price used in the calculation (midpoint of the underlying)."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    underlying_date: int
+    """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def underlying_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `underlying_date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeGreeksThirdOrderTickList(_TickList[TradeGreeksThirdOrderTick]):
+    """Typed list of `TradeGreeksThirdOrderTick` rows, returned by every market-data endpoint whose
+    response is `TradeGreeksThirdOrderTick`.
+    """
+
+
+@final
+class TradeQuoteTick:
+    """Combined trade + quote tick."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        condition_flags: int = ...,
+        price_flags: int = ...,
+        volume_type: int = ...,
+        records_back: int = ...,
+        quote_ms_of_day: int = ...,
+        bid_size: int = ...,
+        bid_exchange: Optional[int] = ...,
+        bid: float = ...,
+        bid_condition: Optional[int] = ...,
+        ask_size: int = ...,
+        ask_exchange: Optional[int] = ...,
+        ask: float = ...,
+        ask_condition: Optional[int] = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeQuoteTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    condition_flags: int
+    """Trade condition flags bitmap."""
+    price_flags: int
+    """Trade price flags bitmap."""
+    volume_type: int
+    """Volume reporting mode, as sent. The vendor does not define this column."""
+    records_back: int
+    """Offset of this record behind the most recent record."""
+    quote_ms_of_day: int
+    """Timestamp of the paired quote, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`."""
+    bid_size: int
+    """Last NBBO bid size."""
+    bid_exchange: Optional[int]
+    """Exchange code of the NBBO bid. `None` when the response carried no such column."""
+    bid: float
+    """NBBO bid at the time of the trade."""
+    bid_condition: Optional[int]
+    """Quote condition code on the bid side. `None` when the response carried no such column."""
+    ask_size: int
+    """Last NBBO ask size."""
+    ask_exchange: Optional[int]
+    """Exchange code of the NBBO ask. `None` when the response carried no such column."""
+    ask: float
+    """NBBO ask at the time of the trade."""
+    ask_condition: Optional[int]
+    """Quote condition code on the ask side. `None` when the response carried no such column."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def quote_timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `quote_ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeQuoteTickList(_TickList[TradeQuoteTick]):
+    """Typed list of `TradeQuoteTick` rows, returned by every market-data endpoint whose
+    response is `TradeQuoteTick`.
+    """
+
+
+@final
+class TradeTick:
+    """Trade tick. Core unit of trade data."""
+
+    def __new__(
+        cls,
+        *,
+        ms_of_day: int = ...,
+        sequence: int = ...,
+        ext_condition1: Optional[int] = ...,
+        ext_condition2: Optional[int] = ...,
+        ext_condition3: Optional[int] = ...,
+        ext_condition4: Optional[int] = ...,
+        condition: Optional[int] = ...,
+        size: int = ...,
+        exchange: Optional[int] = ...,
+        price: float = ...,
+        condition_flags: int = ...,
+        price_flags: int = ...,
+        volume_type: int = ...,
+        records_back: int = ...,
+        date: int = ...,
+        expiration: Optional[int] = ...,
+        strike: Optional[float] = ...,
+        right: Optional[str] = ...,
+    ) -> TradeTick: ...
+
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time."""
+    sequence: int
+    """Exchange-assigned trade sequence number."""
+    ext_condition1: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition2: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition3: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    ext_condition4: Optional[int]
+    """Additional trade condition code. `None` when the response carried no such column."""
+    condition: Optional[int]
+    """Trade condition code. `None` when the response carried no such column."""
+    size: int
+    """Number of contracts or shares traded."""
+    exchange: Optional[int]
+    """Exchange code where the trade executed. `None` when the response carried no such column."""
+    price: float
+    """Trade price."""
+    condition_flags: int
+    """Trade condition flags bitmap."""
+    price_flags: int
+    """Trade price flags bitmap."""
+    volume_type: int
+    """Volume reporting mode, as sent. The vendor does not define this column."""
+    records_back: int
+    """Offset of this record behind the most recent record."""
+    date: int
+    """Trading date as a YYYYMMDD integer."""
+    expiration: Optional[int]
+    """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
+    strike: Optional[float]
+    """Strike of the row's contract in dollars on a wildcard option response; `None` when the response names a single contract."""
+    right: Optional[str]
+    """Right of the row's contract on a wildcard option response, `"C"` or `"P"`; `None` when the response names a single contract."""
+
+    @property
+    def timestamp_ms(self) -> Optional[int]:
+        """Unix epoch milliseconds (UTC, DST-aware) combining `date` with `ms_of_day` (Eastern-Time milliseconds-of-day). `None` when `date` is absent (`0`)."""
+        ...
+
+    @property
+    def is_cancelled(self) -> bool:
+        """True when the trade carries a cancelled-trade condition (codes 40-44)."""
+        ...
+
+    def __repr__(self) -> str: ...
+
+
+@final
+class TradeTickList(_TickList[TradeTick]):
+    """Typed list of `TradeTick` rows, returned by every market-data endpoint whose
+    response is `TradeTick`.
+    """
+
+
+# --- END GENERATED TICK CLASSES ---
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1325,63 +3484,45 @@ EventCallback = Callable[[Any], None]
 # Generated from the endpoint table; do not edit by hand. Run
 # `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.
 #
-# The typed list wrappers and fluent builder classes returned below are
+# The fluent builder classes and `StringList` returned below are
 # registered at runtime by the compiled extension and resolve through
 # the module-level `__getattr__`; they are aliased to `Any` here so the
-# method signatures stay precise without re-enumerating every wrapper's
-# converter surface.
+# method signatures stay precise without re-enumerating their surface.
+# The tick rows and their typed lists are stubbed above.
 StringList = Any
 StockListSymbolsBuilder = Any
 StockListDatesBuilder = Any
-OhlcTickList = Any
 StockSnapshotOhlcBuilder = Any
-TradeTickList = Any
 StockSnapshotTradeBuilder = Any
-QuoteTickList = Any
 StockSnapshotQuoteBuilder = Any
-MarketValueTickList = Any
 StockSnapshotMarketValueBuilder = Any
-EodTickList = Any
 StockHistoryEodBuilder = Any
 StockHistoryOhlcBuilder = Any
 StockHistoryTradeBuilder = Any
 StockHistoryQuoteBuilder = Any
-TradeQuoteTickList = Any
 StockHistoryTradeQuoteBuilder = Any
 StockAtTimeTradeBuilder = Any
 StockAtTimeQuoteBuilder = Any
 StockFlatFileEodBuilder = Any
 StockFlatFileTradeQuoteBuilder = Any
-IntervalQuoteTickList = Any
 StockFlatFileQuoteBuilder = Any
 OptionListSymbolsBuilder = Any
 OptionListDatesBuilder = Any
 OptionListExpirationsBuilder = Any
 OptionListStrikesBuilder = Any
-OptionContractList = Any
 OptionListContractsBuilder = Any
-OhlcTick = Any
 OptionSnapshotOhlcBuilder = Any
-TradeTick = Any
 OptionSnapshotTradeBuilder = Any
-QuoteTick = Any
 OptionSnapshotQuoteBuilder = Any
-OpenInterestTick = Any
 OptionSnapshotOpenInterestBuilder = Any
-MarketValueTick = Any
 OptionSnapshotMarketValueBuilder = Any
-IvTick = Any
 OptionSnapshotGreeksImpliedVolatilityBuilder = Any
-GreeksAllTick = Any
 OptionSnapshotGreeksAllBuilder = Any
 OptionSnapshotBinomialGreeksAllBuilder = Any
-GreeksFirstOrderTick = Any
 OptionSnapshotGreeksFirstOrderBuilder = Any
 OptionSnapshotBinomialGreeksFirstOrderBuilder = Any
-GreeksSecondOrderTick = Any
 OptionSnapshotGreeksSecondOrderBuilder = Any
 OptionSnapshotBinomialGreeksSecondOrderBuilder = Any
-GreeksThirdOrderTick = Any
 OptionSnapshotGreeksThirdOrderBuilder = Any
 OptionSnapshotBinomialGreeksThirdOrderBuilder = Any
 OptionHistoryEodBuilder = Any
@@ -1389,38 +3530,26 @@ OptionHistoryOhlcBuilder = Any
 OptionHistoryTradeBuilder = Any
 OptionHistoryQuoteBuilder = Any
 OptionHistoryTradeQuoteBuilder = Any
-OpenInterestTickList = Any
 OptionHistoryOpenInterestBuilder = Any
-GreeksEodTickList = Any
 OptionHistoryGreeksEodBuilder = Any
 OptionHistoryBinomialGreeksEodBuilder = Any
-GreeksAllTickList = Any
 OptionHistoryGreeksAllBuilder = Any
 OptionHistoryBinomialGreeksAllBuilder = Any
-TradeGreeksAllTickList = Any
 OptionHistoryTradeGreeksAllBuilder = Any
 OptionHistoryBinomialTradeGreeksAllBuilder = Any
-GreeksFirstOrderTickList = Any
 OptionHistoryGreeksFirstOrderBuilder = Any
 OptionHistoryBinomialGreeksFirstOrderBuilder = Any
-TradeGreeksFirstOrderTickList = Any
 OptionHistoryTradeGreeksFirstOrderBuilder = Any
 OptionHistoryBinomialTradeGreeksFirstOrderBuilder = Any
-GreeksSecondOrderTickList = Any
 OptionHistoryGreeksSecondOrderBuilder = Any
 OptionHistoryBinomialGreeksSecondOrderBuilder = Any
-TradeGreeksSecondOrderTickList = Any
 OptionHistoryTradeGreeksSecondOrderBuilder = Any
 OptionHistoryBinomialTradeGreeksSecondOrderBuilder = Any
-GreeksThirdOrderTickList = Any
 OptionHistoryGreeksThirdOrderBuilder = Any
 OptionHistoryBinomialGreeksThirdOrderBuilder = Any
-TradeGreeksThirdOrderTickList = Any
 OptionHistoryTradeGreeksThirdOrderBuilder = Any
 OptionHistoryBinomialTradeGreeksThirdOrderBuilder = Any
-IvTickList = Any
 OptionHistoryGreeksImpliedVolatilityBuilder = Any
-TradeGreeksImpliedVolatilityTickList = Any
 OptionHistoryTradeGreeksImpliedVolatilityBuilder = Any
 OptionAtTimeTradeBuilder = Any
 OptionAtTimeQuoteBuilder = Any
@@ -1431,20 +3560,16 @@ OptionFlatFileQuoteBuilder = Any
 IndexListSymbolsBuilder = Any
 IndexListDatesBuilder = Any
 IndexSnapshotOhlcBuilder = Any
-PriceTickList = Any
 IndexSnapshotPriceBuilder = Any
 IndexSnapshotMarketValueBuilder = Any
 IndexHistoryEodBuilder = Any
 IndexHistoryOhlcBuilder = Any
 IndexHistoryPriceBuilder = Any
-IndexPriceAtTimeTickList = Any
 IndexAtTimePriceBuilder = Any
 IndexFlatFileEodBuilder = Any
-CalendarDay = Any
 CalendarOpenTodayBuilder = Any
 CalendarOnDateBuilder = Any
 CalendarYearBuilder = Any
-InterestRateTickList = Any
 InterestRateHistoryEodBuilder = Any
 
 @final
@@ -7993,12 +10118,12 @@ def split_date_range(
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Module-level fallback: the per-endpoint market-data builders and typed
-# `<Tick>List` wrappers share one structural shape and resolve to `Any`
-# at the module level rather than being annotated individually.
+# Module-level fallback: the per-endpoint market-data builders share one
+# structural shape and resolve to `Any` at the module level rather than
+# being annotated individually.
 # ─────────────────────────────────────────────────────────────────────
 
 
 def __getattr__(name: str) -> Any:
-    """Resolve a per-endpoint market-data builder or typed result wrapper."""
+    """Resolve a per-endpoint market-data builder or another class this stub does not declare."""
     ...

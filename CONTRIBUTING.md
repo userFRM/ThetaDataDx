@@ -145,7 +145,7 @@ The endpoint table expands at compile time into the registry, the shared endpoin
 
 3. **Add the tick type** (if the response has a new layout; reuse an existing tick otherwise)
    - Add an entry to the tick table in `thetadatadx-rs/src/surface/ticks.rs`; its module documentation describes the entry grammar and the column types
-   - The entry expands at compile time into the tick struct, its decoder, its Arrow and Polars builders, the Python and TypeScript row classes and the C ABI's array types and entry points, and `generate_sdk_surfaces` renders the C tick structs and their declarations, the C++ aliases, layout asserts, flag accessors and Arrow IPC helpers from it
+   - The entry expands at compile time into the tick struct, its decoder, its Arrow and Polars builders, the Python and TypeScript row classes and the C ABI's array types and entry points, and `generate_sdk_surfaces` renders the C tick structs and their declarations, the C++ aliases, layout asserts, flag accessors and Arrow IPC helpers, and the Python type stub's tick classes from it
    - A few projections are still written by hand per tick: the `EndpointOutput` and `ReturnType` variants and the tick imports in the core, and the JSON rows in `tools/server/src/format.rs` and `tools/mcp/src/main.rs`. Exhaustive matches fail the build until each one is there
    - `Price`, enums, codecs, and Greeks live in the internal data-format module `thetadatadx-rs/src/tdbe/`
 

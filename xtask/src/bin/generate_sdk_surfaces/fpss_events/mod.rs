@@ -1,5 +1,5 @@
-//! The streaming event table, expanded into plain records, and the C header
-//! and C++ layout asserts rendered from them.
+//! The streaming event table, expanded into plain records, and the C header,
+//! C++ layout asserts and Python stub classes rendered from them.
 //!
 //! The bindings expand `thetadatadx::__events!` themselves; the writer renders
 //! only what is not Rust:
@@ -9,7 +9,9 @@
 //! - `thetadatadx-cpp/include/fpss_layout_asserts.hpp.inc`: the C++ alias of
 //!   every event type and the `static_assert`s pinning every size and offset
 //!   of that mirror. The FFI crate checks its Rust layout against the same
-//!   lines.
+//!   lines;
+//! - the event classes of the Python type stub, spliced into `__init__.pyi`
+//!   with its other generated regions.
 
 use std::path::Path;
 
@@ -18,21 +20,25 @@ use heck::ToSnakeCase;
 mod cpp_asserts;
 mod ffi_c;
 mod layout;
+pub(crate) mod python_stub;
 
 /// One event of the table, in kind-tag order.
 pub(crate) struct Event {
     pub(crate) name: &'static str,
     /// A market-data event, as opposed to a control event.
     pub(crate) data: bool,
+    /// Carries a disconnect `reason` and `cause` (`#[disconnect]`).
+    pub(crate) disconnect: bool,
     pub(crate) doc: &'static str,
     pub(crate) columns: &'static [Column],
 }
 
-/// One column of an event: its name and table type (`i32`, `i64`, `u64`,
-/// `u8`, `f64`, `String`, `Bytes` or `Contract`).
+/// One column of an event: its name, table type (`i32`, `i64`, `u64`, `u8`,
+/// `f64`, `String`, `Bytes` or `Contract`) and documentation.
 pub(crate) struct Column {
     pub(crate) name: &'static str,
     pub(crate) ty: &'static str,
+    pub(crate) doc: &'static str,
 }
 
 impl Event {
@@ -51,12 +57,15 @@ macro_rules! event_records {
         &[$(Event {
             name: stringify!($name),
             data: event_records!(@data $kind),
+            disconnect: event_records!(@disconnect $($attr)*),
             doc: $doc,
-            columns: &[$(Column { name: stringify!($c), ty: stringify!($t) }),*],
+            columns: &[$(Column { name: stringify!($c), ty: stringify!($t), doc: $d }),*],
         }),*]
     };
     (@data data) => { true };
     (@data control) => { false };
+    (@disconnect) => { false };
+    (@disconnect disconnect) => { true };
 }
 
 /// Every streaming event, in table order.
@@ -64,7 +73,7 @@ pub(crate) const EVENTS: &[Event] = thetadatadx::__events! { event_records {{}} 
 
 /// The data events, then the control events, each in table order: the order
 /// the tagged C event embeds them.
-fn data_then_control() -> impl Iterator<Item = &'static Event> {
+pub(crate) fn data_then_control() -> impl Iterator<Item = &'static Event> {
     EVENTS
         .iter()
         .filter(|e| e.data)

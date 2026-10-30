@@ -1,13 +1,14 @@
 //! Checked-in tick projections emitted by `generate_sdk_surfaces`.
 //!
-//! The C tick structs and their entry points, and the C++ aliases, layout
-//! asserts, flag accessors and Arrow IPC helpers, rendered from the tick
-//! table. The Rust, Python and TypeScript tick types expand from the table
-//! directly.
+//! The C tick structs and their entry points, the C++ aliases, layout
+//! asserts, flag accessors and Arrow IPC helpers, and the Python stub's tick
+//! classes, rendered from the tick table. The Rust, Python and TypeScript
+//! tick types expand from the table directly.
 
 mod c;
 mod cpp;
 mod idents;
+pub(crate) mod python_stub;
 pub(super) mod table;
 
 use std::path::Path;
