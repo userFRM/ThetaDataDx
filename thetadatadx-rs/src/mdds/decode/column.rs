@@ -125,7 +125,7 @@ pub(crate) fn extract_nullable_column<T, V: Clone>(
 /// type (one of the `row_*` functions in [`super::cell`]); `set`
 /// writes the decoded value into its tick field. A `NullValue` cell —
 /// `Ok(None)` from the cell decoder — falls back to `null_fill`, the
-/// same generator-emitted seed literal the absent-column path uses, so
+/// same seed literal the absent-column path uses, so
 /// per-cell nulls and whole-column absence fill identically. A column
 /// whose zero is a code the vendor sends takes
 /// [`extract_nullable_column`] instead. `row_base` is the index of

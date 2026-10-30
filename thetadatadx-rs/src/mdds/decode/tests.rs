@@ -795,8 +795,8 @@ fn parse_trade_ticks_propagates_type_mismatch() {
 // etc. surface it as `TypeMismatch { observed: "Unset" }`. These
 // tests pin that behaviour on the call-sites that must not coalesce
 // `NullValue | None` to zero: `parse_option_contracts_v3`,
-// `parse_calendar_days_v3`, the generator-emitted EOD helpers, and the
-// generator-emitted contract-id injected `expiration` / `right` fields.
+// `parse_calendar_days_v3`, the EOD helpers the tick table expands, and
+// the injected `expiration` / `right` fields of a `#[contract_id]` tick.
 
 #[test]
 fn parse_option_contracts_v3_errors_on_unset_expiration() {
@@ -870,8 +870,8 @@ fn parse_calendar_days_v3_errors_on_unset_open_time() {
 
 #[test]
 fn parse_eod_ticks_errors_on_unset_cell() {
-    // `parse_eod_ticks` is generator-emitted over the `row_eod_*` cell
-    // decoders; one test pins the shared path.
+    // `parse_eod_ticks` expands from the tick table over the `row_eod_*`
+    // cell decoders; one test pins the shared path.
     let table = proto::DataTable {
         headers: vec!["timestamp".into(), "open".into()],
         data_table: vec![row_of(vec![dv_missing(), dv_number(15000)])],
@@ -891,7 +891,7 @@ fn parse_eod_ticks_errors_on_unset_cell() {
 
 #[test]
 fn parse_trade_ticks_errors_on_unset_injected_expiration() {
-    // `parse_trade_ticks` is generator-emitted with `contract_id = true`;
+    // `parse_trade_ticks` expands from a `#[contract_id]` tick table entry;
     // an `expiration` header in the server payload triggers the injected
     // `expiration` / `strike` / `right` decode. An unset cell there must
     // fail loud rather than coalesce to 0.
@@ -1800,10 +1800,10 @@ fn parse_calendar_days_v3_accepts_numeric_date_real_leap_day() {
     assert_eq!(days[0].date, 20_240_229);
 }
 
-// ─────────── Generator-emitted contract_id expiration arm ───────────
+// ─────────── Table-expanded contract_id expiration arm ───────────
 //
-// Calendar-impossible numeric expirations on the generator-emitted
-// `contract_id` expiration template surface as
+// Calendar-impossible numeric expirations on the table-expanded
+// `contract_id` expiration decode surface as
 // `DecodeError::InvalidDate`. Sample covers a Feb-30, month-13,
 // non-leap Feb-29, and the valid leap-day shape across one parser of
 // each tick family.
@@ -1891,7 +1891,7 @@ fn parse_greeks_all_ticks_rejects_numeric_expiration_non_leap_feb_29() {
     );
 }
 
-// Unknown right text on the generator-emitted contract_id arm
+// Unknown right text on the table-expanded contract_id arm
 // surfaces as `DecodeError::UnknownEnumVariant`.
 
 #[test]
