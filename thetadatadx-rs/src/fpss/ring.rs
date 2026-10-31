@@ -232,13 +232,8 @@ impl DrainWaiter {
 /// also dispenses with the `Option<StreamEvent>` discriminant by folding
 /// the `None` case into its `Empty` variant, so the consumer pays one
 /// branch instead of two.
-// `RingEvent` is `pub` (and re-exported under `__test-helpers`) so the
-// out-of-crate streaming bench can hold a ring slot; the `event` field
-// stays `pub(crate)` — out-of-crate callers go through the typed
-// `set_public` / `as_public` seam below. The enclosing `pub(crate) mod
-// ring` keeps the type crate-internal in shipped builds.
 #[derive(Default)]
-pub struct RingEvent {
+pub(crate) struct RingEvent {
     /// The FPSS event occupying this slot. Defaults to
     /// [`FpssEventInternal::Empty`] for unwritten / drained slots.
     pub(crate) event: FpssEventInternal,
@@ -253,32 +248,6 @@ pub struct RingEvent {
 // in-flight write, so the lack of an internal lock on `RingEvent`
 // is safe; the `unsafe impl Sync` records the contract.
 unsafe impl Sync for RingEvent {}
-
-/// Typed accessors over the ring slot for out-of-crate benches and
-/// integration tests that drive the production ring constructor.
-///
-/// The `event` field is `pub(crate)`, so an external bench crate cannot
-/// touch it even through a re-exported `RingEvent`. These two methods are
-/// the typed seam: write a published [`StreamEvent`] into the slot and read
-/// the public projection back, without exposing the internal
-/// [`FpssEventInternal`] discriminant. Feature-gated on `__test-helpers`
-/// so they never enter a shipped build.
-#[cfg(any(test, feature = "__test-helpers"))]
-impl RingEvent {
-    /// Place a published [`crate::fpss::StreamEvent`] into this slot,
-    /// folding it into the internal representation the consumer reads.
-    pub fn set_public(&mut self, event: crate::fpss::StreamEvent) {
-        self.event = event.into();
-    }
-
-    /// Borrow the slot's payload as a public [`crate::fpss::StreamEvent`],
-    /// or `None` for the pre-allocation placeholder / decode-failure
-    /// fallback slots that never surface to a consumer.
-    #[must_use]
-    pub fn as_public(&self) -> Option<&crate::fpss::StreamEvent> {
-        self.event.as_public()
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Ring producer surface -- the publishing seam the I/O thread drives
@@ -296,11 +265,7 @@ impl RingEvent {
 /// `try_publish`, which feeds the public
 /// `StreamingClient::ring_occupancy` sample without touching any call
 /// site.
-// Declared `pub` so the `__test-helpers`-gated `fpss::__test_internals`
-// re-export can name the publish trait the out-of-crate streaming bench
-// drives. The enclosing `pub(crate) mod ring` keeps it crate-internal in
-// shipped builds — it never reaches the public API.
-pub trait RingProducer: Send + 'static {
+pub(crate) trait RingProducer: Send + 'static {
     /// Non-blocking publish. Returns the published slot's ring
     /// sequence, or an error when the ring is full (the event is NOT
     /// enqueued and the caller decides drop policy).
@@ -394,12 +359,8 @@ where
 /// store stream never contends with the consumer's
 /// (`CachePadded`). Reads are cold: only operator polling touches
 /// them.
-// `RingCursors` is `pub` (re-exported under `__test-helpers`) so the
-// out-of-crate streaming bench can build the shared occupancy cursor pair
-// the production constructor records into; the enclosing `pub(crate) mod
-// ring` keeps it crate-internal in shipped builds.
 #[derive(Debug)]
-pub struct RingCursors {
+pub(crate) struct RingCursors {
     /// Sequence of the most recently published slot (`-1` = none).
     published: CachePadded<AtomicI64>,
     /// Sequence of the most recently consumed slot (`-1` = none).

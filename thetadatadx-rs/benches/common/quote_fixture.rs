@@ -1,11 +1,5 @@
-//! Shared quote-tick `DataTable` fixture used by every decode bench
-//! in this crate.
-//!
-//! Pulled out of the four per-bench duplicates that landed alongside
-//! `bench_decode` and `bench_protobuf_decode`. Each bench previously
-//! stamped its own copy
-//! of the same 10-column quote schema; diverging deterministic value
-//! offsets would skew cross-bench comparison.
+//! Quote-tick `DataTable` fixture for the decode-allocations bench: the
+//! 10-column quote schema with deterministic values.
 //!
 //! Wired in via `#[path = "common/quote_fixture.rs"] mod fixture;` so
 //! the criterion harness layout under `benches/*.rs` is unchanged.

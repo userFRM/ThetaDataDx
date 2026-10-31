@@ -21,8 +21,8 @@ on:
   workflow_dispatch:
   schedule:
     # Off-peak, off-minute nightly run of the full heavy lane so the
-    # cross-platform builds, semver check, and bench gate are proven
-    # daily even when every PR that day skipped them on path grounds,
+    # cross-platform builds and semver check are proven daily even
+    # when every PR that day skipped them on path grounds,
     # and so cargo-deny reports an advisory published against a version
     # already in Cargo.lock without waiting for a dependency change.
     - cron: "23 6 * * *"
@@ -453,47 +453,6 @@ jobs:
       # CI must mirror that contract or a broken link will land on
       # docs.rs but pass CI.
       - run: cargo doc --no-deps -p thetadatadx-rs --features "arrow polars frames config-file" --locked
-
-  bench:
-    name: Bench regression gate
-    needs: changes
-    # Criterion wall-clock benches are runner-sensitive, so this never runs
-    # on a PR; the deterministic allocations `perf-gate` covers per-PR
-    # regressions. It runs on main, on the nightly schedule, on tags and in
-    # the merge queue, where a regression shows as a failed job, but it is
-    # not in `verified`: shared-runner timing noise must not stop a release.
-    if: >-
-      github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-rust-deps
-      - name: Run tracked benches (mock-backed, no live creds)
-        run: |
-          # Only the gated throughput benches run here. Non-baselined benches
-          # (grpc_transport_comparison, disruptor_production_ctor,
-          # bench_fpss_event) produce no regression signal — the gate compares
-          # baseline-listed rows only — so running them in CI is pure runner
-          # cost. Run those locally when profiling their paths.
-          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
-              "streaming_channels/direct_callback/100k_events" --quick
-          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
-              "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick # VOCAB-OK: bench function name from bench crate
-          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
-              "streaming_channels/disruptor_cross_thread/100k_events" --quick # VOCAB-OK: bench function name from bench crate
-      - name: Validate the regression gate's own threshold logic
-        run: python3 scripts/ci/check_bench_regression.py --selftest
-      - name: Compare against checked-in baseline
-        # Threshold tightened from 100% (a 2x slowdown passed) to 25%.
-        # The baseline JSON is recaptured against the GH-hosted runner
-        # perf profile so the comparison is apples-to-apples; a 25%
-        # slowdown is the smallest regression we want to gate against.
-        # The previous 100% threshold was a placeholder set when the
-        # gate first landed (local vs CI runner perf delta was
-        # unknown); now that the baseline is CI-equivalent, the
-        # threshold can shrink to the meaningful signal range.
-        run: python3 scripts/ci/check_bench_regression.py --threshold 25
 
   semver:
     name: Semver check

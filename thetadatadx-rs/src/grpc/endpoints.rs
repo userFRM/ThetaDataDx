@@ -114,68 +114,6 @@ pub async fn collect_stream(
     })
 }
 
-/// Bench-only helpers that issue representative MDDS RPCs through the
-/// transport without going through the macro-generated `MarketDataClient`
-/// surface. Exists so the transport benches can drive 1–2 endpoints
-/// without re-implementing the full `MarketDataClient::connect` auth
-/// handshake just to time an RPC.
-///
-/// # Errors
-///
-/// Returns an [`Error`] when the RPC fails or the response cannot be
-/// decoded.
-pub mod bench_support {
-    use super::{CLIENT_PARAMETER_VALUE, Channel, Error, HashMap, map_channel_error};
-    use crate::decode;
-    use crate::proto;
-    use crate::tdbe::types::tick::EodTick;
-
-    fn make_query_info(session_uuid: String, client_type: String) -> proto::QueryInfo {
-        let mut query_parameters = HashMap::with_capacity(1);
-        query_parameters.insert("client".to_string(), CLIENT_PARAMETER_VALUE.to_string());
-        proto::QueryInfo {
-            auth_token: Some(proto::AuthToken { session_uuid }),
-            query_parameters,
-            client_type,
-            terminal_git_commit: String::new(),
-            terminal_version: env!("CARGO_PKG_VERSION").to_string(),
-        }
-    }
-
-    /// Issue `BetaThetaTerminal::GetStockHistoryEod` and return the
-    /// decoded ticks — the full production decode shape (zstd
-    /// decompress + prost `DataTable` decode + row merge + typed tick
-    /// build), exactly what the generated `stock_history_eod` endpoint
-    /// performs. Used by the transport bench only.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`Error`] when the RPC fails or the response cannot
-    /// be decoded.
-    pub async fn stock_history_eod(
-        channel: &Channel,
-        session_uuid: String,
-        client_type: String,
-        symbol: &str,
-        start_date: &str,
-        end_date: &str,
-    ) -> Result<Vec<EodTick>, Error> {
-        let request = proto::StockHistoryEodRequest {
-            query_info: Some(make_query_info(session_uuid, client_type)),
-            params: Some(proto::StockHistoryEodRequestQuery {
-                symbol: symbol.to_string(),
-                start_date: start_date.to_string(),
-                end_date: end_date.to_string(),
-            }),
-        };
-        let stream = proto::beta_theta_terminal::get_stock_history_eod(channel, request)
-            .await
-            .map_err(map_channel_error)?;
-        let table = super::collect_stream(stream).await?;
-        Ok(decode::parse_eod_ticks(&table)?)
-    }
-}
-
 /// Lift a [`ChannelError`] into the crate's umbrella [`Error`] type.
 ///
 /// Delegates to the canonical `From<ChannelError> for Error` impl in

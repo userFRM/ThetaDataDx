@@ -166,22 +166,19 @@ no gate logic, so running a gate's command directly is equivalent. `all` runs `c
 the workspace clippy pass with warnings denied and the generator's `--check` first, since those are
 what CI rejects most often, then the script gates. The tests are not gates; run them as below.
 
-Three gates need built artefacts and **fail on a clean checkout even with no changes**:
-`c_abi_completeness`, `bench_regression`, `perf_gate`. Before treating any of them as your failure,
-confirm it fails the same way on the base commit. That is the single most common false alarm here.
+Two gates need built artefacts and **fail on a clean checkout even with no changes**:
+`c_abi_completeness` and `perf_gate`. Before treating either as your failure, confirm it fails the
+same way on the base commit. That is the single most common false alarm here.
 
 Each passes once its artefact exists, and the whole suite then comes back clean:
 
 ```sh
 cargo build -p thetadatadx-ffi --release                                        # c_abi_completeness
 cargo bench -p thetadatadx-rs --features __internal --bench bench_decode_allocations  # perf_gate
-cargo bench -p thetadatadx-rs --bench streaming_channels                        # bench_regression
 ```
 
 `perf_gate` compares allocations per decoded row against a committed baseline, so it is deterministic
-and a rise is a real regression. `bench_regression` compares wall-clock times on whatever machine ran
-them, so a local delta inside the threshold says little and one outside it is worth a second run
-before believing.
+and a rise is a real regression.
 
 ### Tests, per surface
 
