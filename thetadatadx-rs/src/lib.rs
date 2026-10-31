@@ -528,24 +528,6 @@ pub mod frames_api {
     pub use crate::frames::TicksPolarsExt;
 }
 
-// ─── Optional allocator ───────────────────────────────────────────────────────
-
-#[cfg(feature = "mimalloc-allocator")]
-#[cfg_attr(docsrs, doc(cfg(feature = "mimalloc-allocator")))]
-/// Re-export of `MiMalloc` from the [mimalloc](https://crates.io/crates/mimalloc) crate for use as `#[global_allocator]`.
-///
-/// Library crates cannot set a global allocator — that must live in
-/// the consuming binary. Enable the `mimalloc-allocator` feature and
-/// attach the handle in your binary's `main.rs`:
-///
-/// ```rust,ignore
-/// #[global_allocator]
-/// static GLOBAL: thetadatadx::mimalloc::MiMalloc = thetadatadx::mimalloc::MiMalloc;
-/// ```
-pub mod mimalloc {
-    pub use ::mimalloc::MiMalloc;
-}
-
 // ─── Prelude ──────────────────────────────────────────────────────────────────
 
 /// Convenience re-exports for the contract-first streaming API.

@@ -45,9 +45,6 @@ metrics-prometheus = ["dep:metrics-exporter-prometheus"]
 polars = ["dep:polars"]
 arrow = ["dep:arrow-array", "dep:arrow-schema"]
 frames = ["polars", "arrow"]
-# Opt-in gate for tests that hit live MDDS / FPSS endpoints. Default-off
-# so `cargo test` never burns a live call without the user asking for it.
-live-tests = []
 # Private, unstable feature gating a handful of `pub(crate)`-shape
 # constructors that exist solely so integration tests under `tests/`
 # can build a `MarketDataClient` against a mock REST server without paying
@@ -66,14 +63,6 @@ __test-helpers = ["__internal"]
 # Double-underscore prefix follows the project's `__test-helpers`
 # convention for unsupported, do-not-use surfaces.
 __internal = []
-# Optional mimalloc allocator. Library crates do not install a
-# `#[global_allocator]` of their own — that belongs in the consuming
-# binary. Enabling this feature pulls `mimalloc` into the dependency
-# graph so the binary can register it with one extra line; see
-# `docs-site/docs/configuration.md` ("Performance tuning") for the
-# integration snippet. Default-off — applications that prefer the
-# system allocator pay no compile or link cost.
-mimalloc-allocator = ["dep:mimalloc"]
 
 [dependencies]
 # Builds the identifiers the endpoint tables derive (`get_<name>`,
@@ -216,14 +205,6 @@ zeroize = "1.8.2"
 # Lock-free atomic swap of an `Arc<StreamingSlot>` for the streaming
 # state machine on `Client`.
 arc-swap = "1.7"
-
-# Optional mimalloc allocator. Gated behind the `mimalloc-allocator`
-# feature so the default dependency graph stays unchanged; consumers
-# install it as `#[global_allocator]` in their own binary.
-# `default-features = false` skips the bundled override that mimalloc
-# would otherwise install at runtime — the consuming binary owns that
-# choice, not us.
-mimalloc = { version = "0.1", default-features = false, optional = true }
 
 [dev-dependencies]
 # `tracing_subscriber::Layer` lets the warn-on-buffered-response unit
