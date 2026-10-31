@@ -5,8 +5,7 @@
 //! including the harness elsewhere no longer drags the suite along.
 //!
 //! These exercise the full `connect_h2c` -> `server_streaming` ->
-//! `Stream::next` path with no external dependencies. The criterion bench in
-//! `benches/grpc_channel.rs` times the in-house path against the same mock.
+//! `Stream::next` path with no external dependencies.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -961,8 +960,7 @@ async fn channel_sends_expected_request_bytes() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn channel_pool_burst_dispatch_spreads_across_members() {
-    // The exact pattern the criterion bench (`grpc_concurrent_burst`)
-    // and any `join_all` consumer hits: a synchronous batch of
+    // The exact pattern any `join_all` consumer hits: a synchronous batch of
     // `pool.next()` calls followed by polling the resulting futures.
     // Under the previous picker every `pool.next()` saw
     // `in_flight = 0` because the open path only incremented after

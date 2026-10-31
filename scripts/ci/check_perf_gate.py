@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Gate per-binding performance on deterministic allocation counts.
 
-The Rust core already has a Criterion wall-clock regression gate
-(`scripts/ci/check_bench_regression.py`). This companion gate watches a
-metric that a wall-clock gate cannot watch safely on shared CI runners:
-allocations per decoded row.
+This gate watches a metric that a wall-clock gate cannot watch safely on
+shared CI runners: allocations per decoded row.
 
 WHY THIS GATE IS SAFE ON HETEROGENEOUS RUNNERS
 ----------------------------------------------
@@ -24,14 +22,13 @@ shipped library allocator is unchanged) and writes the per-row figures
 to `target/perf-gate/decode_allocations.json`. This script diffs that
 file against `thetadatadx-rs/benches/baseline/perf_gate.json`.
 
-GATE SHAPE (mirrors check_bench_regression.py)
-----------------------------------------------
+GATE SHAPE
+----------
 A tracked metric fails (non-zero exit) when its allocations-per-unit has
 risen above the baseline by more than `--threshold` percent AND by more
 than an absolute floor of `--abs-floor` allocations-per-unit. The two
-conditions are ANDed for the same reason the wall-clock gate ANDs its
-percentage and its nanosecond floor: a purely relative gate is
-meaningless when the baseline approaches zero. A future zero-allocation
+conditions are ANDed because a purely relative gate is meaningless when
+the baseline approaches zero. A future zero-allocation
 decode path would have a baseline near 0.0; any positive count is an
 infinite percentage over it, so without the floor a single incidental
 allocation would trip the gate. Requiring the absolute rise to clear a

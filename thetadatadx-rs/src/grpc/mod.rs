@@ -23,7 +23,7 @@
 //!   workload spreads across distinct HTTP/2 connections (one
 //!   connection-level flow-control window each) instead of contending
 //!   on one.
-//! - [`endpoints`] — a hand-written example RPC plus bench helpers.
+//! - [`endpoints`]: a hand-written example RPC.
 //!
 //! Per-chunk decode (zstd decompress + prost `DataTable` decode) runs
 //! inline on the request task rather than on a dedicated decoder pool,
@@ -57,14 +57,13 @@
 //! side.
 
 // Sub-modules carry transport infrastructure consumed only by the
-// crate itself and by `__test-helpers`-gated integration tests + benches.
+// crate itself and by `__test-helpers`-gated integration tests.
 // They are reachable as `thetadatadx::grpc::*` only when that private
 // feature (or `cfg(test)`) is active — the parent `pub(crate) mod grpc`
 // guard in `lib.rs` is what keeps them out of the shipped rlib. The
 // `pub` visibility here scopes within the (then-private) module tree.
 pub mod channel;
-// `endpoints` is a hand-written `stock_list_symbols` example plus
-// `bench_support` helpers used exclusively by the gRPC benches and
+// `endpoints` is a hand-written `stock_list_symbols` example used only by
 // the `grpc_stock_list_symbols` integration test. Production RPCs go
 // through the macro-generated `crate::mdds::*` endpoints directly.
 // Gating on `__test-helpers` keeps the example out of the default rlib.

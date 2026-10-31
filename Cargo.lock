@@ -3772,7 +3772,6 @@ dependencies = [
  "http",
  "hyper",
  "hyper-util",
- "libc",
  "metrics",
  "metrics-exporter-prometheus",
  "mimalloc",

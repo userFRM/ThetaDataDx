@@ -1,15 +1,12 @@
 //! End-to-end streaming throughput across binding shapes.
 //!
-//! `streaming_channels.rs` already pins down the Disruptor pipeline cost
-//! with a no-op user callback. This bench extends the methodology to
-//! the callback shapes that matter for production integrators: a
-//! Rust closure that actually retains the event, a lock-free queue
-//! push, an FFI-style indirection, and the two recommended Python
-//! handover patterns (`collections.deque.append` and
-//! `queue.Queue.put_nowait`). Every variant drives exactly the same
-//! Disruptor pipeline as `disruptor_consumer_panic_isolated`; the only
-//! thing that changes is what the user closure does inside
-//! `catch_unwind`.
+//! Times the Disruptor pipeline under the callback shapes that matter for
+//! production integrators: a no-op closure as the floor, a Rust closure
+//! that actually retains the event, a lock-free queue push, an FFI-style
+//! indirection, and the two recommended Python handover patterns
+//! (`collections.deque.append` and `queue.Queue.put_nowait`). Every
+//! variant drives the same pipeline; the only thing that changes is what
+//! the user closure does inside `catch_unwind`.
 //!
 //! # Methodology
 //!
@@ -169,8 +166,8 @@ fn drive_publish<P: Producer<RingSlot>>(
 
 fn run_rust_noop(contract: Arc<Contract>) -> (u64, Duration) {
     let (producer, delivered) = build_pipeline(|_evt: &StreamEvent| {
-        // No-op — sanity check against `disruptor_consumer_panic_isolated`
-        // in `streaming_channels.rs`.
+        // No-op: the pipeline's own cost, the floor every other variant
+        // is read against.
     });
     drive_publish(producer, delivered, contract)
 }

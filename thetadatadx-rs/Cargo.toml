@@ -239,7 +239,7 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 # resolve it without relying on the lib's transitive graph).
 rand = "0.10"
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
-# `futures::future::join_all` for the concurrent-burst bench.
+# `futures::StreamExt` for the gRPC mock-server tests.
 futures = "0.3"
 proptest = "1.5"
 # Test-only: load captured-response fixtures and their sidecar .meta.toml
@@ -248,67 +248,8 @@ toml = "1.1.2"
 # A paused clock, so a test can wait out a production timeout instantly.
 tokio = { version = "1.52.3", features = ["test-util"] }
 
-# Signal-driven sampling profiler used by the concurrent-burst bench
-# to emit a flamegraph SVG when `THETADATADX_FLAMEGRAPH=1` is set.
-# Pure userspace — no perf / root required. Unix-only.
-# The `cfg(unix)` target-conditional dev-dependencies table MUST live
-# AFTER the cross-platform `[dev-dependencies]` block.
-[target.'cfg(unix)'.dev-dependencies]
-# `getrusage(RUSAGE_SELF)` snapshots in `grpc_transport_comparison` —
-# CPU-seconds per measured phase without spawning `perf` or requiring
-# elevated kernel settings.
-libc = "0.2"
-
-[[bench]]
-# Drives `thetadatadx::wire` proto types + `thetadatadx::decode` cell
-# extractors against fixture-built `DataTable` payloads; gated on
-# `__internal` so the wire / decode surfaces stay off the published API.
-name = "bench_decode"
-harness = false
-required-features = ["__internal"]
-
-[[bench]]
-# Uses the test-only `protocol::test_wire` re-exports for FPSS payload
-# builders — gated on `__test-helpers` so the wire helpers stay out of
-# the default rlib.
-name = "bench_protocol"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
-name = "bench_auth"
-harness = false
-
-[[bench]]
-name = "bench_fpss_event"
-harness = false
-
-[[bench]]
-name = "streaming_channels"
-harness = false
-
 [[bench]]
 name = "streaming_throughput"
-harness = false
-required-features = ["__internal"]
-
-[[bench]]
-# Drives `fpss::__test_internals::{decode_frame, DeltaState}` against
-# synthetic frame bytes; gated on `__test-helpers` so the helper module
-# stays out of the default rlib.
-name = "bench_delta_decode"
-harness = false
-required-features = ["__test-helpers"]
-
-[[bench]]
-name = "market_data_streaming_memory"
-harness = false
-
-[[bench]]
-# Drives raw `prost::Message::decode` over `thetadatadx::wire::DataTable`
-# bytes; gated on `__internal` so the wire surface stays off the
-# published API.
-name = "bench_protobuf_decode"
 harness = false
 required-features = ["__internal"]
 
@@ -323,28 +264,6 @@ required-features = ["__internal"]
 name = "bench_decode_allocations"
 harness = false
 required-features = ["__internal"]
-
-[[bench]]
-# Closed-loop measurement of the MDDS transport against a loopback
-# mock server: per-request latency percentiles, aggregate throughput,
-# allocation, and CPU per request across a concurrency x frame-shape
-# matrix. The regression pin for the transport — compare before/after
-# runs of this harness across a transport change. Gated on
-# `__test-helpers` for the `grpc` / `wire` / `decode` re-exports.
-name = "grpc_transport_comparison"
-harness = false
-required-features = ["__test-helpers"]
-
-# Data-format layer micro-benchmarks. These exercise the internal `tdbe`
-# module directly: the enum lookups and the tick field accessors.
-# `bench_enums` / `bench_tick` ride the stable public types.
-[[bench]]
-name = "bench_enums"
-harness = false
-
-[[bench]]
-name = "bench_tick"
-harness = false
 
 # Integration tests that drive `fpss::__test_internals` to exercise the
 # `read_frame_into → decode_frame → StreamEvent` pipeline against synthetic

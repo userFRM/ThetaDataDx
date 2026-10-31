@@ -79,20 +79,6 @@ pub mod __test_internals {
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
     pub use super::framing::{MAX_PAYLOAD_LEN, read_frame_into};
-
-    // Production ring-constructor surface, re-exported so the streaming
-    // channel bench can time the exact pipeline the live client builds:
-    // `build_poller_producer` wires the sequence-recording producer
-    // adapter (`SequencedProducer`) over the ring and pairs it with the
-    // poller the consumer drains. Timing a raw `build_single_producer`
-    // ring instead would pin the shared ring machinery while leaving the
-    // instrumented publish path — one relaxed occupancy store per
-    // publish, one per drained batch — unmeasured. `RingCursors` is the
-    // shared occupancy cursor pair the adapter writes into; `RingEvent`
-    // is the ring slot; `Polling` discriminates the poller drain result.
-    pub use super::io_loop::build_poller_producer;
-    pub use super::ring::{AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer};
-    pub use disruptor::Polling; // VOCAB-OK: internal crate name, not user-facing
 }
 
 /// Crate-private FPSS decode / wire / framing / login / connection surface,

@@ -157,11 +157,6 @@ def test_contributor_and_internal_docs_exempt() -> None:
         root = pathlib.Path(tmp)
         _write(root, "CONTRIBUTING.md", "Commit scope feat(fpss) / feat(mdds).\n")
         _write(root, "SECURITY.md", "The FPSS TLS connection pins the SPKI.\n")
-        _write(
-            root,
-            "thetadatadx-rs/benches/README.md",
-            "FPSS Framing (`fpss/framing.rs`) benchmarks.\n",
-        )
         _expect("contributor + internal docs exempt", _hits(root) == [])
 
 

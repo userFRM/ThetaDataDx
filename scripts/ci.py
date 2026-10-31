@@ -72,10 +72,6 @@ GATES: dict[str, list[list[str]]] = {
         + _test("test_check_client_facing_vocab")
         + _ci("check_client_facing_vocab")
     ),
-    "bench_regression": (
-        _ci("check_bench_regression", "--selftest")
-        + _ci("check_bench_regression", "--threshold", "25")
-    ),
     "perf_gate": _ci("check_perf_gate", "--threshold", "10"),
     "docs_consistency": (
         _ci("check_docs_consistency", "--selftest")
