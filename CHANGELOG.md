@@ -83,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A raw stream builder started inside a streaming delivery handler on the same client fails fast instead of hanging.** A same-client market-data request awaited inside a delivery handler returns `Error::HandlerReentrancy` when the client's request pool is fully committed, because the only permits it could wait for are held by pulls that cannot finish until the handler returns. The four raw stream builders (`stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream` and `option_history_quote_stream`) still waited for a permit when the pull went out on a single stream, so such a call never returned. They now take the same path as every other request: with headroom in the pool the call proceeds as before, and outside a handler it keeps the ordinary wait.
 
+- **The Python README says where the endpoints live.** It said every endpoint is a method on `Client`, but the endpoints are methods of `client.market_data`, each with an `*_async` companion and a `*_builder`; `Client` itself has none of them.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

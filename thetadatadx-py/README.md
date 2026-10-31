@@ -250,7 +250,7 @@ path = client.market_data.option_flat_file_trade_quote_to_path("20260428", "trad
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every endpoint is a method on `Client`. The full per-method list with signatures lives in the [API reference](https://userfrm.github.io/ThetaDataDx/reference/); `Config.dev()` and `Config.stage()` target the non-production environments.
+Every endpoint is a method on `client.market_data`, with an `*_async` awaitable companion and a `*_builder` for the fluent form. The full per-method list with signatures lives in the [API reference](https://userfrm.github.io/ThetaDataDx/reference/); `Config.dev()` and `Config.stage()` target the non-production environments.
 
 ## Errors
 
