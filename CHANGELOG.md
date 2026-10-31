@@ -113,6 +113,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The config accessors document the same behaviour in every language.** Each accessor's documentation was written four times, once per language, and the copies had drifted: the C++ getters said they return the default on a null handle where they return `0`, the C++ setters left out what the other languages said about the replay burst's pacing, the park interval's latency cost and the reconnect budgets applying only under the `Auto` policy, and only some getters stated their default. The config table now holds one description per accessor and its default as a value, and each binding renders them with its own spelling of the default and of the enum values.
 
+- **The Python `option_list_dates` builder filters by `strike` and `right`.** `option_list_dates(...)` takes both, but the builder from `option_list_dates_builder(...)` had a setter for neither and its `list()` and `list_async()` sent the defaults, so a builder could not ask for the dates of one strike or one side. It now has `strike()` and `right()` setters, as every other builder has one for each keyword argument of its method, and sends what they set.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

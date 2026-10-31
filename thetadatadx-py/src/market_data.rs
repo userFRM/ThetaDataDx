@@ -267,6 +267,7 @@ macro_rules! py_endpoint {
                     [<$name:camel Builder>] {
                         client: self.client.clone(),
                         $($a: py_owned!($t $a),)*
+                        $($oa: None,)*
                         timeout_ms: None,
                     }
                 }
@@ -283,11 +284,20 @@ macro_rules! py_endpoint {
             pub struct [<$name:camel Builder>] {
                 client: std::sync::Arc<thetadatadx::Client>,
                 $($a: String,)*
+                $($oa: py_stored!($ot),)*
                 timeout_ms: Option<u64>,
             }
 
             #[pymethods]
             impl [<$name:camel Builder>] {
+                $(
+                    #[doc = concat!("Set `", stringify!($op), "` on the pending request.")]
+                    fn $oa<'py>(mut slf: PyRefMut<'py, Self>, value: py_arg!($ot)) -> PyRefMut<'py, Self> {
+                        slf.$oa = Some(py_owned!($ot value));
+                        slf
+                    }
+                )*
+
                 $(
                     #[doc = concat!("Replace the required `", stringify!($p), "` on the pending request.")]
                     fn $a<'py>(mut slf: PyRefMut<'py, Self>, value: py_arg!($t)) -> PyRefMut<'py, Self> {
@@ -308,10 +318,11 @@ macro_rules! py_endpoint {
                 /// on the result to convert to the downstream representation.
                 fn list(&self, py: Python<'_>) -> PyResult<Py<StringList>> {
                     let client = self.client.clone();
-                    let timeout_ms = self.timeout_ms;
                     $(let $a = self.$a.clone();)*
+                    $(let $oa = py_field!($ot self.$oa);)*
+                    let timeout_ms = self.timeout_ms;
                     let values: Vec<String> = run_blocking(py, async move {
-                        py_endpoint!(@list_field_call client, $name, [$($a)*], timeout_ms)
+                        py_endpoint!(@list_call client, $name, [$($a)*], [$($op $oa $ot)*], timeout_ms)
                     })?;
                     strings_to_string_list(py, values, $col)
                 }
@@ -320,20 +331,23 @@ macro_rules! py_endpoint {
                 fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
                     let client = self.client.clone();
                     $(let $a = self.$a.clone();)*
+                    $(let $oa = py_field!($ot self.$oa);)*
                     let timeout_ms = self.timeout_ms;
                     spawn_awaitable(py, async move {
-                        py_endpoint!(@list_field_call client, $name, [$($a)*], timeout_ms)
+                        py_endpoint!(@list_call client, $name, [$($a)*], [$($op $oa $ot)*], timeout_ms)
                     }, |py, values| strings_to_string_list(py, values, $col).map(|p| p.into_any()))
                 }
             }
         }
     };
 
+    // The arguments are a method's extracted values or a builder's stored
+    // ones; both read as `&str`.
     (@list_call $client:expr, $name:ident, [$($a:ident)*], [$($op:ident $oa:ident $ot:ident)*], $timeout:ident) => {{
         let mut request = $client.market_data().$name($($a.as_str()),*);
         $(
-            if let Some(value) = $oa {
-                request = request.$op(py_set!($ot value));
+            if let Some(value) = &$oa {
+                request = request.$op(py_set_ref!($ot value));
             }
         )*
         if let Some(ms) = $timeout {
@@ -341,12 +355,6 @@ macro_rules! py_endpoint {
         }
         request.await
     }};
-    (@list_field_call $client:ident, $name:ident, [$($a:ident)*], $timeout:ident) => {
-        match $timeout {
-            None => $client.market_data().$name($(&$a),*).await,
-            Some(ms) => $client.market_data().$name($(&$a),*).with_deadline(std::time::Duration::from_millis(ms)).await,
-        }
-    };
 
     // Tick endpoints.
     (@view [$conv:ident] [$($sig:tt)*] [$($tail:tt)?] [$($attr:ident)*] $shape:ident $name:ident $item:ident [$($doc:tt)*] params {
