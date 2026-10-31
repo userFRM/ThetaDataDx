@@ -1,6 +1,3 @@
-> [!IMPORTANT]
-> **The SDK now ships under per-language package names, starting fresh at `0.1.0`:** `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm), and the in-repo `thetadatadx-cpp`. The API and import surface are unchanged: only the package names and the version differ. Install the packages below.
-
 <p align="center">
   <img src="assets/logo.svg" alt="ThetaDataDx" width="100%" />
 </p>
@@ -45,7 +42,7 @@ Three client shapes over the same engine and the same auth. Pick one per workloa
 
 | Client | Connects to | Use it for |
 |---|---|---|
-| **`MarketDataClient`** | market-data (HTTP) only | history, snapshots, flat files. Never opens the real-time feed; a streaming call raises an error by design. |
+| **`MarketDataClient`** | market-data (gRPC) only | history, snapshots, flat files. Never opens the real-time feed; a streaming call raises an error by design. |
 | **`StreamingClient`** | the real-time feed only | live trades, quotes, OHLCVC. Never touches market-data. |
 | **`Client`** (unified) | market-data on construct; the feed is lazy | both from one object. The feed is opened only when you call `start_streaming`, so a market-data-only workflow never touches it. |
 

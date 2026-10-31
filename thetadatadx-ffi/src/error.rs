@@ -27,15 +27,16 @@ thread_local! {
 /// error carries no rate-limit back-off hint.
 pub const THETADATADX_RETRY_AFTER_NONE: i64 = -1;
 
-/// Typed error-code discriminants surfaced via [`thetadatadx_last_error_code`].
-///
-/// Higher-level bindings (the C++ exception hierarchy in
-/// `thetadatadx-cpp/include/thetadatadx.hpp`, the typed napi error subclasses in
-/// `thetadatadx-ts/src/lib.rs`) use these codes to choose which
-/// concrete exception / error subclass to throw without having to
-/// substring-match the formatted error string. The mapping mirrors
-/// the Python `to_py_err` hierarchy one-for-one so the leaf set stays
-/// uniform across bindings.
+// Typed error-code discriminants surfaced via `thetadatadx_last_error_code`.
+//
+// Higher-level bindings (the C++ exception hierarchy in
+// `thetadatadx-cpp/include/thetadatadx.hpp`, the typed napi error subclasses in
+// `thetadatadx-ts/src/lib.rs`) use these codes to choose which
+// concrete exception / error subclass to throw without having to
+// substring-match the formatted error string. The mapping mirrors
+// the Python `to_py_err` hierarchy one-for-one so the leaf set stays
+// uniform across bindings.
+
 /// No error: the last call succeeded.
 pub const THETADATADX_ERR_NONE: i32 = 0;
 /// Uncategorized failure that maps to no more specific discriminant.
