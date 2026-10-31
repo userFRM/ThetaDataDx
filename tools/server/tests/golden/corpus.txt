@@ -3,10 +3,7 @@
 #
 # <case> <endpoint> <query>
 #
-# Query values are literal, never percent-encoded. Every parameter the server
-# fills in with the terminal's default when it is absent (venue, start_time,
-# end_time, interval, exclusive) is spelled out, so the recorder sends the
-# request the server would send. Record with
+# Query values are literal, never percent-encoded. Record with
 #   cargo run -p thetadatadx-rs --features __test-helpers \
 #     --example record_server_responses -- <creds file> tools/server/tests/golden [case ...]
 

@@ -326,67 +326,17 @@ pub(crate) fn build_endpoint_args(
     for param in ep.params {
         match params.get(param.name) {
             Some(raw) => args.insert_raw(param.name, param.param_type, raw)?,
-            // An absent optional param that the JVM terminal injects an
-            // upstream default for is forwarded with that exact literal so
-            // a request omitting it sees the same data window / venue /
-            // interval the terminal would have produced (see
-            // [`terminal_param_default`]). Defaults that fail to parse for
-            // their declared `ParamType` are a server bug, not a client
-            // fault, so the parse error propagates as-is.
-            None if !param.required => {
-                if let Some(default) = terminal_param_default(param.name) {
-                    args.insert_raw(param.name, param.param_type, default)?;
-                }
-            }
             None if param.required => {
                 return Err(EndpointError::InvalidParams(format!(
                     "missing required parameter: '{}' ({})",
                     param.name, param.description
                 )));
             }
+            // The builder sends the endpoint table's default, the terminal's value.
             None => {}
         }
     }
     Ok(args)
-}
-
-/// The default literal the JVM terminal injects upstream for `param_name`
-/// when the client omits it, or `None` for a param the terminal forwards
-/// only when present.
-///
-/// The JVM terminal's REST layer substitutes a fixed literal for each of
-/// these params when the request omits it (and always sets `interval` to
-/// `1s` when it is absent), before forwarding the request to the upstream
-/// gRPC service. A request that omits one of these params therefore lands on
-/// the upstream with the terminal's literal, not an empty field. This server
-/// forwards only what the client sent, so an omitted param previously
-/// reached the upstream as unset — a different data window / venue /
-/// interval / pairing rule than the terminal. The literals below match the
-/// terminal's so the two front ends produce identical upstream calls.
-///
-/// Injection is name-gated AND guarded by the endpoint declaring the param:
-/// `build_endpoint_args` only consults this table for a param the endpoint
-/// actually has in `ep.params`, so a snapshot endpoint (no `start_time`)
-/// never gains a time window and an `eod` endpoint (no `interval`) never
-/// gains a bar size. Every current and future endpoint that declares one of
-/// these optional params inherits the terminal-matching default
-/// automatically.
-///
-/// `exclusive` intentionally defaults to `true` here even though the
-/// registry's SDK-facing metadata documents `false`: the JVM terminal's REST
-/// front end injects `true` for an omitted `exclusive`, and this server's job
-/// is to reproduce the terminal's wire behaviour for a request that omits the
-/// param. The registry default governs the typed SDK builders, a separate
-/// surface.
-fn terminal_param_default(param_name: &str) -> Option<&'static str> {
-    match param_name {
-        "venue" => Some("nqb"),
-        "start_time" => Some("09:30:00"),
-        "end_time" => Some("16:00:00"),
-        "interval" => Some("1s"),
-        "exclusive" => Some("true"),
-        _ => None,
-    }
 }
 
 /// `Retry-After` seconds advertised when the upstream reports
@@ -1086,105 +1036,6 @@ mod tests {
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect()
-    }
-
-    // -----------------------------------------------------------------------
-    //  C8 — server-side parameter defaults match the JVM terminal
-    // -----------------------------------------------------------------------
-
-    /// The default literals match the JVM terminal's absent-param
-    /// substitutions exactly.
-    #[test]
-    fn terminal_param_defaults_match_the_terminal_literals() {
-        assert_eq!(terminal_param_default("venue"), Some("nqb"));
-        assert_eq!(terminal_param_default("start_time"), Some("09:30:00"));
-        assert_eq!(terminal_param_default("end_time"), Some("16:00:00"));
-        assert_eq!(terminal_param_default("interval"), Some("1s"));
-        // The terminal injects `exclusive=true` even though the SDK-facing
-        // registry metadata documents `false`; the REST front end is what we
-        // reproduce here.
-        assert_eq!(terminal_param_default("exclusive"), Some("true"));
-        // Params the terminal forwards only when present get no default.
-        assert_eq!(terminal_param_default("symbol"), None);
-        assert_eq!(terminal_param_default("date"), None);
-        assert_eq!(terminal_param_default("strike"), None);
-    }
-
-    /// An intraday OHLC request that omits the windowing params lands on the
-    /// upstream with the terminal's `09:30:00`..`16:00:00` window, `1s`
-    /// interval, and `nqb` venue — not an empty field per param.
-    #[test]
-    fn build_endpoint_args_injects_window_interval_and_venue_defaults() {
-        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
-        let params = string_params(&[("symbol", "AAPL"), ("date", "20260603")]);
-        let args = build_endpoint_args(ep, &params).expect("args build");
-        assert_eq!(args.optional_str("interval").unwrap(), Some("1s"));
-        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
-        assert_eq!(args.optional_str("end_time").unwrap(), Some("16:00:00"));
-        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
-    }
-
-    /// A client value always wins over the injected default — the default is
-    /// the absent-param fallback, never an override.
-    #[test]
-    fn build_endpoint_args_default_yields_to_client_value() {
-        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
-        let params = string_params(&[
-            ("symbol", "AAPL"),
-            ("date", "20260603"),
-            ("interval", "1m"),
-            ("venue", "utp_cta"),
-        ]);
-        let args = build_endpoint_args(ep, &params).expect("args build");
-        assert_eq!(args.optional_str("interval").unwrap(), Some("1m"));
-        assert_eq!(args.optional_str("venue").unwrap(), Some("utp_cta"));
-        // The untouched window params still pick up the terminal default.
-        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
-    }
-
-    /// The `trade_quote` endpoint declares `exclusive` (and no `interval`):
-    /// the `exclusive=true` default is injected and NO interval is added,
-    /// because the endpoint does not declare one.
-    #[test]
-    fn build_endpoint_args_injects_exclusive_true_and_no_interval_for_trade_quote() {
-        let ep = thetadatadx::find("stock_history_trade_quote").expect("endpoint exists");
-        let params = string_params(&[("symbol", "AAPL"), ("date", "20260603")]);
-        let args = build_endpoint_args(ep, &params).expect("args build");
-        assert_eq!(args.optional_bool("exclusive").unwrap(), Some(true));
-        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
-        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
-        // The endpoint has no `interval` param, so none is injected.
-        assert_eq!(args.optional_str("interval").unwrap(), None);
-    }
-
-    /// Defaults are injected ONLY for params the endpoint declares: an EOD
-    /// range endpoint that declares none of the window/venue/interval params
-    /// gains none of them.
-    #[test]
-    fn build_endpoint_args_injects_no_defaults_for_endpoints_without_those_params() {
-        let ep = thetadatadx::find("stock_history_eod").expect("endpoint exists");
-        let params = string_params(&[
-            ("symbol", "AAPL"),
-            ("start_date", "20260101"),
-            ("end_date", "20260301"),
-        ]);
-        let args = build_endpoint_args(ep, &params).expect("args build");
-        assert_eq!(args.optional_str("interval").unwrap(), None);
-        assert_eq!(args.optional_str("start_time").unwrap(), None);
-        assert_eq!(args.optional_str("end_time").unwrap(), None);
-        assert_eq!(args.optional_str("venue").unwrap(), None);
-    }
-
-    /// A snapshot endpoint declares `venue` but no time window: only the
-    /// venue default is injected.
-    #[test]
-    fn build_endpoint_args_injects_only_venue_for_snapshot() {
-        let ep = thetadatadx::find("stock_snapshot_ohlc").expect("endpoint exists");
-        let params = string_params(&[("symbol", "AAPL")]);
-        let args = build_endpoint_args(ep, &params).expect("args build");
-        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
-        assert_eq!(args.optional_str("start_time").unwrap(), None);
-        assert_eq!(args.optional_str("interval").unwrap(), None);
     }
 
     // -----------------------------------------------------------------------
