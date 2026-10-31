@@ -34,8 +34,12 @@
 // `apache-arrow` is a devDependency (added for this bench driver). If it is
 // not installed the bench exits with a clear message rather than a silent skip.
 //
-// Run:
+// The export is built only with the `bench` feature, so the published addon
+// does not carry it. Build it in, run, then rebuild without it before
+// committing, because the build regenerates `index.js` and `index.d.ts`:
+//   (cd thetadatadx-ts && npx napi build --platform --release --features bench)
 //   node thetadatadx-ts/benches/streaming_throughput_arrow.mjs
+//   (cd thetadatadx-ts && npm run build)
 //
 // Output: line-delimited per-sample summary, then one `JSON {...}` per variant.
 
@@ -48,12 +52,12 @@ let mod;
 try {
   mod = await import('../index.js');
 } catch (err) {
-  console.error('FAIL: native addon not built; run `npm run build` first');
+  console.error('FAIL: native addon not built; run `npx napi build --platform --release --features bench` first');
   console.error(err);
   process.exit(1);
 }
 if (typeof mod.__benchFloodEventsArrowIpc !== 'function') {
-  console.error('FAIL: __benchFloodEventsArrowIpc not found on the addon. Rebuild with `npm run build`.');
+  console.error('FAIL: __benchFloodEventsArrowIpc not found on the addon. Build with `npx napi build --platform --release --features bench`.');
   process.exit(1);
 }
 

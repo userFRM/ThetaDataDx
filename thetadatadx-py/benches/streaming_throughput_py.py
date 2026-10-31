@@ -44,10 +44,11 @@ Methodology (matches the Rust bench)
 * Reports events/sec p50 (median) + min/max and ns/event, over the
   measured (post-warmup) samples.
 
-Run::
+The hook is built only with the ``bench`` feature, so the published wheel
+does not carry it. Build it into a virtualenv first, then run::
 
-    VIRTUAL_ENV=/tmp/cta-pyvenv /tmp/cta-pyvenv/bin/python \
-        thetadatadx-py/benches/streaming_throughput_py.py
+    maturin develop --release -m thetadatadx-py/Cargo.toml --features bench
+    python thetadatadx-py/benches/streaming_throughput_py.py
 
 Output is line-delimited then a final JSON object so a harness can parse
 the summary without a second dependency.

@@ -43,8 +43,12 @@
 //    that returned a non-Ok status (tsfn-boundary drops). Asserted === 0.
 // 2. The JS callback received-count is asserted === N (receive-side check).
 //
-// Run:
+// The export is built only with the `bench` feature, so the published addon
+// does not carry it. Build it in, run, then rebuild without it before
+// committing, because the build regenerates `index.js` and `index.d.ts`:
+//   (cd thetadatadx-ts && npx napi build --platform --release --features bench)
 //   node thetadatadx-ts/benches/streaming_throughput.mjs
+//   (cd thetadatadx-ts && npm run build)
 //
 // Output is line-delimited then a final `JSON {...}` summary line.
 
@@ -54,14 +58,14 @@ let mod;
 try {
   mod = await import('../index.js');
 } catch (err) {
-  console.error('FAIL: native addon not built; run `npm run build` first');
+  console.error('FAIL: native addon not built; run `npx napi build --platform --release --features bench` first');
   console.error(err);
   process.exit(1);
 }
 
 if (typeof mod.__benchFloodEvents !== 'function') {
   console.error(
-    'FAIL: __benchFloodEvents not found on the addon. Rebuild with `npm run build` after adding the bench export.',
+    'FAIL: __benchFloodEvents not found on the addon. Build with `npx napi build --platform --release --features bench`.',
   );
   process.exit(1);
 }

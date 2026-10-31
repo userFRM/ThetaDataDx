@@ -18,6 +18,7 @@ use thetadatadx::config;
 use thetadatadx::fpss;
 
 mod async_runtime;
+#[cfg(feature = "bench")]
 mod bench_streaming;
 mod coerce;
 mod errors;
@@ -2472,20 +2473,24 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
     // Offline streaming-saturation bench hooks (no network). Drive the real
     // Disruptor pipeline + the production per-event GIL/marshal/callback path,
-    // plus the batched-delivery and Arrow-columnar throughput levers.
-    // Bench-only; the leading underscore keeps them off the public surface.
-    m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
-    m.add_function(wrap_pyfunction!(
-        bench_streaming::__bench_flood_events_batched_calls,
-        m
-    )?)?;
-    m.add_function(wrap_pyfunction!(
-        bench_streaming::__bench_flood_events_batched_list,
-        m
-    )?)?;
-    m.add_function(wrap_pyfunction!(
-        bench_streaming::__bench_flood_events_arrow,
-        m
-    )?)?;
+    // plus the batched-delivery and Arrow-columnar throughput levers. Built
+    // only with the `bench` feature, so the published wheel does not carry
+    // them.
+    #[cfg(feature = "bench")]
+    {
+        m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            bench_streaming::__bench_flood_events_batched_calls,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            bench_streaming::__bench_flood_events_batched_list,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            bench_streaming::__bench_flood_events_arrow,
+            m
+        )?)?;
+    }
     Ok(())
 }
