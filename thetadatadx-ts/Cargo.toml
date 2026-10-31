@@ -14,6 +14,13 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# The offline streaming-throughput hooks (`__benchFloodEvents*`) the scripts
+# in `benches/` drive. Off by default so the published addon does not carry
+# them; build with `npx napi build --platform --release --features bench` to
+# run those scripts.
+bench = []
+
 [lib]
 crate-type = ["cdylib"]
 

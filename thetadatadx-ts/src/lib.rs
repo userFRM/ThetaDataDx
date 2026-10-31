@@ -770,15 +770,16 @@ use stream_events::{StreamEvent, buffered_event_to_typed, fpss_event_to_buffered
 // `__benchFloodEvents(n, callback)` pushes synthetic streaming events through
 // the real `TsfnCallback` dispatch path (same bounded queue, same per-event
 // marshal) so the TypeScript streaming ceiling can be measured offline.
-// Bench-only, not part of the cross-binding surface.
+// Bench-only, not part of the cross-binding surface: built only with the
+// `bench` feature, so the published addon does not carry it.
 //
-// Gated `cfg(not(test))`: the node bench loads the release-built addon, so
-// the export is only ever reached from a non-test build. Under `cfg(test)`
+// Also gated `cfg(not(test))`: the node bench loads the release-built addon,
+// so the export is only ever reached from a non-test build. Under `cfg(test)`
 // the napi registration glue for the exported async fn is not emitted, which
 // would orphan the module's `make_event` helper and trip `-D dead_code` in
 // the `--all-targets` clippy lane. Excluding the module from test builds
 // removes that dead path at the root rather than `#[allow]`-suppressing it.
-#[cfg(not(test))]
+#[cfg(all(feature = "bench", not(test)))]
 mod bench_streaming;
 
 // ── Cross-language lookup-table helpers ──

@@ -34,13 +34,15 @@ Methodology (matches the per-event bench + the core Rust bench)
   the callback also tallies pyarrow.Table.num_rows so the consumed row count
   is checked == EVENTS_PER_ITER (receive-side zero-drop).
 
-Run (standard GIL):
-    VIRTUAL_ENV=/tmp/cta-pyvenv /tmp/cta-pyvenv/bin/python \
-        thetadatadx-py/benches/streaming_throughput_levers_py.py
+The hooks are built only with the ``bench`` feature, so the published wheel
+does not carry them. Build them into the virtualenv first:
+    maturin develop --release -m thetadatadx-py/Cargo.toml --features bench
 
-Run (free-threaded, Lever 2):
-    PYTHON_GIL=0 VIRTUAL_ENV=/tmp/cta-pyvenv-ft /tmp/cta-pyvenv-ft/bin/python \
-        thetadatadx-py/benches/streaming_throughput_levers_py.py
+Run (standard GIL):
+    python thetadatadx-py/benches/streaming_throughput_levers_py.py
+
+Run (free-threaded, Lever 2), from a free-threaded virtualenv built the same way:
+    PYTHON_GIL=0 python thetadatadx-py/benches/streaming_throughput_levers_py.py
 
 Output: line-delimited per-sample, then one `JSON {...}` summary per variant.
 """
