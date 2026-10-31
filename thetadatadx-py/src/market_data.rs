@@ -149,7 +149,7 @@ macro_rules! py_fan_out {
 
 /// One endpoint: its `MarketDataView` methods and its builder class.
 macro_rules! py_endpoint {
-    // Keyword defaults: the sync method shows booleans and numbers.
+    // Keyword defaults: the sync and async methods show booleans and numbers.
     (@sig [{ $p:ident $a:ident opt Bool [$v:tt] $d:tt } $($more:tt)*] [$($s:tt)*] $k:tt) => {
         py_endpoint! { @sig [$($more)*] [$($s)* $a = $v,] $k }
     };
@@ -242,7 +242,7 @@ macro_rules! py_endpoint {
                 #[doc = "Async companion: returns an awaitable (`asyncio.Future`)."]
                 #[doc = "Shares the same shared tokio runtime as the sync variant; no"]
                 #[doc = "second runtime is created per call."]
-                #[pyo3(signature = ($($a,)* *, $($oa=None,)* timeout_ms=None))]
+                #[pyo3(signature = ($($a,)* *, $($sig)* timeout_ms=None))]
                 fn [<$name _async>]<'py>(
                     &self,
                     py: Python<'py>,
@@ -418,7 +418,7 @@ macro_rules! py_endpoint {
                 #[doc = "Async companion: returns an awaitable (`asyncio.Future`)."]
                 #[doc = "Shares the same shared tokio runtime as the sync variant; no"]
                 #[doc = "second runtime is created per call."]
-                #[pyo3(signature = ($($a,)* *, $($oa=None,)* timeout_ms=None))]
+                #[pyo3(signature = ($($a,)* *, $($sig)* timeout_ms=None))]
                 fn [<$name _async>]<'py>(
                     &self,
                     py: Python<'py>,

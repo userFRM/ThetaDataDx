@@ -85,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The Python README says where the endpoints live.** It said every endpoint is a method on `Client`, but the endpoints are methods of `client.market_data`, each with an `*_async` companion and a `*_builder`; `Client` itself has none of them.
 
+- **The Python `_async` market-data methods show the defaults their sync twins do.** `help()`, `inspect.signature` and the type stub gave every `binomial_steps`, `current_day_only`, `exclusive`, `option_use_nbbo`, `perf_boost_intraday`, `underlyer_use_nbbo`, `use_market_value` and `use_time_based_trade_quote` keyword on an `_async` method a default of `None`, where the sync method shows the value it sends, such as `101` or `False`. Both forms always sent the same request, since an omitted keyword falls back to that same value; the `_async` signatures now say so.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added
