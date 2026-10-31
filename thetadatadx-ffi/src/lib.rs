@@ -21,7 +21,26 @@
 //! - `*const c_char` arguments must point to valid, NUL-terminated C strings.
 //! - Returned typed arrays are heap-allocated and must be freed with the
 //!   corresponding `thetadatadx_*_free` function.
-//! - Functions are not thread-safe on the same handle; callers must synchronize.
+//! - Calls on one handle from several threads follow the thread-safety rules
+//!   below.
+//!
+//! # Thread safety
+//!
+//! - `ThetaDataDxMarketDataClient`, `ThetaDataDxClient`, `ThetaDataDxStreamHandle`
+//!   and `ThetaDataDxRecordBatchStream` are thread-safe: any number of threads may
+//!   call functions on the same handle at once. Concurrent market-data requests on
+//!   one handle share its connection and request pool, which is how the C++
+//!   `_async` methods run. A streaming call that must not run on the streaming
+//!   consumer thread says so in its own documentation.
+//! - `ThetaDataDxCredentials` is read-only once built, so concurrent connects may
+//!   share one.
+//! - `ThetaDataDxConfig` is not thread-safe: a `thetadatadx_config_set_*` call
+//!   must not overlap any other call that uses the same config, a connect
+//!   included. Calls that only read it (getters and connects) may overlap each
+//!   other.
+//! - A `thetadatadx_*_free` call takes ownership of its handle: no other call on
+//!   that handle may overlap or follow it.
+//! - The error slot `thetadatadx_last_error` reads is per thread.
 //!
 //! # Memory model
 //!
