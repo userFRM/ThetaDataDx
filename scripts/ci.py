@@ -50,14 +50,13 @@ SLOW_GATES = frozenset({"napi_drift"})
 
 
 # Gate name -> ordered list of commands. `all` runs them in this dict's
-# order. The cargo gates are the format, lint and generator checks (CI's
-# clippy job also passes `--all-features`).
+# order. The cargo gates are the format, lint and generator checks.
 # Each script gate mirrors exactly what its CI job runs: a `--selftest`
 # pre-pass where the gate has one, plus the production invocation with the
 # same thresholds CI uses.
 GATES: dict[str, list[list[str]]] = {
     "fmt": [["cargo", "fmt", "--all", "--", "--check"]],
-    "clippy": [["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]],
+    "clippy": [["cargo", "clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]],
     "sdk_surfaces": [["cargo", "run", "-q", "-p", "xtask", "--bin", "generate_sdk_surfaces", "--", "--check"]],
     "c_abi_completeness": (
         _ci("check_c_abi_completeness", "--selftest")

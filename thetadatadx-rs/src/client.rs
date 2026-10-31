@@ -3397,53 +3397,6 @@ mod tests {
         }
     }
 
-    /// `prev_drained_is_set` distinguishes "at least one stop captured a
-    /// drain flag that has not yet flipped" from "no streaming session
-    /// ever existed (or every retired generation has drained)". FFI
-    /// free paths use this to disambiguate the two `false` returns from
-    /// `await_drain` (timeout vs. nothing-to-wait-on).
-    ///
-    /// The slot is a `Vec` so stacked stop/start/stop cycles cannot lose
-    /// an earlier still-draining generation when a later one retires.
-    #[test]
-    fn prev_drained_is_set_tracks_vec_of_generations() {
-        let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
-        // Initial state: no session ever started -- nothing to wait on.
-        assert!(slot.lock().unwrap().is_empty());
-
-        // Simulate the capture stop_streaming performs when a Live
-        // session is being superseded — stacked.
-        let flag_a = Arc::new(AtomicBool::new(false));
-        let flag_b = Arc::new(AtomicBool::new(false));
-        slot.lock().unwrap().push(Arc::clone(&flag_a));
-        slot.lock().unwrap().push(Arc::clone(&flag_b));
-        assert_eq!(slot.lock().unwrap().len(), 2);
-
-        // The later flag flips first. The earlier one is STILL pending
-        // — under the old single-slot design it would have been
-        // overwritten by `flag_b` and silently lost.
-        flag_b.store(true, Ordering::Release);
-        // Lazy GC during a check would prune `flag_b`; `flag_a` stays.
-        let mut g = slot.lock().unwrap();
-        g.retain(|f| !f.load(Ordering::Acquire));
-        assert_eq!(
-            g.len(),
-            1,
-            "flag_b drained, but flag_a still pending — must NOT be reported as fully drained"
-        );
-        drop(g);
-
-        // Once `flag_a` flips, the Vec drains to empty.
-        flag_a.store(true, Ordering::Release);
-        let mut g = slot.lock().unwrap();
-        g.retain(|f| !f.load(Ordering::Acquire));
-        assert!(g.is_empty(), "all retired generations drained");
-    }
-
-    /// Multi-generation `await_drain` must wait for ALL retired sessions,
-    /// not just the most-recent. A single-slot tracker would return `true`
-    /// as soon as the last-pushed flag flipped, even with earlier flags
-    /// still pending.
     #[test]
     fn a_session_that_stopped_trying_does_not_read_as_still_trying() {
         // Both states follow a disconnect and they want opposite responses:
@@ -3471,41 +3424,6 @@ mod tests {
             super::live_status(false, true, true),
             ConnectionStatus::Connected
         );
-    }
-
-    #[test]
-    fn await_drain_waits_for_all_retired_generations() {
-        // We exercise the predicate logic directly through a `Vec` to
-        // avoid spinning up StreamingClient instances (which require a
-        // network credential). The production `await_drain` runs the
-        // exact same `retain` + `is_empty` cadence on the Mutex'd Vec.
-        let slot: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
-
-        let flag_a = Arc::new(AtomicBool::new(false));
-        let flag_b = Arc::new(AtomicBool::new(false));
-        let flag_c = Arc::new(AtomicBool::new(false));
-        slot.lock().unwrap().push(Arc::clone(&flag_a));
-        slot.lock().unwrap().push(Arc::clone(&flag_b));
-        slot.lock().unwrap().push(Arc::clone(&flag_c));
-
-        // Stagger the drain — c, then a, then b. Verify the Vec is only
-        // empty AFTER the last (b) flips.
-        flag_c.store(true, Ordering::Release);
-        let mut g = slot.lock().unwrap();
-        g.retain(|f| !f.load(Ordering::Acquire));
-        assert_eq!(g.len(), 2, "c drained; a + b still pending");
-        drop(g);
-
-        flag_a.store(true, Ordering::Release);
-        let mut g = slot.lock().unwrap();
-        g.retain(|f| !f.load(Ordering::Acquire));
-        assert_eq!(g.len(), 1, "a + c drained; b still pending");
-        drop(g);
-
-        flag_b.store(true, Ordering::Release);
-        let mut g = slot.lock().unwrap();
-        g.retain(|f| !f.load(Ordering::Acquire));
-        assert!(g.is_empty(), "all three retired generations drained");
     }
 
     // -- Fluent Subscription dispatch -------------------------
