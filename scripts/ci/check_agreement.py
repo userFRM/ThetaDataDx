@@ -16,9 +16,10 @@ field values that differ across SDKs. Exits non-zero on any
 disagreement.
 
 Cells missing from any SDK's artifact are surfaced as "partial" but
-don't fail the run, since a validator may deliberately skip
-per-optional-param modes the other SDKs run (PR #291). A missing
-artifact always fails the run.
+don't fail the run. Both validators run the same cells, rendered from the
+endpoint table by `generate_sdk_surfaces`, so a partial cell means the
+artifacts came from different renders. A missing artifact always fails
+the run.
 
 Artifact format:
 
@@ -57,9 +58,7 @@ artifacts human-readable:
 * **non-finite floats**    : `NaN` / `Inf` normalized to `null`
 
 Presentation strings like `"2026-04-17"` would cause false diffs the
-moment a second SDK starts populating `first_row` with raw ints. The
-CLI emitter calls the `thetadatadx` binary with `--format json-raw` so its
-output matches the contract; adding that flag was part of PR #293.
+moment a second SDK starts populating `first_row` with raw ints.
 
 Consumer-side canonicalization (`_canonicalize_row`) handles:
 
@@ -166,7 +165,7 @@ _DATE_FIELD_NAMES: frozenset[str] = frozenset({"date", "expiration"})
 # Exact-match field names that carry ms-of-day semantics. Any value `< 0`
 # is a sentinel for "missing" (ms of day is non-negative by construction,
 # bounded by 86_400_000) and canonicalizes to None. CalendarDay's
-# `open_time` / `close_time` and CLI column aliases `time` / `quote_time`
+# `open_time` / `close_time` and the `time` / `quote_time` column aliases
 # are included because they hold the same i32 ms-of-day underlying value.
 _MS_FIELD_NAMES: frozenset[str] = frozenset(
     {
@@ -304,7 +303,7 @@ def _canonicalize_row(value: Any, key: str = "") -> Any:
         divergence on omit-vs-null-vs-sentinel-value invisible to the
         diff engine (the server omits a contract column its upstream table
         lacks, in `TableWriter::place` in `tools/server/src/format.rs`;
-        Python emits raw `0`/`""`; CLI emits raw `0`/`""`).
+        Python emits raw `0`/`""`).
         All three shapes converge to "field absent from the dict" post-
         canonicalization.
 
@@ -697,7 +696,7 @@ def main(argv: list[str] | None = None) -> int:
     if partial:
         print(
             f"\nnote: {partial} cells missing from at least one SDK "
-            "(CLI skips per-optional-param modes by design -- see PR #291)",
+            "(the artifacts came from different renders of the cells)",
             file=sys.stderr,
         )
 
