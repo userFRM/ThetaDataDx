@@ -2,9 +2,11 @@ condition,rust_variant,python_exception,cpp_exception
 Bad or expired credentials,Auth,AuthenticationError / InvalidCredentialsError,thetadatadx::AuthenticationError / thetadatadx::InvalidCredentialsError
 Endpoint needs a higher tier,Grpc (permission),SubscriptionError,thetadatadx::SubscriptionError
 Too many requests in flight upstream,Grpc (resource exhausted),RateLimitError,thetadatadx::RateLimitError
+Upstream service unavailable,Grpc (unavailable),UnavailableError,thetadatadx::UnavailableError
 Request returned no rows,Grpc (not found),NotFoundError / NoDataFoundError,thetadatadx::NotFoundError
 Per-request deadline elapsed,Timeout,DeadlineExceededError / TimeoutError,thetadatadx::DeadlineExceededError
 Connection / TLS / protocol fault,Transport,NetworkError,thetadatadx::NetworkError
 Response shape unexpected,Decode,SchemaMismatchError,thetadatadx::SchemaMismatchError
 Streaming session fault,Stream,StreamError,thetadatadx::StreamError
-Invalid parameters / configuration,Config,ThetaDataError,thetadatadx::ThetaDataError
+Invalid parameter or configuration value,Config (invalid value),InvalidParameterError,thetadatadx::InvalidParameterError
+Configuration file or environment fault,Config (other),ConfigError,thetadatadx::ConfigError

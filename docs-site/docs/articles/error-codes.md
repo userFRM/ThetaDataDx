@@ -14,12 +14,14 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 | Bad or expired credentials | `Auth` | `AuthenticationError` / `InvalidCredentialsError` | `thetadatadx::AuthenticationError` / `thetadatadx::InvalidCredentialsError` |
 | Endpoint needs a higher tier | `Grpc` (permission) | `SubscriptionError` | `thetadatadx::SubscriptionError` |
 | Too many requests in flight upstream | `Grpc` (resource exhausted) | `RateLimitError` | `thetadatadx::RateLimitError` |
+| Upstream service unavailable | `Grpc` (unavailable) | `UnavailableError` | `thetadatadx::UnavailableError` |
 | Request returned no rows | `Grpc` (not found) | `NotFoundError` / `NoDataFoundError` | `thetadatadx::NotFoundError` |
 | Per-request deadline elapsed | `Timeout` | `DeadlineExceededError` / `TimeoutError` | `thetadatadx::DeadlineExceededError` |
 | Connection / TLS / protocol fault | `Transport` | `NetworkError` | `thetadatadx::NetworkError` |
 | Response shape unexpected | `Decode` | `SchemaMismatchError` | `thetadatadx::SchemaMismatchError` |
 | Streaming session fault | `Stream` | `StreamError` | `thetadatadx::StreamError` |
-| Invalid parameters / configuration | `Config` | `ThetaDataError` | `thetadatadx::ThetaDataError` |
+| Invalid parameter or configuration value | `Config` (invalid value) | `InvalidParameterError` | `thetadatadx::InvalidParameterError` |
+| Configuration file or environment fault | `Config` (other) | `ConfigError` | `thetadatadx::ConfigError` |
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.
 - **TypeScript** throws a typed subclass, the same hierarchy the other bindings expose: `catch (e) { if (e instanceof SubscriptionError) ... }`. A rate-limit error carries `retryAfter`. The message still carries the same stable text as the Rust `Display` output, but an instance check is the reliable test, not a pattern over the message.
