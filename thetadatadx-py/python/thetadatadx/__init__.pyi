@@ -1526,7 +1526,10 @@ class _TickList(Generic[_Row]):
 
 @final
 class CalendarDay:
-    """Calendar day. Market open/close schedule."""
+    """Calendar day. Market open/close schedule.
+
+    `status` carries the vendor's own day-type vocabulary (`open` / `early_close` / `full_close` / `weekend`); unknown wire text fails decode loudly rather than degrading to a sentinel. `date` is `0` on the single-row `calendar_on_date` / `calendar_open_today` responses, where the server omits the date column.
+    """
 
     def __new__(
         cls,
@@ -1558,7 +1561,10 @@ class CalendarDayList(_TickList[CalendarDay]):
 
 @final
 class EodTick:
-    """End-of-day tick. Full EOD snapshot with OHLC + quote."""
+    """End-of-day tick. Full EOD snapshot with OHLC + quote.
+
+    The two time columns carry the vendor's v3 field semantics under their v3 names: `created` is when the EOD report was generated (~17:15 ET, NOT a trade time) and `last_trade` is the time of the day's final trade. On a day with no trades the report zero-fills the trade-derived columns: `open` / `high` / `low` / `close` are `0.0` and `last_trade_ms_of_day` is `0`; the quote-side columns still carry the closing NBBO snapshot.
+    """
 
     def __new__(
         cls,
@@ -1648,8 +1654,9 @@ class EodTickList(_TickList[EodTick]):
 
 @final
 class GreeksAllTick:
-    """Full union Greeks tick -- every Greek the v3 server publishes on the
-    `option_*_greeks_all` and `option_*_greeks_eod` endpoints.
+    """Full union Greeks tick -- every Greek the v3 server publishes on the `option_*_greeks_all` endpoints.
+
+    The vendor's per-order endpoints (`option_*_greeks_first_order`, `_second_order`, `_third_order`) emit strict subsets of these columns and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick` and `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility` binds to `IvTick`, and `option_*_greeks_eod` to `GreeksEodTick`.
     """
 
     def __new__(
@@ -1776,13 +1783,7 @@ class GreeksAllTickList(_TickList[GreeksAllTick]):
 
 @final
 class GreeksEodTick:
-    """End-of-day union Greeks tick -- every Greek the v3 server publishes on
-    `option_history_greeks_eod`, paired with the twelve EOD trade/quote
-    context columns (`open`, `high`, `low`, `close`, `volume`, `count`,
-    `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
-    `ask_exchange`, `ask_condition`) that identify the daily bar + closing
-    NBBO snapshot the Greeks were calculated against.
-    """
+    """End-of-day union Greeks tick -- every Greek the v3 server publishes on `option_history_greeks_eod`, paired with the twelve EOD trade/quote context columns (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) that identify the daily bar + closing NBBO snapshot the Greeks were calculated against."""
 
     def __new__(
         cls,
@@ -1944,11 +1945,7 @@ class GreeksEodTickList(_TickList[GreeksEodTick]):
 
 @final
 class GreeksFirstOrderTick:
-    """First-order Greeks tick -- the strict column subset emitted by the
-    vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega
-    / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and
-    the underlying snapshot used to derive each Greek.
-    """
+    """First-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and the underlying snapshot used to derive each Greek."""
 
     def __new__(
         cls,
@@ -2032,11 +2029,7 @@ class GreeksFirstOrderTickList(_TickList[GreeksFirstOrderTick]):
 
 @final
 class GreeksSecondOrderTick:
-    """Second-order Greeks tick -- the strict column subset emitted by the
-    vendor's `option_*_greeks_second_order` endpoints (gamma / vanna /
-    charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the
-    underlying snapshot.
-    """
+    """Second-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_second_order` endpoints (gamma / vanna / charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the underlying snapshot."""
 
     def __new__(
         cls,
@@ -2117,12 +2110,7 @@ class GreeksSecondOrderTickList(_TickList[GreeksSecondOrderTick]):
 
 @final
 class GreeksThirdOrderTick:
-    """Third-order Greeks tick -- the strict column subset emitted by the
-    vendor's `option_*_greeks_third_order` endpoints (speed / zomma /
-    color / ultima) plus the bid/ask quote pair, the IV pair, and the
-    underlying snapshot. The vendor's third-order schema does not publish
-    `vera`.
-    """
+    """Third-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_third_order` endpoints (speed / zomma / color / ultima) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. The vendor's third-order schema does not publish `vera`."""
 
     def __new__(
         cls,
@@ -2200,12 +2188,7 @@ class GreeksThirdOrderTickList(_TickList[GreeksThirdOrderTick]):
 
 @final
 class IndexPriceAtTimeTick:
-    """Index price-at-time tick -- the trade-shaped row the v3 server
-    publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:
-    `ms_of_day`, `price`, `date`) silently dropped seven server-emitted
-    columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,
-    `exchange` -- including the SIP-exchange attribution field.
-    """
+    """Index price-at-time tick -- the trade-shaped row the v3 server publishes on `index_at_time_price`."""
 
     def __new__(
         cls,
@@ -2289,7 +2272,10 @@ class InterestRateTickList(_TickList[InterestRateTick]):
 
 @final
 class IntervalQuoteTick:
-    """Interval quote tick. The NBBO in effect at one interval."""
+    """Interval quote tick. The NBBO in effect at one interval.
+
+    Returned by the quote flat files (`*_flat_file_quote`), which carry one row per interval in which a new quote was reported. Each row holds two times: `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`, when the quote in effect at that interval was reported.
+    """
 
     def __new__(
         cls,
@@ -2361,7 +2347,10 @@ class IntervalQuoteTickList(_TickList[IntervalQuoteTick]):
 
 @final
 class IvTick:
-    """Implied volatility tick."""
+    """Implied volatility tick.
+
+    The snapshot variant (`option_snapshot_greeks_implied_volatility`) carries only `ms_of_day`, `implied_volatility`, `iv_error` and `date`; the other fields then read zero.
+    """
 
     def __new__(
         cls,
@@ -2485,7 +2474,10 @@ class MarketValueTickList(_TickList[MarketValueTick]):
 
 @final
 class OhlcTick:
-    """OHLC tick. Aggregated bar data including SIP-rule VWAP."""
+    """OHLC tick. Aggregated bar data including SIP-rule VWAP.
+
+    `stock_history_ohlc`, `option_history_ohlc` and `index_history_ohlc` carry every column. The snapshot variants (`*_snapshot_ohlc`) omit `vwap`, which then reads `0.0`, as `volume` and `count` read `0` on quote-only intraday bars.
+    """
 
     def __new__(
         cls,
@@ -2655,7 +2647,10 @@ class PriceTickList(_TickList[PriceTick]):
 
 @final
 class QuoteTick:
-    """Quote tick. NBBO quote data."""
+    """Quote tick. NBBO quote data.
+
+    Some storage tiers return only `ms_of_day`, `bid_size`, `bid`, `ask_size`, `ask` and `date`; the exchange and condition fields are then absent.
+    """
 
     def __new__(
         cls,
@@ -2719,12 +2714,7 @@ class QuoteTickList(_TickList[QuoteTick]):
 
 @final
 class TradeGreeksAllTick:
-    """Per-trade union Greeks tick -- every Greek the v3 server publishes on
-    `option_history_trade_greeks_all`, paired with the trade-side execution
-    columns (`sequence`, `ext_condition1..4`, `condition`, `size`,
-    `exchange`, `price`) that identify which OPRA print each Greek was
-    calculated against.
-    """
+    """Per-trade union Greeks tick -- every Greek the v3 server publishes on `option_history_trade_greeks_all`, paired with the trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`) that identify which OPRA print each Greek was calculated against."""
 
     def __new__(
         cls,
@@ -2871,10 +2861,7 @@ class TradeGreeksAllTickList(_TickList[TradeGreeksAllTick]):
 
 @final
 class TradeGreeksFirstOrderTick:
-    """Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon
-    / lambda) paired with the trade-side execution columns identifying the
-    OPRA print each Greek was calculated against.
-    """
+    """Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against."""
 
     def __new__(
         cls,
@@ -2979,11 +2966,7 @@ class TradeGreeksFirstOrderTickList(_TickList[TradeGreeksFirstOrderTick]):
 
 @final
 class TradeGreeksImpliedVolatilityTick:
-    """Per-trade implied-volatility tick (single `implied_volatility` +
-    `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled
-    `IvTick`) paired with the trade-side execution columns identifying the
-    OPRA print the IV was calculated against.
-    """
+    """Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against."""
 
     def __new__(
         cls,
@@ -3070,10 +3053,7 @@ class TradeGreeksImpliedVolatilityTickList(_TickList[TradeGreeksImpliedVolatilit
 
 @final
 class TradeGreeksSecondOrderTick:
-    """Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /
-    veta) paired with the trade-side execution columns identifying the OPRA
-    print each Greek was calculated against.
-    """
+    """Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against."""
 
     def __new__(
         cls,
@@ -3175,11 +3155,7 @@ class TradeGreeksSecondOrderTickList(_TickList[TradeGreeksSecondOrderTick]):
 
 @final
 class TradeGreeksThirdOrderTick:
-    """Per-trade third-order Greeks tick (speed / zomma / color / ultima)
-    paired with the trade-side execution columns identifying the OPRA print
-    each Greek was calculated against. The vendor's third-order schema does
-    not publish `vera`.
-    """
+    """Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`."""
 
     def __new__(
         cls,

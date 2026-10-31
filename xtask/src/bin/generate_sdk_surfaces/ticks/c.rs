@@ -34,18 +34,9 @@ pub(super) fn render_c_ticks() -> String {
             .layout
             .as_ref()
             .expect("filtered to rows with a C layout");
-        // The first paragraph: the later ones describe the decode.
-        let paragraph = tick.more.iter().take_while(|line| !line.is_empty());
-        writeln!(
-            out,
-            "/* {} */",
-            std::iter::once(&tick.summary)
-                .chain(paragraph)
-                .copied()
-                .collect::<Vec<_>>()
-                .join("\n * ")
-        )
-        .unwrap();
+        let mut doc = vec![tick.summary];
+        doc.extend(tick.more);
+        writeln!(out, "/* {} */", doc.join("\n *\n * ")).unwrap();
         out.push_str("THETADATADX_ALIGN64_BEGIN typedef struct {\n");
         let mut end = 0;
         for column in tick.columns {

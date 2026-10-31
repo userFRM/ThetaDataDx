@@ -3934,7 +3934,11 @@ export interface BatchesOptions {
   capacity?: number
 }
 
-/** Calendar day. Market open/close schedule. */
+/**
+ * Calendar day. Market open/close schedule.
+ *
+ * `status` carries the vendor's own day-type vocabulary (`open` / `early_close` / `full_close` / `weekend`); unknown wire text fails decode loudly rather than degrading to a sentinel. `date` is `0` on the single-row `calendar_on_date` / `calendar_open_today` responses, where the server omits the date column.
+ */
 export interface CalendarDay {
   date: number
   openTime: number
@@ -4171,7 +4175,11 @@ export interface Disconnected {
   causeName: string
 }
 
-/** End-of-day tick. Full EOD snapshot with OHLC + quote. */
+/**
+ * End-of-day tick. Full EOD snapshot with OHLC + quote.
+ *
+ * The two time columns carry the vendor's v3 field semantics under their v3 names: `created` is when the EOD report was generated (~17:15 ET, NOT a trade time) and `last_trade` is the time of the day's final trade. On a day with no trades the report zero-fills the trade-derived columns: `open` / `high` / `low` / `close` are `0.0` and `last_trade_ms_of_day` is `0`; the quote-side columns still carry the closing NBBO snapshot.
+ */
 export interface EodTick {
   createdMsOfDay: number
   lastTradeMsOfDay: number
@@ -4273,7 +4281,11 @@ export interface EodTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Full union Greeks tick -- every Greek the v3 server publishes on the */
+/**
+ * Full union Greeks tick -- every Greek the v3 server publishes on the `option_*_greeks_all` endpoints.
+ *
+ * The vendor's per-order endpoints (`option_*_greeks_first_order`, `_second_order`, `_third_order`) emit strict subsets of these columns and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick` and `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility` binds to `IvTick`, and `option_*_greeks_eod` to `GreeksEodTick`.
+ */
 export interface GreeksAllTick {
   msOfDay: number
   bid: number
@@ -4387,7 +4399,7 @@ export interface GreeksAllTickWithColumns {
   symbols?: Array<string>
 }
 
-/** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
+/** End-of-day union Greeks tick -- every Greek the v3 server publishes on `option_history_greeks_eod`, paired with the twelve EOD trade/quote context columns (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) that identify the daily bar + closing NBBO snapshot the Greeks were calculated against. */
 export interface GreeksEodTick {
   msOfDay: number
   open: number
@@ -4513,7 +4525,7 @@ export interface GreeksEodTickWithColumns {
   symbols?: Array<string>
 }
 
-/** First-order Greeks tick -- the strict column subset emitted by the */
+/** First-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and the underlying snapshot used to derive each Greek. */
 export interface GreeksFirstOrderTick {
   msOfDay: number
   bid: number
@@ -4613,7 +4625,7 @@ export interface GreeksFirstOrderTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Second-order Greeks tick -- the strict column subset emitted by the */
+/** Second-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_second_order` endpoints (gamma / vanna / charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. */
 export interface GreeksSecondOrderTick {
   msOfDay: number
   bid: number
@@ -4712,7 +4724,7 @@ export interface GreeksSecondOrderTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Third-order Greeks tick -- the strict column subset emitted by the */
+/** Third-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_third_order` endpoints (speed / zomma / color / ultima) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. The vendor's third-order schema does not publish `vera`. */
 export interface GreeksThirdOrderTick {
   msOfDay: number
   bid: number
@@ -4949,7 +4961,7 @@ export interface IndexMarketValue {
   receivedAtNs: bigint
 }
 
-/** Index price-at-time tick -- the trade-shaped row the v3 server */
+/** Index price-at-time tick -- the trade-shaped row the v3 server publishes on `index_at_time_price`. */
 export interface IndexPriceAtTimeTick {
   msOfDay: number
   sequence: number
@@ -5203,7 +5215,11 @@ export declare const enum Interval {
   H1 = '1h',
 }
 
-/** Interval quote tick. The NBBO in effect at one interval. */
+/**
+ * Interval quote tick. The NBBO in effect at one interval.
+ *
+ * Returned by the quote flat files (`*_flat_file_quote`), which carry one row per interval in which a new quote was reported. Each row holds two times: `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`, when the quote in effect at that interval was reported.
+ */
 export interface IntervalQuoteTick {
   intervalMsOfDay: number
   quoteMsOfDay: number
@@ -5299,7 +5315,11 @@ export interface IntervalQuoteTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Implied volatility tick. */
+/**
+ * Implied volatility tick.
+ *
+ * The snapshot variant (`option_snapshot_greeks_implied_volatility`) carries only `ms_of_day`, `implied_volatility`, `iv_error` and `date`; the other fields then read zero.
+ */
 export interface IvTick {
   msOfDay: number
   bid: number
@@ -5506,7 +5526,11 @@ export interface MarketValueTickWithColumns {
   symbols?: Array<string>
 }
 
-/** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
+/**
+ * OHLC tick. Aggregated bar data including SIP-rule VWAP.
+ *
+ * `stock_history_ohlc`, `option_history_ohlc` and `index_history_ohlc` carry every column. The snapshot variants (`*_snapshot_ohlc`) omit `vwap`, which then reads `0.0`, as `volume` and `count` read `0` on quote-only intraday bars.
+ */
 export interface OhlcTick {
   msOfDay: number
   open: number
@@ -7726,7 +7750,11 @@ export interface Quote {
   receivedAtNs: bigint
 }
 
-/** Quote tick. NBBO quote data. */
+/**
+ * Quote tick. NBBO quote data.
+ *
+ * Some storage tiers return only `ms_of_day`, `bid_size`, `bid`, `ask_size`, `ask` and `date`; the exchange and condition fields are then absent.
+ */
 export interface QuoteTick {
   msOfDay: number
   bidSize: number
@@ -8318,7 +8346,7 @@ export interface Trade {
   receivedAtNs: bigint
 }
 
-/** Per-trade union Greeks tick -- every Greek the v3 server publishes on */
+/** Per-trade union Greeks tick -- every Greek the v3 server publishes on `option_history_trade_greeks_all`, paired with the trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`) that identify which OPRA print each Greek was calculated against. */
 export interface TradeGreeksAllTick {
   msOfDay: number
   sequence: number
@@ -8439,7 +8467,7 @@ export interface TradeGreeksAllTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
+/** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. */
 export interface TradeGreeksFirstOrderTick {
   msOfDay: number
   sequence: number
@@ -8546,7 +8574,7 @@ export interface TradeGreeksFirstOrderTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Per-trade implied-volatility tick (single `implied_volatility` + */
+/** Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against. */
 export interface TradeGreeksImpliedVolatilityTick {
   msOfDay: number
   sequence: number
@@ -8647,7 +8675,7 @@ export interface TradeGreeksImpliedVolatilityTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
+/** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. */
 export interface TradeGreeksSecondOrderTick {
   msOfDay: number
   sequence: number
@@ -8753,7 +8781,7 @@ export interface TradeGreeksSecondOrderTickWithColumns {
   symbols?: Array<string>
 }
 
-/** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
+/** Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`. */
 export interface TradeGreeksThirdOrderTick {
   msOfDay: number
   sequence: number

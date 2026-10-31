@@ -27,7 +27,7 @@ macro_rules! tick_struct {
         required $required:tt columns [$({ $f:ident $w:ident $ty:ident [$($has:ident)?] $d:tt })*]
         timestamps $timestamps:tt flags $flags:tt) => {
         #[doc = concat!($head $(, " -- ", $n, " fields.")? $(, " ", $tail)?)]
-        $(#[doc = $more])*
+        $(#[doc = ""] #[doc = $more])*
         #[must_use]
         $($attrs)*
         pub struct $name {

@@ -21,7 +21,7 @@ macro_rules! ts_ticks {
 macro_rules! ts_tick {
     ($name:ident $kind:ident contract $trio:tt doc $doc:tt summary $summary:tt more $more:tt
         required $required:tt columns [$($col:tt)*] timestamps $timestamps:tt flags $flags:tt) => {
-        ts_tick! { @cols [$name $trio $summary $timestamps $flags] [] [$($col)*] }
+        ts_tick! { @cols [$name $trio $summary $more $timestamps $flags] [] [$($col)*] }
     };
 
     // Resolve each column to its JavaScript-facing type and conversion. A
@@ -71,11 +71,12 @@ macro_rules! ts_tick {
         ts_tick! { @cols $st [$($done)* { $f [String] status [] }] $rest }
     };
 
-    (@emit [$name:ident [$($exp:ident $strike:ident $right:ident)?] [$($summary:tt)*]
+    (@emit [$name:ident [$($exp:ident $strike:ident $right:ident)?] [$($summary:tt)*] [$($more:tt)*]
         [$({ $acc:ident $date:ident $ms:ident })*] [$({ $flag:ident $field:ident $lo:tt $hi:tt $fdoc:tt })*]]
         [$({ $f:ident [$($tsty:tt)*] $conv:ident [$($has:ident)?] })*]) => {
         thetadatadx::__paste! {
             #[doc = $($summary)*]
+            $(#[doc = ""] #[doc = $more])*
             #[must_use]
             #[napi(object)]
             #[derive(Clone)]

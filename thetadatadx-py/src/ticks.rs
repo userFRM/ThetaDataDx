@@ -105,7 +105,7 @@ macro_rules! py_tick {
         [$({ $f:ident $pf:ident [$($pyty:tt)*] [$($default:tt)*] $conv:ident [$($has:ident)?] })*]) => {
         thetadatadx::__paste! {
             #[doc = concat!($($summary),*)]
-            $(#[doc = concat!($more)])*
+            $(#[doc = ""] #[doc = $more])*
             #[must_use]
             #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
             #[derive(Clone)]
