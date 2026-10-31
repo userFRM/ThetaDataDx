@@ -21,17 +21,6 @@
 //! signatures stay non-breaking, while the `_with_deadline` variant gives
 //! the same cancellation contract for the validator and registry dispatch.
 
-/// Run a future with an optional per-call deadline.
-///
-/// When `deadline` is `None` the future is awaited verbatim. When `Some(d)`
-/// the future is wrapped in [`tokio::time::timeout`]; on elapsed the future
-/// is dropped and `Error::Timeout { duration_ms }` is returned. Local state
-/// captured by the future (`_permit`, `tonic::Streaming`) drops with it.
-///
-/// # Errors
-///
-/// Returns `Error::Timeout` when the deadline elapses; otherwise propagates
-/// whatever error the wrapped future resolves to.
 /// Resolve the effective per-request deadline.
 ///
 /// An explicit `with_deadline(...)` always wins, including
@@ -76,6 +65,17 @@ pub(crate) fn effective_deadline(
     }
 }
 
+/// Run a future with an optional per-call deadline.
+///
+/// When `deadline` is `None` the future is awaited verbatim. When `Some(d)`
+/// the future is wrapped in [`tokio::time::timeout`]; on elapsed the future
+/// is dropped and `Error::Timeout { duration_ms }` is returned. Local state
+/// captured by the future (`_permit`, `tonic::Streaming`) drops with it.
+///
+/// # Errors
+///
+/// Returns `Error::Timeout` when the deadline elapses; otherwise propagates
+/// whatever error the wrapped future resolves to.
 pub(crate) async fn run_with_optional_deadline<F, T>(
     deadline: Option<std::time::Duration>,
     fut: F,

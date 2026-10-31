@@ -1285,7 +1285,8 @@ mod config_file {
     impl DirectConfig {
         /// Load configuration from a TOML file.
         ///
-        /// The file format matches `config.default.toml` shipped with the crate.
+        /// The file format matches the annotated `config.default.toml` in the
+        /// repository.
         /// Missing sections and keys fall back to the hardcoded production
         /// defaults; unlike [`DirectConfig::production()`], this loader does not
         /// layer the `THETADATA_*` environment overrides on top. An unknown key or
@@ -1898,7 +1899,7 @@ mod tests {
 
         #[test]
         fn full_config_default_toml_parses() {
-            // Validate that config.default.toml (shipped with the crate) can be parsed.
+            // Validate that the repository's config.default.toml can be parsed.
             let default_toml = include_str!("../../config.default.toml");
             let config = DirectConfig::from_toml_str(default_toml).unwrap();
             assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
