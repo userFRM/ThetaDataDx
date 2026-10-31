@@ -109,6 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The error-codes table names the classes the SDK raises for configuration errors.** It listed `ThetaDataError` for an invalid parameter or configuration, where Python and C++ raise `InvalidParameterError` for a rejected value and `ConfigError` for a configuration file or environment fault, and it had no row for `UnavailableError`. Both the page and its CSV download now list them.
 
+- **The config accessors document the same behaviour in every language.** Each accessor's documentation was written four times, once per language, and the copies had drifted: the C++ getters said they return the default on a null handle where they return `0`, the C++ setters left out what the other languages said about the replay burst's pacing, the park interval's latency cost and the reconnect budgets applying only under the `Auto` policy, and only some getters stated their default. The config table now holds one description per accessor and its default as a value, and each binding renders them with its own spelling of the default and of the enum values.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added
