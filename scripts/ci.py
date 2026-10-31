@@ -7,8 +7,8 @@ gate names match the modules under `scripts/ci/`; each maps to the same
 command CI runs for that gate, including any `--selftest` pre-pass and
 threshold flags, so the dispatcher and the workflow stay in lockstep.
 
-This is a thin runner: it shells the individual gate scripts under
-`scripts/ci/` (and the test files under `scripts/ci/tests/`) with the
+This is a thin runner: it shells cargo and the individual gate scripts
+under `scripts/ci/` (and the test files under `scripts/ci/tests/`) with the
 current interpreter. It does not reimplement any gate logic.
 
 Usage:
@@ -49,11 +49,16 @@ def _dev(name: str, *args: str) -> list[list[str]]:
 SLOW_GATES = frozenset({"napi_drift"})
 
 
-# Gate name -> ordered list of commands. The command set for each gate
-# mirrors exactly what the corresponding CI job runs (a `--selftest`
-# pre-pass where the gate has one, plus the production invocation with
-# the same thresholds CI uses). `all` runs them in this dict's order.
+# Gate name -> ordered list of commands. `all` runs them in this dict's
+# order. The cargo gates are the format, lint and generator checks (CI's
+# clippy job also passes `--all-features`).
+# Each script gate mirrors exactly what its CI job runs: a `--selftest`
+# pre-pass where the gate has one, plus the production invocation with the
+# same thresholds CI uses.
 GATES: dict[str, list[list[str]]] = {
+    "fmt": [["cargo", "fmt", "--all", "--", "--check"]],
+    "clippy": [["cargo", "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]],
+    "sdk_surfaces": [["cargo", "run", "-q", "-p", "xtask", "--bin", "generate_sdk_surfaces", "--", "--check"]],
     "c_abi_completeness": (
         _ci("check_c_abi_completeness", "--selftest")
         + _ci("check_c_abi_completeness")
