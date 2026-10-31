@@ -44,12 +44,6 @@ def test_batches_entry_present_on_stream_view() -> None:
     assert hasattr(td.StreamView, "start_streaming")
 
 
-def test_batches_is_blocked_on_the_market_data_client() -> None:
-    """`batches` is an FPSS-touching method, so the MDDS-only market-data
-    client must refuse it (it is on the block-list)."""
-    assert "batches" in td._blocked_fpss_methods()
-
-
 def test_record_batch_stream_construction_is_blocked_directly() -> None:
     """The reader is not user-constructible — it is only produced by
     `client.stream.batches(...)`. Calling its type directly raises."""

@@ -55,13 +55,11 @@ use crate::{Client, Config, Credentials};
 /// `Client` is automatically available on `MarketDataClient` with zero
 /// edit here.
 ///
-/// Drift guard: the streaming methods are covered by the offline coverage
-/// test in
-/// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
-/// which compares the Python-side `BLOCKED_FPSS_METHODS` against the
-/// `_blocked_fpss_methods()` introspection helper exposed below.
+/// `tests/test_standalone_clients.py` holds the list, through the
+/// `_blocked_fpss_methods()` helper exposed below, to the methods of the built
+/// `StreamView` class plus `stream` and `streaming`.
 pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
-    // Streaming lifecycle and subscription methods on `StreamView`.
+    // Every method of `StreamView`.
     "start_streaming",
     "stop_streaming",
     "shutdown",
@@ -77,15 +75,17 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "active_full_subscriptions",
     "dropped_event_count",
     "panic_count",
+    "ring_occupancy",
+    "ring_capacity",
+    "millis_since_last_event",
+    "last_event_received_at_unix_nanos",
+    "last_connected_addr",
+    "is_authenticated",
     // Hand-written `#[pymethods]` entries on `Client` /
     // sibling streaming pyclasses. These factories return a
     // streaming-session pyclass (sync, sync-iter, or asyncio) — the
     // session itself transitively opens the streaming surface, so a
-    // market-data-only handle must refuse access. Drift guard: the offline
-    // coverage test in
-    // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
-    // pairs every name here with the
-    // `mdds_client._blocked_fpss_methods()` introspection helper.
+    // market-data-only handle must refuse access.
     "streaming",
     // The `client.stream` sub-namespace accessor — blocking the
     // accessor itself closes the transitive path
