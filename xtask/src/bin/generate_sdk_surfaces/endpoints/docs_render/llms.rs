@@ -112,6 +112,11 @@ pub(super) fn render_llms_txt(
         if seen.contains(&url) {
             continue;
         }
+        // Every reference page but an index is rendered above, so one left on
+        // disk documents an endpoint the table no longer has.
+        if rel.starts_with("reference/") && !rel.ends_with("/index.md") {
+            return Err(format!("docs-site/docs/{rel} documents no endpoint; delete it").into());
+        }
         let contents = std::fs::read_to_string(&path)?;
         let (title, description) = frontmatter(&contents);
         entries.push((url, title, description));

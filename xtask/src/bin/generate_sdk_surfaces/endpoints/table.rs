@@ -167,7 +167,9 @@ pub(super) fn check_proto_coverage(
 /// while the surfaces rendered here would describe it as written. A string
 /// default is sent as written, so it must be a value its type accepts. An
 /// enum parameter's description lists the enum's values by hand, so it must
-/// list exactly those values.
+/// list exactly those values. The C ABI fails to build when an optional
+/// parameter has no field in its options struct, but not the other way
+/// round, so every field must be an optional parameter of some endpoint.
 pub(super) fn check_entries(
     endpoints: &[GeneratedEndpoint],
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -217,6 +219,18 @@ pub(super) fn check_entries(
         if !param.description.ends_with(&listed) {
             errors.insert(format!(
                 "'{name}' description does not end with \"{listed}\""
+            ));
+        }
+    }
+    for option in REQUEST_OPTIONS {
+        if !endpoints
+            .iter()
+            .flat_map(|e| e.params)
+            .any(|p| !p.required && p.name == option.name)
+        {
+            errors.insert(format!(
+                "request option '{}' is an optional parameter of no endpoint",
+                option.name
             ));
         }
     }
