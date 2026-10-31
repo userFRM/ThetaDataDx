@@ -105,15 +105,6 @@ pub(super) fn to_camel_case(value: &str) -> String {
 
 // ───────────────────────── Per-language type tables ─────────────────────────
 
-/// Returns `true` if the parameter is a time-of-day argument
-/// (`start_time`, `end_time`, `min_time`, or `time_of_day`).
-pub(super) fn is_time_arg(param: &GeneratedParam) -> bool {
-    matches!(
-        param.name,
-        "start_time" | "end_time" | "min_time" | "time_of_day"
-    )
-}
-
 /// Returns the FFI `#[repr(C)]` array type name for a return type
 /// (e.g. `ThetaDataDxStringArray`, `ThetaDataDxTradeTickArray`).
 pub(super) fn ffi_array_type(return_type: &str) -> String {

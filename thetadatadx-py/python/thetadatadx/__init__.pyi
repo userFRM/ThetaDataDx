@@ -21,15 +21,16 @@ Type checkers discover these annotations through the ``py.typed`` marker
 (PEP 561) shipped alongside this file.
 """
 
-# The per-endpoint market-data builders resolve through the module-level
-# `__getattr__` to `Any`; everything else public is annotated here. The
-# event classes, the `Config` properties, the tick classes and the
-# market-data methods are generated from the tables the runtime is built
-# from.
+# The event classes, the `Config` properties, the tick classes, the
+# market-data methods and their builders are generated from the tables the
+# runtime is built from.
 
 from __future__ import annotations
 
 from datetime import date, datetime, time
+# A builder's `date` setter shadows `date` in its class, so the builders'
+# setters name the type `_date`.
+from datetime import date as _date
 from os import PathLike
 from typing import (
     Any,
@@ -3483,116 +3484,3333 @@ EventCallback = Callable[[Any], None]
 # --- BEGIN GENERATED MARKET DATA VIEW (endpoint table) ---
 # Generated from the endpoint table; do not edit by hand. Run
 # `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.
-#
-# The fluent builder classes and `StringList` returned below are
-# registered at runtime by the compiled extension and resolve through
-# the module-level `__getattr__`; they are aliased to `Any` here so the
-# method signatures stay precise without re-enumerating their surface.
-# The tick rows and their typed lists are stubbed above.
-StringList = Any
-StockListSymbolsBuilder = Any
-StockListDatesBuilder = Any
-StockSnapshotOhlcBuilder = Any
-StockSnapshotTradeBuilder = Any
-StockSnapshotQuoteBuilder = Any
-StockSnapshotMarketValueBuilder = Any
-StockHistoryEodBuilder = Any
-StockHistoryOhlcBuilder = Any
-StockHistoryTradeBuilder = Any
-StockHistoryQuoteBuilder = Any
-StockHistoryTradeQuoteBuilder = Any
-StockAtTimeTradeBuilder = Any
-StockAtTimeQuoteBuilder = Any
-StockFlatFileEodBuilder = Any
-StockFlatFileTradeQuoteBuilder = Any
-StockFlatFileQuoteBuilder = Any
-OptionListSymbolsBuilder = Any
-OptionListDatesBuilder = Any
-OptionListExpirationsBuilder = Any
-OptionListStrikesBuilder = Any
-OptionListContractsBuilder = Any
-OptionSnapshotOhlcBuilder = Any
-OptionSnapshotTradeBuilder = Any
-OptionSnapshotQuoteBuilder = Any
-OptionSnapshotOpenInterestBuilder = Any
-OptionSnapshotMarketValueBuilder = Any
-OptionSnapshotGreeksImpliedVolatilityBuilder = Any
-OptionSnapshotGreeksAllBuilder = Any
-OptionSnapshotBinomialGreeksAllBuilder = Any
-OptionSnapshotGreeksFirstOrderBuilder = Any
-OptionSnapshotBinomialGreeksFirstOrderBuilder = Any
-OptionSnapshotGreeksSecondOrderBuilder = Any
-OptionSnapshotBinomialGreeksSecondOrderBuilder = Any
-OptionSnapshotGreeksThirdOrderBuilder = Any
-OptionSnapshotBinomialGreeksThirdOrderBuilder = Any
-OptionHistoryEodBuilder = Any
-OptionHistoryOhlcBuilder = Any
-OptionHistoryTradeBuilder = Any
-OptionHistoryQuoteBuilder = Any
-OptionHistoryTradeQuoteBuilder = Any
-OptionHistoryOpenInterestBuilder = Any
-OptionHistoryGreeksEodBuilder = Any
-OptionHistoryBinomialGreeksEodBuilder = Any
-OptionHistoryGreeksAllBuilder = Any
-OptionHistoryBinomialGreeksAllBuilder = Any
-OptionHistoryTradeGreeksAllBuilder = Any
-OptionHistoryBinomialTradeGreeksAllBuilder = Any
-OptionHistoryGreeksFirstOrderBuilder = Any
-OptionHistoryBinomialGreeksFirstOrderBuilder = Any
-OptionHistoryTradeGreeksFirstOrderBuilder = Any
-OptionHistoryBinomialTradeGreeksFirstOrderBuilder = Any
-OptionHistoryGreeksSecondOrderBuilder = Any
-OptionHistoryBinomialGreeksSecondOrderBuilder = Any
-OptionHistoryTradeGreeksSecondOrderBuilder = Any
-OptionHistoryBinomialTradeGreeksSecondOrderBuilder = Any
-OptionHistoryGreeksThirdOrderBuilder = Any
-OptionHistoryBinomialGreeksThirdOrderBuilder = Any
-OptionHistoryTradeGreeksThirdOrderBuilder = Any
-OptionHistoryBinomialTradeGreeksThirdOrderBuilder = Any
-OptionHistoryGreeksImpliedVolatilityBuilder = Any
-OptionHistoryTradeGreeksImpliedVolatilityBuilder = Any
-OptionAtTimeTradeBuilder = Any
-OptionAtTimeQuoteBuilder = Any
-OptionFlatFileEodBuilder = Any
-OptionFlatFileTradeQuoteBuilder = Any
-OptionFlatFileOpenInterestBuilder = Any
-OptionFlatFileQuoteBuilder = Any
-IndexListSymbolsBuilder = Any
-IndexListDatesBuilder = Any
-IndexSnapshotOhlcBuilder = Any
-IndexSnapshotPriceBuilder = Any
-IndexSnapshotMarketValueBuilder = Any
-IndexHistoryEodBuilder = Any
-IndexHistoryOhlcBuilder = Any
-IndexHistoryPriceBuilder = Any
-IndexAtTimePriceBuilder = Any
-IndexFlatFileEodBuilder = Any
-CalendarOpenTodayBuilder = Any
-CalendarOnDateBuilder = Any
-CalendarYearBuilder = Any
-InterestRateHistoryEodBuilder = Any
 
 @final
-class MarketDataView:
-    """Market-data sub-namespace returned by :attr:`Client.market_data`.
-
-    Exposes every historical / list / snapshot / at-time endpoint as a
-    method: the synchronous call, its ``*_async`` awaitable companion,
-    and a ``*_builder`` fluent constructor. The surface is projected
-    from the same endpoint definition that drives the runtime methods,
-    so the stubs cannot drift from the installed extension.
+class StringList:
+    """The strings a list endpoint returns. Supports `len()`, indexing, slicing and
+    iteration, and converts with `.to_list()`, `.to_arrow()`, `.to_pandas()` and
+    `.to_polars()` into one column named for what the list holds.
     """
 
-    def stock_list_symbols(
-        self,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List all available stock ticker symbols.
+    def __len__(self) -> int: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+    @overload
+    def __getitem__(self, key: int) -> str: ...
+    @overload
+    def __getitem__(self, key: slice) -> StringList: ...
+    def __iter__(self) -> Iterator[str]: ...
+    def to_list(self) -> List[str]:
+        """Return a plain Python `list` of the strings."""
+        ...
 
-        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
+    def to_arrow(self) -> Any:
+        """Return a one-column `pyarrow.Table` of the strings."""
+        ...
+
+    def to_pandas(self) -> Any:
+        """Return a one-column `pandas.DataFrame` of the strings. Requires pandas and pyarrow."""
+        ...
+
+    def to_polars(self) -> Any:
+        """Return a one-column `polars.DataFrame` of the strings. Requires polars and pyarrow."""
+        ...
+
+
+_Result = TypeVar("_Result")
+
+
+class _Builder(Generic[_Result]):
+    """Chain the setters, then run the request with `.list()` or `.list_async()`."""
+
+    def timeout_ms(self, value: int) -> Self:
+        """Apply a per-request deadline in milliseconds."""
+        ...
+
+    def list(self) -> _Result:
+        """Run the request and return its result."""
+        ...
+
+    def list_async(self) -> Awaitable[_Result]:
+        """Awaitable companion of `list()`."""
+        ...
+
+
+class _ChunkedBuilder(_Builder[_Result]):
+    """A builder whose response can also be streamed chunk by chunk."""
+
+    def stream(self, handler: Callable[[_Result], object]) -> None:
+        """Call `handler` once per response chunk, with the chunk's rows in the typed
+        list a whole result returns, without holding the full response in memory.
+        An exception raised by `handler` stops the stream and is raised from this call.
         """
         ...
+
+    def stream_async(self, handler: Callable[[_Result], object]) -> Awaitable[None]:
+        """Awaitable companion of `stream()`, resolving to `None` once the response
+        finishes. `handler` runs on a worker thread, one chunk at a time; cancelling
+        the awaitable fetches no further chunks.
+        """
+        ...
+
+
+@final
+class StockListSymbolsBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.stock_list_symbols`."""
+
+
+@final
+class StockListDatesBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.stock_list_dates`."""
+
+    def request_type(self, value: Union[str, RequestType]) -> Self:
+        """Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`."""
+        ...
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+
+@final
+class StockSnapshotOhlcBuilder(_Builder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_snapshot_ohlc`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class StockSnapshotTradeBuilder(_Builder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_snapshot_trade`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class StockSnapshotQuoteBuilder(_Builder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_snapshot_quote`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class StockSnapshotMarketValueBuilder(_Builder[MarketValueTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_snapshot_market_value`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class StockHistoryEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_history_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class StockHistoryOhlcBuilder(_ChunkedBuilder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_history_ohlc`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class StockHistoryTradeBuilder(_ChunkedBuilder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_history_trade`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class StockHistoryQuoteBuilder(_ChunkedBuilder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_history_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class StockHistoryTradeQuoteBuilder(_ChunkedBuilder[TradeQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_history_trade_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def exclusive(self, value: bool) -> Self:
+        """When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted."""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def use_time_based_trade_quote(self, value: bool) -> Self:
+        """Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted."""
+        ...
+
+
+@final
+class StockAtTimeTradeBuilder(_ChunkedBuilder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_at_time_trade`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def time_of_day(self, value: Union[str, time, datetime]) -> Self:
+        """ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+
+@final
+class StockAtTimeQuoteBuilder(_ChunkedBuilder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_at_time_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def time_of_day(self, value: Union[str, time, datetime]) -> Self:
+        """ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"""
+        ...
+
+    def venue(self, value: Union[str, Venue]) -> Self:
+        """Venue/exchange filter. Accepted values: `nqb`, `utp_cta`."""
+        ...
+
+
+@final
+class StockFlatFileEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_flat_file_eod`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class StockFlatFileTradeQuoteBuilder(_ChunkedBuilder[TradeQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_flat_file_trade_quote`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class StockFlatFileQuoteBuilder(_ChunkedBuilder[IntervalQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.stock_flat_file_quote`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionListSymbolsBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.option_list_symbols`."""
+
+
+@final
+class OptionListDatesBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.option_list_dates`."""
+
+    def request_type(self, value: Union[str, RequestType]) -> Self:
+        """Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`."""
+        ...
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionListExpirationsBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.option_list_expirations`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+
+@final
+class OptionListStrikesBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.option_list_strikes`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionListContractsBuilder(_ChunkedBuilder[OptionContractList]):
+    """Fluent builder for :meth:`MarketDataView.option_list_contracts`."""
+
+    def request_type(self, value: Union[str, RequestType]) -> Self:
+        """Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`."""
+        ...
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+
+@final
+class OptionSnapshotOhlcBuilder(_Builder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_ohlc`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotTradeBuilder(_Builder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_trade`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotQuoteBuilder(_Builder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotOpenInterestBuilder(_Builder[OpenInterestTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_open_interest`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotMarketValueBuilder(_Builder[MarketValueTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_market_value`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotGreeksImpliedVolatilityBuilder(_Builder[IvTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_greeks_implied_volatility`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotGreeksAllBuilder(_Builder[GreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotBinomialGreeksAllBuilder(_Builder[GreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_binomial_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotGreeksFirstOrderBuilder(_Builder[GreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotBinomialGreeksFirstOrderBuilder(_Builder[GreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_binomial_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotGreeksSecondOrderBuilder(_Builder[GreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotBinomialGreeksSecondOrderBuilder(_Builder[GreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_binomial_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotGreeksThirdOrderBuilder(_Builder[GreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionSnapshotBinomialGreeksThirdOrderBuilder(_Builder[GreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_snapshot_binomial_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def stock_price(self, value: float) -> Self:
+        """Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def use_market_value(self, value: bool) -> Self:
+        """When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair."""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+
+@final
+class OptionHistoryOhlcBuilder(_ChunkedBuilder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_ohlc`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeBuilder(_ChunkedBuilder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryQuoteBuilder(_ChunkedBuilder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeQuoteBuilder(_ChunkedBuilder[TradeQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def exclusive(self, value: bool) -> Self:
+        """When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def use_time_based_trade_quote(self, value: bool) -> Self:
+        """Affects requests for current-day data only. When true, each trade is matched with a quote by millisecond timestamp. Defaults to true, matching the terminal, which sends true when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryOpenInterestBuilder(_ChunkedBuilder[OpenInterestTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_open_interest`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryGreeksEodBuilder(_ChunkedBuilder[GreeksEodTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def underlyer_use_nbbo(self, value: bool) -> Self:
+        """When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def option_use_nbbo(self, value: bool) -> Self:
+        """Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryBinomialGreeksEodBuilder(_ChunkedBuilder[GreeksEodTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_greeks_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def underlyer_use_nbbo(self, value: bool) -> Self:
+        """When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def option_use_nbbo(self, value: bool) -> Self:
+        """Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryGreeksAllBuilder(_ChunkedBuilder[GreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryBinomialGreeksAllBuilder(_ChunkedBuilder[GreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeGreeksAllBuilder(_ChunkedBuilder[TradeGreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryBinomialTradeGreeksAllBuilder(_ChunkedBuilder[TradeGreeksAllTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_trade_greeks_all`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryGreeksFirstOrderBuilder(_ChunkedBuilder[GreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryBinomialGreeksFirstOrderBuilder(_ChunkedBuilder[GreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeGreeksFirstOrderBuilder(_ChunkedBuilder[TradeGreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryBinomialTradeGreeksFirstOrderBuilder(_ChunkedBuilder[TradeGreeksFirstOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_trade_greeks_first_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryGreeksSecondOrderBuilder(_ChunkedBuilder[GreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryBinomialGreeksSecondOrderBuilder(_ChunkedBuilder[GreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeGreeksSecondOrderBuilder(_ChunkedBuilder[TradeGreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryBinomialTradeGreeksSecondOrderBuilder(_ChunkedBuilder[TradeGreeksSecondOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_trade_greeks_second_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryGreeksThirdOrderBuilder(_ChunkedBuilder[GreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryBinomialGreeksThirdOrderBuilder(_ChunkedBuilder[GreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeGreeksThirdOrderBuilder(_ChunkedBuilder[TradeGreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryBinomialTradeGreeksThirdOrderBuilder(_ChunkedBuilder[TradeGreeksThirdOrderTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_binomial_trade_greeks_third_order`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def binomial_steps(self, value: int) -> Self:
+        """Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionHistoryGreeksImpliedVolatilityBuilder(_ChunkedBuilder[IvTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_greeks_implied_volatility`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionHistoryTradeGreeksImpliedVolatilityBuilder(_ChunkedBuilder[TradeGreeksImpliedVolatilityTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_history_trade_greeks_implied_volatility`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def annual_dividend(self, value: float) -> Self:
+        """Annualized continuous dividend yield used in the Greeks calculation, as a decimal (e.g. 0.0042 for a 0.42% yield). Must be non-negative; to pass a dollar amount per share, use `annual_dividend_amount`."""
+        ...
+
+    def annual_dividend_amount(self, value: float) -> Self:
+        """Annual dividend per share, in dollars, used in the Greeks calculation (e.g. 0.96 for $0.96 per year). Must be non-negative, and the server refuses it beside a non-zero `annual_dividend`."""
+        ...
+
+    def rate_type(self, value: Union[str, RateType]) -> Self:
+        """Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`."""
+        ...
+
+    def rate_value(self, value: float) -> Self:
+        """Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate."""
+        ...
+
+    def version(self, value: Union[str, Version]) -> Self:
+        """Greeks model version. Accepted values: `latest`, `1`."""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def perf_boost_intraday(self, value: bool) -> Self:
+        """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class OptionAtTimeTradeBuilder(_ChunkedBuilder[TradeTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_at_time_trade`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def time_of_day(self, value: Union[str, time, datetime]) -> Self:
+        """ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+
+@final
+class OptionAtTimeQuoteBuilder(_ChunkedBuilder[QuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_at_time_quote`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def expiration(self, value: Union[str, _date, datetime]) -> Self:
+        """Expiration date YYYYMMDD"""
+        ...
+
+    def strike(self, value: str) -> Self:
+        """Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection."""
+        ...
+
+    def right(self, value: Union[str, Right]) -> Self:
+        """Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`."""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def time_of_day(self, value: Union[str, time, datetime]) -> Self:
+        """ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"""
+        ...
+
+    def max_dte(self, value: int) -> Self:
+        """Maximum days to expiration"""
+        ...
+
+    def strike_range(self, value: int) -> Self:
+        """Strike range filter"""
+        ...
+
+
+@final
+class OptionFlatFileEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_flat_file_eod`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionFlatFileTradeQuoteBuilder(_ChunkedBuilder[TradeQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_flat_file_trade_quote`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionFlatFileOpenInterestBuilder(_ChunkedBuilder[OpenInterestTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_flat_file_open_interest`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class OptionFlatFileQuoteBuilder(_ChunkedBuilder[IntervalQuoteTickList]):
+    """Fluent builder for :meth:`MarketDataView.option_flat_file_quote`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class IndexListSymbolsBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.index_list_symbols`."""
+
+
+@final
+class IndexListDatesBuilder(_Builder[StringList]):
+    """Fluent builder for :meth:`MarketDataView.index_list_dates`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+
+@final
+class IndexSnapshotOhlcBuilder(_Builder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_snapshot_ohlc`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class IndexSnapshotPriceBuilder(_Builder[PriceTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_snapshot_price`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class IndexSnapshotMarketValueBuilder(_Builder[MarketValueTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_snapshot_market_value`."""
+
+    def symbols(self, value: Union[str, Sequence[str]]) -> Self:
+        """Comma-separated ticker symbols (e.g. AAPL,MSFT)"""
+        ...
+
+    def min_time(self, value: Union[str, time, datetime]) -> Self:
+        """Minimum time filter"""
+        ...
+
+    def current_day_only(self, value: bool) -> Self:
+        """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+
+@final
+class IndexHistoryEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_history_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class IndexHistoryOhlcBuilder(_ChunkedBuilder[OhlcTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_history_ohlc`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+
+@final
+class IndexHistoryPriceBuilder(_ChunkedBuilder[PriceTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_history_price`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."""
+        ...
+
+    def interval(self, value: Union[str, Interval]) -> Self:
+        """Interval preset. Defaults to `1s` when omitted, matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`."""
+        ...
+
+    def start_time(self, value: Union[str, time, datetime]) -> Self:
+        """Start time filter"""
+        ...
+
+    def end_time(self, value: Union[str, time, datetime]) -> Self:
+        """End time filter"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+@final
+class IndexAtTimePriceBuilder(_ChunkedBuilder[IndexPriceAtTimeTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_at_time_price`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+    def time_of_day(self, value: Union[str, time, datetime]) -> Self:
+        """ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"""
+        ...
+
+
+@final
+class IndexFlatFileEodBuilder(_ChunkedBuilder[EodTickList]):
+    """Fluent builder for :meth:`MarketDataView.index_flat_file_eod`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class CalendarOpenTodayBuilder(_Builder[CalendarDayList]):
+    """Fluent builder for :meth:`MarketDataView.calendar_open_today`."""
+
+
+@final
+class CalendarOnDateBuilder(_Builder[CalendarDayList]):
+    """Fluent builder for :meth:`MarketDataView.calendar_on_date`."""
+
+    def date(self, value: Union[str, _date, datetime]) -> Self:
+        """Date YYYYMMDD"""
+        ...
+
+
+@final
+class CalendarYearBuilder(_Builder[CalendarDayList]):
+    """Fluent builder for :meth:`MarketDataView.calendar_year`."""
+
+    def year(self, value: str) -> Self:
+        """4-digit year (e.g. 2024)"""
+        ...
+
+
+@final
+class InterestRateHistoryEodBuilder(_ChunkedBuilder[InterestRateTickList]):
+    """Fluent builder for :meth:`MarketDataView.interest_rate_history_eod`."""
+
+    def symbol(self, value: str) -> Self:
+        """Ticker symbol (e.g. AAPL)"""
+        ...
+
+    def start_date(self, value: Union[str, _date, datetime]) -> Self:
+        """Start date YYYYMMDD"""
+        ...
+
+    def end_date(self, value: Union[str, _date, datetime]) -> Self:
+        """End date YYYYMMDD"""
+        ...
+
+
+class _AsyncMarketData:
+    """The awaitable market-data methods of :class:`MarketDataView`, which
+    :class:`AsyncClient` forwards. It does not exist at runtime.
+    """
 
     def stock_list_symbols_async(
         self,
@@ -3608,26 +6826,9 @@ class MarketDataView:
         """
         ...
 
-    def stock_list_symbols_builder(self) -> StockListSymbolsBuilder:
-        """Fluent builder for `stock_list_symbols`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_list_dates(
-        self,
-        request_type: str,
-        symbol: str,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
-
-        Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
-        """
-        ...
-
     def stock_list_dates_async(
         self,
-        request_type: str,
+        request_type: Union[str, RequestType],
         symbol: str,
         *,
         timeout_ms: Optional[int] = None,
@@ -3641,41 +6842,11 @@ class MarketDataView:
         """
         ...
 
-    def stock_list_dates_builder(
-        self,
-        request_type: str,
-        symbol: str,
-    ) -> StockListDatesBuilder:
-        """Fluent builder for `stock_list_dates`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_snapshot_ohlc(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        venue: Optional[str] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> OhlcTickList:
-        """Get the latest OHLC snapshot for one or more stocks.
-
-        Provides a real-time Open, High, Low, Close for the current day.
-        * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
-        * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def stock_snapshot_ohlc_async(
         self,
         symbols: Union[str, Sequence[str]],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
@@ -3696,39 +6867,11 @@ class MarketDataView:
         """
         ...
 
-    def stock_snapshot_ohlc_builder(
-        self,
-        symbols: Union[str, Sequence[str]],
-    ) -> StockSnapshotOhlcBuilder:
-        """Fluent builder for `stock_snapshot_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_snapshot_trade(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        venue: Optional[str] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeTickList:
-        """Get the latest trade snapshot for one or more stocks.
-
-        Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-
-        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def stock_snapshot_trade_async(
         self,
         symbols: Union[str, Sequence[str]],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
@@ -3748,39 +6891,11 @@ class MarketDataView:
         """
         ...
 
-    def stock_snapshot_trade_builder(
-        self,
-        symbols: Union[str, Sequence[str]],
-    ) -> StockSnapshotTradeBuilder:
-        """Fluent builder for `stock_snapshot_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_snapshot_quote(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        venue: Optional[str] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> QuoteTickList:
-        """Get the latest NBBO quote snapshot for one or more stocks.
-
-        * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
-        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def stock_snapshot_quote_async(
         self,
         symbols: Union[str, Sequence[str]],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
@@ -3800,39 +6915,11 @@ class MarketDataView:
         """
         ...
 
-    def stock_snapshot_quote_builder(
-        self,
-        symbols: Union[str, Sequence[str]],
-    ) -> StockSnapshotQuoteBuilder:
-        """Fluent builder for `stock_snapshot_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_snapshot_market_value(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        venue: Optional[str] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> MarketValueTickList:
-        """Get the latest market value snapshot for one or more stocks.
-
-        * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
-        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def stock_snapshot_market_value_async(
         self,
         symbols: Union[str, Sequence[str]],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         current_day_only: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
@@ -3849,27 +6936,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def stock_snapshot_market_value_builder(
-        self,
-        symbols: Union[str, Sequence[str]],
-    ) -> StockSnapshotMarketValueBuilder:
-        """Fluent builder for `stock_snapshot_market_value`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_eod(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> EodTickList:
-        """Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
-
-        Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
         """
         ...
 
@@ -3890,51 +6956,15 @@ class MarketDataView:
         """
         ...
 
-    def stock_history_eod_builder(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-    ) -> StockHistoryEodBuilder:
-        """Fluent builder for `stock_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_ohlc(
-        self,
-        symbol: str,
-        *,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> OhlcTickList:
-        """Fetch intraday OHLC bars for a stock on a single date.
-
-        - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
-        - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `venue`: `"nqb"`
-        """
-        ...
-
     def stock_history_ohlc_async(
         self,
         symbol: str,
         *,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         timeout_ms: Optional[int] = None,
@@ -3956,37 +6986,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_history_ohlc_builder(
-        self,
-        symbol: str,
-    ) -> StockHistoryOhlcBuilder:
-        """Fluent builder for `stock_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_trade(
-        self,
-        symbol: str,
-        *,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeTickList:
-        """Fetch all trades for a stock on a given date.
-
-        Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `venue`: `"nqb"`
-        """
-        ...
-
     def stock_history_trade_async(
         self,
         symbol: str,
@@ -3994,7 +6993,7 @@ class MarketDataView:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         timeout_ms: Optional[int] = None,
@@ -4014,50 +7013,15 @@ class MarketDataView:
         """
         ...
 
-    def stock_history_trade_builder(
-        self,
-        symbol: str,
-    ) -> StockHistoryTradeBuilder:
-        """Fluent builder for `stock_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_quote(
-        self,
-        symbol: str,
-        *,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> QuoteTickList:
-        """Fetch NBBO quotes for a stock on a given date at a given interval.
-
-        - Returns every NBBO quote reported by UTP and CTA. 
-        - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
-        - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `venue`: `"nqb"`
-        """
-        ...
-
     def stock_history_quote_async(
         self,
         symbol: str,
         *,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         timeout_ms: Optional[int] = None,
@@ -4080,41 +7044,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_history_quote_builder(
-        self,
-        symbol: str,
-    ) -> StockHistoryQuoteBuilder:
-        """Fluent builder for `stock_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_trade_quote(
-        self,
-        symbol: str,
-        *,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = True,
-        venue: Optional[str] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        use_time_based_trade_quote: Optional[bool] = True,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeQuoteTickList:
-        """Fetch combined trade + quote ticks for a stock on a given date.
-
-        Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `exclusive`: `true`
-        - `venue`: `"nqb"`
-        - `use_time_based_trade_quote`: `true`
-        """
-        ...
-
     def stock_history_trade_quote_async(
         self,
         symbol: str,
@@ -4123,7 +7052,7 @@ class MarketDataView:
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         exclusive: Optional[bool] = None,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         use_time_based_trade_quote: Optional[bool] = None,
@@ -4146,38 +7075,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_history_trade_quote_builder(
-        self,
-        symbol: str,
-    ) -> StockHistoryTradeQuoteBuilder:
-        """Fluent builder for `stock_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_at_time_trade(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-        *,
-        venue: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeTickList:
-        """Fetch the trade at a specific time of day across a date range.
-
-        #### Real-time request:
-        - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-        - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
-
-        #### Historical request:
-        Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
-        Trade condition mappings can be found here.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        """
-        ...
-
     def stock_at_time_trade_async(
         self,
         symbol: str,
@@ -4185,7 +7082,7 @@ class MarketDataView:
         end_date: Union[str, date, datetime],
         time_of_day: Union[str, time, datetime],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeTickList]:
         """Fetch the trade at a specific time of day across a date range.
@@ -4206,41 +7103,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_at_time_trade_builder(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-    ) -> StockAtTimeTradeBuilder:
-        """Fluent builder for `stock_at_time_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_at_time_quote(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-        *,
-        venue: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> QuoteTickList:
-        """Fetch the quote at a specific time of day across a date range.
-
-        #### Real-time request:
-          - Subscription tier standard or higher will default to NQB.
-          - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
-          - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
-
-        #### Historical request:
-          Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
-
-        Defaults (upstream):
-        - `venue`: `"nqb"`
-        """
-        ...
-
     def stock_at_time_quote_async(
         self,
         symbol: str,
@@ -4248,7 +7110,7 @@ class MarketDataView:
         end_date: Union[str, date, datetime],
         time_of_day: Union[str, time, datetime],
         *,
-        venue: Optional[str] = None,
+        venue: Optional[Union[str, Venue]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[QuoteTickList]:
         """Fetch the quote at a specific time of day across a date range.
@@ -4269,25 +7131,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_at_time_quote_builder(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-    ) -> StockAtTimeQuoteBuilder:
-        """Fluent builder for `stock_at_time_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_flat_file_eod(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> EodTickList:
-        """Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days."""
-        ...
-
     def stock_flat_file_eod_async(
         self,
         date: Union[str, date, datetime],
@@ -4297,25 +7140,6 @@ class MarketDataView:
         """Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def stock_flat_file_eod_builder(
-        self,
-        date: Union[str, date, datetime],
-    ) -> StockFlatFileEodBuilder:
-        """Fluent builder for `stock_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_flat_file_eod_to_path(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> str:
-        """Write the `stock_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
         """
         ...
 
@@ -4333,15 +7157,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_flat_file_trade_quote(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeQuoteTickList:
-        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."""
-        ...
-
     def stock_flat_file_trade_quote_async(
         self,
         date: Union[str, date, datetime],
@@ -4351,25 +7166,6 @@ class MarketDataView:
         """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def stock_flat_file_trade_quote_builder(
-        self,
-        date: Union[str, date, datetime],
-    ) -> StockFlatFileTradeQuoteBuilder:
-        """Fluent builder for `stock_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_flat_file_trade_quote_to_path(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> str:
-        """Write the `stock_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
         """
         ...
 
@@ -4387,15 +7183,6 @@ class MarketDataView:
         """
         ...
 
-    def stock_flat_file_quote(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> IntervalQuoteTickList:
-        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."""
-        ...
-
     def stock_flat_file_quote_async(
         self,
         date: Union[str, date, datetime],
@@ -4405,25 +7192,6 @@ class MarketDataView:
         """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def stock_flat_file_quote_builder(
-        self,
-        date: Union[str, date, datetime],
-    ) -> StockFlatFileQuoteBuilder:
-        """Fluent builder for `stock_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_flat_file_quote_to_path(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> str:
-        """Write the `stock_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
         """
         ...
 
@@ -4441,17 +7209,6 @@ class MarketDataView:
         """
         ...
 
-    def option_list_symbols(
-        self,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List all available option underlying symbols.
-
-        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
-        """
-        ...
-
     def option_list_symbols_async(
         self,
         *,
@@ -4466,39 +7223,14 @@ class MarketDataView:
         """
         ...
 
-    def option_list_symbols_builder(self) -> OptionListSymbolsBuilder:
-        """Fluent builder for `option_list_symbols`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_list_dates(
-        self,
-        request_type: str,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List available dates for an option contract by request type.
-
-        Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
-        This endpoint is updated overnight.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        """
-        ...
-
     def option_list_dates_async(
         self,
-        request_type: str,
+        request_type: Union[str, RequestType],
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[StringList]:
         """List available dates for an option contract by request type.
@@ -4512,28 +7244,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_list_dates_builder(
-        self,
-        request_type: str,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionListDatesBuilder:
-        """Fluent builder for `option_list_dates`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_list_expirations(
-        self,
-        symbol: str,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List available expiration dates for an option underlying.
-
-        Lists all dates of expirations that are available for an option with a given symbol.
-        This endpoint is updated overnight.
         """
         ...
 
@@ -4550,27 +7260,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_list_expirations_builder(
-        self,
-        symbol: str,
-    ) -> OptionListExpirationsBuilder:
-        """Fluent builder for `option_list_expirations`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_list_strikes(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> StringList:
-        """List available strike prices for an option at a given expiration.
-
-        Lists all strikes that are available for an option with a given symbol and expiration date.
-        This endpoint is updated overnight.
         """
         ...
 
@@ -4591,36 +7280,9 @@ class MarketDataView:
         """
         ...
 
-    def option_list_strikes_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionListStrikesBuilder:
-        """Fluent builder for `option_list_strikes`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_list_contracts(
-        self,
-        request_type: str,
-        date: Union[str, date, datetime],
-        *,
-        symbol: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> OptionContractList:
-        """List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
-
-        Lists all contracts that were traded or quoted on a particular date.
-
-        If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-        When ``symbol`` is omitted the full universe of contracts for that date is returned.
-        This endpoint is updated real-time.
-        """
-        ...
-
     def option_list_contracts_async(
         self,
-        request_type: str,
+        request_type: Union[str, RequestType],
         date: Union[str, date, datetime],
         *,
         symbol: Optional[str] = None,
@@ -4640,45 +7302,13 @@ class MarketDataView:
         """
         ...
 
-    def option_list_contracts_builder(
-        self,
-        request_type: str,
-        date: Union[str, date, datetime],
-    ) -> OptionListContractsBuilder:
-        """Fluent builder for `option_list_contracts`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_ohlc(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[OhlcTick]:
-        """Get the latest OHLC snapshot for an option contract.
-
-        - Retrieve a real-time last ohlc of an option contract for the trading day.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_ohlc_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -4699,45 +7329,13 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_ohlc_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotOhlcBuilder:
-        """Fluent builder for `option_snapshot_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_trade(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[TradeTick]:
-        """Get the latest trade snapshot for an option contract.
-
-        - Retrieve the real-time last trade of an option contract.
-        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_trade_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         current_day_only: Optional[bool] = None,
@@ -4758,46 +7356,13 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_trade_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotTradeBuilder:
-        """Fluent builder for `option_snapshot_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_quote(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[QuoteTick]:
-        """Get the latest NBBO quote snapshot for an option contract.
-
-        - Retrieve a real-time last NBBO quote of an option contract.
-        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_quote_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -4819,47 +7384,13 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_quote_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotQuoteBuilder:
-        """Fluent builder for `option_snapshot_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_open_interest(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[OpenInterestTick]:
-        """Get the latest open interest snapshot for an option contract.
-
-        - Retrieve the last open interest message of an option contract.
-        - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
-        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_open_interest_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -4882,45 +7413,13 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_open_interest_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotOpenInterestBuilder:
-        """Fluent builder for `option_snapshot_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_market_value(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[MarketValueTick]:
-        """Get the latest market value snapshot for an option contract.
-
-        * Returns a real-time market value derived from the last NBBO quote of an option contract.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_market_value_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -4941,63 +7440,19 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_market_value_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotMarketValueBuilder:
-        """Fluent builder for `option_snapshot_market_value`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_greeks_implied_volatility(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[IvTick]:
-        """Get implied volatility snapshot for an option contract (from ThetaData server).
-
-        Returns implied volatilies calculated using the national best bid, mid, and ask price
-        of the option respectively. The underlying price represents whatever the last underlying price was at the
-        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_greeks_implied_volatility_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5024,62 +7479,19 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_greeks_implied_volatility_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotGreeksImpliedVolatilityBuilder:
-        """Fluent builder for `option_snapshot_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksAllTick]:
-        """Get all Greeks snapshot for an option contract (from ThetaData server).
-
-        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_greeks_all_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5102,52 +7514,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_snapshot_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotGreeksAllBuilder:
-        """Fluent builder for `option_snapshot_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_binomial_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksAllTick]:
-        """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
-
-        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
         """
         ...
 
@@ -5157,14 +7523,14 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5192,62 +7558,19 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_binomial_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotBinomialGreeksAllBuilder:
-        """Fluent builder for `option_snapshot_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksFirstOrderTick]:
-        """Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
-
-        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_greeks_first_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5270,52 +7593,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_snapshot_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotGreeksFirstOrderBuilder:
-        """Fluent builder for `option_snapshot_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_binomial_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksFirstOrderTick]:
-        """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
-
-        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
         """
         ...
 
@@ -5325,14 +7602,14 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5360,62 +7637,19 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_binomial_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotBinomialGreeksFirstOrderBuilder:
-        """Fluent builder for `option_snapshot_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksSecondOrderTick]:
-        """Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
-
-        - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_greeks_second_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5438,52 +7672,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_snapshot_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotGreeksSecondOrderBuilder:
-        """Fluent builder for `option_snapshot_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_binomial_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksSecondOrderTick]:
-        """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
-
-        - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
         """
         ...
 
@@ -5493,14 +7681,14 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5528,62 +7716,19 @@ class MarketDataView:
         """
         ...
 
-    def option_snapshot_binomial_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotBinomialGreeksSecondOrderBuilder:
-        """Fluent builder for `option_snapshot_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksThirdOrderTick]:
-        """Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
-
-        - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
-        """
-        ...
-
     def option_snapshot_greeks_third_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5606,52 +7751,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_snapshot_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotGreeksThirdOrderBuilder:
-        """Fluent builder for `option_snapshot_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_snapshot_binomial_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = False,
-        current_day_only: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> List[GreeksThirdOrderTick]:
-        """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
-
-        - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `use_market_value`: `false`
-        - `current_day_only`: `false`
         """
         ...
 
@@ -5661,14 +7760,14 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
@@ -5693,40 +7792,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_snapshot_binomial_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionSnapshotBinomialGreeksThirdOrderBuilder:
-        """Fluent builder for `option_snapshot_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_eod(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> EodTickList:
-        """Fetch end-of-day option data for a contract over a date range.
-
-        - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
-        - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
-        - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
-        - You can read more about EOD & OHLC data here.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
         """
         ...
 
@@ -5738,7 +7803,7 @@ class MarketDataView:
         end_date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         timeout_ms: Optional[int] = None,
@@ -5759,56 +7824,15 @@ class MarketDataView:
         """
         ...
 
-    def option_history_eod_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-    ) -> OptionHistoryEodBuilder:
-        """Fluent builder for `option_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_ohlc(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> OhlcTickList:
-        """Fetch intraday OHLC bars for an option contract.
-
-        - Aggregated OHLC bars that use SIP rules for each bar. 
-        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        """
-        ...
-
     def option_history_ohlc_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         strike_range: Optional[int] = None,
@@ -5834,52 +7858,13 @@ class MarketDataView:
         """
         ...
 
-    def option_history_ohlc_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryOhlcBuilder:
-        """Fluent builder for `option_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeTickList:
-        """Fetch all trades for an option contract on a given date.
-
-        - Returns every trade reported by OPRA. 
-        - Trade condition mappings can be found here.
-        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        """
-        ...
-
     def option_history_trade_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -5907,55 +7892,15 @@ class MarketDataView:
         """
         ...
 
-    def option_history_trade_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeBuilder:
-        """Fluent builder for `option_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_quote(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> QuoteTickList:
-        """Fetch NBBO quotes for an option contract on a given date.
-
-        - Returns every NBBO quote reported by OPRA. 
-        - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        """
-        ...
-
     def option_history_quote_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         max_dte: Optional[int] = None,
@@ -5982,56 +7927,13 @@ class MarketDataView:
         """
         ...
 
-    def option_history_quote_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryQuoteBuilder:
-        """Fluent builder for `option_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_quote(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = True,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        use_time_based_trade_quote: Optional[bool] = True,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeQuoteTickList:
-        """Fetch combined trade + quote ticks for an option contract.
-
-        - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
-        - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
-        - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `exclusive`: `true`
-        - `use_time_based_trade_quote`: `true`
-        """
-        ...
-
     def option_history_trade_quote_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -6063,47 +7965,13 @@ class MarketDataView:
         """
         ...
 
-    def option_history_trade_quote_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeQuoteBuilder:
-        """Fluent builder for `option_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_open_interest(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> OpenInterestTickList:
-        """Fetch open interest history for an option contract.
-
-        - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
-        - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
-        - The reported open interest represents the open interest at the end of the previous trading day.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        """
-        ...
-
     def option_history_open_interest_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
@@ -6126,50 +7994,6 @@ class MarketDataView:
         """
         ...
 
-    def option_history_open_interest_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryOpenInterestBuilder:
-        """Fluent builder for `option_history_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_eod(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        underlyer_use_nbbo: Optional[bool] = False,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        option_use_nbbo: Optional[bool] = True,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksEodTickList:
-        """Fetch end-of-day Greeks history for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-        - **Any ``expiration=*`` request must be made day by day.**
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `underlyer_use_nbbo`: `false`
-        - `option_use_nbbo`: `true`
-        """
-        ...
-
     def option_history_greeks_eod_async(
         self,
         symbol: str,
@@ -6178,12 +8002,12 @@ class MarketDataView:
         end_date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         underlyer_use_nbbo: Optional[bool] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
@@ -6206,55 +8030,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_greeks_eod_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksEodBuilder:
-        """Fluent builder for `option_history_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_greeks_eod(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        underlyer_use_nbbo: Optional[bool] = False,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        option_use_nbbo: Optional[bool] = True,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksEodTickList:
-        """Fetch end-of-day binomial Greeks history for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-        - **Any ``expiration=*`` request must be made day by day.**
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `underlyer_use_nbbo`: `false`
-        - `option_use_nbbo`: `true`
         """
         ...
 
@@ -6266,13 +8041,13 @@ class MarketDataView:
         end_date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         underlyer_use_nbbo: Optional[bool] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
@@ -6300,71 +8075,22 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_greeks_eod_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialGreeksEodBuilder:
-        """Fluent builder for `option_history_binomial_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksAllTickList:
-        """Fetch all Greeks history for an option contract (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        """
-        ...
-
     def option_history_greeks_all_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -6388,56 +8114,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksAllBuilder:
-        """Fluent builder for `option_history_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksAllTickList:
-        """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
         """
         ...
 
@@ -6447,17 +8123,17 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -6486,69 +8162,21 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialGreeksAllBuilder:
-        """Fluent builder for `option_history_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksAllTickList:
-        """Fetch all Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
-        """
-        ...
-
     def option_history_trade_greeks_all_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -6574,57 +8202,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_trade_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeGreeksAllBuilder:
-        """Fluent builder for `option_history_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_trade_greeks_all(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksAllTickList:
-        """Fetch all binomial Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -6634,16 +8211,16 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -6674,69 +8251,22 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_trade_greeks_all_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialTradeGreeksAllBuilder:
-        """Fluent builder for `option_history_binomial_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksFirstOrderTickList:
-        """Fetch first-order Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        """
-        ...
-
     def option_history_greeks_first_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -6760,56 +8290,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksFirstOrderBuilder:
-        """Fluent builder for `option_history_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksFirstOrderTickList:
-        """Fetch first-order binomial Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
         """
         ...
 
@@ -6819,17 +8299,17 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -6858,69 +8338,21 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialGreeksFirstOrderBuilder:
-        """Fluent builder for `option_history_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksFirstOrderTickList:
-        """Fetch first-order Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
-        """
-        ...
-
     def option_history_trade_greeks_first_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -6946,57 +8378,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_trade_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeGreeksFirstOrderBuilder:
-        """Fluent builder for `option_history_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_trade_greeks_first_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksFirstOrderTickList:
-        """Fetch first-order binomial Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -7006,16 +8387,16 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7046,69 +8427,22 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_trade_greeks_first_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialTradeGreeksFirstOrderBuilder:
-        """Fluent builder for `option_history_binomial_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksSecondOrderTickList:
-        """Fetch second-order Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        """
-        ...
-
     def option_history_greeks_second_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -7132,56 +8466,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksSecondOrderBuilder:
-        """Fluent builder for `option_history_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksSecondOrderTickList:
-        """Fetch second-order binomial Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
         """
         ...
 
@@ -7191,17 +8475,17 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -7230,69 +8514,21 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialGreeksSecondOrderBuilder:
-        """Fluent builder for `option_history_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksSecondOrderTickList:
-        """Fetch second-order Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
-        """
-        ...
-
     def option_history_trade_greeks_second_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7318,57 +8554,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_trade_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeGreeksSecondOrderBuilder:
-        """Fluent builder for `option_history_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_trade_greeks_second_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksSecondOrderTickList:
-        """Fetch second-order binomial Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -7378,16 +8563,16 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7418,69 +8603,22 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_trade_greeks_second_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialTradeGreeksSecondOrderBuilder:
-        """Fluent builder for `option_history_binomial_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksThirdOrderTickList:
-        """Fetch third-order Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        """
-        ...
-
     def option_history_greeks_third_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -7504,56 +8642,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksThirdOrderBuilder:
-        """Fluent builder for `option_history_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> GreeksThirdOrderTickList:
-        """Fetch third-order binomial Greeks history (intraday, sampled by interval).
-
-        - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
         """
         ...
 
@@ -7563,17 +8651,17 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -7602,69 +8690,21 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialGreeksThirdOrderBuilder:
-        """Fluent builder for `option_history_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksThirdOrderTickList:
-        """Fetch third-order Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
-        """
-        ...
-
     def option_history_trade_greeks_third_order_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7690,57 +8730,6 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def option_history_trade_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeGreeksThirdOrderBuilder:
-        """Fluent builder for `option_history_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_binomial_trade_greeks_third_order(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = 101,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksThirdOrderTickList:
-        """Fetch third-order binomial Greeks on each trade for an option contract.
-
-        - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
-        - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `binomial_steps`: `101`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -7750,16 +8739,16 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         binomial_steps: Optional[int] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7790,68 +8779,22 @@ class MarketDataView:
         """
         ...
 
-    def option_history_binomial_trade_greeks_third_order_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryBinomialTradeGreeksThirdOrderBuilder:
-        """Fluent builder for `option_history_binomial_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_greeks_implied_volatility(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> IvTickList:
-        """Fetch implied volatility history (intraday, sampled by interval).
-
-        - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        """
-        ...
-
     def option_history_greeks_implied_volatility_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -7877,68 +8820,21 @@ class MarketDataView:
         """
         ...
 
-    def option_history_greeks_implied_volatility_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryGreeksImpliedVolatilityBuilder:
-        """Fluent builder for `option_history_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_history_trade_greeks_implied_volatility(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        date: Optional[Union[str, date, datetime]] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        annual_dividend: Optional[float] = None,
-        annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
-        rate_value: Optional[float] = None,
-        version: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = False,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeGreeksImpliedVolatilityTickList:
-        """Fetch implied volatility on each trade for an option contract.
-
-        - Returns implied volatilies calculated using the trade reported by OPRA. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `rate_type`: `"sofr"`
-        - `version`: `"latest"`
-        - `perf_boost_intraday`: `false`
-        """
-        ...
-
     def option_history_trade_greeks_implied_volatility_async(
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
         annual_dividend_amount: Optional[float] = None,
-        rate_type: Optional[str] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        version: Optional[str] = None,
+        version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -7966,41 +8862,6 @@ class MarketDataView:
         """
         ...
 
-    def option_history_trade_greeks_implied_volatility_builder(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-    ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder:
-        """Fluent builder for `option_history_trade_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def option_at_time_trade(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> TradeTickList:
-        """Fetch the trade at a specific time of day across a date range for an option.
-
-        - Returns the last trade reported by OPRA at a specified millisecond of the day.
-        - Trade condition mappings can be found here.
-        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
-        - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-        """
-        ...
-
     def option_at_time_trade_async(
         self,
         symbol: str,
@@ -8010,7 +8871,7 @@ class MarketDataView:
         time_of_day: Union[str, time, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         timeout_ms: Optional[int] = None,
@@ -8028,6 +8889,2801 @@ class MarketDataView:
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_at_time_quote_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[QuoteTickList]:
+        """Fetch the quote at a specific time of day across a date range for an option.
+
+        - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
+        - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_eod_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_eod_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
+    def option_flat_file_trade_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeQuoteTickList]:
+        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_trade_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
+    def option_flat_file_open_interest_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[OpenInterestTickList]:
+        """Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_open_interest_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_open_interest` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
+    def option_flat_file_quote_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[IntervalQuoteTickList]:
+        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_flat_file_quote_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `option_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
+    def index_list_symbols_async(
+        self,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[StringList]:
+        """List all available index symbols.
+
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_list_dates_async(
+        self,
+        symbol: str,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[StringList]:
+        """List available dates for an index symbol.
+
+        Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_snapshot_ohlc_async(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[OhlcTickList]:
+        """Get the latest OHLC snapshot for one or more indices.
+
+        - Retrieves the real-time current day OHLC.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_snapshot_price_async(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[PriceTickList]:
+        """Get the latest price snapshot for one or more indices.
+
+        - Retrieves a real-time last index price.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_snapshot_market_value_async(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[MarketValueTickList]:
+        """Get the latest market value snapshot for one or more indices.
+
+        - Retrieves a real-time last index market value.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `current_day_only`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_history_eod_async(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch end-of-day index data for a date range.
+
+        - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_history_ohlc_async(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[OhlcTickList]:
+        """Fetch intraday OHLC bars for an index.
+
+        - Aggregated OHLC bars that use SIP rules for each bar.
+        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+        - Exchanges typically generate a price report every second for popular indices like SPX.
+
+        Defaults (upstream):
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_history_price_async(
+        self,
+        symbol: str,
+        *,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[PriceTickList]:
+        """Fetch intraday price history for an index.
+
+        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+        - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
+        - A price update from the exchange is omitted if the price remained the same from the previous update.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_at_time_price_async(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[IndexPriceAtTimeTickList]:
+        """Fetch the index price at a specific time of day across a date range.
+
+        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
+        - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_flat_file_eod_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[EodTickList]:
+        """Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def index_flat_file_eod_to_path_async(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> Awaitable[str]:
+        """Write the `index_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+
+        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
+        """
+        ...
+
+    def calendar_open_today_async(
+        self,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[CalendarDay]]:
+        """Check whether the market is open today.
+
+        - Retrieves current day equity market schedule
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def calendar_on_date_async(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[CalendarDay]]:
+        """Get calendar information for a specific date.
+
+        - Retrieves equity market schedule for a given date
+        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def calendar_year_async(
+        self,
+        year: str,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[CalendarDay]]:
+        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
+
+        - Retrieves equity market holidays for a given year
+        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
+        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
+        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def interest_rate_history_eod_async(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[InterestRateTickList]:
+        """Fetch end-of-day interest rate history.
+
+        - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
+        - Valid `symbol` values per upstream `RateType` enum:
+          `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
+          `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
+          `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+
+@final
+class MarketDataView(_AsyncMarketData):
+    """Market-data sub-namespace returned by :attr:`Client.market_data`.
+
+    Exposes every historical / list / snapshot / at-time endpoint as a
+    method: the synchronous call, its ``*_async`` awaitable companion,
+    and a ``*_builder`` fluent constructor. The surface is projected
+    from the same endpoint definition that drives the runtime methods,
+    so the stubs cannot drift from the installed extension.
+    """
+
+    def stock_list_symbols(
+        self,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List all available stock ticker symbols.
+
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
+        """
+        ...
+
+    def stock_list_symbols_builder(self) -> StockListSymbolsBuilder:
+        """Fluent builder for `stock_list_symbols`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_list_dates(
+        self,
+        request_type: Union[str, RequestType],
+        symbol: str,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List available dates for a stock by request type (EOD, TRADE, QUOTE, etc.).
+
+        Lists all dates of data that are available for a stock with a given request type and symbol. This endpoint is updated overnight.
+        """
+        ...
+
+    def stock_list_dates_builder(
+        self,
+        request_type: Union[str, RequestType],
+        symbol: str,
+    ) -> StockListDatesBuilder:
+        """Fluent builder for `stock_list_dates`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_snapshot_ohlc(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> OhlcTickList:
+        """Get the latest OHLC snapshot for one or more stocks.
+
+        Provides a real-time Open, High, Low, Close for the current day.
+        * Returns a real-time session OHLC from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed session OHLC from the UTP & CTA feeds if the account has the stocks value subscription.
+        * Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def stock_snapshot_ohlc_builder(
+        self,
+        symbols: Union[str, Sequence[str]],
+    ) -> StockSnapshotOhlcBuilder:
+        """Fluent builder for `stock_snapshot_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_snapshot_trade(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeTickList:
+        """Get the latest trade snapshot for one or more stocks.
+
+        Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def stock_snapshot_trade_builder(
+        self,
+        symbols: Union[str, Sequence[str]],
+    ) -> StockSnapshotTradeBuilder:
+        """Fluent builder for `stock_snapshot_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_snapshot_quote(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> QuoteTickList:
+        """Get the latest NBBO quote snapshot for one or more stocks.
+
+        * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed NBBO quote from the UTP & CTA feeds account has the stocks value subscription subscription.
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def stock_snapshot_quote_builder(
+        self,
+        symbols: Union[str, Sequence[str]],
+    ) -> StockSnapshotQuoteBuilder:
+        """Fluent builder for `stock_snapshot_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_snapshot_market_value(
+        self,
+        symbols: Union[str, Sequence[str]],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> MarketValueTickList:
+        """Get the latest market value snapshot for one or more stocks.
+
+        * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        * Returns a 15-minute delayed market value derived from an NBBO quote from the UTP & CTA feeds if the account has the stocks value subscription subscription.
+        - Theta Data resets its snapshot cache at midnight ET every day. This endpoint may not work on a weekend where there were no eligible messages sent over exchange feeds. We recommend using historic requests during the weekend.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def stock_snapshot_market_value_builder(
+        self,
+        symbols: Union[str, Sequence[str]],
+    ) -> StockSnapshotMarketValueBuilder:
+        """Fluent builder for `stock_snapshot_market_value`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_history_eod(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
+
+        Since the equity SIPs only generate a partial EOD report, Theta Data generates a national EOD report at 17:15 ET each day. ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. The quote in the response represents the last NBBO reported by CTA or UTP at the time of report generation. You can read more about EOD & OHLC data here. Theta Data plans to avail SIP EOD reports in the near future.
+        """
+        ...
+
+    def stock_history_eod_builder(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+    ) -> StockHistoryEodBuilder:
+        """Fluent builder for `stock_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_history_ohlc(
+        self,
+        symbol: str,
+        *,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        venue: Optional[Union[str, Venue]] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> OhlcTickList:
+        """Fetch intraday OHLC bars for a stock on a single date.
+
+        - Aggregated OHLC bars that use SIP rules for each bar. Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar time`` <= ``trade time`` < ``bar timestamp + ivl``, where ivl is the specified interval size in milliseconds. 
+        - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `venue`: `"nqb"`
+        """
+        ...
+
+    def stock_history_ohlc_builder(
+        self,
+        symbol: str,
+    ) -> StockHistoryOhlcBuilder:
+        """Fluent builder for `stock_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_history_trade(
+        self,
+        symbol: str,
+        *,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        venue: Optional[Union[str, Venue]] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeTickList:
+        """Fetch all trades for a stock on a given date.
+
+        Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `venue`: `"nqb"`
+        """
+        ...
+
+    def stock_history_trade_builder(
+        self,
+        symbol: str,
+    ) -> StockHistoryTradeBuilder:
+        """Fluent builder for `stock_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_history_quote(
+        self,
+        symbol: str,
+        *,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        venue: Optional[Union[str, Venue]] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> QuoteTickList:
+        """Fetch NBBO quotes for a stock on a given date at a given interval.
+
+        - Returns every NBBO quote reported by UTP and CTA. 
+        - If the ``interval`` parameter is specified, the quote for each interval represents the last quote prior to the interval's timestamp. 
+        - Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `venue`: `"nqb"`
+        """
+        ...
+
+    def stock_history_quote_builder(
+        self,
+        symbol: str,
+    ) -> StockHistoryQuoteBuilder:
+        """Fluent builder for `stock_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_history_trade_quote(
+        self,
+        symbol: str,
+        *,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        exclusive: Optional[bool] = True,
+        venue: Optional[Union[str, Venue]] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeQuoteTickList:
+        """Fetch combined trade + quote ticks for a stock on a given date.
+
+        Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `exclusive`: `true`
+        - `venue`: `"nqb"`
+        - `use_time_based_trade_quote`: `true`
+        """
+        ...
+
+    def stock_history_trade_quote_builder(
+        self,
+        symbol: str,
+    ) -> StockHistoryTradeQuoteBuilder:
+        """Fluent builder for `stock_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_at_time_trade(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeTickList:
+        """Fetch the trade at a specific time of day across a date range.
+
+        #### Real-time request:
+        - Returns a real-time session from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+        - Returns a 15-minute delayed session from the UTP & CTA feeds account has the stocks value subscription subscription.
+
+        #### Historical request:
+        Returns the last trade reported by UTP & CTA feeds at a specified millisecond of the day.
+        Trade condition mappings can be found here.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        """
+        ...
+
+    def stock_at_time_trade_builder(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+    ) -> StockAtTimeTradeBuilder:
+        """Fluent builder for `stock_at_time_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_at_time_quote(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+        *,
+        venue: Optional[Union[str, Venue]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> QuoteTickList:
+        """Fetch the quote at a specific time of day across a date range.
+
+        #### Real-time request:
+          - Subscription tier standard or higher will default to NQB.
+          - Real-time last BBO quote at-time_of_day-time from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
+          - 15-minute delayed NBBO quote at-time_of_day-time from the UTP & CTA feeds account has the stocks value subscription subscription.
+
+        #### Historical request:
+          Returns the last NBBO quote reported by UTP & CTA feeds at a specified millisecond of the day.
+
+        Defaults (upstream):
+        - `venue`: `"nqb"`
+        """
+        ...
+
+    def stock_at_time_quote_builder(
+        self,
+        symbol: str,
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+    ) -> StockAtTimeQuoteBuilder:
+        """Fluent builder for `stock_at_time_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_eod(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch the end-of-day report of every stock for one date. The vendor keeps the most recent 7 calendar days."""
+        ...
+
+    def stock_flat_file_eod_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileEodBuilder:
+        """Fluent builder for `stock_flat_file_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_eod_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def stock_flat_file_trade_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeQuoteTickList:
+        """Fetch every stock trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."""
+        ...
+
+    def stock_flat_file_trade_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileTradeQuoteBuilder:
+        """Fluent builder for `stock_flat_file_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_trade_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def stock_flat_file_quote(
+        self,
+        date: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> IntervalQuoteTickList:
+        """Fetch every stock's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."""
+        ...
+
+    def stock_flat_file_quote_builder(
+        self,
+        date: Union[str, date, datetime],
+    ) -> StockFlatFileQuoteBuilder:
+        """Fluent builder for `stock_flat_file_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def stock_flat_file_quote_to_path(
+        self,
+        date: Union[str, date, datetime],
+        path: Union[str, PathLike[str]],
+        format: Optional[str] = None,
+    ) -> str:
+        """Write the `stock_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
+
+        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
+        """
+        ...
+
+    def option_list_symbols(
+        self,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List all available option underlying symbols.
+
+        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
+        """
+        ...
+
+    def option_list_symbols_builder(self) -> OptionListSymbolsBuilder:
+        """Fluent builder for `option_list_symbols`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_list_dates(
+        self,
+        request_type: Union[str, RequestType],
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List available dates for an option contract by request type.
+
+        Lists all dates of data that are available for an option with a given symbol, request type, and expiration.
+        This endpoint is updated overnight.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        """
+        ...
+
+    def option_list_dates_builder(
+        self,
+        request_type: Union[str, RequestType],
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionListDatesBuilder:
+        """Fluent builder for `option_list_dates`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_list_expirations(
+        self,
+        symbol: str,
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List available expiration dates for an option underlying.
+
+        Lists all dates of expirations that are available for an option with a given symbol.
+        This endpoint is updated overnight.
+        """
+        ...
+
+    def option_list_expirations_builder(
+        self,
+        symbol: str,
+    ) -> OptionListExpirationsBuilder:
+        """Fluent builder for `option_list_expirations`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_list_strikes(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        timeout_ms: Optional[int] = None,
+    ) -> StringList:
+        """List available strike prices for an option at a given expiration.
+
+        Lists all strikes that are available for an option with a given symbol and expiration date.
+        This endpoint is updated overnight.
+        """
+        ...
+
+    def option_list_strikes_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionListStrikesBuilder:
+        """Fluent builder for `option_list_strikes`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_list_contracts(
+        self,
+        request_type: Union[str, RequestType],
+        date: Union[str, date, datetime],
+        *,
+        symbol: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> OptionContractList:
+        """List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
+
+        Lists all contracts that were traded or quoted on a particular date.
+
+        If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
+        When ``symbol`` is omitted the full universe of contracts for that date is returned.
+        This endpoint is updated real-time.
+        """
+        ...
+
+    def option_list_contracts_builder(
+        self,
+        request_type: Union[str, RequestType],
+        date: Union[str, date, datetime],
+    ) -> OptionListContractsBuilder:
+        """Fluent builder for `option_list_contracts`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_ohlc(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[OhlcTick]:
+        """Get the latest OHLC snapshot for an option contract.
+
+        - Retrieve a real-time last ohlc of an option contract for the trading day.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_ohlc_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotOhlcBuilder:
+        """Fluent builder for `option_snapshot_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_trade(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[TradeTick]:
+        """Get the latest trade snapshot for an option contract.
+
+        - Retrieve the real-time last trade of an option contract.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_trade_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotTradeBuilder:
+        """Fluent builder for `option_snapshot_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_quote(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[QuoteTick]:
+        """Get the latest NBBO quote snapshot for an option contract.
+
+        - Retrieve a real-time last NBBO quote of an option contract.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_quote_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotQuoteBuilder:
+        """Fluent builder for `option_snapshot_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_open_interest(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[OpenInterestTick]:
+        """Get the latest open interest snapshot for an option contract.
+
+        - Retrieve the last open interest message of an option contract.
+        - Open interest is reported around 06:30 ET every morning by OPRA and reflects the open interest at the end of the previous trading day.
+        - This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_open_interest_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotOpenInterestBuilder:
+        """Fluent builder for `option_snapshot_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_market_value(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[MarketValueTick]:
+        """Get the latest market value snapshot for an option contract.
+
+        * Returns a real-time market value derived from the last NBBO quote of an option contract.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_market_value_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotMarketValueBuilder:
+        """Fluent builder for `option_snapshot_market_value`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_greeks_implied_volatility(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[IvTick]:
+        """Get implied volatility snapshot for an option contract (from ThetaData server).
+
+        Returns implied volatilies calculated using the national best bid, mid, and ask price
+        of the option respectively. The underlying price represents whatever the last underlying price was at the
+        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_greeks_implied_volatility_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotGreeksImpliedVolatilityBuilder:
+        """Fluent builder for `option_snapshot_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksAllTick]:
+        """Get all Greeks snapshot for an option contract (from ThetaData server).
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotGreeksAllBuilder:
+        """Fluent builder for `option_snapshot_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksAllTick]:
+        """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksAllBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksFirstOrderTick]:
+        """Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotGreeksFirstOrderBuilder:
+        """Fluent builder for `option_snapshot_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksFirstOrderTick]:
+        """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksFirstOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksSecondOrderTick]:
+        """Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
+
+        - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotGreeksSecondOrderBuilder:
+        """Fluent builder for `option_snapshot_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksSecondOrderTick]:
+        """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+
+        - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksSecondOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksThirdOrderTick]:
+        """Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
+
+        - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotGreeksThirdOrderBuilder:
+        """Fluent builder for `option_snapshot_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksThirdOrderTick]:
+        """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+
+        - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        - `current_day_only`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksThirdOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_eod(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> EodTickList:
+        """Fetch end-of-day option data for a contract over a date range.
+
+        - Since OPRA does not provide a national EOD report for options, Theta Data generates a national EOD report at 17:15 ET each day.
+        - ``created`` represents the datetime the report was generated and ``last_trade`` represents the datetime of the last trade. 
+        - The quote in the response represents the last NBBO reported by OPRA at the time of report generation. 
+        - You can read more about EOD & OHLC data here.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        """
+        ...
+
+    def option_history_eod_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+    ) -> OptionHistoryEodBuilder:
+        """Fluent builder for `option_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_ohlc(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> OhlcTickList:
+        """Fetch intraday OHLC bars for an option contract.
+
+        - Aggregated OHLC bars that use SIP rules for each bar. 
+        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        """
+        ...
+
+    def option_history_ohlc_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryOhlcBuilder:
+        """Fluent builder for `option_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeTickList:
+        """Fetch all trades for an option contract on a given date.
+
+        - Returns every trade reported by OPRA. 
+        - Trade condition mappings can be found here.
+        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        """
+        ...
+
+    def option_history_trade_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeBuilder:
+        """Fluent builder for `option_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_quote(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> QuoteTickList:
+        """Fetch NBBO quotes for an option contract on a given date.
+
+        - Returns every NBBO quote reported by OPRA. 
+        - If the ``interval`` parameter is specified, the quote for each interval represents the last quote at the interval's timestamp.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        """
+        ...
+
+    def option_history_quote_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryQuoteBuilder:
+        """Fluent builder for `option_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_quote(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        exclusive: Optional[bool] = True,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeQuoteTickList:
+        """Fetch combined trade + quote ticks for an option contract.
+
+        - Returns every trade reported by OPRA paired with the last NBBO quote reported by OPRA at the time of trade.
+        - A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. 
+        - To match trades with quotes timestamps that are ``<`` the trade timestamp, specify the ``exclusive``parameter to ``true``. After thorough testing, we have determined that using ``exclusive=true`` might yield better results for various applications.
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `exclusive`: `true`
+        - `use_time_based_trade_quote`: `true`
+        """
+        ...
+
+    def option_history_trade_quote_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeQuoteBuilder:
+        """Fluent builder for `option_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_open_interest(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> OpenInterestTickList:
+        """Fetch open interest history for an option contract.
+
+        - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
+        - A new open interest message might not be sent by OPRA if there is no open interest for the option contract.
+        - The reported open interest represents the open interest at the end of the previous trading day.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        """
+        ...
+
+    def option_history_open_interest_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryOpenInterestBuilder:
+        """Fluent builder for `option_history_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_eod(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        underlyer_use_nbbo: Optional[bool] = False,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = True,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksEodTickList:
+        """Fetch end-of-day Greeks history for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any ``expiration=*`` request must be made day by day.**
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
+        """
+        ...
+
+    def option_history_greeks_eod_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksEodBuilder:
+        """Fluent builder for `option_history_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_greeks_eod(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        underlyer_use_nbbo: Optional[bool] = False,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        option_use_nbbo: Optional[bool] = True,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksEodTickList:
+        """Fetch end-of-day binomial Greeks history for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any ``expiration=*`` request must be made day by day.**
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `underlyer_use_nbbo`: `false`
+        - `option_use_nbbo`: `true`
+        """
+        ...
+
+    def option_history_binomial_greeks_eod_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksEodBuilder:
+        """Fluent builder for `option_history_binomial_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksAllTickList:
+        """Fetch all Greeks history for an option contract (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksAllBuilder:
+        """Fluent builder for `option_history_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksAllTickList:
+        """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksAllBuilder:
+        """Fluent builder for `option_history_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksAllTickList:
+        """Fetch all Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_trade_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeGreeksAllBuilder:
+        """Fluent builder for `option_history_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksAllTickList:
+        """Fetch all binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksAllBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksFirstOrderTickList:
+        """Fetch first-order Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksFirstOrderTickList:
+        """Fetch first-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksFirstOrderTickList:
+        """Fetch first-order Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_trade_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksFirstOrderTickList:
+        """Fetch first-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksSecondOrderTickList:
+        """Fetch second-order Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksSecondOrderTickList:
+        """Fetch second-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksSecondOrderTickList:
+        """Fetch second-order Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_trade_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksSecondOrderTickList:
+        """Fetch second-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksThirdOrderTickList:
+        """Fetch third-order Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksThirdOrderTickList:
+        """Fetch third-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksThirdOrderTickList:
+        """Fetch third-order Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_trade_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksThirdOrderTickList:
+        """Fetch third-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_greeks_implied_volatility(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[Union[str, Interval]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> IvTickList:
+        """Fetch implied volatility history (intraday, sampled by interval).
+
+        - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_greeks_implied_volatility_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryGreeksImpliedVolatilityBuilder:
+        """Fluent builder for `option_history_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_trade_greeks_implied_volatility(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        annual_dividend_amount: Optional[float] = None,
+        rate_type: Optional[Union[str, RateType]] = None,
+        rate_value: Optional[float] = None,
+        version: Optional[Union[str, Version]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksImpliedVolatilityTickList:
+        """Fetch implied volatility on each trade for an option contract.
+
+        - Returns implied volatilies calculated using the trade reported by OPRA. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_trade_greeks_implied_volatility_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder:
+        """Fluent builder for `option_history_trade_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_at_time_trade(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        time_of_day: Union[str, time, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeTickList:
+        """Fetch the trade at a specific time of day across a date range for an option.
+
+        - Returns the last trade reported by OPRA at a specified millisecond of the day.
+        - Trade condition mappings can be found here.
+        - Extended trade conditions are not reported by OPRA for options, so they can be ignored.
+        - The ``time_of_day``parameter represents the 00:00:00.000 ET that the trade should be provided for.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
         """
         ...
 
@@ -8051,7 +11707,7 @@ class MarketDataView:
         time_of_day: Union[str, time, datetime],
         *,
         strike: Optional[str] = None,
-        right: Optional[str] = None,
+        right: Optional[Union[str, Right]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         timeout_ms: Optional[int] = None,
@@ -8064,34 +11720,6 @@ class MarketDataView:
         Defaults (upstream):
         - `strike`: `"*"`
         - `right`: `"both"`
-        """
-        ...
-
-    def option_at_time_quote_async(
-        self,
-        symbol: str,
-        expiration: Union[str, date, datetime],
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-        *,
-        strike: Optional[str] = None,
-        right: Optional[str] = None,
-        max_dte: Optional[int] = None,
-        strike_range: Optional[int] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[QuoteTickList]:
-        """Fetch the quote at a specific time of day across a date range for an option.
-
-        - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
-        - The ``time_of_day``parameter represents the 00:00:00.000 ET that the quote should be provided for.
-
-        Defaults (upstream):
-        - `strike`: `"*"`
-        - `right`: `"both"`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8115,18 +11743,6 @@ class MarketDataView:
         """Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days."""
         ...
 
-    def option_flat_file_eod_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[EodTickList]:
-        """Fetch the end-of-day report of every option contract for one date. The vendor keeps the most recent 7 calendar days.
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def option_flat_file_eod_builder(
         self,
         date: Union[str, date, datetime],
@@ -8146,20 +11762,6 @@ class MarketDataView:
         """
         ...
 
-    def option_flat_file_eod_to_path_async(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Write the `option_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
-
-        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
-        """
-        ...
-
     def option_flat_file_trade_quote(
         self,
         date: Union[str, date, datetime],
@@ -8167,18 +11769,6 @@ class MarketDataView:
         timeout_ms: Optional[int] = None,
     ) -> TradeQuoteTickList:
         """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days."""
-        ...
-
-    def option_flat_file_trade_quote_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[TradeQuoteTickList]:
-        """Fetch every option trade of one date, each paired with the NBBO quote at the time of the trade. The vendor keeps the most recent 7 calendar days.
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
         ...
 
     def option_flat_file_trade_quote_builder(
@@ -8200,20 +11790,6 @@ class MarketDataView:
         """
         ...
 
-    def option_flat_file_trade_quote_to_path_async(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Write the `option_flat_file_trade_quote` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
-
-        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
-        """
-        ...
-
     def option_flat_file_open_interest(
         self,
         date: Union[str, date, datetime],
@@ -8221,18 +11797,6 @@ class MarketDataView:
         timeout_ms: Optional[int] = None,
     ) -> OpenInterestTickList:
         """Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days."""
-        ...
-
-    def option_flat_file_open_interest_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[OpenInterestTickList]:
-        """Fetch the open interest of every option contract for one date. The vendor keeps the most recent 7 calendar days.
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
         ...
 
     def option_flat_file_open_interest_builder(
@@ -8254,20 +11818,6 @@ class MarketDataView:
         """
         ...
 
-    def option_flat_file_open_interest_to_path_async(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Write the `option_flat_file_open_interest` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
-
-        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
-        """
-        ...
-
     def option_flat_file_quote(
         self,
         date: Union[str, date, datetime],
@@ -8275,18 +11825,6 @@ class MarketDataView:
         timeout_ms: Optional[int] = None,
     ) -> IntervalQuoteTickList:
         """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days."""
-        ...
-
-    def option_flat_file_quote_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[IntervalQuoteTickList]:
-        """Fetch every option contract's 1-minute NBBO quote intervals for one date: one row per minute in which a new quote was reported. The vendor keeps the most recent 7 calendar days.
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
         ...
 
     def option_flat_file_quote_builder(
@@ -8308,20 +11846,6 @@ class MarketDataView:
         """
         ...
 
-    def option_flat_file_quote_to_path_async(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Write the `option_flat_file_quote` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
-
-        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
-        """
-        ...
-
     def index_list_symbols(
         self,
         *,
@@ -8330,20 +11854,6 @@ class MarketDataView:
         """List all available index symbols.
 
         A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
-        """
-        ...
-
-    def index_list_symbols_async(
-        self,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[StringList]:
-        """List all available index symbols.
-
-        A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded index symbols. This endpoint is updated overnight.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8360,21 +11870,6 @@ class MarketDataView:
         """List available dates for an index symbol.
 
         Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
-        """
-        ...
-
-    def index_list_dates_async(
-        self,
-        symbol: str,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[StringList]:
-        """List available dates for an index symbol.
-
-        Lists all dates of data that are available for a index with a given request type and symbol. This endpoint is updated overnight.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8403,27 +11898,6 @@ class MarketDataView:
         """
         ...
 
-    def index_snapshot_ohlc_async(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[OhlcTickList]:
-        """Get the latest OHLC snapshot for one or more indices.
-
-        - Retrieves the real-time current day OHLC.
-        - Exchanges typically generate a price report every second for popular indices like SPX.
-
-        Defaults (upstream):
-        - `current_day_only`: `false`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def index_snapshot_ohlc_builder(
         self,
         symbols: Union[str, Sequence[str]],
@@ -8446,27 +11920,6 @@ class MarketDataView:
 
         Defaults (upstream):
         - `current_day_only`: `false`
-        """
-        ...
-
-    def index_snapshot_price_async(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[PriceTickList]:
-        """Get the latest price snapshot for one or more indices.
-
-        - Retrieves a real-time last index price.
-        - Exchanges typically generate a price report every second for popular indices like SPX.
-
-        Defaults (upstream):
-        - `current_day_only`: `false`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8495,27 +11948,6 @@ class MarketDataView:
         """
         ...
 
-    def index_snapshot_market_value_async(
-        self,
-        symbols: Union[str, Sequence[str]],
-        *,
-        min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[MarketValueTickList]:
-        """Get the latest market value snapshot for one or more indices.
-
-        - Retrieves a real-time last index market value.
-        - Exchanges typically generate a price report every second for popular indices like SPX.
-
-        Defaults (upstream):
-        - `current_day_only`: `false`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def index_snapshot_market_value_builder(
         self,
         symbols: Union[str, Sequence[str]],
@@ -8537,23 +11969,6 @@ class MarketDataView:
         """
         ...
 
-    def index_history_eod_async(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[EodTickList]:
-        """Fetch end-of-day index data for a date range.
-
-        - Since the indices feeds do not provide a national EOD report, Theta Data generates a national EOD report at 17:15 each day.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def index_history_eod_builder(
         self,
         symbol: str,
@@ -8569,7 +11984,7 @@ class MarketDataView:
         start_date: Union[str, date, datetime],
         end_date: Union[str, date, datetime],
         *,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
@@ -8587,33 +12002,6 @@ class MarketDataView:
         """
         ...
 
-    def index_history_ohlc_async(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[OhlcTickList]:
-        """Fetch intraday OHLC bars for an index.
-
-        - Aggregated OHLC bars that use SIP rules for each bar.
-        - Time timestamp of the bar represents the opening time of the bar. For a trade to be part of the bar:  ``bar timestamp`` <= ``trade time`` < ``bar timestamp + interval``.
-        - Exchanges typically generate a price report every second for popular indices like SPX.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def index_history_ohlc_builder(
         self,
         symbol: str,
@@ -8628,7 +12016,7 @@ class MarketDataView:
         symbol: str,
         *,
         date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
+        interval: Optional[Union[str, Interval]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -8646,35 +12034,6 @@ class MarketDataView:
         - `interval`: `"1s"`
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        """
-        ...
-
-    def index_history_price_async(
-        self,
-        symbol: str,
-        *,
-        date: Optional[Union[str, date, datetime]] = None,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        start_date: Optional[Union[str, date, datetime]] = None,
-        end_date: Optional[Union[str, date, datetime]] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[PriceTickList]:
-        """Fetch intraday price history for an index.
-
-        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
-        - When the ``interval`` parameter is specified, the returned data represents the price at the exact time of each timestamp. If the timestamp in the response is 10:30:00, the price field represents the price at that exact time of the day.
-        - A price update from the exchange is omitted if the price remained the same from the previous update.
-        - Multi-day requests are limited to 1 month of data.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8701,25 +12060,6 @@ class MarketDataView:
         """
         ...
 
-    def index_at_time_price_async(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        time_of_day: Union[str, time, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[IndexPriceAtTimeTickList]:
-        """Fetch the index price at a specific time of day across a date range.
-
-        - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
-        - The ``time_of_day`` parameter represents the 00:00:00.000 ET that the price should be provided for.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def index_at_time_price_builder(
         self,
         symbol: str,
@@ -8737,18 +12077,6 @@ class MarketDataView:
         timeout_ms: Optional[int] = None,
     ) -> EodTickList:
         """Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days."""
-        ...
-
-    def index_flat_file_eod_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[EodTickList]:
-        """Fetch the end-of-day report of every index for one date. The vendor keeps the most recent 7 calendar days.
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
         ...
 
     def index_flat_file_eod_builder(
@@ -8770,20 +12098,6 @@ class MarketDataView:
         """
         ...
 
-    def index_flat_file_eod_to_path_async(
-        self,
-        date: Union[str, date, datetime],
-        path: Union[str, PathLike[str]],
-        format: Optional[str] = None,
-    ) -> Awaitable[str]:
-        """Write the `index_flat_file_eod` file for `date` to `path` as the terminal writes it, and return the path written.
-
-        ``format`` is ``"csv"`` (the default), ``"json"``, ``"json_legacy"``, ``"ndjson"`` (or ``"jsonl"``) or ``"html"``. The file streams to disk chunk by chunk and takes its name only once complete; a path without an extension gets the format's.
-
-        Awaitable companion of the sync variant. The returned object resolves to the path written, so a running event loop keeps servicing other coroutines while the file streams to disk.
-        """
-        ...
-
     def calendar_open_today(
         self,
         *,
@@ -8794,22 +12108,6 @@ class MarketDataView:
         - Retrieves current day equity market schedule
         - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
         - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-        """
-        ...
-
-    def calendar_open_today_async(
-        self,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[CalendarDay]]:
-        """Check whether the market is open today.
-
-        - Retrieves current day equity market schedule
-        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8832,24 +12130,6 @@ class MarketDataView:
         """
         ...
 
-    def calendar_on_date_async(
-        self,
-        date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[CalendarDay]]:
-        """Get calendar information for a specific date.
-
-        - Retrieves equity market schedule for a given date
-        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
-        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def calendar_on_date_builder(
         self,
         date: Union[str, date, datetime],
@@ -8869,24 +12149,6 @@ class MarketDataView:
         - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
         - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
         - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-        """
-        ...
-
-    def calendar_year_async(
-        self,
-        year: str,
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[CalendarDay]]:
-        """Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint: only non-standard days, not every trading day).
-
-        - Retrieves equity market holidays for a given year
-        - Note: Holiday data is available 01/01/2012 through the end of the calendar year that immediately follows the current year
-        - *On days when the market closes early at 1:00 PM ET; eligible options will trade until 1:15 PM.
-        - **Some NYSE exchanges will continue late trading until 5:00 PM ET on early close days.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
         """
         ...
 
@@ -8915,27 +12177,6 @@ class MarketDataView:
         """
         ...
 
-    def interest_rate_history_eod_async(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[InterestRateTickList]:
-        """Fetch end-of-day interest rate history.
-
-        - Returns the interest rate reported. Depending on the rate, reports can occur in the morning or the afternoon.
-        - Valid `symbol` values per upstream `RateType` enum:
-          `SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`,
-          `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`,
-          `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`.
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
     def interest_rate_history_eod_builder(
         self,
         symbol: str,
@@ -8948,14 +12189,9 @@ class MarketDataView:
 # --- END GENERATED MARKET DATA VIEW ---
 
 
-@final
-class StreamView:
-    """Real-time-streaming sub-namespace returned by :attr:`Client.stream`.
-
-    Owns the streaming lifecycle, subscription management, and feed
-    diagnostics for the unified client. Shares the parent client's
-    callback registration, so starting / stopping / reconnecting through
-    this view drives the same session the client manages.
+class _StreamMethods:
+    """The methods of :class:`StreamView`, which :class:`AsyncClient`
+    forwards. It does not exist at runtime.
     """
 
     # Streaming lifecycle.
@@ -9165,6 +12401,17 @@ class StreamView:
         that has been stopped keeps the faults it recorded.
         """
         ...
+
+
+@final
+class StreamView(_StreamMethods):
+    """Real-time-streaming sub-namespace returned by :attr:`Client.stream`.
+
+    Owns the streaming lifecycle, subscription management, and feed
+    diagnostics for the unified client. Shares the parent client's
+    callback registration, so starting / stopping / reconnecting through
+    this view drives the same session the client manages.
+    """
 
 
 @final
@@ -9421,16 +12668,16 @@ class Client:
 
 
 @final
-class AsyncClient:
+class AsyncClient(_AsyncMarketData, _StreamMethods):
     """Async client exposing ``await``-based market-data methods.
 
-    Each market-data endpoint is available as an ``*_async`` coroutine
-    (e.g. ``await client.stock_history_eod_async(...)``). The streaming
-    lifecycle and subscription methods (``start_streaming``,
-    ``stop_streaming``, ``subscribe``, ``streaming`` etc.) mirror those
-    on :class:`Client`. Accessing the synchronous market-data
-    methods on this class raises ``AttributeError`` — use
-    :class:`Client` for those.
+    Each market-data endpoint is available as the ``*_async`` coroutine
+    of :attr:`Client.market_data` (e.g.
+    ``await client.stock_history_eod_async(...)``). The streaming methods
+    of :attr:`Client.stream` (``start_streaming``, ``subscribe`` and the
+    rest) and :meth:`Client.streaming` are available directly. Accessing
+    the synchronous market-data methods on this class raises
+    ``AttributeError``; use :class:`Client` for those.
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None:
@@ -9547,11 +12794,18 @@ class AsyncClient:
         traceback: Optional[object] = None,
     ) -> bool: ...
 
-    def __getattr__(self, name: str) -> Any:
-        """Resolve an ``*_async`` market-data method or a streaming method.
+    def streaming(self, callback: EventCallback) -> StreamingSession:
+        """Open a streaming session bound to ``callback`` as a context manager.
 
-        Raises:
-            AttributeError: If ``name`` is not part of the async surface.
+        Entering the ``with`` block starts streaming; exiting stops it
+        and drains pending events, so the callback is never invoked after
+        the block closes.
+
+        Args:
+            callback: Single-argument callable receiving each event.
+
+        Returns:
+            A :class:`StreamingSession` context manager.
         """
         ...
 
@@ -10120,16 +13374,4 @@ def split_date_range(
     Dates are ``YYYYMMDD`` strings; the returned pairs cover the range
     contiguously in chronological order.
     """
-    ...
-
-
-# ─────────────────────────────────────────────────────────────────────
-# Module-level fallback: the per-endpoint market-data builders share one
-# structural shape and resolve to `Any` at the module level rather than
-# being annotated individually.
-# ─────────────────────────────────────────────────────────────────────
-
-
-def __getattr__(name: str) -> Any:
-    """Resolve a per-endpoint market-data builder or another class this stub does not declare."""
     ...

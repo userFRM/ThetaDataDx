@@ -1,9 +1,10 @@
 """The built module against the core tables the PyO3 crate expands.
 
-The type stub declares the endpoint builders as ``Any`` and the ``Config``
-accessors as plain attributes, so stubtest sees neither a builder's terminals
-nor whether a property can be written. These hold the module itself to the
-endpoint and config tables.
+stubtest does not report a member the runtime has and the type stub lacks,
+such as a ``stream`` terminal on the builder of an endpoint that does not
+stream, and sees the ``Config`` accessors as plain attributes, so not whether a
+property can be written. These hold the module itself to the endpoint and
+config tables.
 """
 
 from __future__ import annotations
