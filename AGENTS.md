@@ -156,13 +156,15 @@ directly as shown.
 ### The gate suite
 
 ```sh
-python3 scripts/ci.py all            # everything   (just ci)
+python3 scripts/ci.py all            # every gate   (just ci)
 python3 scripts/ci.py version_sync   # one gate      (just check version_sync)
 python3 scripts/ci.py list           # the gate names
 ```
 
-`scripts/ci.py` is a thin dispatcher over the scripts in `scripts/ci/`. It reimplements no gate
-logic, so running a gate script directly is equivalent.
+`scripts/ci.py` is a thin dispatcher over cargo and the scripts in `scripts/ci/`. It reimplements
+no gate logic, so running a gate's command directly is equivalent. `all` runs `cargo fmt --check`,
+the workspace clippy pass with warnings denied and the generator's `--check` first, since those are
+what CI rejects most often, then the script gates. The tests are not gates; run them as below.
 
 Three gates need built artefacts and **fail on a clean checkout even with no changes**:
 `c_abi_completeness`, `bench_regression`, `perf_gate`. Before treating any of them as your failure,
