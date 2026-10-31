@@ -1454,6 +1454,7 @@ impl StreamService {
     /// has not yet drained. Already-drained flags are GC'd lazily here
     /// so a long-lived handle that has cycled through many sessions
     /// does not leak `Arc<AtomicBool>` entries.
+    #[cfg(feature = "__internal")]
     #[must_use]
     pub(crate) fn prev_drained_is_set(&self) -> bool {
         match self.streaming.prev_drained.try_lock() {
@@ -1529,6 +1530,7 @@ impl StreamService {
     /// callback returns). Callers guard a blocking [`Self::await_drain`] with
     /// this, mirroring the teardown self-join guard that detaches rather than
     /// joining the dispatcher into itself.
+    #[cfg(feature = "__internal")]
     fn current_thread_is_dispatcher(&self) -> bool {
         matches!(
             &*self.streaming.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
@@ -2051,45 +2053,26 @@ impl StreamSurface<'_> {
         self.0.start_streaming(handler)
     }
 
-    /// Start FPSS streaming with a dispatcher teardown wakeup hook.
-    ///
-    /// Identical to [`Self::start_streaming`] except that `on_teardown` runs
-    /// just before the dispatcher join at teardown. A binding whose `handler`
-    /// can block off the event ring — notably one that hands each event to a
-    /// bounded queue and blocks once full (the TypeScript napi
-    /// `ThreadsafeFunction` path) — supplies a hook that releases that block so
-    /// the dispatcher can observe the shutdown and the join can complete.
-    /// `handler` that parks only on the event ring needs no hook; use the
-    /// plain [`Self::start_streaming`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming_with_teardown<F>(
-        &self,
-        handler: F,
-        on_teardown: Box<dyn FnOnce() + Send>,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(&StreamEvent) + Send + 'static,
-    {
-        self.0
-            .start_streaming_scoped(handler, |drain| drain(), Some(on_teardown))
-    }
-
     /// Start FPSS streaming with each consumer batch drain wrapped in a
     /// caller-supplied `scope`. See [`Self::start_streaming`]; `scope`
     /// brackets each batch drain so a binding can amortise an
     /// interpreter lock across a batch.
     ///
-    /// `on_teardown` is the optional dispatcher wakeup hook — see
-    /// [`Self::start_streaming_with_teardown`] for when it is required. The
-    /// interpreter-lock bindings (e.g. Python) park only on the event ring and
-    /// pass `None`.
+    /// `on_teardown` runs just before the dispatcher join at teardown. A
+    /// binding whose `handler` can block off the event ring, notably one that
+    /// hands each event to a bounded queue and blocks once full (the
+    /// TypeScript napi `ThreadsafeFunction` path), supplies a hook that
+    /// releases that block so the dispatcher can observe the shutdown and the
+    /// join can complete. The interpreter-lock bindings (e.g. Python) park
+    /// only on the event ring and pass `None`.
+    ///
+    /// Binding plumbing, available only with the `__internal` feature.
     ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     pub fn start_streaming_scoped<F, S>(
         &self,
         handler: F,
@@ -2227,43 +2210,23 @@ impl StreamSurface<'_> {
         self.0.reconnect_streaming(handler)
     }
 
-    /// Reconnect with a dispatcher teardown wakeup hook on the fresh session.
-    ///
-    /// The reconnect counterpart of [`Self::start_streaming_with_teardown`]:
-    /// tears the old session down, restarts under `handler`, and installs
-    /// `on_teardown` on the new session so a later teardown can wake a
-    /// dispatcher blocked off the event ring (the TypeScript
-    /// `ThreadsafeFunction` path). The hook is consumed by this one reconnect;
-    /// a binding that reconnects again builds a fresh hook from its persistent
-    /// callback handle.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::PartialReconnect`] when some subscriptions fail to
-    /// restore, or a network / authentication / parsing error.
-    pub fn reconnect_streaming_with_teardown<F>(
-        &self,
-        handler: F,
-        on_teardown: Box<dyn FnOnce() + Send>,
-    ) -> Result<(), Error>
-    where
-        F: FnMut(&StreamEvent) + Send + 'static,
-    {
-        self.0
-            .reconnect_streaming_scoped(handler, |drain| drain(), Some(on_teardown))
-    }
-
     /// Reconnect, re-registering `handler` with each consumer batch drain
     /// wrapped in `scope`.
     ///
-    /// `on_teardown` is the optional dispatcher wakeup hook installed on the
-    /// fresh session — see [`Self::reconnect_streaming_with_teardown`]. The
+    /// `on_teardown` is the optional dispatcher wakeup hook (see
+    /// [`Self::start_streaming_scoped`]) installed on the fresh session. The
+    /// hook is consumed by this one reconnect; a binding that reconnects again
+    /// builds a fresh hook from its persistent callback handle. The
     /// interpreter-lock bindings (e.g. Python) pass `None`.
+    ///
+    /// Binding plumbing, available only with the `__internal` feature.
     ///
     /// # Errors
     ///
     /// Returns [`Error::PartialReconnect`] when some subscriptions fail to
     /// restore, or a network / authentication / parsing error.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     pub fn reconnect_streaming_scoped<F, S>(
         &self,
         handler: F,
@@ -2333,6 +2296,10 @@ impl StreamSurface<'_> {
     /// inside a callback guard the drain with this, mirroring the teardown
     /// self-join guard that detaches rather than joining the dispatcher into
     /// itself.
+    ///
+    /// Binding plumbing, available only with the `__internal` feature.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     #[must_use]
     pub fn current_thread_is_dispatcher(&self) -> bool {
         self.0.current_thread_is_dispatcher()
@@ -2340,6 +2307,10 @@ impl StreamSurface<'_> {
 
     /// Whether a prior streaming session has registered a drain flag for
     /// [`Self::await_drain`] to poll on.
+    ///
+    /// Binding plumbing, available only with the `__internal` feature.
+    #[cfg(feature = "__internal")]
+    #[doc(hidden)]
     #[must_use]
     pub fn prev_drained_is_set(&self) -> bool {
         self.0.prev_drained_is_set()
