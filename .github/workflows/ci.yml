@@ -440,9 +440,8 @@ jobs:
       # link targets, unresolved references) into a hard build error.
       # Running `cargo doc --no-deps --workspace` therefore fails CI
       # the moment a docstring links to a private item, a renamed
-      # symbol, or a path that no longer exists — closes the gap
-      # A widely-cited open-source PR documented, where 33 broken links shipped
-      # because no CI job ever invoked `cargo doc`.
+      # symbol, or a path that no longer exists. No other job documents
+      # the SDK crates, so without this one a broken link would ship.
       # The napi crate is excluded: its doc comments are the TypeScript
       # JSDoc emitted into `index.d.ts`, written for that reader, so their
       # names are TypeScript names rustdoc cannot resolve.
