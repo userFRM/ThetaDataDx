@@ -9,6 +9,7 @@ config tables.
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 import re
 
@@ -23,8 +24,9 @@ SURFACE = pathlib.Path(__file__).resolve().parents[2] / "thetadatadx-rs" / "src"
 
 
 def test_builders_follow_the_endpoint_table() -> None:
-    """Every endpoint has a builder with ``list`` and ``list_async``, and
-    ``stream`` and ``stream_async`` on exactly the ``chunked`` ones."""
+    """Every endpoint has a builder with ``list`` and ``list_async``,
+    ``stream`` and ``stream_async`` on exactly the ``chunked`` ones, and a
+    setter for every keyword argument its method takes."""
     text = (SURFACE / "endpoints.rs").read_text(encoding="utf-8")
     table = text[text.index("macro_rules! __endpoints") : text.index("macro_rules! __stream_endpoints")]
     shapes = {
@@ -44,6 +46,11 @@ def test_builders_follow_the_endpoint_table() -> None:
         actual = {t for t in ("list", "list_async", "stream", "stream_async") if hasattr(builder, t)}
         if actual != expected:
             wrong.append(f"{builder_name}: has {sorted(actual)}, a {shape} endpoint has {sorted(expected)}")
+        parameters = inspect.signature(getattr(thetadatadx.MarketDataView, name)).parameters.values()
+        keywords = [p.name for p in parameters if p.kind is p.KEYWORD_ONLY]
+        missing = [k for k in keywords if not hasattr(builder, k)]
+        if "timeout_ms" not in keywords or missing:
+            wrong.append(f"{builder_name}: no setter for {missing} of the keywords `{name}()` takes ({keywords})")
     assert not wrong, "\n".join(wrong)
 
 
