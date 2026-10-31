@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-31
+
+0.8.0 was not published to npm. 0.8.1 carries the same changes, so on npm `thetadatadx-ts` and `thetadatadx-mcp-server` go from 0.7.0 to 0.8.1; read the 0.8.0 entry below before upgrading them.
+
+### Changed
+
+- The npm packages, `thetadatadx-ts`, `thetadatadx-mcp-server` and each of their platform packages, are published through npm trusted publishing, so every one of them carries a provenance attestation that ties it to the release workflow that built it. Before, only the two root packages did.
+
+### Fixed
+
+- The warning logged when a buffered request returns a large response links the request-sizing guide. It pointed at a path inside the source repository, which nobody using a published package can open.
+- The configuration guide names `metrics-prometheus` as the cargo feature behind the Rust `metrics_port` setting. It named a `metrics` feature that does not exist.
+
 ## [0.8.0] - 2026-10-31
 
 ### Added
@@ -572,7 +585,8 @@ The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `t
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.1
 [0.8.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.0
 [0.7.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.7.0
 [0.6.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.1
