@@ -45,32 +45,6 @@ from typing import Any
 import pytest
 
 
-# Block-list inventory mirrored from ``thetadatadx-py/src/mdds_client.rs``.
-# Source of truth for cross-class drift: the Rust ``FPSS_TOUCHING_METHODS``
-# const. This Python copy lets the offline
-# coverage test enumerate every blocked name without needing a live
-# ``MarketDataClient`` instance.
-BLOCKED_FPSS_METHODS = (
-    "start_streaming",
-    "stop_streaming",
-    "shutdown",
-    "reconnect",
-    "streaming",
-    "stream",
-    "is_streaming",
-    "batches",
-    "await_drain",
-    "subscribe",
-    "subscribe_many",
-    "unsubscribe",
-    "unsubscribe_many",
-    "active_subscriptions",
-    "active_full_subscriptions",
-    "dropped_event_count",
-    "panic_count",
-)
-
-
 def _import_module():
     try:
         import thetadatadx as mod
@@ -193,7 +167,7 @@ def test_mdds_client_blocks_fpss_attrs() -> None:
 
     creds = mod.Credentials.from_file(_live_creds_path())
     client = mod.MarketDataClient(creds, mod.Config.production())
-    for name in BLOCKED_FPSS_METHODS:
+    for name in mod._blocked_fpss_methods():
         with pytest.raises(AttributeError, match="standalone market-data surface"):
             getattr(client, name)
 
@@ -219,35 +193,23 @@ def test_mdds_client_close_releases_and_is_unusable() -> None:
     mdds.close()
 
 
-def test_mdds_client_block_list_offline() -> None:
-    """Offline coverage of the full ``BLOCKED_FPSS_METHODS`` inventory.
+def test_mdds_client_block_list_covers_the_streaming_surface() -> None:
+    """The block list ``MarketDataClient`` refuses is every method of
+    ``StreamView`` plus the ``stream`` accessor and the ``streaming`` factory
+    on ``Client``.
 
-    The live ``test_mdds_client_blocks_fpss_attrs`` only fires when
-    credentials are available; without that, a regression that
-    accidentally dropped a name from the Rust ``FPSS_TOUCHING_METHODS``
-    const would slip through CI.
-
-    Strategy: introspect the Rust block-list via the module-level
-    ``_blocked_fpss_methods()`` helper and assert it matches the
-    Python-side ``BLOCKED_FPSS_METHODS`` mirror exactly. Combined
-    with the Rust-side compile-time guard that pins the
-    generator-emitted FPSS surface as a strict subset of
-    ``FPSS_TOUCHING_METHODS``, this closes the offline coverage gap
-    end-to-end.
+    Building a ``MarketDataClient`` needs credentials, so offline the list is
+    held to the built classes: a ``StreamView`` method left off it, or an
+    entry that no longer names one, fails here.
     """
     mod = _import_module()
-    rust_inventory = set(mod._blocked_fpss_methods())
-    python_mirror = set(BLOCKED_FPSS_METHODS)
-    missing_in_python = rust_inventory - python_mirror
-    missing_in_rust = python_mirror - rust_inventory
-    assert not missing_in_python, (
-        f"Rust FPSS_TOUCHING_METHODS contains names not mirrored in "
-        f"BLOCKED_FPSS_METHODS: {sorted(missing_in_python)}"
-    )
-    assert not missing_in_rust, (
-        f"Python BLOCKED_FPSS_METHODS contains names that fell out of "
-        f"the Rust block-list — block-list drift: {sorted(missing_in_rust)}"
-    )
+
+    def public(cls: type) -> set[str]:
+        return {name for name in dir(cls) if not name.startswith("_")}
+
+    entry_points = {"stream", "streaming"}
+    assert entry_points <= public(mod.Client)
+    assert set(mod._blocked_fpss_methods()) == public(mod.StreamView) | entry_points
 
 
 # ── Test #1: StreamingClient never opens an MDDS gRPC channel ──────────────

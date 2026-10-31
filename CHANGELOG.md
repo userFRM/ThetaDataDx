@@ -87,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The Python `_async` market-data methods show the defaults their sync twins do.** `help()`, `inspect.signature` and the type stub gave every `binomial_steps`, `current_day_only`, `exclusive`, `option_use_nbbo`, `perf_boost_intraday`, `underlyer_use_nbbo`, `use_market_value` and `use_time_based_trade_quote` keyword on an `_async` method a default of `None`, where the sync method shows the value it sends, such as `101` or `False`. Both forms always sent the same request, since an omitted keyword falls back to that same value; the `_async` signatures now say so.
 
+- **Python `MarketDataClient` refuses every streaming method by name.** `ring_occupancy`, `ring_capacity`, `millis_since_last_event`, `last_event_received_at_unix_nanos`, `last_connected_addr` and `is_authenticated` were missing from the names it refuses, so reaching for one raised an `AttributeError` saying `Client` has no such attribute, where every other streaming method points to `StreamingClient` and `Client`. They now raise that message too.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added
