@@ -177,7 +177,9 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          # npm publishes through trusted publishing (OIDC, no stored token),
+          # which needs npm 11.5.1 or later; Node 24 ships it.
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
 
       # Refuse to publish unless the tag matches the version every
@@ -247,8 +249,6 @@ jobs:
       # `latest`.
       - name: Publish platform packages
         working-directory: tools/mcp/npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -266,8 +266,6 @@ jobs:
 
       - name: Publish launcher package
         working-directory: tools/mcp/npm/thetadatadx-mcp-server
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
