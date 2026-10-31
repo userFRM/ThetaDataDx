@@ -21,11 +21,10 @@
 #include "thetadatadx.hpp"
 
 TEST_CASE("ThetaDataDxInterestRateTick has the 2-field shape", "[interest_rate][schema][offline]") {
-    // The C struct must be 64 bytes total (cache-line aligned) with
-    // `date` at offset 0 and `rate` at offset 8. Padding between the
-    // i32 and the f64 is 4 bytes; the trailing pad fills to 64.
-    STATIC_REQUIRE(sizeof(ThetaDataDxInterestRateTick) == 64);
-    STATIC_REQUIRE(alignof(ThetaDataDxInterestRateTick) == 64);
+    // The C struct must be 16 bytes total with `date` at offset 0 and
+    // `rate` at offset 8. Padding between the i32 and the f64 is 4 bytes.
+    STATIC_REQUIRE(sizeof(ThetaDataDxInterestRateTick) == 16);
+    STATIC_REQUIRE(alignof(ThetaDataDxInterestRateTick) == 8);
     STATIC_REQUIRE(offsetof(ThetaDataDxInterestRateTick, date) == 0);
     STATIC_REQUIRE(offsetof(ThetaDataDxInterestRateTick, rate) == 8);
 }

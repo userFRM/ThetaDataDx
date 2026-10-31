@@ -3,20 +3,19 @@
 /* Calendar day. Market open/close schedule.
  *
  * `status` carries the vendor's own day-type vocabulary (`open` / `early_close` / `full_close` / `weekend`); unknown wire text fails decode loudly rather than degrading to a sentinel. `date` is `0` on the single-row `calendar_on_date` / `calendar_open_today` responses, where the server omits the date column. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t date;
     int32_t open_time;
     int32_t close_time;
     /* One of the THETADATADX_CALENDAR_STATUS_* codes; string form via
      * thetadatadx_calendar_status_name(). */
     int32_t status;
-    uint8_t _tail_padding[48];
-} ThetaDataDxCalendarDay THETADATADX_ALIGN64_END;
+} ThetaDataDxCalendarDay;
 
 /* End-of-day tick. Full EOD snapshot with OHLC + quote.
  *
  * The two time columns carry the vendor's v3 field semantics under their v3 names: `created` is when the EOD report was generated (~17:15 ET, NOT a trade time) and `last_trade` is the time of the day's final trade. On a day with no trades the report zero-fills the trade-derived columns: `open` / `high` / `low` / `close` are `0.0` and `last_trade_ms_of_day` is `0`; the quote-side columns still carry the closing NBBO snapshot. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t created_ms_of_day;
     int32_t last_trade_ms_of_day;
     double open;
@@ -44,13 +43,13 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[52];
-} ThetaDataDxEodTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxEodTick;
 
 /* Full union Greeks tick -- every Greek the v3 server publishes on the `option_*_greeks_all` endpoints.
  *
  * The vendor's per-order endpoints (`option_*_greeks_first_order`, `_second_order`, `_third_order`) emit strict subsets of these columns and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick` and `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility` binds to `IvTick`, and `option_*_greeks_eod` to `GreeksEodTick`. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double bid;
     double ask;
@@ -86,11 +85,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[12];
-} ThetaDataDxGreeksAllTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxGreeksAllTick;
 
 /* End-of-day union Greeks tick -- every Greek the v3 server publishes on `option_history_greeks_eod`, paired with the twelve EOD trade/quote context columns (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) that identify the daily bar + closing NBBO snapshot the Greeks were calculated against. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double open;
     double high;
@@ -142,11 +141,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[44];
-} ThetaDataDxGreeksEodTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxGreeksEodTick;
 
 /* First-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and the underlying snapshot used to derive each Greek. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double bid;
     double ask;
@@ -168,11 +167,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[60];
-} ThetaDataDxGreeksFirstOrderTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxGreeksFirstOrderTick;
 
 /* Second-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_second_order` endpoints (gamma / vanna / charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double bid;
     double ask;
@@ -194,10 +193,10 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
     uint8_t _tail_padding[4];
-} ThetaDataDxGreeksSecondOrderTick THETADATADX_ALIGN64_END;
+} ThetaDataDxGreeksSecondOrderTick;
 
 /* Third-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_third_order` endpoints (speed / zomma / color / ultima) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. The vendor's third-order schema does not publish `vera`. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double bid;
     double ask;
@@ -217,11 +216,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[12];
-} ThetaDataDxGreeksThirdOrderTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxGreeksThirdOrderTick;
 
 /* Index price-at-time tick -- the trade-shaped row the v3 server publishes on `index_at_time_price`. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -239,20 +238,19 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     bool has_exchange;
     double price;
     int32_t date;
-    uint8_t _tail_padding[52];
-} ThetaDataDxIndexPriceAtTimeTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxIndexPriceAtTimeTick;
 
 /* Interest rate tick. End-of-day interest rate (percent). */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t date;
     double rate;
-    uint8_t _tail_padding[48];
-} ThetaDataDxInterestRateTick THETADATADX_ALIGN64_END;
+} ThetaDataDxInterestRateTick;
 
 /* Interval quote tick. The NBBO in effect at one interval.
  *
  * Returned by the quote flat files (`*_flat_file_quote`), which carry one row per interval in which a new quote was reported. Each row holds two times: `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`, when the quote in effect at that interval was reported. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t interval_ms_of_day;
     int32_t quote_ms_of_day;
     int32_t bid_size;
@@ -274,13 +272,13 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[36];
-} ThetaDataDxIntervalQuoteTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxIntervalQuoteTick;
 
 /* Implied volatility tick.
  *
  * The snapshot variant (`option_snapshot_greeks_implied_volatility`) carries only `ms_of_day`, `implied_volatility`, `iv_error` and `date`; the other fields then read zero. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double bid;
     double bid_implied_volatility;
@@ -299,11 +297,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
-} ThetaDataDxIvTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxIvTick;
 
 /* Market value tick -- quoted bid/ask/price for a symbol. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double market_bid;
     double market_ask;
@@ -315,13 +313,13 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[12];
-} ThetaDataDxMarketValueTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxMarketValueTick;
 
 /* OHLC tick. Aggregated bar data including SIP-rule VWAP.
  *
  * `stock_history_ohlc`, `option_history_ohlc` and `index_history_ohlc` carry every column. The snapshot variants (`*_snapshot_ohlc`) omit `vwap`, which then reads `0.0`, as `volume` and `count` read `0` on quote-only intraday bars. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double open;
     double high;
@@ -337,11 +335,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[44];
-} ThetaDataDxOhlcTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxOhlcTick;
 
 /* Open interest tick. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
@@ -351,21 +349,21 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[36];
-} ThetaDataDxOpenInterestTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxOpenInterestTick;
 
 /* Price tick. Generic price data point. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     double price;
     int32_t date;
-    uint8_t _tail_padding[44];
-} ThetaDataDxPriceTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxPriceTick;
 
 /* Quote tick. NBBO quote data.
  *
  * Some storage tiers return only `ms_of_day`, `bid_size`, `bid`, `ask_size`, `ask` and `date`; the exchange and condition fields are then absent. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -386,11 +384,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[44];
-} ThetaDataDxQuoteTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxQuoteTick;
 
 /* Per-trade union Greeks tick -- every Greek the v3 server publishes on `option_history_trade_greeks_all`, paired with the trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`) that identify which OPRA print each Greek was calculated against. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -439,11 +437,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[28];
-} ThetaDataDxTradeGreeksAllTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeGreeksAllTick;
 
 /* Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -478,11 +476,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[12];
-} ThetaDataDxTradeGreeksFirstOrderTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeGreeksFirstOrderTick;
 
 /* Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -511,11 +509,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[60];
-} ThetaDataDxTradeGreeksImpliedVolatilityTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeGreeksImpliedVolatilityTick;
 
 /* Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -549,11 +547,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
-} ThetaDataDxTradeGreeksSecondOrderTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeGreeksSecondOrderTick;
 
 /* Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -586,11 +584,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[28];
-} ThetaDataDxTradeGreeksThirdOrderTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeGreeksThirdOrderTick;
 
 /* Combined trade + quote tick. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -631,11 +629,11 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
-} ThetaDataDxTradeQuoteTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeQuoteTick;
 
 /* Trade tick. Core unit of trade data. */
-THETADATADX_ALIGN64_BEGIN typedef struct {
+typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
@@ -663,8 +661,8 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
-} ThetaDataDxTradeTick THETADATADX_ALIGN64_END;
+    uint8_t _tail_padding[4];
+} ThetaDataDxTradeTick;
 
 /* Owned tick-array views: { const T* data; size_t len; }. Returned by the
  * matching thetadatadx_* data call; each MUST be freed with its

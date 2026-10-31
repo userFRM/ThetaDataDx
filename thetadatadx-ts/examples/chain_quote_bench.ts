@@ -48,10 +48,9 @@ const MIB = 1024.0 * 1024.0;
 // Decoded in-memory size of a single parsed quote row. The streaming
 // callback only exposes `QuoteTick[]`, so decoded volume is approximated as
 // `rows * QUOTE_TICK_SIZE` -- an in-memory figure, not wire bytes. Mirrors
-// `std::mem::size_of::<QuoteTick>()` in the Rust example (measured 128
-// bytes: `#[repr(C, align(64))]`, 13 fields) so figures are comparable
-// across bindings.
-const QUOTE_TICK_SIZE = 128;
+// `std::mem::size_of::<QuoteTick>()` in the Rust example (88 bytes:
+// `#[repr(C)]`, 13 fields) so figures are comparable across bindings.
+const QUOTE_TICK_SIZE = 88;
 
 function argOr(args: string[], idx: number, fallback: string): string {
   return args[idx] ?? fallback;

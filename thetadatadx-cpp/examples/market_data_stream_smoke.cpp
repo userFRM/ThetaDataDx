@@ -24,11 +24,11 @@
 
 namespace {
 
-// Compare the real wire columns, not the struct's alignment / tail padding.
-// `TradeTick` is `#[repr(C, align(64))]` with a trailing `_tail_padding`
-// array plus internal padding before its f64 members; those bytes are not
-// part of the row's value, so a `memcmp` of the whole struct could report a
-// spurious mismatch even when every column agrees.
+// Compare the real wire columns, not the struct's padding. `TradeTick` has
+// padding after its `bool` presence flags and a trailing `_tail_padding`
+// array; those bytes are not part of the row's value, so a `memcmp` of the
+// whole struct could report a spurious mismatch even when every column
+// agrees.
 auto tick_key(const thetadatadx::TradeTick& t) {
     return std::tie(t.date, t.expiration, t.strike, t.right, t.ms_of_day, t.sequence,
                     t.ext_condition1, t.ext_condition2, t.ext_condition3, t.ext_condition4,
