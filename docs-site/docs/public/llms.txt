@@ -8,7 +8,7 @@
 /articles/concurrent-requests: Concurrent Requests: How many market-data requests run in parallel, and how to size the SDK's request pool to your account's allowance.
 /articles/configuration: Configuration: Environments, retries, timeouts, and the streaming knobs.
 /articles/data-issues: Data Issues?: A short checklist before filing a data problem.
-/articles/error-codes: Error Codes: The typed error surface across all four SDKs and the server's error envelope.
+/articles/error-codes: Error Codes: The typed error surface across all four SDKs and the server's error responses.
 /articles/exchanges: Exchanges: Exchange code mapping for the exchange fields on trade and quote rows.
 /articles/flat-files: Flat Files: Whole-universe files for one date: every contract or stock of a dataset in one call.
 /articles/getting-started: Getting Started: Install the SDK, save your credentials, and make your first request in Rust, Python, TypeScript, or C++.
@@ -104,7 +104,7 @@
 /reference/stock/snapshot/quote: Quote: Get the latest NBBO quote snapshot for one or more stocks.
 /reference/stock/snapshot/trade: Trade: Get the latest trade snapshot for one or more stocks.
 /server/: Server: Getting Started: Run the local HTTP REST and WebSocket server speaking the v3 route surface.
-/server/http: Server: HTTP API: The v3 REST route surface, response formats, and the error envelope.
+/server/http: Server: HTTP API: The v3 REST route surface, response formats, and error responses.
 /server/websocket: Server: WebSocket Streaming: Subscribe to real-time events over the local WebSocket endpoint.
 /streaming/: Streaming: Getting Started: Connect, register a callback, subscribe, and shut down cleanly, in every language.
 /streaming/events: Handling Events: The typed event catalogue and how to narrow events in each language.

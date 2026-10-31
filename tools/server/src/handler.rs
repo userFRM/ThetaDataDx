@@ -37,19 +37,13 @@ use crate::state::AppState;
 pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
 
 /// Content type for the v3 plain-text error body. v3 returns the HTTP
-/// status with the error description as the body (no JSON envelope), so the
-/// data / registry error path emits `text/plain`.
+/// status with the error description as the body (no JSON envelope), so
+/// every error path emits `text/plain`.
 pub(crate) const TEXT_PLAIN_CONTENT_TYPE: &str = "text/plain; charset=utf-8";
 
 /// Build a v3 plain-text error response: the HTTP status carrying `msg` as
-/// a `text/plain` body, with no JSON envelope.
-///
-/// This is the v3 contract for the registry / data error path (`status` +
-/// plain description). The JSON-enveloped [`error_response`] is retained for
-/// the extractor-boundary and rate-limit rejections that other route layers
-/// (the `BoundedQuery` extractor, the rate-limit path in `router`, the
-/// shutdown-token guard) hand-write against; converting those is out of
-/// scope here because they live in files owned elsewhere.
+/// a `text/plain` body, with no JSON envelope, as the terminal answers every
+/// failed request.
 pub(crate) fn plain_error_response(status: StatusCode, msg: &str) -> Response {
     (
         status,
@@ -127,36 +121,6 @@ pub(crate) fn deprecated_v2_param_response(params: &HashMap<String, String>) -> 
     Some(plain_error_response(StatusCode::GONE, &body))
 }
 
-/// Build a JSON error response with the JVM terminal error envelope format.
-///
-/// The envelope is hand-built from string + array primitives, so
-/// serialisation cannot legitimately fail. If it does anyway, fall back to a
-/// minimal hard-coded envelope rather than an empty body so callers always
-/// see structured JSON they can parse.
-///
-/// `pub(crate)` so the rate-limit rejection path in `router` emits the
-/// same canonical envelope as every other error.
-pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
-    let body = format::error_envelope(error_type, msg);
-    let json_bytes = sonic_rs::to_string(&body).unwrap_or_else(|err| {
-        tracing::error!(
-            error = %err,
-            "error envelope failed to serialise; emitting minimal fallback"
-        );
-        format!(
-            "{{\"header\":{{\"error_type\":\"serialization_error\",\
-             \"error_msg\":\"failed to serialise error envelope: {err}\"}},\
-             \"response\":[]}}"
-        )
-    });
-    (
-        status,
-        [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
-        json_bytes,
-    )
-        .into_response()
-}
-
 /// Max query parameter count per request. The widest legitimate endpoint in
 /// the registry takes ~10 params (`option_history_trade_quote` + format /
 /// pagination knobs); 32 leaves generous headroom without letting a caller
@@ -210,7 +174,7 @@ pub(crate) struct BoundedQueryError {
 
 impl IntoResponse for BoundedQueryError {
     fn into_response(self) -> Response {
-        error_response(self.status, "bad_request", &self.message)
+        plain_error_response(self.status, &self.message)
     }
 }
 
@@ -831,9 +795,8 @@ pub async fn list_by_request_type(
             endpoint = endpoint_name,
             "request_type path route is wired to an endpoint missing from the registry"
         );
-        return error_response(
+        return plain_error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
-            "server_error",
             "route is wired to an unknown endpoint",
         );
     };
@@ -889,7 +852,6 @@ pub async fn terminal_market_data_status(State(state): State<AppState>) -> Respo
 mod tests {
     use super::*;
     use axum::http::Request;
-    use sonic_rs::{JsonContainerTrait, JsonValueTrait, Value};
     use thetadatadx::ENDPOINTS;
 
     /// Grab any registered endpoint as a stand-in for the per-endpoint
@@ -1301,60 +1263,6 @@ mod tests {
         assert_eq!(
             csv_attachment_filename(ep, &params),
             "stock_history_ohlc_20260603.csv"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    //  Canonical error envelope + content type
-    // -----------------------------------------------------------------------
-
-    /// Every error response must serialise the canonical envelope
-    /// (`header.error_type` + `header.error_msg` + empty `response`) with
-    /// the bare `application/json` content type. Clients write one error
-    /// parser against this shape; the nested `error.message` variant and
-    /// the `; charset=utf-8` suffix must never reappear.
-    #[tokio::test]
-    async fn error_response_emits_canonical_envelope_and_bare_content_type() {
-        let resp = error_response(
-            StatusCode::BAD_REQUEST,
-            "bad_request",
-            "missing required parameter: 'date'",
-        );
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            resp.headers()
-                .get(axum::http::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("application/json"),
-            "content type must be the bare media type"
-        );
-
-        let body = read_body(resp).await;
-        let parsed: Value = sonic_rs::from_str(&body).expect("error body must be valid JSON");
-        assert_eq!(
-            parsed
-                .get("header")
-                .and_then(|h| h.get("error_type"))
-                .and_then(Value::as_str),
-            Some("bad_request")
-        );
-        assert_eq!(
-            parsed
-                .get("header")
-                .and_then(|h| h.get("error_msg"))
-                .and_then(Value::as_str),
-            Some("missing required parameter: 'date'")
-        );
-        assert!(
-            parsed
-                .get("response")
-                .and_then(|r: &Value| r.as_array())
-                .is_some_and(|rows| rows.is_empty()),
-            "error envelope must carry an empty response array: {body}"
-        );
-        assert!(
-            parsed.get("error").is_none(),
-            "nested error.message form must not be emitted: {body}"
         );
     }
 

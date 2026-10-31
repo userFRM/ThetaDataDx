@@ -131,7 +131,7 @@ Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into 
 
 Each response is written as its rows arrive from the vendor, as the terminal writes it. A response that ends within 8 KiB is sent whole, with its `Content-Length`; a longer one is sent with chunked transfer encoding from the moment it outgrows that, so its first rows leave before its last arrive and server memory stays flat at any response size. `json_legacy` is one array per column, so no column is complete before the last row arrives, and it is held whole until then. A failure after a response has begun aborts the transfer, so a truncated response cannot pass for a complete one.
 
-Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
+Every failed request returns the HTTP status with a plain-text (`text/plain`) description, as the terminal answers it.
 
 ## WebSocket
 

@@ -1,6 +1,6 @@
 ---
 title: Error Codes
-description: The typed error surface across all four SDKs and the server's error envelope.
+description: The typed error surface across all four SDKs and the server's error responses.
 ---
 
 # Error Codes
@@ -42,26 +42,12 @@ Transient faults (transport drops, upstream exhaustion) are retried inside the S
 
 ## Server errors
 
-The [HTTP server](/server/http) answers a failed data request the way the terminal does: with an HTTP status and the reason as a plain-text (`text/plain`) body.
+The [HTTP server](/server/http) answers every failed request the way the terminal does: with an HTTP status and the reason as a plain-text (`text/plain`) body.
 
 | HTTP status | Meaning |
 |---|---|
-| 400 | Missing or invalid parameter; the body names it. |
+| 400 | Missing or invalid parameter, or more than 32 query parameters; the body names it. |
 | 404 | Unknown endpoint; the body names it. A path the server does not serve at all gets an empty 404. |
 | 410 | A v2 query parameter; the body names its v3 replacement. |
 | 503 | Upstream capacity exhausted after retries; carries `Retry-After`. |
 | Set by the upstream | The upstream service rejected the request. The server answers with the HTTP status the service attaches to the rejection (for example its no-data status when a query matches no rows) and the service's description, or with 500 when the service attaches no status. |
-
-Two kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), and an internal fault while the server renders a response.
-
-```json
-{
-    "header": { "error_type": "bad_request", "error_msg": "request has 40 query parameters; max is 32" },
-    "response": []
-}
-```
-
-| HTTP status | `error_type` | Meaning |
-|---|---|---|
-| 400 | `bad_request` | The query string was rejected; the message names it. |
-| 500 | `serialization_error`, `server_error` | The server failed to render the response. This is a defect in the server, not a data condition. |
