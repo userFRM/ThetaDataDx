@@ -15,11 +15,6 @@
 //! dropped (RST_STREAM on the underlying H2 stream), and the call returns
 //! `Err(Error::Timeout { duration_ms })`. The `MarketDataClient` is unaffected;
 //! a subsequent call on the same handle succeeds.
-//!
-//! List endpoints additionally expose a parallel `<name>_with_deadline(...)`
-//! async method on `MarketDataClient`: the existing `pub async fn <name>(...)`
-//! signatures stay non-breaking, while the `_with_deadline` variant gives
-//! the same cancellation contract for the validator and registry dispatch.
 
 /// Resolve the effective per-request deadline.
 ///
@@ -620,89 +615,13 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 /// Generate a list endpoint that returns `Vec<String>` by extracting a text
 /// column from the response `DataTable`.
 ///
-/// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits two methods on `MarketDataClient`, matching the deadline contract
-/// of the builder endpoints:
-/// - `pub async fn <name>(...)` — bounded by the configured
-///   [`crate::config::MarketDataConfig::request_timeout_secs`] default so a
-///   live-but-silent stream cannot hang the request forever.
-/// - `pub async fn <name>_with_deadline(..., deadline: Duration)` — same
-///   call with an explicit per-call deadline. `Duration::ZERO` opts out of
-///   any deadline (see [`effective_deadline`]).
-///
-/// Both run [`MarketDataClient::fetch_list`], which drops the in-flight gRPC
-/// call on expiry and returns `Err(Error::Timeout)`. The plain form expands
-/// inside the client's shared `impl` block, so its query's
-/// [`EndpointQuery`](crate::mdds::stream::EndpointQuery) impl comes from
-/// [`endpoint_query!`] in the table's builder pass.
+/// The client method returns a builder, like every other endpoint: optional
+/// filters and `with_deadline` are set on it, and `.await`
+/// (through `IntoFuture`) runs [`MarketDataClient::fetch_list`], which drops
+/// the in-flight gRPC call on expiry and returns `Err(Error::Timeout)`. A
+/// caller who sets nothing sends the SSOT defaults under the configured
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] deadline.
 macro_rules! list_endpoint {
-    (
-        $(#[$meta:meta])*
-        fn $name:ident( $($arg:ident : $arg_ty:ty),* ) -> $col:literal;
-        with_deadline_fn: $with_deadline:ident;
-        tables_fn: $tables:ident;
-        query: $query:ident { $($field:ident : $val:expr),* $(,)? };
-    ) => {
-        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
-        $(#[$meta])*
-        /// # Errors
-        ///
-        /// Returns an error on network, authentication, or parsing failure.
-        /// Returns [`Error::Timeout`] when the configured request deadline
-        /// elapses before the response completes.
-        pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
-            self.fetch_list(stringify!($name), None, &proto::$query { $($field : $val),* }, $col)
-                .await
-        }
-
-        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
-        $(#[$meta])*
-        /// Same as the deadline-free variant, but bounds the call with an
-        /// explicit per-call deadline. `Duration::ZERO` opts out of any
-        /// deadline.
-        ///
-        /// # Errors
-        ///
-        /// Returns an error on network, authentication, or parsing failure.
-        /// Returns [`Error::Timeout`] when `deadline` elapses first.
-        pub async fn $with_deadline(
-            &self,
-            $($arg : $arg_ty,)*
-            deadline: std::time::Duration,
-        ) -> Result<Vec<String>, Error> {
-            self.fetch_list(stringify!($name), Some(deadline), &proto::$query { $($field : $val),* }, $col)
-                .await
-        }
-
-        /// Send the request once and hand each chunk's column headers and
-        /// cells to `handler` as the vendor sends them, unconverted: what the
-        /// local server writes its responses from. `deadline` is the per-call
-        /// deadline, `None` for the configured default.
-        #[cfg(feature = "__internal")]
-        #[doc(hidden)]
-        pub async fn $tables<F, Fut>(
-            &self,
-            $($arg : $arg_ty,)*
-            deadline: Option<std::time::Duration>,
-            handler: F,
-        ) -> Result<(), Error>
-        where
-            F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
-            Fut: std::future::Future<Output = std::ops::ControlFlow<()>>,
-        {
-            self.stream_tables(stringify!($name), deadline, &proto::$query { $($field : $val),* }, handler)
-                .await
-        }
-    };
-
-    // Builder form, for a list endpoint whose surface declares optional
-    // (builder-bound) parameters. The plain form above cannot carry them:
-    // its only inputs are the required method arguments, so an optional the
-    // wire accepts would be pinned to its default on every call. Here the
-    // client method returns a builder instead, matching the parsed
-    // endpoints, and `.await` on it (through `IntoFuture`) runs the same
-    // request body. A caller who sets nothing sends the SSOT defaults, so
-    // the unfiltered call is byte-identical to the plain form.
     (
         $(#[$meta:meta])*
         builder $builder_name:ident;
@@ -773,8 +692,8 @@ macro_rules! list_endpoint {
             #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
             $(#[$meta])*
             ///
-            /// Optional filters are set on the returned builder; `.await`
-            /// sends the request.
+            /// Optional filters and the deadline are set on the returned
+            /// builder; `.await` sends the request.
             ///
             /// # Errors
             ///
@@ -1696,7 +1615,7 @@ mod effective_deadline_tests {
     }
 
     /// End-to-end guard for the list-endpoint deadline contract: the
-    /// `_with_deadline` arm resolves its deadline via `effective_deadline`,
+    /// builder's `with_deadline` resolves its deadline via `effective_deadline`,
     /// so an explicit `Duration::ZERO` must yield `None` and the wrapped
     /// future must run to completion rather than timing out on the first
     /// poll. Drive a future that only resolves after a real `await` point

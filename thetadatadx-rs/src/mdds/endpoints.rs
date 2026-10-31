@@ -255,12 +255,8 @@ macro_rules! query_value {
     ($c:tt req Time [] $a:ident) => {
         normalize_time_of_day(&$a)
     };
-    // A builder's arguments are `String`s; a list method's are `&str`s.
-    (() req $t:ident [] $a:ident) => {
-        $a.clone()
-    };
     ($c:tt req $t:ident [] $a:ident) => {
-        $a.to_string()
+        $a.clone()
     };
     ($c:tt opt Date [] $a:ident) => {
         $a.as_deref().map(normalize_date)
@@ -321,16 +317,9 @@ exceeds [`crate::config::MarketDataConfig::warn_on_buffered_threshold_bytes`]
     };
 }
 
-/// One endpoint in one of the two passes of `market_data_endpoints!`: its
-/// resolved parameters become the query fields, then its plain methods
-/// (`method` pass) or its builder (`builder` pass).
+/// One endpoint of `market_data_endpoints!`: its resolved parameters become
+/// the query fields, then its builder.
 macro_rules! market_data_endpoint {
-    // Only a list endpoint can be a plain method.
-    (@method list $name:ident $ret:ident ($col:literal) $doc:tt $keys:tt) => {
-        crate::__resolve! { $keys for $name => market_data_endpoint { method list $name $ret ($col) $doc } }
-    };
-    (@method $($other:tt)*) => {};
-
     // A raw stream: the builder is named after the method, the request after
     // the RPC it drains.
     (stream $wire:ident $name:ident $item:ident params { all [$($all:tt)*] $($rest:tt)* }) => {
@@ -354,42 +343,11 @@ macro_rules! market_data_endpoint {
         market_data_endpoint! { @emit $f $($then)* }
     };
 
-    // A list endpoint without optionals: plain methods, inside the one
-    // `impl MarketDataClient` of the `method` pass.
-    (@emit [$($f:tt)*] method list $name:ident StringList($col:literal) [$($doc:literal)*] params {
-        all $all:tt req [$({ $p:ident $a:ident req $t:ident [] $pd:literal })*] opt [] $($rest:tt)*
-    }) => {
-        pastey::paste! {
-            list_endpoint! {
-                $(#[doc = $doc])*
-                #[doc = concat!("gRPC stub: `get_", stringify!($name), "`")]
-                fn $name($($a: &str),*) -> $col;
-                with_deadline_fn: [<$name _with_deadline>];
-                tables_fn: [<$name _tables>];
-                query: [<$name:camel RequestQuery>] { $($f)* };
-            }
-        }
-    };
-    // A list endpoint without optionals in the `builder` pass: its methods
-    // sit in the shared `impl` block, which cannot hold the `EndpointQuery`
-    // impl of its query, so that impl is emitted here.
-    (@emit [$($f:tt)*] builder list $name:ident StringList($col:literal) $doc:tt params {
-        all $all:tt req $req:tt opt [] $($rest:tt)*
-    }) => {
-        pastey::paste! {
-            endpoint_query!(
-                $name,
-                [<get_ $name>],
-                [<$name:camel Request>],
-                [<$name:camel RequestQuery>] { $($f)* }
-            );
-        }
-    };
-    // A list endpoint with optionals: a builder.
+    // A list endpoint: a builder.
     (@emit [$($f:tt)*] builder list $name:ident StringList($col:literal) [$($doc:literal)*] params {
         all $all:tt
         req [$({ $p:ident $a:ident req $t:ident [] $pd:literal })*]
-        opt [$({ $op:ident $oa:ident opt $ot:ident [$($ov:literal)?] $od:literal })+]
+        opt [$({ $op:ident $oa:ident opt $ot:ident [$($ov:literal)?] $od:literal })*]
         defaults [$({ $dp0:ident $dv0:literal $dq0:literal } $({ $dp:ident $dv:literal $dq:literal })*)?]
         dates $dates:tt
     }) => {
@@ -491,10 +449,8 @@ macro_rules! flat_file_to_path {
     ($sub:ident $name:ident) => {};
 }
 
-/// Expands the endpoint table into the client's methods and builders, in two
-/// passes: the plain list methods and the flat files' `_to_path` methods
-/// share one `impl MarketDataClient`, then every other endpoint gets its
-/// builder.
+/// Expands the endpoint table into the client's builders, after one
+/// `impl MarketDataClient` holding the flat files' `_to_path` methods.
 macro_rules! market_data_endpoints {
     ($( $(#[$attr:meta])* $shape:ident $name:ident {
         group: $cat:ident / $sub:ident,
@@ -504,10 +460,7 @@ macro_rules! market_data_endpoints {
         doc: [$($doc:literal),* $(,)?],
     } )*) => {
         impl MarketDataClient {
-            $(
-                market_data_endpoint! { @method $shape $name $ret $(($col))? [$($doc)*] [$($key)*] }
-                flat_file_to_path! { $sub $name }
-            )*
+            $( flat_file_to_path! { $sub $name } )*
         }
         $( crate::__resolve! { [$($key)*] for $name => market_data_endpoint { builder $shape $name $ret $(($col))? [$($doc)*] } } )*
     };

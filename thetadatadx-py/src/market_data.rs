@@ -311,7 +311,7 @@ macro_rules! py_endpoint {
                     let timeout_ms = self.timeout_ms;
                     $(let $a = self.$a.clone();)*
                     let values: Vec<String> = run_blocking(py, async move {
-                        py_endpoint!(@list_field_call client, $name, [$($a)*], [$($oa)*], timeout_ms)
+                        py_endpoint!(@list_field_call client, $name, [$($a)*], timeout_ms)
                     })?;
                     strings_to_string_list(py, values, $col)
                 }
@@ -322,44 +322,26 @@ macro_rules! py_endpoint {
                     $(let $a = self.$a.clone();)*
                     let timeout_ms = self.timeout_ms;
                     spawn_awaitable(py, async move {
-                        py_endpoint!(@list_field_call client, $name, [$($a)*], [$($oa)*], timeout_ms)
+                        py_endpoint!(@list_field_call client, $name, [$($a)*], timeout_ms)
                     }, |py, values| strings_to_string_list(py, values, $col).map(|p| p.into_any()))
                 }
             }
         }
     };
 
-    // A list call without optionals has a `_with_deadline` twin; with
-    // optionals it is a builder.
-    (@list_call $client:expr, $name:ident, [$($a:ident)*], [], $timeout:ident) => {
-        thetadatadx::__paste! {
-            match $timeout {
-                None => $client.market_data().$name($($a.as_str()),*).await,
-                Some(ms) => $client.market_data().[<$name _with_deadline>]($($a.as_str(),)* std::time::Duration::from_millis(ms)).await,
-            }
-        }
-    };
-    (@list_call $client:expr, $name:ident, [$($a:ident)*], [$($op:ident $oa:ident $ot:ident)+], $timeout:ident) => {{
+    (@list_call $client:expr, $name:ident, [$($a:ident)*], [$($op:ident $oa:ident $ot:ident)*], $timeout:ident) => {{
         let mut request = $client.market_data().$name($($a.as_str()),*);
         $(
             if let Some(value) = $oa {
                 request = request.$op(py_set!($ot value));
             }
-        )+
+        )*
         if let Some(ms) = $timeout {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         request.await
     }};
-    (@list_field_call $client:ident, $name:ident, [$($a:ident)*], [], $timeout:ident) => {
-        thetadatadx::__paste! {
-            match $timeout {
-                None => $client.market_data().$name($(&$a),*).await,
-                Some(ms) => $client.market_data().[<$name _with_deadline>]($(&$a,)* std::time::Duration::from_millis(ms)).await,
-            }
-        }
-    };
-    (@list_field_call $client:ident, $name:ident, [$($a:ident)*], [$($oa:ident)+], $timeout:ident) => {
+    (@list_field_call $client:ident, $name:ident, [$($a:ident)*], $timeout:ident) => {
         match $timeout {
             None => $client.market_data().$name($(&$a),*).await,
             Some(ms) => $client.market_data().$name($(&$a),*).with_deadline(std::time::Duration::from_millis(ms)).await,
