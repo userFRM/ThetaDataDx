@@ -435,9 +435,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust-deps
-      # `[workspace.lints.rust] warnings = "deny"` promotes every
-      # rustdoc warning (broken intra-doc links, redundant explicit
-      # link targets, unresolved references) into a hard build error.
+      # `RUSTDOCFLAGS: -D warnings` promotes every rustdoc warning
+      # (broken intra-doc links, redundant explicit link targets,
+      # unresolved references) into a hard build error.
       # Running `cargo doc --no-deps --workspace` therefore fails CI
       # the moment a docstring links to a private item, a renamed
       # symbol, or a path that no longer exists. No other job documents
@@ -446,12 +446,16 @@ jobs:
       # JSDoc emitted into `index.d.ts`, written for that reader, so their
       # names are TypeScript names rustdoc cannot resolve.
       - run: cargo doc --no-deps --workspace --exclude thetadatadx-napi --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
       # Validate the feature-gated docs too: `frames`, `arrow`, and
       # `polars` add public docs that are silent on the default cargo
       # doc invocation. docs.rs builds with `all-features = true`, so
       # CI must mirror that contract or a broken link will land on
       # docs.rs but pass CI.
       - run: cargo doc --no-deps -p thetadatadx-rs --features "arrow polars frames config-file" --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   semver:
     name: Semver check
@@ -575,6 +579,8 @@ jobs:
           components: clippy
       # Intra-doc link hygiene on the generator.
       - run: cargo doc --no-deps -p xtask --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   build-ffi:
     name: Build FFI (${{ matrix.os }})

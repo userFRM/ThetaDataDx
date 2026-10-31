@@ -24,23 +24,20 @@ license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
 
-# Workspace-wide lint configuration. Matches what CI enforces
-# (`cargo clippy --workspace -- -D warnings`) at the Cargo.toml layer so
-# local `cargo clippy` behaves identically to the CI job without relying
-# on a remembered flag. Keeping this here also means new member crates
-# inherit the strict profile automatically once they add `[lints]
-# workspace = true`.
+# Workspace-wide lint configuration. New member crates inherit it once they
+# add `[lints] workspace = true`.
+#
+# Warnings are denied in CI (`RUSTFLAGS=-D warnings` in the workflows and
+# `-- -D warnings` on every clippy run), not here. The toolchain floats on
+# `stable`, so a manifest-level deny would turn every warning a new rustc
+# introduces into a build failure with no code change, for contributors and
+# for anyone installing the Python sdist, which carries this manifest and
+# compiles the crates as local packages, so the lint levels apply in full.
 [workspace.lints.rust]
-# Deny the rustc `warnings` lint group — this is what the `-D warnings`
-# flag on the CI clippy command promotes to an error. Expressing it
-# declaratively makes local `cargo clippy` / `cargo check` fail on the
-# same rustc warnings CI rejects, with no flag required.
-warnings = "deny"
 # `unsafe_op_in_unsafe_fn` forces every unsafe operation inside an
 # `unsafe fn` body to be wrapped in its own `unsafe { ... }` block. This
 # is the lang-team-recommended hygiene and matches our FFI boundary
-# discipline (see `thetadatadx-ffi/src/lib.rs`). Promoted to `deny` alongside the
-# rest of the `warnings` group.
+# discipline (see `thetadatadx-ffi/src/lib.rs`).
 unsafe_op_in_unsafe_fn = "deny"
 
 [workspace.lints.clippy]
