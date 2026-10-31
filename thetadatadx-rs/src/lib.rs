@@ -466,14 +466,12 @@ pub mod utils {
 // The shipped public surface above is curated. Workspace tools
 // (`tools/server`, `tools/mcp`), bindings (`ffi`,
 // `thetadatadx-py`, `thetadatadx-ts`), and the bench harnesses reach a few
-// more data-layer items: the DST-aware epoch math, the canonical JSON
-// finite-or-null sanitiser, the FIT codec, and the calendar-status
-// enum the generated tick constructors validate against. These are gated
-// on `__internal` so they stay out of the SemVer commitment and rendered
-// rustdoc; external crates MUST NOT enable that feature. The `tdbe` name
-// never appears in the path — these resolve as `thetadatadx::time`,
-// `thetadatadx::json_canon`, `thetadatadx::codec`, and
-// `thetadatadx::CalendarStatus`.
+// more data-layer items: the DST-aware epoch math, the FIT codec, and the
+// calendar-status enum the generated tick constructors validate against.
+// These are gated on `__internal` so they stay out of the SemVer commitment
+// and rendered rustdoc; external crates MUST NOT enable that feature. The
+// `tdbe` name never appears in the path: these resolve as
+// `thetadatadx::time`, `thetadatadx::codec`, and `thetadatadx::CalendarStatus`.
 
 /// DST-aware epoch / civil-date math (`date_ms_to_epoch_ms`,
 /// `is_valid_yyyymmdd`, `timestamp_to_date`, ...).
@@ -492,15 +490,6 @@ pub use crate::tdbe::time;
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
 pub use crate::util::ring::check_ring_size;
-
-/// Canonical JSON helper (`finite_or_null`) for the server and MCP
-/// renderers.
-///
-/// Only available when the `__internal` feature is enabled. NOT a stable
-/// public surface — for workspace tools and bindings only.
-#[cfg(feature = "__internal")]
-#[doc(hidden)]
-pub use crate::tdbe::json_canon;
 
 /// FIT 4-bit nibble codec for FPSS tick compression.
 ///

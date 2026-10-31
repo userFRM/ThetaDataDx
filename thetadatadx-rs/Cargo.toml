@@ -207,10 +207,6 @@ arrow-array = { version = "60.0.0", optional = true }
 arrow-schema = { version = "60.0.0", optional = true }
 # JSON for the Nexus authentication exchange and the generated docs pages.
 serde_json = "1.0.137"
-# SIMD JSON parser/serializer backing the canonical JSON helpers in the
-# data-format layer (`tdbe::json_canon`): finite-or-null sanitisation and
-# stable key ordering for the CLI / server / MCP renderers.
-sonic-rs = "0.5.8"
 
 # Secret-wiping wrapper for password in `Credentials`. Zeroizes the backing
 # buffer on drop so the plaintext is not recoverable from a core dump or
