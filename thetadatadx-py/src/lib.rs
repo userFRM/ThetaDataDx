@@ -1589,52 +1589,19 @@ impl StreamView {
 
 // `Client` is THE pyclass name. No alias, no compat wrapper.
 
-// ── AsyncClient — async-only sibling ───────────────────────
+// ── AsyncClient: async-only sibling ───────────────────────
 //
-// The underlying `Client` exposes both sync and `*_async`
-// market-data methods. This thin wrapper holds a `Client`
-// handle and proxies attribute access through `__getattr__`, but raises
-// on access to non-`async_` methods so users that opt into the async
-// surface do not accidentally call a blocking sync path.
-//
-// The wrapper is a disciplined façade over the same Rust core, exposing
-// a narrower public Python surface.
+// A thin wrapper over a `Client` handle. `__getattr__` forwards `*_async`
+// names to `client.market_data`, and the synchronous streaming names below
+// to `client.stream` or to the client itself; every other name raises, so
+// users who opt into the async surface do not accidentally call a blocking
+// sync market-data method.
 
-/// Async-only sibling of [`Client`].
-///
-/// ```python
-/// import asyncio
-/// from thetadatadx import AsyncClient, Credentials, Config
-///
-/// async def main():
-///     creds = Credentials.from_file("creds.txt")
-///     client = await AsyncClient.connect(creds, Config.production())
-///     ticks = await client.stock_history_eod_async("AAPL", "20240101", "20240301")
-///     print(ticks.to_pandas().head())
-///
-/// asyncio.run(main())
-/// ```
-///
-/// Construct with `await AsyncClient.connect(...)` (or
-/// `await AsyncClient.connect_from_file("creds.txt")`) from inside a
-/// coroutine so the auth + connect handshake resolves off the event loop
-/// instead of stalling it. The synchronous `AsyncClient(creds, config)`
-/// constructor stays available for building outside a running loop.
-///
-/// Attribute access is restricted to async-suffixed methods plus a
-/// safelisted set of synchronous lifecycle methods that have no
-/// async counterpart on the wrapped surface
-/// (`subscribe`/`unsubscribe`/`stop_streaming`/...).
-/// Sync method names safelisted for proxy access on
-/// [`AsyncClient`]. Every name MUST exist as a
-/// `#[pymethods]` entry on [`Client`]; the const-eval
-/// assertion below pins that invariant at compile time so we cannot
-/// promise a method that the inner pyclass does not implement.
-///
-/// `is_authenticated` lives only on `StreamingClient` (not on the unified
-/// client) and `config` has no such getter, so neither appears in
-/// this list. The remaining names map 1:1 to public methods on
-/// `Client` reachable via `bound.getattr(name)`.
+/// The synchronous names [`AsyncClient`] forwards: every method of
+/// [`StreamView`], reached through `client.stream`, and [`DIRECT_ON_CLIENT`].
+/// The type stub declares the whole `StreamView` surface on `AsyncClient`, and
+/// `allowlist_names_exactly_the_methods_it_forwards_to` holds this list to the
+/// methods the two classes define.
 pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // Subscription management.
     "subscribe",
@@ -1664,12 +1631,6 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "last_connected_addr",
     // Arrow RecordBatch reader — StreamView.
     "batches",
-    // NOTE: `session_uuid` / `subscription_info` are NOT on
-    // `Client` — they live on `StreamingSession` (returned
-    // by `client.streaming(callback)`) per their natural lifecycle
-    // scope. Reaching for them through the unified async surface
-    // raises `AttributeError` via the runtime `bound.getattr` after
-    // the allowlist check, identical to the sync client.
 ];
 
 /// Allowlisted names that stay on `Client` and resolve directly rather
@@ -1678,97 +1639,73 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
 /// inline in `AsyncClient.__getattr__` so the lists cannot drift.
 const DIRECT_ON_CLIENT: [&str; 1] = ["streaming"];
 
-/// Hand-written `#[pymethods]` entries reachable through `Client`. The
-/// `ALLOWED_UNIFIED_PROXY_METHODS` const-eval assertion below requires every
-/// name in `ALLOWED_UNIFIED_PROXY_METHODS` to appear in this list, otherwise
-/// the build fails.
-const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
-    // Streaming lifecycle on the `client.stream` `StreamView` surface (lib.rs).
-    "start_streaming",
-    "is_streaming",
-    "batches",
-    "active_subscriptions",
-    "reconnect",
-    "stop_streaming",
-    "shutdown",
-    "await_drain",
-    // Hand-written streaming-session factory (stays on `Client`).
-    "streaming",
-    // Subscription management — hand-written to accept polymorphic
-    // `Subscription` PyAny inputs; lives on the `client.stream`
-    // `StreamView` surface (lib.rs).
-    "subscribe",
-    "subscribe_many",
-    "unsubscribe",
-    "unsubscribe_many",
-    // Full-stream subscription snapshot lives on the `client.stream`
-    // `StreamView` surface (lib.rs).
-    "active_full_subscriptions",
-    // Diagnostic getters — `dropped_event_count`, `panic_count`,
-    // `ring_occupancy`, and `ring_capacity` — all live on the
-    // `client.stream` `StreamView` surface (lib.rs). All forward to the
-    // core `thetadatadx::Client` accessors so the counts match every
-    // other binding.
-    "dropped_event_count",
-    "panic_count",
-    "ring_occupancy",
-    "ring_capacity",
-    // Session health / liveness getters on the `client.stream` StreamView.
-    "is_authenticated",
-    "millis_since_last_event",
-    "last_event_received_at_unix_nanos",
-    "last_connected_addr",
-];
+#[cfg(test)]
+mod async_client_tests {
+    use std::collections::BTreeSet;
 
-/// `const fn` byte-equal helper for the compile-time guards in this
-/// crate. PyO3 attribute names are ASCII, so byte equality on the
-/// `str` bytes is an exact name compare.
-pub(crate) const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
+    use pyo3::prelude::*;
+    use pyo3::types::PyType;
+
+    use super::{ALLOWED_UNIFIED_PROXY_METHODS, Client, DIRECT_ON_CLIENT, StreamView};
+
+    fn public_names(class: &Bound<'_, PyType>) -> BTreeSet<String> {
+        class
+            .dir()
+            .unwrap()
+            .iter()
+            .map(|name| name.extract::<String>().unwrap())
+            .filter(|name| !name.starts_with('_'))
+            .collect()
     }
-    let mut i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
-            return false;
-        }
-        i += 1;
+
+    /// A listed name its class lacks raises only when a user reaches for it,
+    /// and a `StreamView` method left off the list is one the type stub
+    /// declares on `AsyncClient` but `__getattr__` refuses.
+    #[test]
+    fn allowlist_names_exactly_the_methods_it_forwards_to() {
+        Python::initialize();
+        Python::attach(|py| {
+            let via_stream: BTreeSet<String> = ALLOWED_UNIFIED_PROXY_METHODS
+                .iter()
+                .filter(|name| !DIRECT_ON_CLIENT.contains(*name))
+                .map(|name| (*name).to_string())
+                .collect();
+            assert_eq!(via_stream, public_names(&py.get_type::<StreamView>()));
+            let on_client = public_names(&py.get_type::<Client>());
+            for name in DIRECT_ON_CLIENT {
+                assert!(
+                    ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && on_client.contains(name),
+                    "`{name}` must be allowlisted and a method of Client"
+                );
+            }
+        });
     }
-    true
 }
 
-/// Compile-time assertion: every safelisted proxy name must
-/// resolve to a real `#[pymethods]` entry on `Client`.
-/// Without this check a name that passes the allowlist but has no
-/// matching method would raise a confusing `AttributeError` from the
-/// inner `getattr` at call time — pinning the inventory here surfaces
-/// the mismatch at compile time instead.
-const _: () = {
-    let mut i = 0;
-    while i < ALLOWED_UNIFIED_PROXY_METHODS.len() {
-        let needle = ALLOWED_UNIFIED_PROXY_METHODS[i];
-        let mut found = false;
-        let mut j = 0;
-        while j < HANDWRITTEN_UNIFIED_PYMETHODS.len() {
-            if const_bytes_eq(
-                HANDWRITTEN_UNIFIED_PYMETHODS[j].as_bytes(),
-                needle.as_bytes(),
-            ) {
-                found = true;
-                break;
-            }
-            j += 1;
-        }
-        assert!(
-            found,
-            "ALLOWED_UNIFIED_PROXY_METHODS contains a name not present \
-             in `HANDWRITTEN_UNIFIED_PYMETHODS`; the AsyncClient \
-             would promise a method Client does not implement."
-        );
-        i += 1;
-    }
-};
-
+/// Async-only sibling of `Client`.
+///
+/// ```python
+/// import asyncio
+/// from thetadatadx import AsyncClient, Credentials, Config
+///
+/// async def main():
+///     creds = Credentials.from_file("creds.txt")
+///     client = await AsyncClient.connect(creds, Config.production())
+///     ticks = await client.stock_history_eod_async("AAPL", "20240101", "20240301")
+///     print(ticks.to_pandas().head())
+///
+/// asyncio.run(main())
+/// ```
+///
+/// Construct with `await AsyncClient.connect(...)` (or
+/// `await AsyncClient.connect_from_file("creds.txt")`) from inside a
+/// coroutine so the auth + connect handshake resolves off the event loop
+/// instead of stalling it. The synchronous `AsyncClient(creds, config)`
+/// constructor stays available for building outside a running loop.
+///
+/// Attribute access is restricted to the `*_async` market-data methods of
+/// `Client.market_data`, the methods of `Client.stream` and
+/// `Client.streaming`.
 #[pyclass(module = "thetadatadx", name = "AsyncClient")]
 struct AsyncClient {
     inner: Py<Client>,
@@ -1877,16 +1814,10 @@ impl AsyncClient {
     }
 
     /// Forward attribute access to the wrapped `Client`.
-    /// Async-suffixed methods plus the safelisted lifecycle / streaming
-    /// methods are reachable; everything else raises `AttributeError`
-    /// so callers who picked the async surface stay on the async path.
-    ///
-    /// Every name in `ALLOWED` is checked at compile time (see the
-    /// `_ALLOWED_NAMES_ON_UNIFIED` const-eval block below) to actually
-    /// exist on `Client`. The list is verified by
-    /// `_ALLOWED_NAMES`; `is_authenticated` (only on `StreamingClient`)
-    /// and `config` (no such getter) are intentionally excluded so
-    /// the proxy does not advertise methods the inner client lacks.
+    /// Async-suffixed methods plus the names in
+    /// [`ALLOWED_UNIFIED_PROXY_METHODS`] are reachable; everything else
+    /// raises `AttributeError` so callers who picked the async surface stay
+    /// on the async path.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(

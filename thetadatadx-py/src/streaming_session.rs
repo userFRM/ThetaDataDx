@@ -263,9 +263,6 @@ impl crate::Client {
 
     /// Current market-data session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
-    ///
-    /// Backs the `session_uuid` entry on `AsyncClient`'s
-    /// `__getattr__` allowlist so that proxy resolves to a working call.
     fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
         let inner = self.client_arc()?;
         crate::run_blocking(py, async move { Ok(inner.session_uuid().await) })
