@@ -232,7 +232,7 @@ fn render_stub_sync(endpoint: &GeneratedEndpoint) -> String {
         endpoint.name,
         endpoint,
         &return_type,
-        SignatureKind::SyncMethod,
+        SignatureKind::Method,
     );
     write_docstring(&mut out, &compose_endpoint_doc(endpoint));
     out
@@ -252,7 +252,7 @@ fn render_stub_async(endpoint: &GeneratedEndpoint) -> String {
         &format!("{}_async", endpoint.name),
         endpoint,
         &return_type,
-        SignatureKind::AsyncMethod,
+        SignatureKind::Method,
     );
     write_docstring(&mut out, &doc);
     out
@@ -313,15 +313,11 @@ fn render_stub_to_path(endpoint: &GeneratedEndpoint, awaitable: bool) -> String 
 // ───────────────────────── Signature writer ────────────────────────────────
 
 enum SignatureKind {
-    /// Sync endpoint method: required positional args, then a keyword-only
-    /// block of optional builder kwargs and `timeout_ms`. Scalar kwargs
-    /// carry the upstream default so the stub matches the runtime
+    /// Endpoint method, sync or `*_async`: required positional args, then a
+    /// keyword-only block of optional builder kwargs and `timeout_ms`. Scalar
+    /// kwargs carry the upstream default so the stub matches the runtime
     /// `#[pyo3(signature = ...)]` exactly.
-    SyncMethod,
-    /// Async endpoint method: same shape as the sync variant, but every
-    /// kwarg defaults to `None`, as the generated `*_async` signature does;
-    /// an omitted kwarg leaves the upstream default to the server.
-    AsyncMethod,
+    Method,
     /// `*_builder` constructor: required positional args only.
     Builder,
 }
@@ -343,10 +339,9 @@ fn write_signature(
         .map(|param| format!("{}: {}", sdk_method_arg_name(param), stub_value_type(param)))
         .collect();
 
-    let honor_defaults = matches!(kind, SignatureKind::SyncMethod);
     let keyword_only: Vec<String> = match kind {
         SignatureKind::Builder => Vec::new(),
-        SignatureKind::SyncMethod | SignatureKind::AsyncMethod => {
+        SignatureKind::Method => {
             let mut kwargs: Vec<String> = builder_params
                 .iter()
                 .map(|param| {
@@ -354,7 +349,7 @@ fn write_signature(
                         "{}: Optional[{}] = {}",
                         param.name,
                         stub_value_type(param),
-                        stub_kwarg_default(param, honor_defaults)
+                        stub_kwarg_default(param)
                     )
                 })
                 .collect();
@@ -447,14 +442,10 @@ fn endpoint_builder_class(name: &str) -> String {
 }
 
 /// Default expression for an optional keyword-only argument. Mirrors the
-/// `@sig` arms of `py_endpoint!` in `market_data.rs`: when `honor_defaults`
-/// is set (the sync variant) a scalar param surfaces its upstream default;
-/// otherwise, and for every non-scalar param, the default is `None`. Bool
-/// literals are rendered in Python casing.
-fn stub_kwarg_default(param: &GeneratedParam, honor_defaults: bool) -> String {
-    if !honor_defaults {
-        return "None".to_string();
-    }
+/// `@sig` arms of `py_endpoint!` in `market_data.rs`: a scalar param surfaces
+/// its upstream default, every other param defaults to `None`. Bool literals
+/// are rendered in Python casing.
+fn stub_kwarg_default(param: &GeneratedParam) -> String {
     let Some(default) = param.default else {
         return "None".to_string();
     };

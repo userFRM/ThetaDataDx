@@ -6848,7 +6848,7 @@ class _AsyncMarketData:
         *,
         venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more stocks.
@@ -6873,7 +6873,7 @@ class _AsyncMarketData:
         *,
         venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeTickList]:
         """Get the latest trade snapshot for one or more stocks.
@@ -6897,7 +6897,7 @@ class _AsyncMarketData:
         *,
         venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[QuoteTickList]:
         """Get the latest NBBO quote snapshot for one or more stocks.
@@ -6921,7 +6921,7 @@ class _AsyncMarketData:
         *,
         venue: Optional[Union[str, Venue]] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more stocks.
@@ -7051,11 +7051,11 @@ class _AsyncMarketData:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = None,
+        exclusive: Optional[bool] = True,
         venue: Optional[Union[str, Venue]] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        use_time_based_trade_quote: Optional[bool] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
         """Fetch combined trade + quote ticks for a stock on a given date.
@@ -7312,7 +7312,7 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[OhlcTick]]:
         """Get the latest OHLC snapshot for an option contract.
@@ -7338,7 +7338,7 @@ class _AsyncMarketData:
         right: Optional[Union[str, Right]] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[TradeTick]]:
         """Get the latest trade snapshot for an option contract.
@@ -7366,7 +7366,7 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[QuoteTick]]:
         """Get the latest NBBO quote snapshot for an option contract.
@@ -7394,7 +7394,7 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[OpenInterestTick]]:
         """Get the latest open interest snapshot for an option contract.
@@ -7423,7 +7423,7 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[MarketValueTick]]:
         """Get the latest market value snapshot for an option contract.
@@ -7456,8 +7456,8 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[IvTick]]:
         """Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -7495,8 +7495,8 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksAllTick]]:
         """Get all Greeks snapshot for an option contract (from ThetaData server).
@@ -7529,13 +7529,13 @@ class _AsyncMarketData:
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksAllTick]]:
         """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
@@ -7574,8 +7574,8 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksFirstOrderTick]]:
         """Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -7608,13 +7608,13 @@ class _AsyncMarketData:
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksFirstOrderTick]]:
         """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
@@ -7653,8 +7653,8 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksSecondOrderTick]]:
         """Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -7687,13 +7687,13 @@ class _AsyncMarketData:
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksSecondOrderTick]]:
         """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
@@ -7732,8 +7732,8 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksThirdOrderTick]]:
         """Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
@@ -7766,13 +7766,13 @@ class _AsyncMarketData:
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         stock_price: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
-        use_market_value: Optional[bool] = None,
-        current_day_only: Optional[bool] = None,
+        use_market_value: Optional[bool] = False,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksThirdOrderTick]]:
         """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
@@ -7937,12 +7937,12 @@ class _AsyncMarketData:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = None,
+        exclusive: Optional[bool] = True,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        use_time_based_trade_quote: Optional[bool] = None,
+        use_time_based_trade_quote: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeQuoteTickList]:
         """Fetch combined trade + quote ticks for an option contract.
@@ -8008,10 +8008,10 @@ class _AsyncMarketData:
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
         version: Optional[Union[str, Version]] = None,
-        underlyer_use_nbbo: Optional[bool] = None,
+        underlyer_use_nbbo: Optional[bool] = False,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
-        option_use_nbbo: Optional[bool] = None,
+        option_use_nbbo: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksEodTickList]:
         """Fetch end-of-day Greeks history for an option contract.
@@ -8046,12 +8046,12 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
-        underlyer_use_nbbo: Optional[bool] = None,
+        underlyer_use_nbbo: Optional[bool] = False,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
-        option_use_nbbo: Optional[bool] = None,
+        option_use_nbbo: Optional[bool] = True,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksEodTickList]:
         """Fetch end-of-day binomial Greeks history for an option contract.
@@ -8132,7 +8132,7 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -8181,7 +8181,7 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksAllTickList]:
         """Fetch all Greeks on each trade for an option contract.
@@ -8219,13 +8219,13 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksAllTickList]:
         """Fetch all binomial Greeks on each trade for an option contract.
@@ -8308,7 +8308,7 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -8357,7 +8357,7 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksFirstOrderTickList]:
         """Fetch first-order Greeks on each trade for an option contract.
@@ -8395,13 +8395,13 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksFirstOrderTickList]:
         """Fetch first-order binomial Greeks on each trade for an option contract.
@@ -8484,7 +8484,7 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -8533,7 +8533,7 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksSecondOrderTickList]:
         """Fetch second-order Greeks on each trade for an option contract.
@@ -8571,13 +8571,13 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksSecondOrderTickList]:
         """Fetch second-order binomial Greeks on each trade for an option contract.
@@ -8660,7 +8660,7 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -8709,7 +8709,7 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksThirdOrderTickList]:
         """Fetch third-order Greeks on each trade for an option contract.
@@ -8747,13 +8747,13 @@ class _AsyncMarketData:
         annual_dividend_amount: Optional[float] = None,
         rate_type: Optional[Union[str, RateType]] = None,
         rate_value: Optional[float] = None,
-        binomial_steps: Optional[int] = None,
+        binomial_steps: Optional[int] = 101,
         version: Optional[Union[str, Version]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksThirdOrderTickList]:
         """Fetch third-order binomial Greeks on each trade for an option contract.
@@ -8839,7 +8839,7 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
-        perf_boost_intraday: Optional[bool] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksImpliedVolatilityTickList]:
         """Fetch implied volatility on each trade for an option contract.
@@ -9058,7 +9058,7 @@ class _AsyncMarketData:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more indices.
@@ -9079,7 +9079,7 @@ class _AsyncMarketData:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[PriceTickList]:
         """Get the latest price snapshot for one or more indices.
@@ -9100,7 +9100,7 @@ class _AsyncMarketData:
         symbols: Union[str, Sequence[str]],
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
-        current_day_only: Optional[bool] = None,
+        current_day_only: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more indices.
