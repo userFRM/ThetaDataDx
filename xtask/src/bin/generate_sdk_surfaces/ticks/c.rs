@@ -37,7 +37,7 @@ pub(super) fn render_c_ticks() -> String {
         let mut doc = vec![tick.summary];
         doc.extend(tick.more);
         writeln!(out, "/* {} */", doc.join("\n *\n * ")).unwrap();
-        out.push_str("THETADATADX_ALIGN64_BEGIN typedef struct {\n");
+        out.push_str("typedef struct {\n");
         let mut end = 0;
         for column in tick.columns {
             let field = c_field_ident(column.field);
@@ -70,12 +70,7 @@ pub(super) fn render_c_ticks() -> String {
         if layout.size > end {
             writeln!(out, "    uint8_t _tail_padding[{}];", layout.size - end).unwrap();
         }
-        writeln!(
-            out,
-            "}} ThetaDataDx{} THETADATADX_ALIGN64_END;\n",
-            tick.name
-        )
-        .unwrap();
+        writeln!(out, "}} ThetaDataDx{};\n", tick.name).unwrap();
     }
 
     out.push_str(

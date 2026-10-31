@@ -1,4 +1,4 @@
-//! Per-tick `#[repr(C, align(N))]` struct definitions, expanded from the
+//! Per-tick `#[repr(C)]` struct definitions, expanded from the
 //! tick table (`crate::__ticks!`), plus the items the table does not express:
 //!
 //! * `impl TradeTick` flag helpers (`is_cancelled`, ...). These read
@@ -17,7 +17,7 @@ macro_rules! tick_structs {
 /// contract helpers.
 macro_rules! tick_struct {
     ($name:ident pod $($rest:tt)*) => {
-        tick_struct! { @struct [#[derive(Debug, Clone, Copy)] #[repr(C, align(64))]] $name $($rest)* }
+        tick_struct! { @struct [#[derive(Debug, Clone, Copy)] #[repr(C)]] $name $($rest)* }
     };
     ($name:ident owned $($rest:tt)*) => {
         tick_struct! { @struct [#[derive(Debug, Clone)] #[repr(C)]] $name $($rest)* }

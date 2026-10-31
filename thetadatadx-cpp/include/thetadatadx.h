@@ -40,14 +40,6 @@
 #include <stdbool.h>
 #endif
 
-#if defined(_MSC_VER)
-#define THETADATADX_ALIGN64_BEGIN __declspec(align(64))
-#define THETADATADX_ALIGN64_END
-#else
-#define THETADATADX_ALIGN64_BEGIN
-#define THETADATADX_ALIGN64_END __attribute__((aligned(64)))
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,9 +58,10 @@ typedef struct ThetaDataDxClient ThetaDataDxClient;
 /*  Fixed-layout tick types                                               */
 /* ═══════════════════════════════════════════════════════════════════════ */
 
-/* All tick structs are 64-byte aligned and carry explicit tail padding as
- * part of the ABI contract, so C/C++ array stepping stays byte-for-byte
- * compatible with the wire layout. Price fields are 64-bit doubles.
+/* Every tick struct has the layout of the Rust row it mirrors: natural
+ * alignment, with any tail padding spelled out, so C and C++ step through a
+ * returned array exactly as the library wrote it. Price fields are 64-bit
+ * doubles.
  * A `bool has_<field>` is false when the response carried no value for
  * <field>; zero is a valid code there, so the value alone cannot tell. */
 
