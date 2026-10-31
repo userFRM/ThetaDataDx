@@ -23,10 +23,8 @@
 //! ```ignore
 //! set thetadatadx_config_set_retry_max_elapsed_secs(secs: u64) [retry.max_elapsed in secs] {
 //!     param: secs,
-//!     doc: ["Set the retry deadline in seconds."],
-//!     cpp_doc: [..],
-//!     py_doc: [..],
-//!     ts_doc: [..],
+//!     default: 300,
+//!     doc: ["Set the wall-clock envelope (seconds) for one retry sequence."],
 //! }
 //! ```
 //!
@@ -44,11 +42,21 @@
 //!   policy, and a write under another policy changes nothing), or a method
 //!   (`[market_data_host()]`).
 //! - `param` is the Python and TypeScript name of a setter's argument.
-//! - `values` lists an enum accessor's codes and variants, and `errors` an
-//!   enum setter's rejections: the C error code for a null handle and the
-//!   text each binding reports for a value outside the enum.
-//! - `doc`, `cpp_doc`, `py_doc` and `ts_doc` are the documentation of the C,
-//!   C++, Python and TypeScript accessor, one string per line, kept verbatim.
+//! - `default` is the value `DirectConfig::production_defaults` starts from,
+//!   for a number, a flag or an enum (as its variant), optionally followed by
+//!   the same value in other units (`default: 1000 "1 ms"`).
+//! - `values` lists an enum accessor's codes and variants, with what each
+//!   variant does on a setter, and `errors` an enum setter's rejections: the
+//!   C error code for a null handle and the text each binding reports for a
+//!   value outside the enum.
+//! - `doc` describes the accessor, one string per paragraph with `""` between
+//!   paragraphs, naming other settings by their field path.
+//!
+//! Each binding follows `doc` with what the table holds as data, in its own
+//! spelling: the default (a `bigint` with its `n` in TypeScript, `True` in
+//! Python, an enum by its lowercase name in Python and TypeScript), an enum's
+//! values, and how its accessor treats a null handle, an unset value or a
+//! rejected one. The Python stub writes code spans in reST.
 
 /// Reads the value an entry's target names.
 ///
@@ -123,1775 +131,371 @@ macro_rules! __config {
             $($ctx)*
             set thetadatadx_config_set_reconnect_wait_ms(ms: u64) [reconnect.wait_ms] {
                 param: ms,
-                doc: [
-                    "Set the reconnect delay (ms) honoured for generic transient",
-                    "disconnects (TimedOut, ServerRestarting, Unspecified, …). Applied to",
-                    "the streaming session at connect time. Default `250`.",
-                ],
-                cpp_doc: [
-                    "Set the reconnect delay (ms) honoured for generic transient",
-                    "disconnects (TimedOut, ServerRestarting, Unspecified, ...).",
-                    "Default 250.",
-                ],
-                py_doc: [
-                    "Set the reconnect delay (ms) honoured for generic transient",
-                    "disconnects (TimedOut, ServerRestarting, Unspecified, …).",
-                    "Applied to the streaming session at connect time.",
-                    "Default ``250``.",
-                ],
-                ts_doc: [
-                    "Set the reconnect delay (ms) honoured for generic transient",
-                    "disconnects (TimedOut, ServerRestarting, Unspecified, …).",
-                    "Plumbed through to the streaming I/O loop at connect time.",
-                    "Default `250`.",
-                    "",
-                    "Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.",
-                ],
+                default: 250,
+                doc: ["Set the reconnect delay (ms) honoured for generic transient disconnects (TimedOut, ServerRestarting, Unspecified, …), applied to the streaming session at connect time."],
             }
             get thetadatadx_config_get_reconnect_wait_ms(out_ms: u64) [reconnect.wait_ms] {
-                doc: [
-                    "Read the current reconnect `wait_ms` setting.",
-                    "",
-                    "Writes the configured millisecond delay into `*out_ms`. Returns",
-                    "`0` on success, `-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current reconnect wait_ms (default 250). Returns the default on",
-                    "a null config handle.",
-                ],
-                py_doc: [
-                    "Current reconnect ``wait_ms`` value (default ``250``).",
-                ],
-                ts_doc: [
-                    "Current reconnect `wait_ms` value (default `250`).",
-                ],
+                default: 250,
+                doc: ["Current `reconnect.wait_ms` value."],
             }
             set thetadatadx_config_set_reconnect_wait_rate_limited_ms(ms: u64) [reconnect.wait_rate_limited_ms] {
                 param: ms,
-                doc: [
-                    "Set the reconnect delay (ms) honoured for `TooManyRequests`",
-                    "rate-limited disconnects. Applied to the streaming session at connect",
-                    "time. Default `130_000` (matches the JVM terminal's 130 s rate-limit",
-                    "cooldown).",
-                ],
-                cpp_doc: [
-                    "Set the reconnect delay (ms) honoured for `TooManyRequests`",
-                    "rate-limited disconnects. Default 130_000.",
-                ],
-                py_doc: [
-                    "Set the reconnect delay (ms) honoured for ``TooManyRequests``",
-                    "rate-limited disconnects. Default ``130_000`` (matches the",
-                    "JVM terminal's 130 s rate-limit cooldown).",
-                ],
-                ts_doc: [
-                    "Set the reconnect delay (ms) honoured for `TooManyRequests`",
-                    "rate-limited disconnects. Default `130_000`.",
-                ],
+                default: 130_000,
+                doc: ["Set the reconnect delay (ms) honoured for `TooManyRequests` rate-limited disconnects, applied to the streaming session at connect time. The default matches the JVM terminal's 130 s rate-limit cooldown."],
             }
             get thetadatadx_config_get_reconnect_wait_rate_limited_ms(out_ms: u64) [reconnect.wait_rate_limited_ms] {
-                doc: [
-                    "Read the current reconnect `wait_rate_limited_ms` setting. Same",
-                    "shape as `thetadatadx_config_get_reconnect_wait_ms`.",
-                ],
-                cpp_doc: [
-                    "Current reconnect wait_rate_limited_ms (default 130_000).",
-                ],
-                py_doc: [
-                    "Current reconnect ``wait_rate_limited_ms`` value (default ``130_000``).",
-                ],
-                ts_doc: [
-                    "Current reconnect `wait_rate_limited_ms` value (default `130_000`).",
-                ],
+                default: 130_000,
+                doc: ["Current `reconnect.wait_rate_limited_ms` value."],
             }
             set thetadatadx_config_set_reconnect_wait_max_ms(v: u64) [reconnect.wait_max_ms] {
                 param: ms,
-                doc: [
-                    "Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect_wait_ms` and doubles per consecutive attempt up to this value. Default `30_000`.",
-                ],
-                cpp_doc: [
-                    "Set the cap (ms) on the exponential generic-transient reconnect",
-                    "ladder. Default 30_000.",
-                ],
-                py_doc: [
-                    "Set the cap (ms) on the exponential generic-transient reconnect",
-                    "ladder. The ladder starts at ``reconnect_wait_ms`` and doubles",
-                    "per consecutive attempt up to this value. Default ``30_000``.",
-                ],
-                ts_doc: [
-                    "Set the cap (ms) on the exponential generic-transient reconnect",
-                    "ladder. The ladder starts at `reconnectWaitMs` and doubles per",
-                    "consecutive attempt up to this value. Default `30_000n`.",
-                ],
+                default: 30_000,
+                doc: ["Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect.wait_ms` and doubles per consecutive attempt up to this value."],
             }
             get thetadatadx_config_get_reconnect_wait_max_ms(out: u64) [reconnect.wait_max_ms] {
-                doc: [
-                    "Read the current reconnect `wait_max_ms` setting (default `30_000`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current reconnect wait_max_ms (default 30_000).",
-                ],
-                py_doc: [
-                    "Current reconnect ``wait_max_ms`` value (default ``30_000``).",
-                ],
-                ts_doc: [
-                    "Current reconnect `wait_max_ms` value (default `30_000n`).",
-                ],
+                default: 30_000,
+                doc: ["Current `reconnect.wait_max_ms` value."],
             }
             set thetadatadx_config_set_reconnect_wait_server_restart_ms(v: u64) [reconnect.wait_server_restart_ms] {
                 param: ms,
-                doc: [
-                    "Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects. Default `5_000`.",
-                ],
-                cpp_doc: [
-                    "Set the flat reconnect cadence (ms) for ServerRestarting",
-                    "disconnects. Default 5_000.",
-                ],
-                py_doc: [
-                    "Set the flat reconnect cadence (ms) for ``ServerRestarting``",
-                    "disconnects. Default ``5_000``.",
-                ],
-                ts_doc: [
-                    "Set the flat reconnect cadence (ms) for `ServerRestarting`",
-                    "disconnects. Default `5_000n`.",
-                ],
+                default: 5_000,
+                doc: ["Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects."],
             }
             get thetadatadx_config_get_reconnect_wait_server_restart_ms(out: u64) [reconnect.wait_server_restart_ms] {
-                doc: [
-                    "Read the current reconnect `wait_server_restart_ms` setting (default `5_000`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current reconnect wait_server_restart_ms (default 5_000).",
-                ],
-                py_doc: [
-                    "Current reconnect ``wait_server_restart_ms`` value (default ``5_000``).",
-                ],
-                ts_doc: [
-                    "Current reconnect `wait_server_restart_ms` value (default `5_000n`).",
-                ],
+                default: 5_000,
+                doc: ["Current `reconnect.wait_server_restart_ms` value."],
             }
             set thetadatadx_config_set_reconnect_replay_burst_size(n: u32) [reconnect.replay_burst_size] {
                 param: n,
-                doc: [
-                    "Set the subscription-replay burst size used after an",
-                    "auto-reconnect: frames are written in bursts of this many, each",
-                    "burst flushed and followed by a jittered `replay_pace_ms` pause.",
-                    "Minimum `1` (validated at connect). Default `50`.",
-                ],
-                cpp_doc: [
-                    "Set the subscription-replay burst size used after an",
-                    "auto-reconnect. Minimum 1 (validated at connect). Default 50.",
-                ],
-                py_doc: [
-                    "Set the subscription-replay burst size used after an",
-                    "auto-reconnect: frames are written in bursts of this many, each",
-                    "burst flushed and followed by a jittered ``replay_pace_ms``",
-                    "pause. Minimum ``1`` (validated at connect). Default ``50``.",
-                ],
-                ts_doc: [
-                    "Set the subscription-replay burst size used after an",
-                    "auto-reconnect: frames are written in bursts of this many, each",
-                    "burst flushed and followed by a jittered `replayPaceMs` pause.",
-                    "Minimum `1` (validated at connect). Default `50`.",
-                ],
+                default: 50,
+                doc: ["Set the subscription-replay burst size used after an auto-reconnect: frames are written in bursts of this many, each burst flushed and followed by a jittered `reconnect.replay_pace_ms` pause. Minimum `1`, validated at connect."],
             }
             get thetadatadx_config_get_reconnect_replay_burst_size(out: u32) [reconnect.replay_burst_size] {
-                doc: [
-                    "Read the current `replay_burst_size` setting (default `50`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current replay_burst_size (default 50).",
-                ],
-                py_doc: [
-                    "Current ``replay_burst_size`` value (default ``50``).",
-                ],
-                ts_doc: [
-                    "Current `replay_burst_size` value (default `50`).",
-                ],
+                default: 50,
+                doc: ["Current `reconnect.replay_burst_size` value."],
             }
             set thetadatadx_config_set_reconnect_replay_pace_ms(v: u64) [reconnect.replay_pace_ms] {
                 param: ms,
-                doc: [
-                    "Set the pause (ms) between subscription-replay bursts after an auto-reconnect. `0` removes the pause. Default `5`.",
-                ],
-                cpp_doc: [
-                    "Set the pause (ms) between subscription-replay bursts. 0",
-                    "removes the pause. Default 5.",
-                ],
-                py_doc: [
-                    "Set the pause (ms) between subscription-replay bursts after an",
-                    "auto-reconnect. ``0`` removes the pause. Default ``5``.",
-                ],
-                ts_doc: [
-                    "Set the pause (ms) between subscription-replay bursts after an",
-                    "auto-reconnect. `0n` removes the pause. Default `5n`.",
-                ],
+                default: 5,
+                doc: ["Set the pause (ms) between subscription-replay bursts after an auto-reconnect. Zero removes the pause."],
             }
             get thetadatadx_config_get_reconnect_replay_pace_ms(out: u64) [reconnect.replay_pace_ms] {
-                doc: [
-                    "Read the current `replay_pace_ms` setting (default `5`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current replay_pace_ms (default 5).",
-                ],
-                py_doc: [
-                    "Current ``replay_pace_ms`` value (default ``5``).",
-                ],
-                ts_doc: [
-                    "Current `replay_pace_ms` value (default `5n`).",
-                ],
+                default: 5,
+                doc: ["Current `reconnect.replay_pace_ms` value."],
             }
             set thetadatadx_config_set_streaming_timeout_ms(v: u64) [streaming.timeout_ms] {
                 param: ms,
-                doc: [
-                    "Set the streaming read timeout (ms): the no-frames deadline after which the streaming session is declared dead and reconnects. Default `10_000`; validated to `[100, 60_000]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the streaming read timeout (ms): the no-frames deadline after",
-                    "which the streaming I/O loop reconnects. Default 10_000;",
-                    "validated to [100, 60_000] at connect.",
-                ],
-                py_doc: [
-                    "Set the streaming read timeout (ms): the no-frames deadline after",
-                    "which the streaming session is declared dead and reconnects.",
-                    "Default ``10_000``; validated to ``[100, 60_000]``.",
-                ],
-                ts_doc: [
-                    "Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000n`; validated to `[100, 60_000]` at connect.",
-                ],
+                default: 10_000,
+                doc: ["Set the streaming read timeout (ms): the no-frames deadline after which the streaming session is declared dead and reconnects. Validated to `[100, 60_000]` at connect."],
             }
             get thetadatadx_config_get_streaming_timeout_ms(out: u64) [streaming.timeout_ms] {
-                doc: [
-                    "Read the current streaming `timeout_ms` setting (default `10_000`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming timeout_ms (default 10_000).",
-                ],
-                py_doc: [
-                    "Current ``streaming.timeout_ms`` value (default ``10_000``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.timeout_ms` value (default `10_000n`).",
-                ],
+                default: 10_000,
+                doc: ["Current `streaming.timeout_ms` value."],
             }
             set thetadatadx_config_set_streaming_connect_timeout_ms(v: u64) [streaming.connect_timeout_ms] {
                 param: ms,
-                doc: [
-                    "Set the per-server streaming TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the per-server connect timeout (ms) for the streaming",
-                    "connection. Default 2_000; validated to [1_000, 60_000] at",
-                    "connect.",
-                ],
-                py_doc: [
-                    "Set the per-server connect timeout (ms) for the streaming",
-                    "connection. Default",
-                    "``2_000``; validated to ``[1_000, 60_000]``.",
-                ],
-                ts_doc: [
-                    "Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.",
-                ],
+                default: 2_000,
+                doc: ["Set the per-server TCP connect timeout (ms) for the streaming connection. Validated to `[1_000, 60_000]` at connect."],
             }
             get thetadatadx_config_get_streaming_connect_timeout_ms(out: u64) [streaming.connect_timeout_ms] {
-                doc: [
-                    "Read the current streaming `connect_timeout_ms` setting (default `2_000`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming connect_timeout_ms (default 2_000).",
-                ],
-                py_doc: [
-                    "Current ``streaming.connect_timeout_ms`` value (default ``2_000``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.connect_timeout_ms` value (default `2_000n`).",
-                ],
+                default: 2_000,
+                doc: ["Current `streaming.connect_timeout_ms` value."],
             }
             set thetadatadx_config_set_streaming_ping_interval_ms(v: u64) [streaming.ping_interval_ms] {
                 param: ms,
-                doc: [
-                    "Set the streaming heartbeat ping interval (ms). Default `100`; validated to `[100, 300_000]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the streaming heartbeat ping interval (ms). Default 100;",
-                    "validated to [100, 300_000] at connect.",
-                ],
-                py_doc: [
-                    "Set the streaming heartbeat ping interval (ms). Default ``100``;",
-                    "validated to ``[100, 300_000]``.",
-                ],
-                ts_doc: [
-                    "Set the streaming heartbeat ping interval (ms). Default `100n`; validated to `[100, 300_000]` at connect.",
-                ],
+                default: 100,
+                doc: ["Set the streaming heartbeat ping interval (ms). Validated to `[100, 300_000]` at connect."],
             }
             get thetadatadx_config_get_streaming_ping_interval_ms(out: u64) [streaming.ping_interval_ms] {
-                doc: [
-                    "Read the current streaming `ping_interval_ms` setting (default `100`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming ping_interval_ms (default 100).",
-                ],
-                py_doc: [
-                    "Current ``streaming.ping_interval_ms`` value (default ``100``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.ping_interval_ms` value (default `100n`).",
-                ],
+                default: 100,
+                doc: ["Current `streaming.ping_interval_ms` value."],
             }
             set thetadatadx_config_set_streaming_io_read_slice_ms(v: u64) [streaming.io_read_slice_ms] {
                 param: ms,
-                doc: [
-                    "Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the per-iteration blocking-read slice (ms) for the",
-                    "streaming I/O loop. Default 25; validated to [10, 500].",
-                ],
-                py_doc: [
-                    "Set the per-iteration blocking-read slice (ms) for the",
-                    "streaming I/O loop. Default ``25``; validated to ``[10, 500]``.",
-                ],
-                ts_doc: [
-                    "Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect.",
-                ],
+                default: 25,
+                doc: ["Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Validated to `[10, 500]` at connect."],
             }
             get thetadatadx_config_get_streaming_io_read_slice_ms(out: u64) [streaming.io_read_slice_ms] {
-                doc: [
-                    "Read the current streaming `io_read_slice_ms` setting (default `25`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming io_read_slice_ms (default 25).",
-                ],
-                py_doc: [
-                    "Current ``streaming.io_read_slice_ms`` value (default ``25``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.io_read_slice_ms` value (default `25n`).",
-                ],
+                default: 25,
+                doc: ["Current `streaming.io_read_slice_ms` value."],
             }
             set thetadatadx_config_set_streaming_keepalive_idle_secs(v: u64) [streaming.keepalive_idle_secs] {
                 param: secs,
-                doc: [
-                    "Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the TCP keepalive idle time (seconds). Default 5; validated",
-                    "to [1, 7_200] at connect.",
-                ],
-                py_doc: [
-                    "Set the TCP keepalive idle time (seconds) before the first",
-                    "kernel probe on a silent streaming socket. Default ``5``;",
-                    "validated to ``[1, 7_200]``.",
-                ],
-                ts_doc: [
-                    "Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect.",
-                ],
+                default: 5,
+                doc: ["Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Validated to `[1, 7_200]` at connect."],
             }
             get thetadatadx_config_get_streaming_keepalive_idle_secs(out: u64) [streaming.keepalive_idle_secs] {
-                doc: [
-                    "Read the current streaming `keepalive_idle_secs` setting (default `5`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming keepalive_idle_secs (default 5).",
-                ],
-                py_doc: [
-                    "Current ``streaming.keepalive_idle_secs`` value (default ``5``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.keepalive_idle_secs` value (default `5n`).",
-                ],
+                default: 5,
+                doc: ["Current `streaming.keepalive_idle_secs` value."],
             }
             set thetadatadx_config_set_streaming_keepalive_interval_secs(v: u64) [streaming.keepalive_interval_secs] {
                 param: secs,
-                doc: [
-                    "Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the TCP keepalive probe interval (seconds). Default 2;",
-                    "validated to [1, 75] at connect.",
-                ],
-                py_doc: [
-                    "Set the interval (seconds) between TCP keepalive probes.",
-                    "Default ``2``; validated to ``[1, 75]``.",
-                ],
-                ts_doc: [
-                    "Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.",
-                ],
+                default: 2,
+                doc: ["Set the interval (seconds) between TCP keepalive probes. Validated to `[1, 75]` at connect."],
             }
             get thetadatadx_config_get_streaming_keepalive_interval_secs(out: u64) [streaming.keepalive_interval_secs] {
-                doc: [
-                    "Read the current streaming `keepalive_interval_secs` setting (default `2`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming keepalive_interval_secs (default 2).",
-                ],
-                py_doc: [
-                    "Current ``streaming.keepalive_interval_secs`` value (default ``2``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.keepalive_interval_secs` value (default `2n`).",
-                ],
+                default: 2,
+                doc: ["Current `streaming.keepalive_interval_secs` value."],
             }
             set thetadatadx_config_set_streaming_keepalive_retries(v: u32) [streaming.keepalive_retries] {
                 param: n,
-                doc: [
-                    "Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.",
-                ],
-                cpp_doc: [
-                    "Set the TCP keepalive probe count before the kernel declares",
-                    "the peer dead. Default 2; validated to [1, 10] at connect.",
-                ],
-                py_doc: [
-                    "Set the number of unanswered TCP keepalive probes after which",
-                    "the kernel declares the streaming connection dead (where the",
-                    "platform exposes the knob). Default ``2``; validated to",
-                    "``[1, 10]``.",
-                ],
-                ts_doc: [
-                    "Set the number of unanswered TCP keepalive probes after which",
-                    "the kernel declares the streaming connection dead (where the",
-                    "platform exposes the knob). Default `2`; validated to `[1, 10]`",
-                    "at connect.",
-                ],
+                default: 2,
+                doc: ["Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Validated to `[1, 10]` at connect."],
             }
             get thetadatadx_config_get_streaming_keepalive_retries(out: u32) [streaming.keepalive_retries] {
-                doc: [
-                    "Read the current streaming `keepalive_retries` setting (default `2`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming keepalive_retries (default 2).",
-                ],
-                py_doc: [
-                    "Current ``streaming.keepalive_retries`` value (default ``2``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.keepalive_retries` value (default `2`).",
-                ],
+                default: 2,
+                doc: ["Current `streaming.keepalive_retries` value."],
             }
             get thetadatadx_config_get_streaming_ring_size(out: usize) [streaming.ring_size] {
-                doc: [
-                    "Read the current streaming `ring_size` setting (default `131_072`).",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming ring_size (default 131_072).",
-                ],
-                py_doc: [
-                    "Current ``streaming.ring_size`` value (default ``131_072``).",
-                ],
-                ts_doc: [
-                    "Current `streaming.ring_size` value (returned as a `BigInt`; default",
-                    "`131_072`).",
-                ],
+                default: 131_072,
+                doc: ["Current `streaming.ring_size` value."],
             }
             set thetadatadx_config_set_wait_mode(mode: i32) [streaming.wait_mode] {
                 param: mode,
-                values: WaitMode { 0 Spin, 1 BusySpin, 2 Park, 3 Backoff },
+                default: Spin,
+                values: WaitMode {
+                    0 Spin "adaptive spin then a yield ramp; never sleeps, so it holds ~100% of one core.",
+                    1 BusySpin "pure spin, no yield, never sleeps; ~100% of one core like the adaptive spin, with the lowest jitter.",
+                    2 Park "spin and yield ramp, then sleep the park interval; low idle CPU.",
+                    3 Backoff "spins while events flow, sleeps the park interval once idle, resumes; low idle CPU.",
+                },
                 errors: {
                     null: THETADATADX_ERR_OTHER,
                     ffi: "expected 0 (Spin), 1 (BusySpin), 2 (Park) or 3 (Backoff)",
                     py: "unknown wait_mode: {mode:?} (expected \"spin\", \"busyspin\", \"park\" or \"backoff\")",
                     ts: "setWaitMode: unknown mode {mode:?}; expected \"spin\", \"busyspin\", \"park\" or \"backoff\"",
                 },
-                doc: [
-                    "Set how the streaming consumer waits when the event ring is momentarily",
-                    "empty.",
-                    "",
-                    "- `mode = 0`: Spin (default); adaptive spin then a yield ramp; never sleeps.",
-                    "- `mode = 1`: BusySpin; pure spin, no yield, never sleeps. Lowest jitter.",
-                    "- `mode = 2`: Park; spin/yield ramp then sleep the park interval. Low CPU.",
-                    "- `mode = 3`: Backoff; spins while events flow, sleeps once idle, resumes.",
-                    "",
-                    "`Spin` and `BusySpin` both hold ~100% of one core and differ only in",
-                    "jitter; only `Park` and `Backoff` lower idle CPU. The park / backoff sleep",
-                    "length is `thetadatadx_config_set_park_interval_us`.",
-                    "",
-                    "Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when",
-                    "`mode` is outside the documented `{0, 1, 2, 3}` set or `config` is null. A",
-                    "rejected `mode` carries `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER`",
-                    "so an out-of-domain enum int surfaces the same typed class across every",
-                    "binding.",
-                ],
-                cpp_doc: [
-                    "Set the streaming consumer wait mode: 0=Spin (default), 1=BusySpin,",
-                    "2=Park, 3=Backoff. Spin and BusySpin both hold ~100% of one core (differ",
-                    "only in jitter); only Park and Backoff lower idle CPU. Throws @c",
-                    "thetadatadx::InvalidParameterError on an out-of-domain mode (and @c",
-                    "thetadatadx::ThetaDataError on a null handle).",
-                ],
-                py_doc: [
-                    "Set how the streaming consumer waits when the event ring is empty.",
-                    "Accepts ``\"spin\"`` (default), ``\"busyspin\"``, ``\"park\"``, or",
-                    "``\"backoff\"`` (case-insensitive). ``\"spin\"`` and ``\"busyspin\"`` both hold",
-                    "~100% of one core and differ only in jitter; only ``\"park\"`` and",
-                    "``\"backoff\"`` lower idle CPU. The park / backoff sleep length is",
-                    "``park_interval_us``.",
-                ],
-                ts_doc: [
-                    "Set how the streaming consumer waits when the event ring is empty.",
-                    "Accepts `\"spin\"` (default), `\"busyspin\"`, `\"park\"`, or `\"backoff\"`",
-                    "(case-insensitive). `\"spin\"` and `\"busyspin\"` both hold ~100% of one core",
-                    "and differ only in jitter; only `\"park\"` and `\"backoff\"` lower idle CPU.",
-                    "The park / backoff sleep length is `parkIntervalUs`.",
-                ],
+                doc: ["Set how the streaming consumer waits when the event ring is momentarily empty. Only the two modes that sleep lower idle CPU; their sleep length is `streaming.park_interval_us`."],
             }
             get thetadatadx_config_get_wait_mode(out_mode: i32) [streaming.wait_mode] {
+                default: Spin,
                 values: WaitMode { 0 Spin, 1 BusySpin, 2 Park, 3 Backoff },
-                doc: [
-                    "Read the configured streaming consumer wait mode. Same encoding as",
-                    "`thetadatadx_config_set_wait_mode` (0=Spin, 1=BusySpin, 2=Park, 3=Backoff).",
-                    "Returns `0` on success, `-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming consumer wait mode (same encoding as the setter).",
-                ],
-                py_doc: [
-                    "Current streaming consumer wait mode as a lowercase string.",
-                ],
-                ts_doc: [
-                    "Current streaming consumer wait mode as a lowercase string.",
-                ],
+                doc: ["Current streaming consumer wait mode."],
             }
             set thetadatadx_config_set_park_interval_us(us: u64) [streaming.park_interval_us] {
                 param: us,
-                doc: [
-                    "Set the park / backoff idle sleep length in MICROSECONDS for the streaming",
-                    "consumer. Used only when the wait mode is `Park` or `Backoff`; ignored by",
-                    "`Spin` / `BusySpin`. This is the worst-case delivery latency added to an",
-                    "event that arrives while the consumer is parked. The OS timer honours sleeps",
-                    "down to ~50 us (below that, kernel timer slack dominates, so 50 is the",
-                    "floor); a 100 us park is a valid low-latency option (a few percent of a core in live",
-                    "premarket). The client pings every ~100 ms, so a value beyond the ping",
-                    "cadence saves no extra CPU and only adds latency. Validated to",
-                    "`[50, 1_000_000]` us at connect time. Default `1000` (= 1 ms).",
-                ],
-                cpp_doc: [
-                    "Set the park / backoff idle sleep length in microseconds for the streaming",
-                    "consumer. Used only by the Park / Backoff wait modes. Validated",
-                    "[50, 1000000]. Default 1000 (= 1 ms).",
-                ],
-                py_doc: [
-                    "Set the park / backoff idle sleep length in microseconds for the streaming",
-                    "consumer. Used only when the wait mode is ``\"park\"`` or ``\"backoff\"``.",
-                    "Validated ``[50, 1000000]`` at connect time. Default ``1000`` (= 1 ms).",
-                ],
-                ts_doc: [
-                    "Set the park / backoff idle sleep length in microseconds for the streaming",
-                    "consumer. Used only when the wait mode is `\"park\"` or `\"backoff\"`. Validated",
-                    "`[50, 1000000]` at connect time. Default `1000` (= 1 ms).",
-                    "",
-                    "Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.",
-                ],
+                default: 1000 "1 ms",
+                doc: ["Set the park / backoff idle sleep length in MICROSECONDS for the streaming consumer. Used only by the two wait modes that sleep, park and backoff; ignored by the spinning ones. This is the worst-case delivery latency added to an event that arrives while the consumer is parked. The OS timer honours sleeps down to ~50 us (below that, kernel timer slack dominates, so 50 is the floor); a 100 us park is a valid low-latency option (a few percent of a core in live premarket). The client pings every ~100 ms, so a value beyond the ping cadence saves no extra CPU and only adds latency. Validated to `[50, 1_000_000]` us at connect time."],
             }
             get thetadatadx_config_get_park_interval_us(out_us: u64) [streaming.park_interval_us] {
-                doc: [
-                    "Read the current streaming `park_interval_us` setting (default `1000`,",
-                    "= 1 ms).",
-                    "",
-                    "Writes the configured microsecond sleep length into `*out_us`. Returns",
-                    "`0` on success, `-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current streaming park_interval_us (default 1000, = 1 ms). Returns the",
-                    "default on a null config handle.",
-                ],
-                py_doc: [
-                    "Current streaming ``park_interval_us`` value in microseconds (default",
-                    "``1000``, = 1 ms).",
-                ],
-                ts_doc: [
-                    "Current streaming `park_interval_us` value in microseconds (returned as a",
-                    "`BigInt`; default `1000`, = 1 ms).",
-                ],
+                default: 1000 "1 ms",
+                doc: ["Current `streaming.park_interval_us` value, in microseconds."],
             }
             set thetadatadx_config_set_retry_max_elapsed_secs(secs: u64) [retry.max_elapsed in secs] {
                 param: secs,
-                doc: [
-                    "Set the wall-clock envelope (seconds) for one market-data-channel",
-                    "retry sequence, measured from the first attempt. `0` disables the",
-                    "envelope (attempt budget only). Default `300`.",
-                ],
-                cpp_doc: [
-                    "Set the wall-clock envelope (seconds) for one",
-                    "market-data-channel retry sequence. 0 disables. Default 300.",
-                ],
-                py_doc: [
-                    "Set the wall-clock envelope (seconds) for one",
-                    "market-data-channel retry sequence, measured from the first",
-                    "attempt. ``0`` disables the envelope (attempt budget only).",
-                    "Default ``300``.",
-                ],
-                ts_doc: [
-                    "Set the wall-clock envelope (seconds) for one",
-                    "market-data-channel retry sequence, measured from the first",
-                    "attempt. `0n` disables the envelope (attempt budget only).",
-                    "Default `300n`.",
-                ],
+                default: 300,
+                doc: ["Set the wall-clock envelope (seconds) for one market-data-channel retry sequence, measured from the first attempt. Zero disables the envelope (attempt budget only)."],
             }
             get thetadatadx_config_get_retry_max_elapsed_secs(out_secs: u64) [retry.max_elapsed in secs] {
-                doc: [
-                    "Read the current `retry.max_elapsed` value in seconds (default",
-                    "`300`; `0` = disabled). Returns `0` on success, `-1` if either",
-                    "pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current retry max_elapsed in seconds (default 300; 0 = disabled).",
-                ],
-                py_doc: [
-                    "Current ``retry.max_elapsed`` value in seconds (default ``300``;",
-                    "``0`` = disabled).",
-                ],
-                ts_doc: [
-                    "Current `retry.max_elapsed` value in seconds (default `300n`;",
-                    "`0n` = disabled).",
-                ],
+                default: 300,
+                doc: ["Current `retry.max_elapsed` value in seconds; zero means disabled."],
             }
             set thetadatadx_config_set_retry_initial_delay_ms(ms: u64) [retry.initial_delay in ms] {
                 param: ms,
-                doc: [
-                    "Set the initial backoff delay (ms) for the market-data retry policy.",
-                    "Default `250`. Subsequent retries double from here, capped at",
-                    "`thetadatadx_config_set_retry_max_delay_ms`.",
-                ],
-                cpp_doc: [
-                    "Initial backoff delay (ms) for the market-data retry policy. Default 250.",
-                ],
-                py_doc: [
-                    "Set the initial backoff delay (ms) for the market-data-channel retry policy.",
-                    "Default ``250``. Subsequent retries double from here, capped",
-                    "at :attr:`retry_max_delay_ms`.",
-                ],
-                ts_doc: [
-                    "Set the initial backoff delay (ms) for the market-data-channel retry policy.",
-                    "Default `250n`. Subsequent retries double from here, capped at",
-                    "`retryMaxDelayMs`.",
-                ],
+                default: 250,
+                doc: ["Set the initial backoff delay (ms) for the market-data-channel retry policy. Subsequent retries double from here, capped at `retry.max_delay`."],
             }
             set thetadatadx_config_set_retry_max_delay_ms(ms: u64) [retry.max_delay in ms] {
                 param: ms,
-                doc: [
-                    "Set the upper-bound backoff delay (ms) for the market-data retry policy.",
-                    "Default `30_000` (30 s). The exponential schedule never exceeds",
-                    "this value regardless of attempt number.",
-                ],
-                cpp_doc: [
-                    "Upper-bound backoff delay (ms). Default 30_000 (30 s).",
-                ],
-                py_doc: [
-                    "Set the upper-bound backoff delay (ms) for the",
-                    "market-data-channel retry policy. Default ``30_000`` (30 s).",
-                ],
-                ts_doc: [
-                    "Set the upper-bound backoff delay (ms) for the market-data retry",
-                    "policy. Default `30_000n` (30 s).",
-                ],
+                default: 30_000 "30 s",
+                doc: ["Set the upper-bound backoff delay (ms) for the market-data-channel retry policy. The exponential schedule never exceeds this value regardless of attempt number."],
             }
             set thetadatadx_config_set_retry_max_attempts(n: u32) [retry.max_attempts] {
                 param: n,
-                doc: [
-                    "Set the total attempt budget for the market-data retry policy. `1`",
-                    "disables retry (single call only); higher values permit",
-                    "retries up to `max_attempts - 1` after the initial call. Default",
-                    "`20`.",
-                ],
-                cpp_doc: [
-                    "Total attempt budget. 1 disables retry. Default 20.",
-                ],
-                py_doc: [
-                    "Set the total attempt budget for the market-data-channel retry policy. ``1``",
-                    "disables retry (single call only); higher values permit retries",
-                    "up to ``max_attempts - 1`` after the initial call. Default ``20``.",
-                ],
-                ts_doc: [
-                    "Set the total attempt budget for the market-data-channel retry policy. `1`",
-                    "disables retry; higher values permit retries up to",
-                    "`maxAttempts - 1` after the initial call. Default `20`.",
-                ],
+                default: 20,
+                doc: ["Set the total attempt budget for the market-data-channel retry policy. `1` disables retry (single call only); higher values permit retries up to `max_attempts - 1` after the initial call."],
             }
             get thetadatadx_config_get_retry_max_attempts(out_n: u32) [retry.max_attempts] {
-                doc: [
-                    "Read the current `retry.max_attempts` setting.",
-                ],
-                cpp_doc: [
-                    "",
-                ],
-                py_doc: [
-                    "Current ``retry.max_attempts`` value.",
-                ],
-                ts_doc: [
-                    "Current `retry.max_attempts` value.",
-                ],
+                default: 20,
+                doc: ["Current `retry.max_attempts` value."],
             }
             set thetadatadx_config_set_retry_jitter(jitter: bool) [retry.jitter] {
                 param: jitter,
-                doc: [
-                    "Toggle AWS-style full-jitter on the market-data retry policy. Default",
-                    "`true`. With `jitter=false` the backoff schedule is deterministic",
-                    "(`min(max_delay, initial * 2^attempt)`), which is useful for tests",
-                    "that need to assert exact timings.",
-                ],
-                cpp_doc: [
-                    "AWS-style full jitter toggle. Default true.",
-                ],
-                py_doc: [
-                    "Toggle AWS-style full-jitter on the market-data-channel retry policy. Default",
-                    "``True``. ``False`` gives the deterministic backoff schedule",
-                    "``min(max_delay, initial * 2^attempt)``, useful for tests that",
-                    "need to assert exact timings.",
-                ],
-                ts_doc: [
-                    "Toggle AWS-style full-jitter on the market-data-channel retry policy. Default",
-                    "`true`. `false` gives the deterministic backoff schedule",
-                    "`min(max_delay, initial * 2^attempt)`, useful for tests that",
-                    "need to assert exact timings.",
-                ],
+                default: true,
+                doc: ["Toggle AWS-style full jitter on the market-data-channel retry policy. Without it the backoff schedule is deterministic (`min(max_delay, initial * 2^attempt)`), which is useful for tests that need to assert exact timings."],
             }
             get thetadatadx_config_get_retry_jitter(out_jitter: bool) [retry.jitter] {
-                doc: [
-                    "Read the current `retry.jitter` setting.",
-                ],
-                cpp_doc: [
-                    "",
-                ],
-                py_doc: [
-                    "Current ``retry.jitter`` value.",
-                ],
-                ts_doc: [
-                    "Current `retry.jitter` value.",
-                ],
+                default: true,
+                doc: ["Current `retry.jitter` value."],
             }
             set thetadatadx_config_set_market_data_port(port: u16) [market_data.port] {
                 param: port,
-                doc: [
-                    "Set the market-data gRPC port on a config handle.",
-                ],
-                cpp_doc: [
-                    "Set the market-data gRPC port. Companion to",
-                    "@c set_market_data_host.",
-                ],
-                py_doc: [
-                    "Set the market-data gRPC port. The environment factories set it;",
-                    "override it together with ``market_data_host`` to reach the",
-                    "market-data service at another address.",
-                ],
-                ts_doc: [
-                    "Override the market-data gRPC port. Companion to `setMarketDataHost`:",
-                    "same test-only rationale. Rejects values outside the `0..=65535`",
-                    "port range.",
-                ],
+                doc: ["Set the market-data gRPC port. The environment factories set it; override it together with the market-data host to reach the market-data service at another address, such as a test server. A port outside `0..=65535` is rejected."],
             }
             get thetadatadx_config_get_market_data_port(out_port: u16) [market_data.port] {
-                doc: [
-                    "Read the configured market-data gRPC port. Writes the value",
-                    "into `*out_port`. Returns `0` on success, `-1` if either pointer is",
-                    "null.",
-                ],
-                cpp_doc: [
-                    "Current market-data gRPC port. Returns 0 on a null handle.",
-                ],
-                py_doc: [
-                    "Current market-data gRPC port.",
-                ],
-                ts_doc: [
-                    "Current market-data gRPC port.",
-                ],
+                doc: ["Current market-data gRPC port."],
             }
             set thetadatadx_config_set_warn_on_buffered_threshold_bytes(n: usize) [market_data.warn_on_buffered_threshold_bytes] {
                 param: n,
-                doc: [
-                    "Set the `warn_on_buffered_threshold_bytes` ceiling on a config",
-                    "handle. A buffered (non-streaming) endpoint logs a warning when a",
-                    "response's decoded total size exceeds this threshold (default",
-                    "100 MiB), pointing large pulls at the streaming variant; the data is",
-                    "still delivered.",
-                    "",
-                    "`n = 0` disables the warning entirely.",
-                ],
-                cpp_doc: [
-                    "Set the warn_on_buffered_threshold_bytes ceiling.",
-                    "",
-                    "Buffered (non-streaming) endpoints log a warning when a response's",
-                    "decoded total exceeds this threshold, guiding users to the streaming",
-                    "variant. The payload is still delivered.",
-                    "",
-                    "@p n = 0 disables the warning entirely.",
-                    "Default is `100 * 1024 * 1024` (100 MiB).",
-                ],
-                py_doc: [
-                    "Set the warning threshold (in bytes) for buffered (non-streaming)",
-                    "historical responses. Endpoints whose decoded total exceeds this",
-                    "value log a warning pointing the caller at the",
-                    "``.stream()`` surface; the data is still delivered. ``0``",
-                    "disables the warning entirely. Default is ``100 * 1024 * 1024``",
-                    "(100 MiB).",
-                    "",
-                    "Examples",
-                    "--------",
-                    "    cfg = Config.production()",
-                    "    cfg.warn_on_buffered_threshold_bytes = 50 * 1024 * 1024",
-                ],
-                ts_doc: [
-                    "Set the warning threshold (in bytes) for buffered (non-streaming)",
-                    "historical responses. Endpoints whose decoded total exceeds this",
-                    "value log a warning pointing the caller at the",
-                    "matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),",
-                    "which delivers the same rows chunk-by-chunk through a callback with",
-                    "memory bounded to a single chunk; the buffered data is still",
-                    "delivered. `0n` disables the warning entirely. Default is",
-                    "`100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the",
-                    "32-bit unsigned range, so the setter takes a `BigInt`.",
-                ],
+                default: 104_857_600 "100 MiB",
+                doc: ["Set the warning threshold, in bytes, for buffered (non-streaming) historical responses. An endpoint whose decoded response exceeds it logs a warning pointing the caller at the endpoint's streaming variant, which delivers the same rows chunk by chunk with memory bounded to one chunk; the buffered data is still delivered. Zero disables the warning entirely."],
             }
             get thetadatadx_config_get_warn_on_buffered_threshold_bytes(out_n: usize) [market_data.warn_on_buffered_threshold_bytes] {
-                doc: [
-                    "Read the current `warn_on_buffered_threshold_bytes` setting.",
-                    "",
-                    "Writes the configured byte count into `*out_n`. Returns `0` on",
-                    "success, `-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current `warn_on_buffered_threshold_bytes` setting.",
-                    "",
-                    "Returns the configured byte count, or `0` on a null handle",
-                    "(matching the C ABI's `-1` failure mapping at the boundary).",
-                ],
-                py_doc: [
-                    "Current ``warn_on_buffered_threshold_bytes`` setting (bytes).",
-                ],
-                ts_doc: [
-                    "Current `warn_on_buffered_threshold_bytes` setting (bytes,",
-                    "returned as a `BigInt`).",
-                ],
+                default: 104_857_600 "100 MiB",
+                doc: ["Current `market_data.warn_on_buffered_threshold_bytes` value, in bytes."],
             }
             set thetadatadx_config_set_request_timeout_secs(secs: u64) [market_data.request_timeout_secs] {
                 param: secs,
+                default: 300 "5 minutes",
                 doc: [
-                    "Set the default per-request deadline (seconds) for market-data queries",
-                    "on a config handle.",
-                    "",
-                    "Bounds every request that did not set its own deadline, so a",
-                    "live-but-silent stream resolves to a timeout instead of blocking",
-                    "forever (the gRPC keepalive PING only detects a fully dead peer).",
-                    "`secs = 0` no longer disables the default: it is floored to the",
-                    "`300`-second default at request time, so the deadline always applies.",
-                    "Default `300`.",
-                ],
-                cpp_doc: [
                     "Set the default per-request deadline (seconds) for market-data queries.",
                     "",
-                    "Bounds every request that did not set its own deadline, so a",
-                    "live-but-silent stream resolves to a timeout instead of blocking",
-                    "forever. @p secs = 0 no longer disables the default; it is floored to",
-                    "the `300`-second default at request time. Default is `300`.",
-                ],
-                py_doc: [
-                    "Set the default per-request deadline (in seconds) for market-data",
-                    "queries. Bounds every request that did not set its own",
-                    "``timeout_ms``, so a live-but-silent stream resolves to a",
-                    "timeout instead of blocking forever. ``0`` no longer disables the",
-                    "default: it is floored to the ``300``-second default at request time,",
-                    "so the deadline always applies. Default is ``300`` (5 minutes).",
-                    "",
-                    "Examples",
-                    "--------",
-                    "    cfg = Config.production()",
-                    "    cfg.request_timeout_secs = 120",
-                ],
-                ts_doc: [
-                    "Set the default per-request deadline (seconds) for market-data",
-                    "queries. Bounds every request that did not set its own deadline,",
-                    "so a live-but-silent stream resolves to a timeout instead of",
-                    "blocking forever. `0n` no longer disables the default; it is floored",
-                    "to the `300n`-second default at request time. Default `300n`",
-                    "(5 minutes). Seconds are taken as a `BigInt` for parity with the",
-                    "other `*Secs` knobs.",
+                    "It bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the deadline: it is floored to the 300-second default at request time, so the deadline always applies.",
                 ],
             }
             get thetadatadx_config_get_request_timeout_secs(out: u64) [market_data.request_timeout_secs] {
-                doc: [
-                    "Read the current market-data `request_timeout_secs` setting (default",
-                    "`300`). A stored `0` is floored to the `300`-second default at request",
-                    "time rather than disabling the deadline.",
-                    "",
-                    "Writes the configured value into `*out`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current market-data `request_timeout_secs` setting.",
-                    "",
-                    "Returns the configured seconds (a stored `0` is floored to the",
-                    "`300`-second default at request time), or `0` on a null handle",
-                    "(matching the C ABI's `-1` failure mapping at the boundary).",
-                ],
-                py_doc: [
-                    "Current market-data ``request_timeout_secs`` setting. A stored ``0``",
-                    "is floored to the ``300``-second default at request time rather than",
-                    "disabling the deadline.",
-                ],
-                ts_doc: [
-                    "Current market-data `request_timeout_secs` setting in seconds",
-                    "(default `300n`). A stored `0n` is floored to the `300n`-second",
-                    "default at request time rather than disabling the deadline.",
-                ],
+                default: 300 "5 minutes",
+                doc: ["Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the deadline."],
             }
             set thetadatadx_config_set_market_data_stream_window_size_kb(kb: usize) [market_data.stream_window_size_kb] {
                 param: kb,
-                doc: [
-                    "Set the initial per-stream HTTP/2 flow-control window, in KB, for the",
-                    "market-data gRPC channel on a config handle. A larger window raises the",
-                    "throughput ceiling on bulk streaming pulls before HTTP/2 backpressure",
-                    "kicks in. Default `8192` (8 MiB); the value is clamped into",
-                    "`[64, 2_097_151]` KB at connect.",
-                ],
-                cpp_doc: [
-                    "Set the initial per-stream HTTP/2 flow-control window, in KB, for the",
-                    "market-data gRPC channel. A larger window raises the throughput ceiling",
-                    "on bulk streaming pulls before HTTP/2 backpressure kicks in.",
-                    "@p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.",
-                    "Default is `8192` (8 MiB).",
-                ],
-                py_doc: [
-                    "Set the initial per-stream HTTP/2 flow-control window (in KB) for the",
-                    "market-data gRPC channel. A larger window raises the throughput ceiling",
-                    "on bulk streaming pulls before HTTP/2 backpressure kicks in. The value",
-                    "is clamped into ``[64, 2_097_151]`` KB at validate/connect time.",
-                    "Default is ``8192`` (8 MiB).",
-                    "",
-                    "Examples",
-                    "--------",
-                    "    cfg = Config.production()",
-                    "    cfg.market_data_stream_window_size_kb = 4096",
-                ],
-                ts_doc: [
-                    "Set the initial per-stream HTTP/2 flow-control window (in KB) for the",
-                    "market-data gRPC channel. A larger window raises the throughput ceiling",
-                    "on bulk streaming pulls before HTTP/2 backpressure kicks in. The value",
-                    "is clamped into `[64, 2_097_151]` KB at validate/connect time. Default",
-                    "`8192n` (8 MiB). KB are taken as a `BigInt` for parity with the other",
-                    "byte/KB-denominated knobs.",
-                ],
+                default: 8192 "8 MiB",
+                doc: ["Set the initial per-stream HTTP/2 flow-control window, in KB, for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into `[64, 2_097_151]` KB at validate/connect time."],
             }
             get thetadatadx_config_get_market_data_stream_window_size_kb(out_kb: usize) [market_data.stream_window_size_kb] {
-                doc: [
-                    "Read the current per-stream HTTP/2 flow-control window (KB) for the",
-                    "market-data gRPC channel (default `8192`).",
-                    "",
-                    "Writes the configured value into `*out_kb`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current per-stream HTTP/2 flow-control window (KB) for the",
-                    "market-data gRPC channel.",
-                    "",
-                    "Returns the configured KB value, or `0` on a null handle (matching the",
-                    "C ABI's `-1` failure mapping at the boundary).",
-                ],
-                py_doc: [
-                    "Current per-stream HTTP/2 flow-control window (KB) for the market-data",
-                    "gRPC channel (default ``8192``).",
-                ],
-                ts_doc: [
-                    "Current per-stream HTTP/2 flow-control window (KB) for the market-data",
-                    "gRPC channel (default `8192n`, returned as a `BigInt`).",
-                ],
+                default: 8192 "8 MiB",
+                doc: ["Current per-stream HTTP/2 flow-control window (KB) for the market-data gRPC channel."],
             }
             set thetadatadx_config_set_market_data_connection_window_size_kb(kb: usize) [market_data.connection_window_size_kb] {
                 param: kb,
-                doc: [
-                    "Set the initial connection-level HTTP/2 flow-control window, in KB, for",
-                    "the market-data gRPC channel on a config handle. A larger window raises",
-                    "the throughput ceiling on bulk streaming pulls before HTTP/2",
-                    "backpressure kicks in. Default `16384` (16 MiB); the value is clamped",
-                    "into `[64, 2_097_151]` KB at connect.",
-                ],
-                cpp_doc: [
-                    "Set the initial connection-level HTTP/2 flow-control window, in KB, for",
-                    "the market-data gRPC channel. A larger window raises the throughput",
-                    "ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.",
-                    "@p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.",
-                    "Default is `16384` (16 MiB).",
-                ],
-                py_doc: [
-                    "Set the initial connection-level HTTP/2 flow-control window (in KB) for",
-                    "the market-data gRPC channel. A larger window raises the throughput",
-                    "ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.",
-                    "The value is clamped into ``[64, 2_097_151]`` KB at validate/connect",
-                    "time. Default is ``16384`` (16 MiB).",
-                    "",
-                    "Examples",
-                    "--------",
-                    "    cfg = Config.production()",
-                    "    cfg.market_data_connection_window_size_kb = 16384",
-                ],
-                ts_doc: [
-                    "Set the initial connection-level HTTP/2 flow-control window (in KB) for",
-                    "the market-data gRPC channel. A larger window raises the throughput",
-                    "ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.",
-                    "The value is clamped into `[64, 2_097_151]` KB at validate/connect",
-                    "time. Default `16384n` (16 MiB). KB are taken as a `BigInt` for parity",
-                    "with the other byte/KB-denominated knobs.",
-                ],
+                default: 16384 "16 MiB",
+                doc: ["Set the initial connection-level HTTP/2 flow-control window, in KB, for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into `[64, 2_097_151]` KB at validate/connect time."],
             }
             get thetadatadx_config_get_market_data_connection_window_size_kb(out_kb: usize) [market_data.connection_window_size_kb] {
-                doc: [
-                    "Read the current connection-level HTTP/2 flow-control window (KB) for",
-                    "the market-data gRPC channel (default `16384`).",
-                    "",
-                    "Writes the configured value into `*out_kb`. Returns `0` on success,",
-                    "`-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current connection-level HTTP/2 flow-control window (KB) for",
-                    "the market-data gRPC channel.",
-                    "",
-                    "Returns the configured KB value, or `0` on a null handle (matching the",
-                    "C ABI's `-1` failure mapping at the boundary).",
-                ],
-                py_doc: [
-                    "Current connection-level HTTP/2 flow-control window (KB) for the",
-                    "market-data gRPC channel (default ``16384``).",
-                ],
-                ts_doc: [
-                    "Current connection-level HTTP/2 flow-control window (KB) for the",
-                    "market-data gRPC channel (default `16384n`, returned as a `BigInt`).",
-                ],
+                default: 16384 "16 MiB",
+                doc: ["Current connection-level HTTP/2 flow-control window (KB) for the market-data gRPC channel."],
             }
             set thetadatadx_config_set_bulk_fetch(policy: i32) [market_data.bulk_fetch] {
                 param: policy,
-                values: BulkFetchPolicy { 0 Auto, 1 Off },
+                default: Auto,
+                values: BulkFetchPolicy {
+                    0 Auto "a large history pull's requested time or date range is split into equal concurrent bands across the account's concurrent-request budget, decided from the request shape alone (no sizing request is issued). Buffered pulls merge the shards back into exactly the rows of the single-stream response: single-contract, stock, and index pulls keep the exact single-stream row order, while option-chain pulls come back in a deterministic canonical order (expiration, strike, right ascending; calls before puts; time-ascending within each contract). Streaming pulls forward each band's chunks to the handler as they arrive: every chunk exactly once, but chunks from different bands interleave in arrival order rather than the single stream's order. Small pulls and non-history endpoints are never sharded.",
+                    1 Off "every query runs as a single stream, in the server's own row and chunk order.",
+                },
                 errors: {
                     null: THETADATADX_ERR_CONFIG,
                     ffi: "expected 0 (Auto) or 1 (Off)",
                     py: "unknown bulk_fetch: {policy:?} (expected \"auto\" or \"off\")",
                     ts: "setBulkFetch: unknown policy {policy:?}; expected \"auto\" or \"off\"",
                 },
-                doc: [
-                    "Set the automatic bulk-fetch sharding policy for history pulls, covering",
-                    "both the buffered and the chunk-streaming call paths.",
-                    "",
-                    "- `policy = 0`: Auto (default); a large history pull's requested time",
-                    "  or date range is split into equal concurrent bands across the",
-                    "  account's concurrent-request budget, decided from the request shape",
-                    "  alone (no sizing request is issued). Buffered",
-                    "  pulls merge the shards back into exactly the rows of the single-stream",
-                    "  response: single-contract, stock, and index pulls keep the exact",
-                    "  single-stream row order, while option-chain pulls come back in a",
-                    "  deterministic canonical order (expiration, strike, right ascending;",
-                    "  calls before puts; time-ascending within each contract). Streaming",
-                    "  pulls forward each band's chunks to the handler as they arrive: every",
-                    "  chunk exactly once, but chunks from different bands interleave in",
-                    "  arrival order rather than the single stream's order. Small pulls and",
-                    "  non-history endpoints are never sharded.",
-                    "- `policy = 1`: Off; every query runs as a single stream, in the",
-                    "  server's own row and chunk order.",
-                    "",
-                    "Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when",
-                    "`policy` is outside the documented `{0, 1}` set or `config` is null. A",
-                    "rejected `policy` value carries",
-                    "`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an",
-                    "out-of-domain enum int surfaces the same typed class across every binding.",
-                ],
-                cpp_doc: [
-                    "Set the automatic bulk-fetch sharding policy for history pulls (buffered",
-                    "and chunk-streaming alike): 0=Auto (default; a large pull's requested",
-                    "time or date range is split into equal concurrent bands; buffered",
-                    "pulls merge back into",
-                    "exactly the single-stream rows, with option-chain pulls in a",
-                    "deterministic canonical contract order and every other pull in the",
-                    "exact single-stream row order; streaming pulls forward each band's",
-                    "chunks as they arrive, exactly once but interleaved across bands in",
-                    "arrival order), 1=Off (every query runs as a single stream, in the",
-                    "server's own row and chunk order). Throws",
-                    "@c thetadatadx::InvalidParameterError on an out-of-domain policy (and",
-                    "@c thetadatadx::ConfigError on a null handle), routing through the typed",
-                    "leaf the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Automatic bulk-fetch sharding policy for history pulls (buffered and",
-                    "chunk-streaming alike). Accepts ``\"auto\"`` (default: a large history",
-                    "pull's requested time or date range is split into equal concurrent",
-                    "bands across the account's concurrent-request budget; buffered",
-                    "pulls are merged back",
-                    "into exactly the rows of the single-stream response, single-contract,",
-                    "stock, and index pulls in the exact single-stream order and",
-                    "option-chain pulls in a deterministic canonical order grouped by",
-                    "expiration, strike, and right; streaming pulls forward each band's",
-                    "chunks as they arrive, every chunk exactly once but interleaved",
-                    "across bands in arrival order; small pulls are never sharded) or",
-                    "``\"off\"`` (every query runs as a single stream, in the server's own",
-                    "row and chunk order), case-insensitive.",
-                ],
-                ts_doc: [
-                    "Automatic bulk-fetch sharding policy for history pulls (buffered and",
-                    "chunk-streaming alike). Accepts `\"auto\"` (default: a large history",
-                    "pull's requested time or date range is split into equal concurrent",
-                    "bands across the account's concurrent-request budget; buffered pulls",
-                    "are merged back into exactly",
-                    "the rows of the single-stream response, single-contract, stock, and",
-                    "index pulls in the exact single-stream order and option-chain pulls in",
-                    "a deterministic canonical order grouped by expiration, strike, and",
-                    "right; streaming pulls forward each band's chunks as they arrive, every",
-                    "chunk exactly once but interleaved across bands in arrival order; small",
-                    "pulls are never sharded) or `\"off\"` (every query runs as a single",
-                    "stream, in the server's own row and chunk order), case-insensitive.",
-                ],
+                doc: ["Set the automatic bulk-fetch sharding policy for history pulls, covering both the buffered and the chunk-streaming call paths."],
             }
             get thetadatadx_config_get_bulk_fetch(out_policy: i32) [market_data.bulk_fetch] {
+                default: Auto,
                 values: BulkFetchPolicy { 0 Auto, 1 Off },
-                doc: [
-                    "Read the configured bulk-fetch sharding policy. Same encoding as",
-                    "`thetadatadx_config_set_bulk_fetch`. Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current bulk-fetch sharding policy (same encoding as the setter).",
-                ],
-                py_doc: [
-                    "Current bulk-fetch sharding policy as a lowercase string.",
-                ],
-                ts_doc: [
-                    "Current bulk-fetch sharding policy as a lowercase string.",
-                ],
+                doc: ["Current bulk-fetch sharding policy."],
             }
             set thetadatadx_config_set_shard_concurrency(n: Option<u32>) [market_data.shard_concurrency] {
                 param: n,
-                doc: [
-                    "Set the upper bound on concurrent sub-requests per sharded bulk fetch.",
-                    "",
-                    "* `has_value = false` encodes `None` (the default): a sharded pull uses",
-                    "  the full concurrent-request budget (the channel-pool size resolved",
-                    "  from `max_concurrent_requests`). `n` is ignored.",
-                    "* `has_value = true` encodes `Some(n)`: a sharded pull spreads across at",
-                    "  most `n` sub-requests. The applied value is clamped into",
-                    "  `[1, pool_size]` when a plan is built; the pool size is resolved",
-                    "  from `max_concurrent_requests`; and validation floors an explicit",
-                    "  `0` to `1`.",
-                    "",
-                    "Returns `0` on success, `-1` if `config` is null.",
-                ],
-                cpp_doc: [
-                    "Set the upper bound on concurrent sub-requests per sharded bulk fetch.",
-                    "Pass @c std::nullopt (the @c None default) to use the full",
-                    "concurrent-request budget; pass an explicit @c std::uint32_t to cap the",
-                    "fan-out. The applied value is clamped into `[1, pool_size]` when a plan",
-                    "is built (the pool size is resolved from `max_concurrent_requests`).",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,",
-                    "routing through the typed class the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Upper bound on concurrent sub-requests per sharded bulk fetch.",
-                    "``None`` (the default) uses the full concurrent-request budget (the",
-                    "channel-pool size resolved from ``max_concurrent_requests``); an",
-                    "``int`` caps the fan-out. The applied value is clamped into",
-                    "``[1, pool_size]`` when a plan is built, and validation floors an",
-                    "explicit ``0`` to ``1``.",
-                ],
-                ts_doc: [
-                    "Set the upper bound on concurrent sub-requests per sharded bulk fetch.",
-                    "Pass `null` or `undefined` (the default) to use the full",
-                    "concurrent-request budget (the channel-pool size resolved from",
-                    "`maxConcurrentRequests`); pass a `number` to cap the fan-out. The",
-                    "applied value is clamped into `[1, pool_size]` when a plan is built",
-                    "(the pool size is resolved from `maxConcurrentRequests`).",
-                ],
+                doc: ["Set the upper bound on concurrent sub-requests per sharded bulk fetch. Unset, the default, a sharded pull uses the full concurrent-request budget: the channel-pool size resolved from `market_data.max_concurrent_requests`. Set, a sharded pull spreads across at most that many sub-requests; the applied value is clamped into `[1, pool_size]` when a plan is built, and validation floors an explicit `0` to `1`."],
             }
             get thetadatadx_config_get_shard_concurrency(out_n: Option<u32>) [market_data.shard_concurrency] {
-                doc: [
-                    "Read the current `market_data.shard_concurrency` setting.",
-                    "",
-                    "* `*out_has_value = false` → the config holds `None` (full pool",
-                    "  budget). `*out_n` is left as `0`.",
-                    "* `*out_has_value = true` → the config holds `Some(*out_n)`.",
-                    "",
-                    "Returns `0` on success, `-1` if any pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current @c market_data.shard_concurrency setting. Returns",
-                    "@c std::nullopt for the full-pool-budget sentinel; returns the wrapped",
-                    "@c std::uint32_t when an explicit cap is set.",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,",
-                    "routing through the typed class the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Current ``shard_concurrency`` setting. ``None`` means a sharded pull",
-                    "uses the full concurrent-request budget; an ``int`` is the",
-                    "configured cap.",
-                ],
-                ts_doc: [
-                    "Current `shardConcurrency` setting. `null` means a sharded pull uses",
-                    "the full concurrent-request budget; a `number` is the configured cap.",
-                ],
+                doc: ["Current `market_data.shard_concurrency` value. Unset means a sharded pull uses the full concurrent-request budget."],
             }
             set thetadatadx_config_set_max_concurrent_requests(n: Option<u32>) [market_data.max_concurrent_requests] {
                 param: n,
                 doc: [
-                    "Set the number of concurrent in-flight market-data requests: the size",
-                    "of the gRPC channel pool and of the request semaphore that admits",
-                    "requests onto it, resolved at connect time.",
+                    "Set the number of concurrent in-flight market-data requests: the size of the gRPC channel pool and of the request semaphore that admits requests onto it, resolved at connect time.",
                     "",
-                    "* `has_value = false` encodes `None` (the default): the pool is sized",
-                    "  to the account's subscription tier from the auth response (Free 1 /",
-                    "  Value 2 / Standard 4 / Pro 8). `n` is ignored.",
-                    "* `has_value = true` encodes `Some(n)`: the pool is `n` verbatim, with",
-                    "  no client-side cap; the allowance is enforced server-side, so an",
-                    "  account boosted above its base tier sets the boosted value and runs",
-                    "  that wide. Requests past the server's allowance surface as",
-                    "  `ResourceExhausted` and are retried with backoff. Validation floors",
-                    "  an explicit `0` to `1`.",
-                    "",
-                    "Returns `0` on success, `-1` if `config` is null.",
-                ],
-                cpp_doc: [
-                    "Set the number of concurrent in-flight market-data requests (gRPC",
-                    "channel-pool + request-semaphore size, resolved at connect time). Pass",
-                    "@c std::nullopt (the @c None default) to size the pool to the account's",
-                    "subscription tier from the auth response (Free 1 / Value 2 / Standard 4",
-                    "/ Pro 8); pass an explicit @c std::uint32_t to use it verbatim; no",
-                    "client-side cap, so a server-boosted account sets its boosted",
-                    "allowance. Requests past the server-enforced allowance are rejected",
-                    "upstream and retried with backoff. Validation floors an explicit `0`",
-                    "to `1`.",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,",
-                    "routing through the typed class the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Number of concurrent in-flight market-data requests (gRPC channel-pool",
-                    "+ request-semaphore size, resolved at connect time). ``None`` (the",
-                    "default) sizes the pool to the account's subscription tier from the",
-                    "auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is",
-                    "used verbatim with no client-side cap; the allowance is enforced",
-                    "server-side, so a boosted account sets its boosted value. Requests",
-                    "past the allowance are retried with backoff. Validation floors an",
-                    "explicit ``0`` to ``1``.",
-                    "",
-                    "Examples",
-                    "--------",
-                    "    cfg = Config.production()",
-                    "    cfg.max_concurrent_requests = 32",
-                ],
-                ts_doc: [
-                    "Set the number of concurrent in-flight market-data requests (gRPC",
-                    "channel-pool + request-semaphore size, resolved at connect time). Pass",
-                    "`null` or `undefined` (the default) to size the pool to the account's",
-                    "subscription tier from the auth response (Free 1 / Value 2 / Standard 4",
-                    "/ Pro 8); pass a `number` to use it verbatim; no client-side cap, so",
-                    "a server-boosted account sets its boosted allowance. Requests past the",
-                    "server-enforced allowance are retried with backoff. Validation floors",
-                    "an explicit `0` to `1`.",
+                    "Unset, the default, the pool is sized to the account's subscription tier from the auth response (Free 1 / Value 2 / Standard 4 / Pro 8). Set, the pool is that size verbatim, with no client-side cap: the allowance is enforced server-side, so an account boosted above its base tier sets the boosted value and runs that wide. Requests past the server's allowance surface as `ResourceExhausted` and are retried with backoff. Validation floors an explicit `0` to `1`.",
                 ],
             }
             get thetadatadx_config_get_max_concurrent_requests(out_n: Option<u32>) [market_data.max_concurrent_requests] {
-                doc: [
-                    "Read the current `market_data.max_concurrent_requests` setting.",
-                    "",
-                    "* `*out_has_value = false` → the config holds `None` (size the pool to",
-                    "  the account's subscription tier at connect time). `*out_n` is left",
-                    "  as `0`.",
-                    "* `*out_has_value = true` → the config holds `Some(*out_n)`.",
-                    "",
-                    "Returns `0` on success, `-1` if any pointer is null.",
-                ],
-                cpp_doc: [
-                    "Read the current @c market_data.max_concurrent_requests setting.",
-                    "Returns @c std::nullopt for the size-to-tier default; returns the",
-                    "wrapped @c std::uint32_t when an explicit pool size is set.",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,",
-                    "routing through the typed class the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Current ``max_concurrent_requests`` setting. ``None`` means the pool",
-                    "is sized to the account's subscription tier at connect time; an",
-                    "``int`` is the configured pool size.",
-                ],
-                ts_doc: [
-                    "Current `maxConcurrentRequests` setting. `null` means the pool is",
-                    "sized to the account's subscription tier at connect time; a `number`",
-                    "is the configured pool size.",
-                ],
+                doc: ["Current `market_data.max_concurrent_requests` value. Unset means the pool is sized to the account's subscription tier at connect time."],
             }
             get thetadatadx_config_get_retry_initial_delay_ms(out_ms: u64) [retry.initial_delay in ms] {
-                doc: [
-                    "Read the current `retry.initial_delay` setting (ms). Returns `0` on",
-                    "success, `-1` if either pointer is null.",
-                ],
-                cpp_doc: [
-                    "",
-                ],
-                py_doc: [
-                    "Current ``retry.initial_delay`` value in ms.",
-                ],
-                ts_doc: [
-                    "Current `retry.initial_delay` value (ms, returned as BigInt).",
-                ],
+                default: 250,
+                doc: ["Current `retry.initial_delay` value in ms."],
             }
             get thetadatadx_config_get_retry_max_delay_ms(out_ms: u64) [retry.max_delay in ms] {
-                doc: [
-                    "Read the current `retry.max_delay` setting (ms).",
-                ],
-                cpp_doc: [
-                    "",
-                ],
-                py_doc: [
-                    "Current ``retry.max_delay`` value in ms.",
-                ],
-                ts_doc: [
-                    "Current `retry.max_delay` value (ms, returned as BigInt).",
-                ],
+                default: 30_000 "30 s",
+                doc: ["Current `retry.max_delay` value in ms."],
             }
             set thetadatadx_config_set_reconnect_max_attempts(max_attempts: u32) [limits.max_attempts] {
                 param: max_attempts,
-                doc: [
-                    "Set the per-class transient-failure attempt budget for the",
-                    "auto-reconnect path. Default `30`. No effect unless the reconnect",
-                    "policy is `Auto`.",
-                ],
-                cpp_doc: [
-                    "Set the per-class transient-failure attempt budget. Default 30.",
-                ],
-                py_doc: [
-                    "Set the per-class transient-failure attempt budget for the",
-                    "auto-reconnect path. Default `30`. No effect unless the",
-                    "reconnect policy is `Auto`.",
-                ],
-                ts_doc: [
-                    "Set the per-class transient-failure attempt budget for the",
-                    "auto-reconnect path. Default `30`. No effect unless the",
-                    "reconnect policy is `Auto`.",
-                ],
+                default: 30,
+                doc: ["Set the per-class transient-failure attempt budget for the auto-reconnect path. No effect unless the reconnect policy is `Auto`."],
             }
             get thetadatadx_config_get_reconnect_max_attempts(out: u32) [limits.max_attempts] {
-                doc: [
-                    "Read the generic-transient reconnect attempt budget. Default `30`.",
-                    "",
-                    "Writes the configured value into `*out`. When the reconnect policy",
-                    "is not `Auto`, writes the default-limits value (the budgets only",
-                    "apply under the `Auto` policy). Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current generic-transient reconnect attempt budget (default 30).",
-                ],
-                py_doc: [
-                    "Current generic-transient reconnect attempt budget (default",
-                    "`30`). Reads the default-limits value when the policy is not",
-                    "`Auto`.",
-                ],
-                ts_doc: [
-                    "Current generic-transient reconnect attempt budget (default",
-                    "`30`). Reads the default-limits value when the policy is not",
-                    "`Auto`.",
-                ],
+                default: 30,
+                doc: ["Current generic-transient reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`."],
             }
             set thetadatadx_config_set_reconnect_max_rate_limited_attempts(max_rate_limited_attempts: u32) [limits.max_rate_limited_attempts] {
                 param: max_rate_limited_attempts,
-                doc: [
-                    "Set the per-class rate-limited (`TooManyRequests`) attempt budget",
-                    "for the auto-reconnect path. Default `100`. No effect unless the",
-                    "reconnect policy is `Auto`.",
-                ],
-                cpp_doc: [
-                    "Set the rate-limited (TooManyRequests) attempt budget. Default 100.",
-                ],
-                py_doc: [
-                    "Set the per-class rate-limited (`TooManyRequests`) attempt budget",
-                    "for the auto-reconnect path. Default `100`. No effect unless the",
-                    "reconnect policy is `Auto`.",
-                ],
-                ts_doc: [
-                    "Set the per-class rate-limited (`TooManyRequests`) attempt",
-                    "budget for the auto-reconnect path. Default `100`. No effect",
-                    "unless the reconnect policy is `Auto`.",
-                ],
+                default: 100,
+                doc: ["Set the per-class rate-limited (`TooManyRequests`) attempt budget for the auto-reconnect path. No effect unless the reconnect policy is `Auto`."],
             }
             get thetadatadx_config_get_reconnect_max_rate_limited_attempts(out: u32) [limits.max_rate_limited_attempts] {
-                doc: [
-                    "Read the rate-limited (`TooManyRequests`) reconnect attempt budget. Default `100`.",
-                    "",
-                    "Writes the configured value into `*out`. When the reconnect policy",
-                    "is not `Auto`, writes the default-limits value (the budgets only",
-                    "apply under the `Auto` policy). Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current rate-limited reconnect attempt budget (default 100).",
-                ],
-                py_doc: [
-                    "Current rate-limited reconnect attempt budget (default `100`).",
-                    "Reads the default-limits value when the policy is not `Auto`.",
-                ],
-                ts_doc: [
-                    "Current rate-limited reconnect attempt budget (default `100`).",
-                    "Reads the default-limits value when the policy is not `Auto`.",
-                ],
+                default: 100,
+                doc: ["Current rate-limited (`TooManyRequests`) reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`."],
             }
             set thetadatadx_config_set_reconnect_max_server_restart_attempts(n: u32) [limits.max_server_restart_attempts] {
                 param: n,
-                doc: [
-                    "Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.",
-                ],
-                cpp_doc: [
-                    "Set the ServerRestarting reconnect attempt budget. Default 60.",
-                ],
-                py_doc: [
-                    "Set the ``ServerRestarting`` reconnect attempt budget. Default",
-                    "``60``. No effect unless the reconnect policy is ``Auto``.",
-                ],
-                ts_doc: [
-                    "Set the `ServerRestarting` reconnect attempt budget. Default",
-                    "`60`. No effect unless the reconnect policy is `Auto`.",
-                ],
+                default: 60,
+                doc: ["Set the `ServerRestarting` reconnect attempt budget. No effect unless the reconnect policy is `Auto`."],
             }
             get thetadatadx_config_get_reconnect_max_server_restart_attempts(out: u32) [limits.max_server_restart_attempts] {
-                doc: [
-                    "Read the `ServerRestarting` reconnect attempt budget. Default `60`.",
-                    "",
-                    "Writes the configured value into `*out`. When the reconnect policy",
-                    "is not `Auto`, writes the default-limits value (the budgets only",
-                    "apply under the `Auto` policy). Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current ServerRestarting reconnect attempt budget (default 60).",
-                ],
-                py_doc: [
-                    "Current ``ServerRestarting`` reconnect attempt budget (default",
-                    "``60``). Reads the default-limits value when the policy is not",
-                    "``Auto``.",
-                ],
-                ts_doc: [
-                    "Current `ServerRestarting` reconnect attempt budget (default",
-                    "`60`). Reads the default-limits value when the policy is not",
-                    "`Auto`.",
-                ],
+                default: 60,
+                doc: ["Current `ServerRestarting` reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`."],
             }
             set thetadatadx_config_set_reconnect_max_elapsed_secs(secs: u64) [limits.max_elapsed in secs] {
                 param: secs,
-                doc: [
-                    "Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.",
-                ],
-                cpp_doc: [
-                    "Set the wall-clock reconnect envelope (seconds) for the",
-                    "generic-transient and server-restart classes. 0 disables the",
-                    "envelope (attempt budgets only). Default 300.",
-                ],
-                py_doc: [
-                    "Set the wall-clock reconnect envelope (seconds) for the",
-                    "generic-transient and server-restart classes, measured from the",
-                    "first attempt of a consecutive-reconnect sequence. ``0``",
-                    "disables the envelope (attempt budgets only). Default ``300``.",
-                    "No effect unless the reconnect policy is ``Auto``.",
-                ],
-                ts_doc: [
-                    "Set the wall-clock reconnect envelope (seconds) for the",
-                    "generic-transient and server-restart classes, measured from the",
-                    "first attempt of a consecutive-reconnect sequence. `0n` disables",
-                    "the envelope (attempt budgets only). Default `300n`. No effect",
-                    "unless the reconnect policy is `Auto`.",
-                ],
+                default: 300,
+                doc: ["Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. Zero disables the envelope (attempt budgets only). No effect unless the reconnect policy is `Auto`."],
             }
             get thetadatadx_config_get_reconnect_max_elapsed_secs(out: u64) [limits.max_elapsed in secs] {
-                doc: [
-                    "Read the wall-clock reconnect envelope (seconds). `0` means the envelope is disabled. Default `300`.",
-                    "",
-                    "Writes the configured value into `*out`. When the reconnect policy",
-                    "is not `Auto`, writes the default-limits value (the budgets only",
-                    "apply under the `Auto` policy). Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current wall-clock reconnect envelope in seconds (default 300;",
-                    "0 = disabled).",
-                ],
-                py_doc: [
-                    "Current wall-clock reconnect envelope in seconds (default",
-                    "``300``; ``0`` = disabled). Reads the default-limits value when",
-                    "the policy is not ``Auto``.",
-                ],
-                ts_doc: [
-                    "Current wall-clock reconnect envelope in seconds (default",
-                    "`300n`; `0n` = disabled). Reads the default-limits value when",
-                    "the policy is not `Auto`.",
-                ],
+                default: 300,
+                doc: ["Current wall-clock reconnect envelope in seconds; zero means disabled. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`."],
             }
             set thetadatadx_config_set_reconnect_stable_window_secs(secs: u64) [limits.stable_window in secs] {
                 param: secs,
-                doc: [
-                    "Set the continuous successful-data-flow window (in seconds) after",
-                    "which the auto-reconnect attempt counters reset. Default `60`. No",
-                    "effect unless the reconnect policy is `Auto`.",
-                ],
-                cpp_doc: [
-                    "Set the stable-window timer (seconds) after which the",
-                    "auto-reconnect attempt counters reset. Default 60.",
-                ],
-                py_doc: [
-                    "Set the continuous successful-data-flow window (in seconds)",
-                    "after which the auto-reconnect attempt counters reset. Default",
-                    "``60``. No effect unless the reconnect policy is ``Auto``.",
-                ],
-                ts_doc: [
-                    "Set the continuous successful-data-flow window (in seconds)",
-                    "after which the auto-reconnect attempt counters reset. Default",
-                    "`60`. No effect unless the reconnect policy is `Auto`.",
-                    "",
-                    "Accepts a `bigint` for parity with the Python / C++ / FFI",
-                    "surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their",
-                    "value: `setReconnectStableWindowSecs(BigInt(60))`.",
-                ],
+                default: 60,
+                doc: ["Set the continuous successful-data-flow window (seconds) after which the auto-reconnect attempt counters reset. No effect unless the reconnect policy is `Auto`."],
             }
             get thetadatadx_config_get_reconnect_stable_window_secs(out: u64) [limits.stable_window in secs] {
-                doc: [
-                    "Read the stable-window reset interval (seconds). Default `60`.",
-                    "",
-                    "Writes the configured value into `*out`. When the reconnect policy",
-                    "is not `Auto`, writes the default-limits value (the budgets only",
-                    "apply under the `Auto` policy). Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current stable-window reset interval in seconds (default 60).",
-                ],
-                py_doc: [
-                    "Current stable-window reset interval in seconds (default `60`).",
-                    "Reads the default-limits value when the policy is not `Auto`.",
-                ],
-                ts_doc: [
-                    "Current stable-window reset interval in seconds (default `60n`).",
-                    "Reads the default-limits value when the policy is not `Auto`.",
-                ],
+                default: 60,
+                doc: ["Current stable-window reset interval in seconds. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`."],
             }
             set thetadatadx_config_set_nexus_url(url: String) [auth.nexus_url] {
                 param: url,
-                doc: [
-                    "Set the Nexus auth URL on a config handle.",
-                    "",
-                    "`url` must be a non-null, NUL-terminated, valid-UTF-8 C string.",
-                    "Returns `0` on success, `-1` if `config` is null or `url` is",
-                    "null / not valid UTF-8 (the diagnostic is written to thread-local",
-                    "storage retrievable via `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Set the Nexus auth URL. Default is the upstream production",
-                    "endpoint; redirect at a staging cluster for testing.",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value",
-                    "(null handle or non-UTF-8 input), routing through the typed class",
-                    "the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Set the Nexus auth URL. Default matches the upstream production",
-                    "endpoint; override to redirect at a staging cluster.",
-                ],
-                ts_doc: [
-                    "Set the Nexus auth URL. Default matches the upstream",
-                    "production endpoint; override to redirect at a staging",
-                    "cluster for testing.",
-                ],
+                doc: ["Set the Nexus auth URL. The default is the upstream production endpoint; override it to point at a staging cluster for testing."],
             }
             get thetadatadx_config_get_nexus_url(out: String) [auth.nexus_url] {
-                doc: [
-                    "Read the current `auth.nexus_url` setting.",
-                    "",
-                    "On success, returns a heap-owned NUL-terminated C string the",
-                    "caller MUST release with `thetadatadx_string_free`. Returns null if",
-                    "`config` is null or the stored value contains an interior NUL",
-                    "(the diagnostic is written to `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Current @c auth.nexus_url. Returns an empty string if the FFI",
-                    "getter returns null (null handle or interior-NUL value).",
-                ],
-                py_doc: [
-                    "Current ``auth.nexus_url`` value.",
-                ],
-                ts_doc: [
-                    "Current `auth.nexus_url` value.",
-                ],
+                doc: ["Current `auth.nexus_url` value."],
             }
             set thetadatadx_config_set_client_type(client_type: String) [auth.client_type] {
                 param: client_type,
-                doc: [
-                    "Set the `QueryInfo.client_type` identifier on a config handle.",
-                    "",
-                    "`client_type` must be a non-null, NUL-terminated, valid-UTF-8 C",
-                    "string. Returns `0` on success, `-1` if `config` is null or",
-                    "`client_type` is null / not valid UTF-8 (the diagnostic is written",
-                    "to thread-local storage retrievable via `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Set the QueryInfo.client_type identifier. Default is",
-                    "@c \"rust-thetadatadx\"; override to identify a deployment fleet",
-                    "in server-side dashboards.",
-                    "",
-                    "Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value",
-                    "(null handle or non-UTF-8 input), routing through the typed class",
-                    "the FFI error code selects.",
-                ],
-                py_doc: [
-                    "Set the ``QueryInfo.client_type`` identifier. Default is",
-                    "``\"rust-thetadatadx\"``; override to identify a deployment fleet",
-                    "in server-side dashboards.",
-                ],
-                ts_doc: [
-                    "Set the `QueryInfo.client_type` identifier. Default is",
-                    "`\"rust-thetadatadx\"`; override to identify a deployment fleet",
-                    "in server-side dashboards.",
-                ],
+                doc: ["Set the `QueryInfo.client_type` identifier. The default is `\"rust-thetadatadx\"`; override it to identify a deployment fleet in server-side dashboards."],
             }
             get thetadatadx_config_get_client_type(out: String) [auth.client_type] {
-                doc: [
-                    "Read the current `auth.client_type` setting.",
-                    "",
-                    "On success, returns a heap-owned NUL-terminated C string the",
-                    "caller MUST release with `thetadatadx_string_free`. Returns null if",
-                    "`config` is null or the stored value contains an interior NUL",
-                    "(the diagnostic is written to `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Current @c auth.client_type. Returns an empty string if the FFI",
-                    "getter returns null (null handle or interior-NUL value).",
-                ],
-                py_doc: [
-                    "Current ``auth.client_type`` value.",
-                ],
-                ts_doc: [
-                    "Current `auth.client_type` value.",
-                ],
+                doc: ["Current `auth.client_type` value."],
             }
             set thetadatadx_config_set_market_data_host(host: String) [set_market_data_host()] {
                 param: host,
-                doc: [
-                    "Set the market-data gRPC host on a config handle.",
-                    "",
-                    "`host` must be a non-null, NUL-terminated, valid-UTF-8 C string.",
-                    "Returns `0` on success, `-1` if `config` is null or `host` is",
-                    "null / not valid UTF-8 (the diagnostic is written to thread-local",
-                    "storage retrievable via `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Set the market-data gRPC host. Defaults to the upstream",
-                    "production endpoint; redirect the market-data channel at a known",
-                    "host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI",
-                    "rejects the value (null handle or non-UTF-8 input).",
-                ],
-                py_doc: [
-                    "Set the market-data gRPC host. The environment factories set it;",
-                    "override it to reach the market-data service at another address.",
-                ],
-                ts_doc: [
-                    "Override the market-data gRPC host. Companion to `setMarketDataPort`.",
-                ],
+                doc: ["Set the market-data gRPC host. The environment factories set it; override it together with the market-data port to reach the market-data service at another address, such as a test server."],
             }
             get thetadatadx_config_get_market_data_host(out: String) [market_data_host()] {
-                doc: [
-                    "Read the current market-data gRPC host.",
-                    "",
-                    "On success, returns a heap-owned NUL-terminated C string the caller",
-                    "MUST release with `thetadatadx_string_free`. Returns null if `config` is",
-                    "null or the stored value contains an interior NUL (the diagnostic is",
-                    "written to `thetadatadx_last_error()`).",
-                ],
-                cpp_doc: [
-                    "Current market-data gRPC host. Returns an empty string if",
-                    "the FFI getter returns null (null handle or interior-NUL value).",
-                ],
-                py_doc: [
-                    "Current market-data gRPC host.",
-                ],
-                ts_doc: [
-                    "Current market-data gRPC host.",
-                ],
+                doc: ["Current market-data gRPC host."],
             }
             set thetadatadx_config_set_reconnect_jitter(mode: i32) [reconnect.jitter] {
                 param: mode,
-                values: JitterMode { 0 Full, 1 None },
+                default: Full,
+                values: JitterMode {
+                    0 Full "sample uniformly from `[0, delay]`.",
+                    1 None "deterministic delays, for tests only.",
+                },
                 errors: {
                     null: THETADATADX_ERR_OTHER,
                     ffi: "expected 0 (Full) or 1 (None)",
                     py: "unknown reconnect_jitter: {mode:?} (expected \"full\" or \"none\")",
                     ts: "setReconnectJitter: unknown mode {mode:?}; expected \"full\" or \"none\"",
                 },
-                doc: [
-                    "Set the jitter strategy applied to every reconnect delay.",
-                    "",
-                    "- `mode = 0`: Full (default); sample uniformly from `[0, delay]`.",
-                    "- `mode = 1`: None; deterministic delays (tests only).",
-                    "",
-                    "Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when",
-                    "`mode` is outside the documented `{0, 1}` set or `config` is",
-                    "null. A rejected `mode` value carries",
-                    "`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain",
-                    "enum int surfaces the same typed class across every binding.",
-                ],
-                cpp_doc: [
-                    "Set the reconnect jitter mode: 0=Full (default), 1=None. Throws @c thetadatadx::InvalidParameterError on",
-                    "an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null",
-                    "handle), routing through the typed leaf the FFI error code",
-                    "selects.",
-                ],
-                py_doc: [
-                    "Set the jitter strategy applied to every reconnect delay.",
-                    "Accepts ``\"full\"`` (default) or ``\"none\"`` (case-insensitive).",
-                ],
-                ts_doc: [
-                    "Set the jitter strategy applied to every reconnect delay.",
-                    "Accepts `\"full\"` (default) or `\"none\"` (case-insensitive).",
-                ],
+                doc: ["Set the jitter strategy applied to every reconnect delay."],
             }
             get thetadatadx_config_get_reconnect_jitter(out_mode: i32) [reconnect.jitter] {
+                default: Full,
                 values: JitterMode { 0 Full, 1 None },
-                doc: [
-                    "Read the configured reconnect jitter mode. Same encoding as",
-                    "`thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if",
-                    "either pointer is null.",
-                ],
-                cpp_doc: [
-                    "Current reconnect jitter mode (same encoding as the setter).",
-                ],
-                py_doc: [
-                    "Current reconnect jitter mode as a lowercase string.",
-                ],
-                ts_doc: [
-                    "Current reconnect jitter mode as a lowercase string.",
-                ],
+                doc: ["Current reconnect jitter mode."],
             }
         }
     };
@@ -1901,131 +505,34 @@ macro_rules! __config {
 mod tests {
     use crate::DirectConfig;
 
-    /// A numeric or boolean accessor's production value and its documentation
-    /// in each binding.
-    struct Documented {
-        symbol: &'static str,
-        setter: bool,
-        value: String,
-        docs: [(&'static str, &'static [&'static str]); 4],
-    }
-
-    /// Collects every accessor of a number or a boolean; the others document
-    /// their default in words.
-    macro_rules! documented {
-        ({ $($done:tt)* }) => { vec![$($done)*] };
-        ({ $($done:tt)* } $kind:ident $sym:ident ($p:ident: $ty:ident) [$($target:tt)*] {
-            $(param: $param:ident,)?
-            doc: [$($d:literal),* $(,)?],
-            cpp_doc: [$($c:literal),* $(,)?],
-            py_doc: [$($py:literal),* $(,)?],
-            ts_doc: [$($ts:literal),* $(,)?] $(,)?
-        } $($rest:tt)*) => {
-            documented! { {
-                $($done)*
-                documented!(@entry $ty $kind $sym [$($target)*] [
-                    ("C", &[$($d),*]),
-                    ("C++", &[$($c),*]),
-                    ("Python", &[$($py),*]),
-                    ("TypeScript", &[$($ts),*]),
-                ]),
-            } $($rest)* }
-        };
-        ({ $($done:tt)* } $kind:ident $sym:ident $param:tt $target:tt $body:tt $($rest:tt)*) => {
-            documented! { { $($done)* } $($rest)* }
-        };
-        (@entry String $($skip:tt)*) => { None };
-        (@entry $ty:ident $kind:ident $sym:ident [$($target:tt)*] $docs:tt) => {{
+    /// Asserts that each entry's default is the production config's value.
+    macro_rules! check_defaults {
+        ({} $($dir:ident $sym:ident $sig:tt $target:tt { $($body:tt)* })*) => {
             let config = DirectConfig::production_defaults();
-            Some(Documented {
-                symbol: stringify!($sym),
-                setter: stringify!($kind) == "set",
-                value: $crate::__config_read!(config [$($target)*]).to_string(),
-                docs: $docs,
-            })
-        }};
+            $(check_defaults!(@entry config $sym $target $($body)*);)*
+        };
+        (@entry $c:ident $sym:ident $target:tt $(param: $p:ident,)?
+            default: $v:ident, values: $enum:ident $($rest:tt)*) => {
+            assert!(
+                matches!($crate::__config_read!($c $target), crate::$enum::$v),
+                concat!(stringify!($sym), " documents the default ", stringify!($v)),
+            );
+        };
+        (@entry $c:ident $sym:ident $target:tt $(param: $p:ident,)?
+            default: $v:literal $($gloss:literal)?, $($rest:tt)*) => {
+            assert_eq!(
+                $crate::__config_read!($c $target),
+                $v,
+                concat!(stringify!($sym), " documents the default ", stringify!($v)),
+            );
+        };
+        (@entry $c:ident $sym:ident $target:tt $(param: $p:ident,)? doc: $doc:tt $(,)?) => {};
     }
 
-    /// Every value the documentation gives as the default: the number or
-    /// boolean after `Default`, `default` or `Defaults`, past an `is`, `of` or
-    /// `to` and any quoting, with `_` separators and a BigInt `n` dropped, a
-    /// `MiB` count in bytes and a product such as `100 * 1024 * 1024`
-    /// multiplied out.
-    fn stated_defaults(doc: &str) -> Vec<String> {
-        let mut values = Vec::new();
-        for (at, _) in doc.match_indices("efault") {
-            if !doc[..at].ends_with(['D', 'd']) {
-                continue;
-            }
-            let mut rest = doc[at + "efault".len()..]
-                .trim_start_matches('s')
-                .trim_start();
-            for word in ["is ", "of ", "to "] {
-                rest = rest.strip_prefix(word).unwrap_or(rest);
-            }
-            let mut rest = rest.trim_start_matches(['`', ' ']);
-            if let Some(word) = ["true", "True", "false", "False"]
-                .into_iter()
-                .find(|word| rest.starts_with(word))
-            {
-                values.push(word.to_lowercase());
-                continue;
-            }
-            let mut product: Option<u128> = None;
-            loop {
-                let digits = rest
-                    .find(|c: char| !c.is_ascii_digit() && c != '_')
-                    .unwrap_or(rest.len());
-                let Ok(mut factor) = rest[..digits].replace('_', "").parse::<u128>() else {
-                    break;
-                };
-                rest = rest[digits..].trim_start_matches(['n', '`']);
-                if let Some(after) = rest.strip_prefix(" MiB") {
-                    factor <<= 20;
-                    rest = after;
-                }
-                product = Some(product.unwrap_or(1) * factor);
-                match rest.trim_start().strip_prefix('*') {
-                    Some(next) => rest = next.trim_start().trim_start_matches('`'),
-                    None => break,
-                }
-            }
-            values.extend(product.map(|value| value.to_string()));
-        }
-        values
-    }
-
-    /// A default stated in any binding's documentation is the one
-    /// `DirectConfig` starts from, and every setter of a number or a boolean
-    /// states it, so a default changed in the config cannot leave a binding
-    /// documenting the old one.
+    /// The default each binding documents is the one `DirectConfig` starts
+    /// from.
     #[test]
     fn documented_defaults_match_the_production_config() {
-        let entries: Vec<Option<Documented>> = crate::__config! { documented { {} } };
-        let mut wrong = Vec::new();
-        let mut checked = 0;
-        for entry in entries.into_iter().flatten() {
-            for (binding, lines) in entry.docs {
-                let stated = stated_defaults(&lines.join(" "));
-                // Documented as the host's companion, the port states no default.
-                if entry.setter
-                    && stated.is_empty()
-                    && entry.symbol != "thetadatadx_config_set_market_data_port"
-                {
-                    wrong.push(format!("{} ({binding}) states no default", entry.symbol));
-                }
-                for value in stated {
-                    checked += 1;
-                    if value != entry.value {
-                        wrong.push(format!(
-                            "{} ({binding}) documents default {value}; the config starts at {}",
-                            entry.symbol, entry.value
-                        ));
-                    }
-                }
-            }
-        }
-        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
-        assert!(checked > 0, "no documented default was read");
+        crate::__config! { check_defaults { {} } }
     }
 }

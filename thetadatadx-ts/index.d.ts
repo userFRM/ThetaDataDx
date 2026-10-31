@@ -130,6 +130,10 @@ export declare class Client {
  * return `void` (chain by calling `cfg.method(...)` then passing
  * `cfg` itself).
  *
+ * A value the other bindings hold as a 64-bit unsigned integer (a time
+ * in milliseconds or seconds, a byte or KB count) crosses as a `bigint`:
+ * pass `250n`, or wrap a `number` as `BigInt(value)`.
+ *
  * The config is consumed at connect time, so once it has been used
  * to connect a client further mutations have no effect on that client.
  */
@@ -250,365 +254,386 @@ export declare class Config {
   /** Current streaming consumer-thread CPU pin, or `null` if unpinned. */
   get consumerCpu(): number | null
   /**
-   * Set the reconnect delay (ms) honoured for generic transient
-   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
-   * Plumbed through to the streaming I/O loop at connect time.
-   * Default `250`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+   * Set the reconnect delay (ms) honoured for generic transient disconnects (TimedOut, ServerRestarting, Unspecified, …), applied to the streaming session at connect time.
+   * Default `250n`.
    */
   setReconnectWaitMs(ms: bigint): void
-  /** Current reconnect `wait_ms` value (default `250`). */
+  /**
+   * Current `reconnect.wait_ms` value.
+   * Default `250n`.
+   */
   get reconnectWaitMs(): bigint
   /**
-   * Set the reconnect delay (ms) honoured for `TooManyRequests`
-   * rate-limited disconnects. Default `130_000`.
+   * Set the reconnect delay (ms) honoured for `TooManyRequests` rate-limited disconnects, applied to the streaming session at connect time. The default matches the JVM terminal's 130 s rate-limit cooldown.
+   * Default `130_000n`.
    */
   setReconnectWaitRateLimitedMs(ms: bigint): void
-  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
+  /**
+   * Current `reconnect.wait_rate_limited_ms` value.
+   * Default `130_000n`.
+   */
   get reconnectWaitRateLimitedMs(): bigint
   /**
-   * Set the cap (ms) on the exponential generic-transient reconnect
-   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
-   * consecutive attempt up to this value. Default `30_000n`.
+   * Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect.wait_ms` and doubles per consecutive attempt up to this value.
+   * Default `30_000n`.
    */
   setReconnectWaitMaxMs(ms: bigint): void
-  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
+  /**
+   * Current `reconnect.wait_max_ms` value.
+   * Default `30_000n`.
+   */
   get reconnectWaitMaxMs(): bigint
   /**
-   * Set the flat reconnect cadence (ms) for `ServerRestarting`
-   * disconnects. Default `5_000n`.
+   * Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects.
+   * Default `5_000n`.
    */
   setReconnectWaitServerRestartMs(ms: bigint): void
-  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
+  /**
+   * Current `reconnect.wait_server_restart_ms` value.
+   * Default `5_000n`.
+   */
   get reconnectWaitServerRestartMs(): bigint
   /**
-   * Set the subscription-replay burst size used after an
-   * auto-reconnect: frames are written in bursts of this many, each
-   * burst flushed and followed by a jittered `replayPaceMs` pause.
-   * Minimum `1` (validated at connect). Default `50`.
+   * Set the subscription-replay burst size used after an auto-reconnect: frames are written in bursts of this many, each burst flushed and followed by a jittered `reconnect.replay_pace_ms` pause. Minimum `1`, validated at connect.
+   * Default `50`.
    */
   setReconnectReplayBurstSize(n: number): void
-  /** Current `replay_burst_size` value (default `50`). */
+  /**
+   * Current `reconnect.replay_burst_size` value.
+   * Default `50`.
+   */
   get reconnectReplayBurstSize(): number
   /**
-   * Set the pause (ms) between subscription-replay bursts after an
-   * auto-reconnect. `0n` removes the pause. Default `5n`.
+   * Set the pause (ms) between subscription-replay bursts after an auto-reconnect. Zero removes the pause.
+   * Default `5n`.
    */
   setReconnectReplayPaceMs(ms: bigint): void
-  /** Current `replay_pace_ms` value (default `5n`). */
+  /**
+   * Current `reconnect.replay_pace_ms` value.
+   * Default `5n`.
+   */
   get reconnectReplayPaceMs(): bigint
-  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000n`; validated to `[100, 60_000]` at connect. */
+  /**
+   * Set the streaming read timeout (ms): the no-frames deadline after which the streaming session is declared dead and reconnects. Validated to `[100, 60_000]` at connect.
+   * Default `10_000n`.
+   */
   setStreamingTimeoutMs(ms: bigint): void
-  /** Current `streaming.timeout_ms` value (default `10_000n`). */
+  /**
+   * Current `streaming.timeout_ms` value.
+   * Default `10_000n`.
+   */
   get streamingTimeoutMs(): bigint
-  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
+  /**
+   * Set the per-server TCP connect timeout (ms) for the streaming connection. Validated to `[1_000, 60_000]` at connect.
+   * Default `2_000n`.
+   */
   setStreamingConnectTimeoutMs(ms: bigint): void
-  /** Current `streaming.connect_timeout_ms` value (default `2_000n`). */
+  /**
+   * Current `streaming.connect_timeout_ms` value.
+   * Default `2_000n`.
+   */
   get streamingConnectTimeoutMs(): bigint
-  /** Set the streaming heartbeat ping interval (ms). Default `100n`; validated to `[100, 300_000]` at connect. */
+  /**
+   * Set the streaming heartbeat ping interval (ms). Validated to `[100, 300_000]` at connect.
+   * Default `100n`.
+   */
   setStreamingPingIntervalMs(ms: bigint): void
-  /** Current `streaming.ping_interval_ms` value (default `100n`). */
+  /**
+   * Current `streaming.ping_interval_ms` value.
+   * Default `100n`.
+   */
   get streamingPingIntervalMs(): bigint
-  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
+  /**
+   * Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Validated to `[10, 500]` at connect.
+   * Default `25n`.
+   */
   setStreamingIoReadSliceMs(ms: bigint): void
-  /** Current `streaming.io_read_slice_ms` value (default `25n`). */
+  /**
+   * Current `streaming.io_read_slice_ms` value.
+   * Default `25n`.
+   */
   get streamingIoReadSliceMs(): bigint
-  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
+  /**
+   * Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Validated to `[1, 7_200]` at connect.
+   * Default `5n`.
+   */
   setStreamingKeepaliveIdleSecs(secs: bigint): void
-  /** Current `streaming.keepalive_idle_secs` value (default `5n`). */
+  /**
+   * Current `streaming.keepalive_idle_secs` value.
+   * Default `5n`.
+   */
   get streamingKeepaliveIdleSecs(): bigint
-  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
+  /**
+   * Set the interval (seconds) between TCP keepalive probes. Validated to `[1, 75]` at connect.
+   * Default `2n`.
+   */
   setStreamingKeepaliveIntervalSecs(secs: bigint): void
-  /** Current `streaming.keepalive_interval_secs` value (default `2n`). */
+  /**
+   * Current `streaming.keepalive_interval_secs` value.
+   * Default `2n`.
+   */
   get streamingKeepaliveIntervalSecs(): bigint
   /**
-   * Set the number of unanswered TCP keepalive probes after which
-   * the kernel declares the streaming connection dead (where the
-   * platform exposes the knob). Default `2`; validated to `[1, 10]`
-   * at connect.
+   * Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Validated to `[1, 10]` at connect.
+   * Default `2`.
    */
   setStreamingKeepaliveRetries(n: number): void
-  /** Current `streaming.keepalive_retries` value (default `2`). */
+  /**
+   * Current `streaming.keepalive_retries` value.
+   * Default `2`.
+   */
   get streamingKeepaliveRetries(): number
   /**
-   * Current `streaming.ring_size` value (returned as a `BigInt`; default
-   * `131_072`).
+   * Current `streaming.ring_size` value.
+   * Default `131_072n`.
    */
   get streamingRingSize(): bigint
   /**
-   * Set how the streaming consumer waits when the event ring is empty.
-   * Accepts `"spin"` (default), `"busyspin"`, `"park"`, or `"backoff"`
-   * (case-insensitive). `"spin"` and `"busyspin"` both hold ~100% of one core
-   * and differ only in jitter; only `"park"` and `"backoff"` lower idle CPU.
-   * The park / backoff sleep length is `parkIntervalUs`.
+   * Set how the streaming consumer waits when the event ring is momentarily empty. Only the two modes that sleep lower idle CPU; their sleep length is `streaming.park_interval_us`.
+   * Default `"spin"`.
+   *
+   * Accepts, case-insensitively:
+   *
+   * - `"spin"`: adaptive spin then a yield ramp; never sleeps, so it holds ~100% of one core.
+   * - `"busyspin"`: pure spin, no yield, never sleeps; ~100% of one core like the adaptive spin, with the lowest jitter.
+   * - `"park"`: spin and yield ramp, then sleep the park interval; low idle CPU.
+   * - `"backoff"`: spins while events flow, sleeps the park interval once idle, resumes; low idle CPU.
    */
   setWaitMode(mode: string): void
-  /** Current streaming consumer wait mode as a lowercase string. */
+  /**
+   * Current streaming consumer wait mode.
+   * Default `"spin"`.
+   *
+   * Reads as the lowercase name the setter takes.
+   */
   get waitMode(): string
   /**
-   * Set the park / backoff idle sleep length in microseconds for the streaming
-   * consumer. Used only when the wait mode is `"park"` or `"backoff"`. Validated
-   * `[50, 1000000]` at connect time. Default `1000` (= 1 ms).
-   *
-   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+   * Set the park / backoff idle sleep length in MICROSECONDS for the streaming consumer. Used only by the two wait modes that sleep, park and backoff; ignored by the spinning ones. This is the worst-case delivery latency added to an event that arrives while the consumer is parked. The OS timer honours sleeps down to ~50 us (below that, kernel timer slack dominates, so 50 is the floor); a 100 us park is a valid low-latency option (a few percent of a core in live premarket). The client pings every ~100 ms, so a value beyond the ping cadence saves no extra CPU and only adds latency. Validated to `[50, 1_000_000]` us at connect time.
+   * Default `1000n` (1 ms).
    */
   setParkIntervalUs(us: bigint): void
   /**
-   * Current streaming `park_interval_us` value in microseconds (returned as a
-   * `BigInt`; default `1000`, = 1 ms).
+   * Current `streaming.park_interval_us` value, in microseconds.
+   * Default `1000n` (1 ms).
    */
   get parkIntervalUs(): bigint
   /**
-   * Set the wall-clock envelope (seconds) for one
-   * market-data-channel retry sequence, measured from the first
-   * attempt. `0n` disables the envelope (attempt budget only).
+   * Set the wall-clock envelope (seconds) for one market-data-channel retry sequence, measured from the first attempt. Zero disables the envelope (attempt budget only).
    * Default `300n`.
    */
   setRetryMaxElapsedSecs(secs: bigint): void
   /**
-   * Current `retry.max_elapsed` value in seconds (default `300n`;
-   * `0n` = disabled).
+   * Current `retry.max_elapsed` value in seconds; zero means disabled.
+   * Default `300n`.
    */
   get retryMaxElapsedSecs(): bigint
   /**
-   * Set the initial backoff delay (ms) for the market-data-channel retry policy.
-   * Default `250n`. Subsequent retries double from here, capped at
-   * `retryMaxDelayMs`.
+   * Set the initial backoff delay (ms) for the market-data-channel retry policy. Subsequent retries double from here, capped at `retry.max_delay`.
+   * Default `250n`.
    */
   setRetryInitialDelayMs(ms: bigint): void
   /**
-   * Set the upper-bound backoff delay (ms) for the market-data retry
-   * policy. Default `30_000n` (30 s).
+   * Set the upper-bound backoff delay (ms) for the market-data-channel retry policy. The exponential schedule never exceeds this value regardless of attempt number.
+   * Default `30_000n` (30 s).
    */
   setRetryMaxDelayMs(ms: bigint): void
   /**
-   * Set the total attempt budget for the market-data-channel retry policy. `1`
-   * disables retry; higher values permit retries up to
-   * `maxAttempts - 1` after the initial call. Default `20`.
+   * Set the total attempt budget for the market-data-channel retry policy. `1` disables retry (single call only); higher values permit retries up to `max_attempts - 1` after the initial call.
+   * Default `20`.
    */
   setRetryMaxAttempts(n: number): void
-  /** Current `retry.max_attempts` value. */
+  /**
+   * Current `retry.max_attempts` value.
+   * Default `20`.
+   */
   get retryMaxAttempts(): number
   /**
-   * Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
-   * `true`. `false` gives the deterministic backoff schedule
-   * `min(max_delay, initial * 2^attempt)`, useful for tests that
-   * need to assert exact timings.
+   * Toggle AWS-style full jitter on the market-data-channel retry policy. Without it the backoff schedule is deterministic (`min(max_delay, initial * 2^attempt)`), which is useful for tests that need to assert exact timings.
+   * Default `true`.
    */
   setRetryJitter(jitter: boolean): void
-  /** Current `retry.jitter` value. */
-  get retryJitter(): boolean
   /**
-   * Override the market-data gRPC port. Companion to `setMarketDataHost`:
-   * same test-only rationale. Rejects values outside the `0..=65535`
-   * port range.
+   * Current `retry.jitter` value.
+   * Default `true`.
    */
+  get retryJitter(): boolean
+  /** Set the market-data gRPC port. The environment factories set it; override it together with the market-data host to reach the market-data service at another address, such as a test server. A port outside `0..=65535` is rejected. */
   setMarketDataPort(port: number): void
   /** Current market-data gRPC port. */
   get marketDataPort(): number
   /**
-   * Set the warning threshold (in bytes) for buffered (non-streaming)
-   * historical responses. Endpoints whose decoded total exceeds this
-   * value log a warning pointing the caller at the
-   * matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
-   * which delivers the same rows chunk-by-chunk through a callback with
-   * memory bounded to a single chunk; the buffered data is still
-   * delivered. `0n` disables the warning entirely. Default is
-   * `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
-   * 32-bit unsigned range, so the setter takes a `BigInt`.
+   * Set the warning threshold, in bytes, for buffered (non-streaming) historical responses. An endpoint whose decoded response exceeds it logs a warning pointing the caller at the endpoint's streaming variant, which delivers the same rows chunk by chunk with memory bounded to one chunk; the buffered data is still delivered. Zero disables the warning entirely.
+   * Default `104_857_600n` (100 MiB).
    */
   setWarnOnBufferedThresholdBytes(n: bigint): void
   /**
-   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
-   * returned as a `BigInt`).
+   * Current `market_data.warn_on_buffered_threshold_bytes` value, in bytes.
+   * Default `104_857_600n` (100 MiB).
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
-   * Set the default per-request deadline (seconds) for market-data
-   * queries. Bounds every request that did not set its own deadline,
-   * so a live-but-silent stream resolves to a timeout instead of
-   * blocking forever. `0n` no longer disables the default; it is floored
-   * to the `300n`-second default at request time. Default `300n`
-   * (5 minutes). Seconds are taken as a `BigInt` for parity with the
-   * other `*Secs` knobs.
+   * Set the default per-request deadline (seconds) for market-data queries.
+   *
+   * It bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the deadline: it is floored to the 300-second default at request time, so the deadline always applies.
+   * Default `300n` (5 minutes).
    */
   setRequestTimeoutSecs(secs: bigint): void
   /**
-   * Current market-data `request_timeout_secs` setting in seconds
-   * (default `300n`). A stored `0n` is floored to the `300n`-second
-   * default at request time rather than disabling the deadline.
+   * Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the deadline.
+   * Default `300n` (5 minutes).
    */
   get requestTimeoutSecs(): bigint
   /**
-   * Set the initial per-stream HTTP/2 flow-control window (in KB) for the
-   * market-data gRPC channel. A larger window raises the throughput ceiling
-   * on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
-   * is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
-   * `8192n` (8 MiB). KB are taken as a `BigInt` for parity with the other
-   * byte/KB-denominated knobs.
+   * Set the initial per-stream HTTP/2 flow-control window, in KB, for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into `[64, 2_097_151]` KB at validate/connect time.
+   * Default `8192n` (8 MiB).
    */
   setMarketDataStreamWindowSizeKb(kb: bigint): void
   /**
-   * Current per-stream HTTP/2 flow-control window (KB) for the market-data
-   * gRPC channel (default `8192n`, returned as a `BigInt`).
+   * Current per-stream HTTP/2 flow-control window (KB) for the market-data gRPC channel.
+   * Default `8192n` (8 MiB).
    */
   get marketDataStreamWindowSizeKb(): bigint
   /**
-   * Set the initial connection-level HTTP/2 flow-control window (in KB) for
-   * the market-data gRPC channel. A larger window raises the throughput
-   * ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
-   * The value is clamped into `[64, 2_097_151]` KB at validate/connect
-   * time. Default `16384n` (16 MiB). KB are taken as a `BigInt` for parity
-   * with the other byte/KB-denominated knobs.
+   * Set the initial connection-level HTTP/2 flow-control window, in KB, for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into `[64, 2_097_151]` KB at validate/connect time.
+   * Default `16384n` (16 MiB).
    */
   setMarketDataConnectionWindowSizeKb(kb: bigint): void
   /**
-   * Current connection-level HTTP/2 flow-control window (KB) for the
-   * market-data gRPC channel (default `16384n`, returned as a `BigInt`).
+   * Current connection-level HTTP/2 flow-control window (KB) for the market-data gRPC channel.
+   * Default `16384n` (16 MiB).
    */
   get marketDataConnectionWindowSizeKb(): bigint
   /**
-   * Automatic bulk-fetch sharding policy for history pulls (buffered and
-   * chunk-streaming alike). Accepts `"auto"` (default: a large history
-   * pull's requested time or date range is split into equal concurrent
-   * bands across the account's concurrent-request budget; buffered pulls
-   * are merged back into exactly
-   * the rows of the single-stream response, single-contract, stock, and
-   * index pulls in the exact single-stream order and option-chain pulls in
-   * a deterministic canonical order grouped by expiration, strike, and
-   * right; streaming pulls forward each band's chunks as they arrive, every
-   * chunk exactly once but interleaved across bands in arrival order; small
-   * pulls are never sharded) or `"off"` (every query runs as a single
-   * stream, in the server's own row and chunk order), case-insensitive.
+   * Set the automatic bulk-fetch sharding policy for history pulls, covering both the buffered and the chunk-streaming call paths.
+   * Default `"auto"`.
+   *
+   * Accepts, case-insensitively:
+   *
+   * - `"auto"`: a large history pull's requested time or date range is split into equal concurrent bands across the account's concurrent-request budget, decided from the request shape alone (no sizing request is issued). Buffered pulls merge the shards back into exactly the rows of the single-stream response: single-contract, stock, and index pulls keep the exact single-stream row order, while option-chain pulls come back in a deterministic canonical order (expiration, strike, right ascending; calls before puts; time-ascending within each contract). Streaming pulls forward each band's chunks to the handler as they arrive: every chunk exactly once, but chunks from different bands interleave in arrival order rather than the single stream's order. Small pulls and non-history endpoints are never sharded.
+   * - `"off"`: every query runs as a single stream, in the server's own row and chunk order.
    */
   setBulkFetch(policy: string): void
-  /** Current bulk-fetch sharding policy as a lowercase string. */
+  /**
+   * Current bulk-fetch sharding policy.
+   * Default `"auto"`.
+   *
+   * Reads as the lowercase name the setter takes.
+   */
   get bulkFetch(): string
   /**
-   * Set the upper bound on concurrent sub-requests per sharded bulk fetch.
-   * Pass `null` or `undefined` (the default) to use the full
-   * concurrent-request budget (the channel-pool size resolved from
-   * `maxConcurrentRequests`); pass a `number` to cap the fan-out. The
-   * applied value is clamped into `[1, pool_size]` when a plan is built
-   * (the pool size is resolved from `maxConcurrentRequests`).
+   * Set the upper bound on concurrent sub-requests per sharded bulk fetch. Unset, the default, a sharded pull uses the full concurrent-request budget: the channel-pool size resolved from `market_data.max_concurrent_requests`. Set, a sharded pull spreads across at most that many sub-requests; the applied value is clamped into `[1, pool_size]` when a plan is built, and validation floors an explicit `0` to `1`.
+   *
+   * `null` or `undefined` unsets the value.
    */
   setShardConcurrency(n?: number | undefined | null): void
   /**
-   * Current `shardConcurrency` setting. `null` means a sharded pull uses
-   * the full concurrent-request budget; a `number` is the configured cap.
+   * Current `market_data.shard_concurrency` value. Unset means a sharded pull uses the full concurrent-request budget.
+   *
+   * `null` when unset.
    */
   get shardConcurrency(): number | null
   /**
-   * Set the number of concurrent in-flight market-data requests (gRPC
-   * channel-pool + request-semaphore size, resolved at connect time). Pass
-   * `null` or `undefined` (the default) to size the pool to the account's
-   * subscription tier from the auth response (Free 1 / Value 2 / Standard 4
-   * / Pro 8); pass a `number` to use it verbatim; no client-side cap, so
-   * a server-boosted account sets its boosted allowance. Requests past the
-   * server-enforced allowance are retried with backoff. Validation floors
-   * an explicit `0` to `1`.
+   * Set the number of concurrent in-flight market-data requests: the size of the gRPC channel pool and of the request semaphore that admits requests onto it, resolved at connect time.
+   *
+   * Unset, the default, the pool is sized to the account's subscription tier from the auth response (Free 1 / Value 2 / Standard 4 / Pro 8). Set, the pool is that size verbatim, with no client-side cap: the allowance is enforced server-side, so an account boosted above its base tier sets the boosted value and runs that wide. Requests past the server's allowance surface as `ResourceExhausted` and are retried with backoff. Validation floors an explicit `0` to `1`.
+   *
+   * `null` or `undefined` unsets the value.
    */
   setMaxConcurrentRequests(n?: number | undefined | null): void
   /**
-   * Current `maxConcurrentRequests` setting. `null` means the pool is
-   * sized to the account's subscription tier at connect time; a `number`
-   * is the configured pool size.
+   * Current `market_data.max_concurrent_requests` value. Unset means the pool is sized to the account's subscription tier at connect time.
+   *
+   * `null` when unset.
    */
   get maxConcurrentRequests(): number | null
-  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
+  /**
+   * Current `retry.initial_delay` value in ms.
+   * Default `250n`.
+   */
   get retryInitialDelayMs(): bigint
-  /** Current `retry.max_delay` value (ms, returned as BigInt). */
+  /**
+   * Current `retry.max_delay` value in ms.
+   * Default `30_000n` (30 s).
+   */
   get retryMaxDelayMs(): bigint
   /**
-   * Set the per-class transient-failure attempt budget for the
-   * auto-reconnect path. Default `30`. No effect unless the
-   * reconnect policy is `Auto`.
+   * Set the per-class transient-failure attempt budget for the auto-reconnect path. No effect unless the reconnect policy is `Auto`.
+   * Default `30`.
    */
   setReconnectMaxAttempts(maxAttempts: number): void
   /**
-   * Current generic-transient reconnect attempt budget (default
-   * `30`). Reads the default-limits value when the policy is not
-   * `Auto`.
+   * Current generic-transient reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`.
+   * Default `30`.
    */
   get reconnectMaxAttempts(): number
   /**
-   * Set the per-class rate-limited (`TooManyRequests`) attempt
-   * budget for the auto-reconnect path. Default `100`. No effect
-   * unless the reconnect policy is `Auto`.
+   * Set the per-class rate-limited (`TooManyRequests`) attempt budget for the auto-reconnect path. No effect unless the reconnect policy is `Auto`.
+   * Default `100`.
    */
   setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
   /**
-   * Current rate-limited reconnect attempt budget (default `100`).
-   * Reads the default-limits value when the policy is not `Auto`.
+   * Current rate-limited (`TooManyRequests`) reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`.
+   * Default `100`.
    */
   get reconnectMaxRateLimitedAttempts(): number
   /**
-   * Set the `ServerRestarting` reconnect attempt budget. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
+   * Set the `ServerRestarting` reconnect attempt budget. No effect unless the reconnect policy is `Auto`.
+   * Default `60`.
    */
   setReconnectMaxServerRestartAttempts(n: number): void
   /**
-   * Current `ServerRestarting` reconnect attempt budget (default
-   * `60`). Reads the default-limits value when the policy is not
-   * `Auto`.
+   * Current `ServerRestarting` reconnect attempt budget. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`.
+   * Default `60`.
    */
   get reconnectMaxServerRestartAttempts(): number
   /**
-   * Set the wall-clock reconnect envelope (seconds) for the
-   * generic-transient and server-restart classes, measured from the
-   * first attempt of a consecutive-reconnect sequence. `0n` disables
-   * the envelope (attempt budgets only). Default `300n`. No effect
-   * unless the reconnect policy is `Auto`.
+   * Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. Zero disables the envelope (attempt budgets only). No effect unless the reconnect policy is `Auto`.
+   * Default `300n`.
    */
   setReconnectMaxElapsedSecs(secs: bigint): void
   /**
-   * Current wall-clock reconnect envelope in seconds (default
-   * `300n`; `0n` = disabled). Reads the default-limits value when
-   * the policy is not `Auto`.
+   * Current wall-clock reconnect envelope in seconds; zero means disabled. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`.
+   * Default `300n`.
    */
   get reconnectMaxElapsedSecs(): bigint
   /**
-   * Set the continuous successful-data-flow window (in seconds)
-   * after which the auto-reconnect attempt counters reset. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
-   *
-   * Accepts a `bigint` for parity with the Python / C++ / FFI
-   * surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
-   * value: `setReconnectStableWindowSecs(BigInt(60))`.
+   * Set the continuous successful-data-flow window (seconds) after which the auto-reconnect attempt counters reset. No effect unless the reconnect policy is `Auto`.
+   * Default `60n`.
    */
   setReconnectStableWindowSecs(secs: bigint): void
   /**
-   * Current stable-window reset interval in seconds (default `60n`).
-   * Reads the default-limits value when the policy is not `Auto`.
+   * Current stable-window reset interval in seconds. Under a reconnect policy other than `Auto` it reads the default limit, since the budgets apply only under `Auto`.
+   * Default `60n`.
    */
   get reconnectStableWindowSecs(): bigint
-  /**
-   * Set the Nexus auth URL. Default matches the upstream
-   * production endpoint; override to redirect at a staging
-   * cluster for testing.
-   */
+  /** Set the Nexus auth URL. The default is the upstream production endpoint; override it to point at a staging cluster for testing. */
   setNexusUrl(url: string): void
   /** Current `auth.nexus_url` value. */
   get nexusUrl(): string
-  /**
-   * Set the `QueryInfo.client_type` identifier. Default is
-   * `"rust-thetadatadx"`; override to identify a deployment fleet
-   * in server-side dashboards.
-   */
+  /** Set the `QueryInfo.client_type` identifier. The default is `"rust-thetadatadx"`; override it to identify a deployment fleet in server-side dashboards. */
   setClientType(clientType: string): void
   /** Current `auth.client_type` value. */
   get clientType(): string
-  /** Override the market-data gRPC host. Companion to `setMarketDataPort`. */
+  /** Set the market-data gRPC host. The environment factories set it; override it together with the market-data port to reach the market-data service at another address, such as a test server. */
   setMarketDataHost(host: string): void
   /** Current market-data gRPC host. */
   get marketDataHost(): string
   /**
    * Set the jitter strategy applied to every reconnect delay.
-   * Accepts `"full"` (default) or `"none"` (case-insensitive).
+   * Default `"full"`.
+   *
+   * Accepts, case-insensitively:
+   *
+   * - `"full"`: sample uniformly from `[0, delay]`.
+   * - `"none"`: deterministic delays, for tests only.
    */
   setReconnectJitter(mode: string): void
-  /** Current reconnect jitter mode as a lowercase string. */
+  /**
+   * Current reconnect jitter mode.
+   * Default `"full"`.
+   *
+   * Reads as the lowercase name the setter takes.
+   */
   get reconnectJitter(): string
 }
 

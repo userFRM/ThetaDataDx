@@ -48,6 +48,10 @@ pub(crate) fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> na
 /// return `void` (chain by calling `cfg.method(...)` then passing
 /// `cfg` itself).
 ///
+/// A value the other bindings hold as a 64-bit unsigned integer (a time
+/// in milliseconds or seconds, a byte or KB count) crosses as a `bigint`:
+/// pass `250n`, or wrap a `number` as `BigInt(value)`.
+///
 /// The config is consumed at connect time, so once it has been used
 /// to connect a client further mutations have no effect on that client.
 #[napi]
