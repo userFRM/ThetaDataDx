@@ -170,7 +170,7 @@ macro_rules! ts_endpoint {
                 ) -> napi::Result<Vec<String>> {
                     ts_endpoint!(@prelude self options timeout_ms client [$($a $t)*] [$($oa $ot)*]);
                     spawn_endpoint_task(async move {
-                        ts_endpoint!(@list client $name [$($a $t)*] [$($oa $ot)*] timeout_ms)
+                        ts_endpoint!(@request client $name [$($a $t)*] [$($oa $ot)*] timeout_ms).await
                     })
                     .await
                 }
@@ -300,18 +300,6 @@ macro_rules! ts_endpoint {
         ts_endpoint!(@prelude $self $options timeout_ms client $req $opt);
         spawn_endpoint_task(async move { ts_endpoint!(@request client $name $req $opt timeout_ms).await }).await?
     }};
-    // A list without options calls the twin that takes the deadline.
-    (@list $client:ident $name:ident [$($a:ident $t:ident)*] [] $timeout:ident) => {
-        thetadatadx::__paste! {
-            match $timeout {
-                None => $client.market_data().$name($(&$a),*).await,
-                Some(ms) => $client.market_data().[<$name _with_deadline>]($(&$a,)* Duration::from_millis(ms)).await,
-            }
-        }
-    };
-    (@list $client:ident $name:ident $req:tt $opt:tt $timeout:ident) => {
-        ts_endpoint!(@request $client $name $req $opt $timeout).await
-    };
     // The builder with every option set and the deadline applied.
     (@request $client:ident $name:ident [$($a:ident $t:ident)*] [$($oa:ident $ot:ident)*] $timeout:ident) => {{
         $(ts_endpoint!(@refs $t $a);)*

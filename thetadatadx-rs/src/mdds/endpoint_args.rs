@@ -84,8 +84,7 @@ pub enum DeadlineSetting {
 #[cfg(feature = "__internal")]
 impl DeadlineSetting {
     /// Translate the tri-state into the optional `Duration` the generated
-    /// dispatch applies to an endpoint builder via `with_deadline` (or a
-    /// list `_with_deadline` overload).
+    /// dispatch applies to an endpoint builder via `with_deadline`.
     ///
     /// - [`Self::Unset`] → `None`: the dispatch must NOT call `with_deadline`,
     ///   so the builder falls back to the configured `request_timeout_secs`
@@ -534,9 +533,9 @@ pub enum EndpointOutput {
 ///
 /// The per-call deadline is resolved inside the generated dispatch, which
 /// threads [`EndpointArgs::deadline_setting`] onto the endpoint builder via
-/// `with_deadline` (or the list `_with_deadline` overload). The builder is
-/// the single deadline authority, so the three deadline intents are honoured
-/// exactly: [`DeadlineSetting::Unset`] falls back to the configured
+/// `with_deadline`. The builder is the single deadline authority, so the
+/// three deadline intents are honoured exactly: [`DeadlineSetting::Unset`]
+/// falls back to the configured
 /// [`crate::config::MarketDataConfig::request_timeout_secs`] default,
 /// [`DeadlineSetting::Disabled`] (`with_timeout_ms(0)`) runs unbounded, and
 /// [`DeadlineSetting::Millis`] applies the explicit per-call bound. On expiry
@@ -716,7 +715,7 @@ macro_rules! endpoint_dispatch {
             Fut: core::future::Future<Output = core::ops::ControlFlow<()>>,
         {
             match name {
-                $(stringify!($name) => crate::__resolve! { [$($key)*] for $name => dispatch_arm { { $client $args $handler } tables $shape $name $ret } },)*
+                $(stringify!($name) => crate::__resolve! { [$($key)*] for $name => dispatch_arm { { $client $args $handler } tables $name $ret } },)*
                 _ => Err(EndpointError::UnknownEndpoint(name.to_string())),
             }
         }
@@ -784,34 +783,8 @@ macro_rules! endpoint_dispatch {
 /// One dispatch arm: validate the arguments, build the call, run it.
 #[cfg(feature = "__internal")]
 macro_rules! dispatch_arm {
-    // A list endpoint without optionals: the plain method or its deadline twin.
-    ({ $client:ident $args:ident $tail:ident } list $name:ident $ret:ident params {
-        all $all:tt req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*] opt [] $($more:tt)*
-    }) => {{
-        $(dispatch_arm!(@bind $args $t $p refs);)*
-        let values = match $args.deadline_setting().builder_deadline() {
-            Some(deadline) => pastey::paste!($client.[<$name _with_deadline>]($(dispatch_arm!(@arg $t $p refs),)* deadline)).await?,
-            None => $client.$name($(dispatch_arm!(@arg $t $p refs)),*).await?,
-        };
-        Ok(EndpointOutput::StringList(values))
-    }};
-    // The table chunks of a list endpoint without optionals, through its
-    // plain `_tables` method.
-    ({ $client:ident $args:ident $handler:ident } tables list $name:ident $ret:ident params {
-        all $all:tt req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*] opt [] $($more:tt)*
-    }) => {{
-        $(dispatch_arm!(@bind $args $t $p refs);)*
-        let deadline = $args.deadline_setting().builder_deadline();
-        pastey::paste!($client.[<$name _tables>]($(dispatch_arm!(@arg $t $p refs),)* deadline, $handler))
-            .await
-            .map_err(EndpointError::from)
-    }};
-    // The table chunks of every other endpoint, through its builder.
-    ({ $client:ident $args:ident $handler:ident } tables $shape:ident $name:ident $ret:ident params $params:tt) => {
-        dispatch_arm! { { $client $args $handler } tables $name $ret params $params }
-    };
-    // Every other endpoint is a builder: required arguments construct it,
-    // optional ones set it.
+    // Every endpoint is a builder: required arguments construct it, optional
+    // ones set it.
     ({ $client:ident $args:ident $tail:ident } $mode:ident $name:ident $ret:ident params {
         all $all:tt
         req [$({ $p:ident $a:ident req $t:ident [] $d:tt })*]

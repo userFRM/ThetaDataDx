@@ -466,11 +466,10 @@ async fn by_name_stream_ends_at_a_break() {
 // List endpoints honor the per-request deadline
 //
 // List RPCs (`*_list_*`) must apply the same deadline contract as the
-// builder endpoints: the configured `request_timeout_secs` bounds the
-// plain method, and the generated `<name>_with_deadline` overload accepts
-// an explicit per-call deadline. Without it a live-but-silent stream hangs
-// the request forever (the gRPC keepalive PING only detects a fully dead
-// peer, not a stalled one).
+// tick endpoints: the configured `request_timeout_secs` bounds a call that
+// sets none, and `with_deadline` sets an explicit per-call deadline.
+// Without it a live-but-silent stream hangs the request forever (the gRPC
+// keepalive PING only detects a fully dead peer, not a stalled one).
 // ────────────────────────────────────────────────────────────────────
 
 use std::time::Duration;
@@ -532,9 +531,8 @@ async fn list_endpoint_plain_call_is_bounded_by_configured_default() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn list_endpoint_with_deadline_overload_bounds_the_call() {
-    // The generated `<name>_with_deadline` overload exists (compile-time)
-    // and an explicit short deadline wins: the mock delays 5s, the call
+async fn list_endpoint_with_deadline_bounds_the_call() {
+    // An explicit short deadline wins: the mock delays 5s, the call
     // bounds at 100ms. `request_timeout_secs` is left high to prove the
     // explicit per-call deadline — not the default — drives the timeout.
     let (_mock, client) = client_for_delayed_mock(
@@ -545,7 +543,8 @@ async fn list_endpoint_with_deadline_overload_bounds_the_call() {
     .await;
 
     let result = client
-        .stock_list_symbols_with_deadline(Duration::from_millis(100))
+        .stock_list_symbols()
+        .with_deadline(Duration::from_millis(100))
         .await;
     match result {
         Err(Error::Timeout { duration_ms }) => {
@@ -603,7 +602,8 @@ async fn list_endpoint_completes_within_deadline() {
     .await;
 
     let result = client
-        .stock_list_symbols_with_deadline(Duration::from_secs(10))
+        .stock_list_symbols()
+        .with_deadline(Duration::from_secs(10))
         .await;
     assert!(
         result.is_ok(),
