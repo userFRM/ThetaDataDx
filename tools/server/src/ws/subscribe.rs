@@ -8,7 +8,6 @@ use thetadatadx::fpss::protocol::{Contract, Subscription};
 use thetadatadx::time::is_valid_yyyymmdd;
 
 use crate::state::{AppState, StrikeFormat};
-use crate::validation;
 
 use super::session::send_response;
 
@@ -389,9 +388,9 @@ fn apply_bulk_trade(
 ///
 /// `FULL_TRADES` / `FULL_OPEN_INTEREST` address a whole security type, so
 /// their envelope carries no `contract` and none is read. Every other
-/// `req_type` names one contract: its symbol is length-checked before it
-/// reaches the FPSS contract map, and an option's expiration, strike and
-/// right are parsed into one contract per side.
+/// `req_type` names one contract: an option's expiration, strike and right
+/// are parsed into one contract per side. The symbol is checked where the
+/// SDK subscribes it, which refuses one its wire cannot carry.
 fn command_subscriptions(
     req_type: &str,
     sec_type: &str,
@@ -409,12 +408,6 @@ fn command_subscriptions(
         .or_else(|| contract_obj.get("root"))
         .and_then(|v| v.as_str())
         .unwrap_or("");
-    // Bound the client-supplied ticker symbol length BEFORE the string
-    // flows into `Contract::stock(symbol)` / `Contract::option_raw(...)`,
-    // where it keys an allocation in the FPSS contract map. Mirrors the
-    // REST validation performed in `handler::build_endpoint_args`.
-    validation::validate_symbol(symbol, "symbol").map_err(|e| e.message)?;
-
     let contracts = if sec_type == "OPTION" {
         // Externally-sourced values are parsed fallibly, never narrowed
         // with `as`: a wrapped value would address a garbage contract
@@ -870,7 +863,7 @@ mod tests {
 
     /// The documented full-stream envelope carries no `contract`: it plans
     /// the security-type-wide stream instead of failing the per-contract
-    /// symbol and option checks, which a full stream never reads.
+    /// option checks, which a full stream never reads.
     #[test]
     fn full_streams_need_no_contract() {
         let no_contract = sonic_rs::Value::default();
