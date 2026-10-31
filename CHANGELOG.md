@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-31
+
 ### Added
 
 - **Every flat file writes to disk from its endpoint, in every binding.** Each of the eight flat files has a companion call that writes the whole file to disk exactly as the terminal writes it, whatever its size: `option_flat_file_eod_to_path(date, path, format)` on `MarketDataClient` in Rust, `client.market_data.option_flat_file_eod_to_path(date, path, format=None)` and its `_async` companion in Python, `client.marketData.optionFlatFileEODToPath(date, path, format?)` in TypeScript, `option_flat_file_eod_to_path(date, path, format = "csv")` in C++ and `thetadatadx_option_flat_file_eod_to_path(market_data, date, path, format)` on the C ABI, and likewise for the other seven files. A path without an extension gets the format's; the Rust, Python and TypeScript calls return the path written, while the C call returns 0 on success and the C++ call returns nothing and throws on failure, so a C or C++ caller that passes `out` for a CSV file finds it at `out.csv`. The MCP server advertises one `<endpoint>_to_path` tool per flat file, its way to hand over a file past the 50,000 rows one tool call returns. Before, a flat file reached disk only through the older flat-file service, which serves five of the eight files and writes a layout of its own. The file streams to disk chunk by chunk under a temporary name and takes its own name only once complete, so a failed download never leaves a short file that reads as complete. The formats are the terminal's, byte for byte the body the local server answers for the same file: `csv` (the default), `json`, `json_legacy`, `ndjson` (or `jsonl`) and `html`. `json_legacy` is the new `FlatFileFormat::JsonLegacy`, so a Rust `match` over `FlatFileFormat` needs an arm for it.
@@ -530,7 +532,8 @@ The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `t
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.0
 [0.7.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.7.0
 [0.6.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.1
 [0.6.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.6.0

@@ -27,13 +27,13 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ```toml
 [dependencies]
-thetadatadx-rs = "0.7.0"
+thetadatadx-rs = "0.8.0"
 ```
 
 Opt into DataFrame ergonomics with the `polars` or `arrow` feature:
 
 ```toml
-thetadatadx-rs = { version = "0.7.0", features = ["polars"] }
+thetadatadx-rs = { version = "0.8.0", features = ["polars"] }
 ```
 
 ## Quick start

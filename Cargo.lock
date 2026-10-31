@@ -3698,7 +3698,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
@@ -3711,7 +3711,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp-server"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "serde",
  "sonic-rs",
@@ -3724,7 +3724,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-napi"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
@@ -3740,7 +3740,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "arrow",
  "disruptor",
@@ -3757,7 +3757,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-rs"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -3808,7 +3808,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "axum",
  "bytes",
