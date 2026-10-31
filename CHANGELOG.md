@@ -105,6 +105,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Every tick type's documentation reads as whole sentences in every language.** The tick table stored each type's description one wrapped line per string, and the TypeScript declarations kept only the first string, so eleven of the tick interfaces in `index.d.ts`, the Greeks ticks among them, ended mid-sentence. The descriptions are now stored as paragraphs and rendered in full by rustdoc, Python `help()`, the Python type stub, the C header and the TypeScript declarations. The same descriptions also carried notes on how the decoder works, including source file paths that no longer exist; those are gone, and where a note described what a caller sees, such as the columns a snapshot variant omits, it now says that instead.
 
+- **The exchange and condition code pages and their CSV downloads show what the SDK returns.** They were hand copies of the vendor's articles and had drifted from the lookup tables the SDK answers from: the trade conditions lacked codes 3, 23, 24 and 57 and spelled 105 names differently from what `condition_name()` returns (`FORM_T` where the SDK returns `FORMT`), the quote conditions put `RELATED_NEWS_OUT` at code 30 where the SDK has it at 31 beside `RELATED_NEWS_PENDING`, and did not mark the market-wide halts 66 to 68 as halts, and the exchanges lacked code 0 and gave display names (`Nasdaq Exchange`) where `exchange_name()` returns `NasdaqExchange`. The pages and CSVs are now rendered from those tables, so they cannot drift again.
+
+- **The error-codes table names the classes the SDK raises for configuration errors.** It listed `ThetaDataError` for an invalid parameter or configuration, where Python and C++ raise `InvalidParameterError` for a rejected value and `ConfigError` for a configuration file or environment fault, and it had no row for `UnavailableError`. Both the page and its CSV download now list them.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

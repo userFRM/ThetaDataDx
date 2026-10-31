@@ -29,7 +29,8 @@ Code,Name,Firm,Halted
 27,INDICATED,false,true
 28,PRE_OPEN,false,false
 29,IN_VIEW_OF_COMMON,false,true
-30,RELATED_NEWS_OUT,false,true
+30,RELATED_NEWS_PENDING,false,true
+31,RELATED_NEWS_OUT,false,true
 32,ADDITIONAL_INFO,false,true
 33,RELATED_ADD_INFO,false,true
 34,NO_OPEN_RESUME,false,true
@@ -64,9 +65,9 @@ Code,Name,Firm,Halted
 63,BENCHMARK,false,false
 64,IMPLIED,false,false
 65,EXCHANGE_BEST,false,false
-66,MKT_WIDE_HALT_1,false,false
-67,MKT_WIDE_HALT_2,false,false
-68,MKT_WIDE_HALT_3,false,false
+66,MKT_WIDE_HALT_1,false,true
+67,MKT_WIDE_HALT_2,false,true
+68,MKT_WIDE_HALT_3,false,true
 69,ON_DEMAND_AUCTION,false,false
 70,NON_FIRM_BID,false,false
 71,NON_FIRM_ASK,false,false

@@ -1,78 +1,79 @@
 code,name,symbol
-1,Nasdaq Exchange,NQEX
-2,Nasdaq Alternative Display Facility,NQAD
-3,New York Stock Exchange,NYSE
-4,American Stock Exchange,AMEX
-5,Chicago Board Options Exchange,CBOE
-6,International Securities Exchange,ISEX
-7,NYSE ARCA (Pacific),PACF
-8,National Stock Exchange (Cincinnati),CINC
-9,Philadelphia Stock Exchange,PHIL
-10,Options Pricing Reporting Authority,OPRA
-11,Boston Stock/Options Exchange,BOST
-12,Nasdaq Global+Select Market (NMS),NQNM
-13,Nasdaq Capital Market (SmallCap),NQSC
-14,Nasdaq Bulletin Board,NQBB
-15,Nasdaq OTC,NQPK
-16,Nasdaq Indexes (GIDS),NQIX
-17,Chicago Stock Exchange,CHIC
-18,Toronto Stock Exchange,TSE
-19,Canadian Venture Exchange,CDNX
-20,Chicago Mercantile Exchange,CME
-21,New York Board of Trade,NYBT
-22,ISE Mercury,MRCY
-23,COMEX (division of NYMEX),COMX
-24,Chicago Board of Trade,CBOT
-25,New York Mercantile Exchange,NYMX
-26,Kansas City Board of Trade,KCBT
-27,Minneapolis Grain Exchange,MGEX
-28,NYSE/ARCA Bonds,NYBO
-29,Nasdaq Basic,NQBS
-30,Dow Jones Indices,DOWJ
-31,ISE Gemini,GEMI
-32,Singapore International Monetary Exchange,SIMX
-33,London Stock Exchange,FTSE
+0,Composite,COMP
+1,NasdaqExchange,NQEX
+2,NasdaqAlternativeDisplayFacility,NQAD
+3,NewYorkStockExchange,NYSE
+4,AmericanStockExchange,AMEX
+5,ChicagoBoardOptionsExchange,CBOE
+6,InternationalSecuritiesExchange,ISEX
+7,NYSEARCA(Pacific),PACF
+8,NationalStockExchange(Cincinnati),CINC
+9,PhiladelphiaStockExchange,PHIL
+10,OptionsPricingReportingAuthority,OPRA
+11,BostonStock/OptionsExchange,BOST
+12,NasdaqGlobal+SelectMarket(NMS),NQNM
+13,NasdaqCapitalMarket(SmallCap),NQSC
+14,NasdaqBulletinBoard,NQBB
+15,NasdaqOTC,NQPK
+16,NasdaqIndexes(GIDS),NQIX
+17,ChicagoStockExchange,CHIC
+18,TorontoStockExchange,TSE
+19,CanadianVentureExchange,CDNX
+20,ChicageMercantileExchange,CME
+21,NewYorkBoardofTrade,NYBT
+22,ISEMercury,MRCY
+23,COMEX(divisionofNYMEX),COMX
+24,ChicagoBoardofTrade,CBOT
+25,NewYorkMercantileExchange,NYMX
+26,KansasCityBoardofTrade,KCBT
+27,MinneapolisGrainExchange,MGEX
+28,NYSE/ARCABonds,NYBO
+29,NasdaqBasic,NQBS
+30,DowJonesIndices,DOWJ
+31,ISEGemini,GEMI
+32,SingaporeInternationalMonetaryExchange,SIMX
+33,LondonStockExchange,FTSE
 34,Eurex,EURX
-35,Implied Price,IMPL
-36,Data Transmission Network,DTN
-37,London Metals Exchange Matched Trades,LMT
-38,London Metals Exchange,LME
-39,Intercontinental Exchange (IPE),IPEX
-40,Nasdaq Mutual Funds (MFDS),NQMF
-41,COMEX Clearport,fcec
-42,CBOE C2 Option Exchange,C2
-43,Miami Exchange,MIAX
-44,NYMEX Clearport,CLRP
+35,ImpliedPrice,IMPL
+36,DataTransmissionNetwork,DTN
+37,LondonMetalsExchangeMatchedTrades,LMT
+38,LondonMetalsExchange,LME
+39,IntercontinentalExchange(IPE),IPEX
+40,NasdaqMutualFunds(MFDS),NQMF
+41,COMEXClearport,fcec
+42,CBOEC2OptionExchange,C2
+43,MiamiExchange,MIAX
+44,NYMEXClearport,CLRP
 45,Barclays,BARK
-46,Miami Emerald Options Exchange,EMLD
-47,NASDAQ Boston,NQBX
-48,HotSpot Eurex US,HOTS
-49,Eurex US,EUUS
-50,Eurex EU,EUEU
-51,Euronext Commodities,ENCM
-52,Euronext Index Derivatives,ENID
-53,Euronext Interest Rates,ENIR
-54,CBOE Futures Exchange,CFE
-55,Philadelphia Board of Trade,PBOT
-56,FCME,CME Floor
-57,FINRA/NASDAQ Trade Reporting Facility,NQNX
-58,BSE Trade Reporting Facility,BTRF
-59,NYSE Trade Reporting Facility,NTRF
-60,BATS Trading,BATS
-61,CBOT Floor,FCBT
-62,Pink Sheets,PINK
-63,BATS Y Exchange,BATY
-64,Direct Edge A,EDGE
-65,Direct Edge X,EDGX
-66,Russell Indexes,RUSL
-67,CME Indexes,CMEX
-68,Investors Exchange,IEX
-69,Miami Pearl Options Exchange,PERL
-70,London Stock Exchange,LSE
-71,NYSE Global Index Feed,GIF
-72,TSX Indexes,TSIX
-73,Members Exchange,MEMX
+46,MiamiEmeraldOptionsExchange,EMLD
+47,NASDAQBoston,NQBX
+48,HotSpotEurexUS,HOTS
+49,EurexUS,EUUS
+50,EurexEU,EUEU
+51,EuronextCommodities,ENCM
+52,EuronextIndexDerivatives,ENID
+53,EuronextInterestRates,ENIR
+54,CBOEFuturesExchange,CFE
+55,PhiladelphiaBoardofTrade,PBOT
+56,FCME,CMEFloor
+57,FINRA/NASDAQTradeReportingFacility,NQNX
+58,BSETradeReportingFacility,BTRF
+59,NYSETradeReportingFacility,NTRF
+60,BATSTrading,BATS
+61,CBOTFloor,FCBT
+62,PinkSheets,PINK
+63,BATSYExchange,BATY
+64,DirectEdgeA,EDGE
+65,DirectEdgeX,EDGX
+66,RussellIndexes,RUSL
+67,CMEIndexes,CMEX
+68,InvestorsExchange,IEX
+69,MiamiPearlOptionsExchange,PERL
+70,LondonStockExchange,LSE
+71,NYSEGlobalIndexFeed,GIF
+72,TSXIndexes,TSIX
+73,MembersExchange,MEMX
 74,EMPTY,EMPT
-75,Long-Term Stock Exchange,LTSE
+75,LongTermStockExchange,LTSE
 76,EMPTY,EMPT
-77,24X National Exchange,24X
+77,24XNationalExchange,24X

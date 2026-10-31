@@ -11,6 +11,8 @@
 //!     the same language tab carousel for subscribe / callback code.
 //!   * `docs/articles/subscriptions.md` — tier × endpoint capability
 //!     matrix derived from the pinned upstream OpenAPI snapshot.
+//!   * `docs/articles/{exchanges,trade-conditions,quote-conditions}.md` and
+//!     their downloads under `docs/public/csv/`, from the SDK's code tables.
 //!   * `docs/.vitepress/generated/*.json` — sidebar manifests imported
 //!     by `config.ts` so navigation can never drift from the registry.
 //!   * `docs/public/llms.txt` — one-line-per-page machine index.
@@ -18,6 +20,7 @@
 //!     document, spliced between the hand-written head and tail.
 
 mod articles;
+mod codes;
 mod lang;
 mod llms;
 mod openapi;
@@ -119,6 +122,7 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
         relative_path: "docs-site/docs/articles/subscriptions.md".into(),
         contents: articles::render_subscriptions_page(&endpoints, upstream),
     });
+    files.extend(codes::render_code_pages());
 
     // llms.txt is composed from the generated set above plus the
     // hand-written pages on disk, so it must be rendered last.
