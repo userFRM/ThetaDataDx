@@ -12,6 +12,23 @@
  * - String arrays (ThetaDataDxStringArray) must be freed with thetadatadx_string_array_free.
  * - Functions that can fail return empty arrays (data=NULL, len=0) and set a
  *   thread-local error string retrievable via thetadatadx_last_error().
+ *
+ * Thread safety:
+ * - ThetaDataDxMarketDataClient, ThetaDataDxClient, ThetaDataDxStreamHandle and
+ *   ThetaDataDxRecordBatchStream handles are thread-safe: any number of threads
+ *   may call functions on the same handle at once. Concurrent market-data
+ *   requests on one handle share its connection and request pool. A streaming
+ *   call that must not run on the streaming consumer thread says so in its own
+ *   documentation.
+ * - A ThetaDataDxCredentials handle is read-only once built, so concurrent
+ *   connects may share one.
+ * - A ThetaDataDxConfig handle is not thread-safe: a thetadatadx_config_set_*
+ *   call must not overlap any other call that uses the same config, a connect
+ *   included. Calls that only read it (getters and connects) may overlap each
+ *   other.
+ * - A thetadatadx_*_free call takes ownership of its handle: no other call on
+ *   that handle may overlap or follow it.
+ * - The error slot thetadatadx_last_error() reads is per thread.
  */
 
 #ifndef THETADATADX_H
