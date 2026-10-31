@@ -103,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Python `MarketDataClient` refuses every streaming method by name.** `ring_occupancy`, `ring_capacity`, `millis_since_last_event`, `last_event_received_at_unix_nanos`, `last_connected_addr` and `is_authenticated` were missing from the names it refuses, so reaching for one raised an `AttributeError` saying `Client` has no such attribute, where every other streaming method points to `StreamingClient` and `Client`. They now raise that message too.
 
+- **Every tick type's documentation reads as whole sentences in every language.** The tick table stored each type's description one wrapped line per string, and the TypeScript declarations kept only the first string, so eleven of the tick interfaces in `index.d.ts`, the Greeks ticks among them, ended mid-sentence. The descriptions are now stored as paragraphs and rendered in full by rustdoc, Python `help()`, the Python type stub, the C header and the TypeScript declarations. The same descriptions also carried notes on how the decoder works, including source file paths that no longer exist; those are gone, and where a note described what a caller sees, such as the columns a snapshot variant omits, it now says that instead.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

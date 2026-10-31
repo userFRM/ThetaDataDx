@@ -17,7 +17,7 @@
 //! ```ignore
 //! #[contract_id]
 //! EodTick {
-//!     doc: ["End-of-day tick" -- 20 fields. "Full EOD snapshot with OHLC + quote.", "", ".."],
+//!     doc: ["End-of-day tick" -- 20 fields. "Full EOD snapshot with OHLC + quote.", ".."],
 //!     required: [created],
 //!     columns: [
 //!         created(created_ms_of_day): eod_num "Time the vendor generated the report, ..",
@@ -31,9 +31,9 @@
 //! - `#[contract_id]` adds the `expiration`, `strike` and `right` fields a
 //!   wildcard option response fills. `#[owned]` marks a row that holds a
 //!   `String`: it is not `Copy` and has no C layout.
-//! - `doc` is the documentation, one string per line. A first line written
-//!   `"Head" -- N fields. "Tail"` renders as is in Rust, where `N` counts the
-//!   struct fields, and as `Head. Tail` in Python and TypeScript.
+//! - `doc` is the documentation, one string per paragraph. A first paragraph
+//!   written `"Head" -- N fields. "Tail"` renders as is in Rust, where `N`
+//!   counts the struct fields, and as `Head. Tail` in the other languages.
 //! - `required` names the columns, by wire header, a response with rows must
 //!   carry.
 //!   `CalendarDay` and `OptionContract` are decoded by hand and list none.
@@ -87,17 +87,7 @@ macro_rules! __ticks {
             QuoteTick {
                 doc: [
                     "Quote tick" -- 13 fields. "NBBO quote data.",
-                    "",
-                    "Wire layout: the full shape is 11 columns (`ms_of_day`,",
-                    "`bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,",
-                    "`ask_exchange`, `ask`, `ask_condition`, `price_type`, `date`).",
-                    "The four exchange / condition columns are NOT in the `required` list",
-                    "below, so when the wire omits them the generated parser skips their",
-                    "column pass and the `0` seed stands; this lets the decoder accept",
-                    "subset NBBO layouts (e.g. the",
-                    "6-field `[ms_of_day, bid_size, bid, ask_size, ask, date]` shape some",
-                    "storage tiers emit) without erroring, while still decoding the full",
-                    "11-field shape bit-exact when every column is present.",
+                    "Some storage tiers return only `ms_of_day`, `bid_size`, `bid`, `ask_size`, `ask` and `date`; the exchange and condition fields are then absent.",
                 ],
                 required: [ms_of_day bid ask],
                 columns: [
@@ -119,13 +109,7 @@ macro_rules! __ticks {
             OhlcTick {
                 doc: [
                     "OHLC tick" -- 12 fields. "Aggregated bar data including SIP-rule VWAP.",
-                    "",
-                    "`stock_history_ohlc`, `option_history_ohlc`, and `index_history_ohlc`",
-                    "emit the same 8 data columns (`timestamp,open,high,low,close,",
-                    "volume,count,vwap`). The snapshot variants (`*_snapshot_ohlc`) omit",
-                    "`vwap`; the generated parser's optional-column path defaults the",
-                    "field to `0.0` for those endpoints, mirroring how `volume`/`count`",
-                    "already zero-default on quote-only intraday bars.",
+                    "`stock_history_ohlc`, `option_history_ohlc` and `index_history_ohlc` carry every column. The snapshot variants (`*_snapshot_ohlc`) omit `vwap`, which then reads `0.0`, as `volume` and `count` read `0` on quote-only intraday bars.",
                 ],
                 required: [ms_of_day open],
                 columns: [
@@ -146,14 +130,7 @@ macro_rules! __ticks {
             EodTick {
                 doc: [
                     "End-of-day tick" -- 20 fields. "Full EOD snapshot with OHLC + quote.",
-                    "",
-                    "The two time columns carry the vendor's v3 field semantics under their",
-                    "v3 names: `created` is when the EOD report was generated (~17:15 ET,",
-                    "NOT a trade time) and `last_trade` is the time of the day's final",
-                    "trade. On a day with no trades the report zero-fills the trade-derived",
-                    "columns: `open` / `high` / `low` / `close` are `0.0` and",
-                    "`last_trade_ms_of_day` is `0`; the quote-side columns still carry the",
-                    "closing NBBO snapshot.",
+                    "The two time columns carry the vendor's v3 field semantics under their v3 names: `created` is when the EOD report was generated (~17:15 ET, NOT a trade time) and `last_trade` is the time of the day's final trade. On a day with no trades the report zero-fills the trade-derived columns: `open` / `high` / `low` / `close` are `0.0` and `last_trade_ms_of_day` is `0`; the quote-side columns still carry the closing NBBO snapshot.",
                 ],
                 required: [created],
                 columns: [
@@ -240,19 +217,8 @@ macro_rules! __ticks {
             #[contract_id]
             GreeksAllTick {
                 doc: [
-                    "Full union Greeks tick -- every Greek the v3 server publishes on the",
-                    "`option_*_greeks_all` and `option_*_greeks_eod` endpoints.",
-                    "",
-                    "The vendor's per-order endpoints (`option_*_greeks_first_order`,",
-                    "`_second_order`, `_third_order`) emit strict subsets of these columns",
-                    "and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick`,",
-                    "`GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility`",
-                    "binds to `IvTick`.",
-                    "",
-                    "The wire-level `timestamp` -> `ms_of_day`, `underlying_timestamp` ->",
-                    "`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`",
-                    "mappings are applied through `HEADER_ALIASES` in",
-                    "`thetadatadx-rs/src/decode.rs`.",
+                    "Full union Greeks tick -- every Greek the v3 server publishes on the `option_*_greeks_all` endpoints.",
+                    "The vendor's per-order endpoints (`option_*_greeks_first_order`, `_second_order`, `_third_order`) emit strict subsets of these columns and bind to `GreeksFirstOrderTick`, `GreeksSecondOrderTick` and `GreeksThirdOrderTick` respectively. `option_*_greeks_implied_volatility` binds to `IvTick`, and `option_*_greeks_eod` to `GreeksEodTick`.",
                 ],
                 required: [ms_of_day],
                 columns: [
@@ -291,23 +257,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             GreeksEodTick {
-                doc: [
-                    "End-of-day union Greeks tick -- every Greek the v3 server publishes on",
-                    "`option_history_greeks_eod`, paired with the twelve EOD trade/quote",
-                    "context columns (`open`, `high`, `low`, `close`, `volume`, `count`,",
-                    "`bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,",
-                    "`ask_exchange`, `ask_condition`) that identify the daily bar + closing",
-                    "NBBO snapshot the Greeks were calculated against.",
-                    "",
-                    "`option_history_greeks_eod` returns this type rather than",
-                    "`GreeksAllTick`, which has no field for those twelve EOD columns, so",
-                    "`GreeksEodTick` carries the full EOD wire shape end-to-end across",
-                    "every binding.",
-                    "",
-                    "The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->",
-                    "`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`",
-                    "mappings are applied through `HEADER_ALIASES`.",
-                ],
+                doc: ["End-of-day union Greeks tick -- every Greek the v3 server publishes on `option_history_greeks_eod`, paired with the twelve EOD trade/quote context columns (`open`, `high`, `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`) that identify the daily bar + closing NBBO snapshot the Greeks were calculated against."],
                 required: [ms_of_day],
                 columns: [
                     ms_of_day: i32 "EOD report creation time, milliseconds since midnight ET.",
@@ -357,12 +307,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             GreeksFirstOrderTick {
-                doc: [
-                    "First-order Greeks tick -- the strict column subset emitted by the",
-                    "vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega",
-                    "/ rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and",
-                    "the underlying snapshot used to derive each Greek.",
-                ],
+                doc: ["First-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_first_order` endpoints (delta / theta / vega / rho / epsilon / lambda) plus the bid/ask quote pair, the IV pair, and the underlying snapshot used to derive each Greek."],
                 required: [ms_of_day],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -386,12 +331,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             GreeksSecondOrderTick {
-                doc: [
-                    "Second-order Greeks tick -- the strict column subset emitted by the",
-                    "vendor's `option_*_greeks_second_order` endpoints (gamma / vanna /",
-                    "charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the",
-                    "underlying snapshot.",
-                ],
+                doc: ["Second-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_second_order` endpoints (gamma / vanna / charm / vomma / veta) plus the bid/ask quote pair, the IV pair, and the underlying snapshot."],
                 required: [ms_of_day],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -414,13 +354,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             GreeksThirdOrderTick {
-                doc: [
-                    "Third-order Greeks tick -- the strict column subset emitted by the",
-                    "vendor's `option_*_greeks_third_order` endpoints (speed / zomma /",
-                    "color / ultima) plus the bid/ask quote pair, the IV pair, and the",
-                    "underlying snapshot. The vendor's third-order schema does not publish",
-                    "`vera`.",
-                ],
+                doc: ["Third-order Greeks tick -- the strict column subset emitted by the vendor's `option_*_greeks_third_order` endpoints (speed / zomma / color / ultima) plus the bid/ask quote pair, the IV pair, and the underlying snapshot. The vendor's third-order schema does not publish `vera`."],
                 required: [ms_of_day],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -444,13 +378,7 @@ macro_rules! __ticks {
             IvTick {
                 doc: [
                     "Implied volatility tick" -- 15 fields.,
-                    "",
-                    "The `option_history_greeks_implied_volatility` wire columns map as:",
-                    "",
-                    "The snapshot variant (`option_snapshot_greeks_implied_volatility`) emits",
-                    "a 4-column subset (`ms_of_day, implied_vol, iv_error, date`); the",
-                    "generator's optional-column path defaults the missing fields to 0.0 so",
-                    "the snapshot decode keeps working.",
+                    "The snapshot variant (`option_snapshot_greeks_implied_volatility`) carries only `ms_of_day`, `implied_volatility`, `iv_error` and `date`; the other fields then read zero.",
                 ],
                 required: [ms_of_day],
                 columns: [
@@ -472,17 +400,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             TradeGreeksAllTick {
-                doc: [
-                    "Per-trade union Greeks tick -- every Greek the v3 server publishes on",
-                    "`option_history_trade_greeks_all`, paired with the trade-side execution",
-                    "columns (`sequence`, `ext_condition1..4`, `condition`, `size`,",
-                    "`exchange`, `price`) that identify which OPRA print each Greek was",
-                    "calculated against.",
-                    "",
-                    "The `timestamp` -> `ms_of_day`, `underlying_timestamp` ->",
-                    "`underlying_ms_of_day`, and `implied_vol` -> `implied_volatility`",
-                    "mappings are applied through `HEADER_ALIASES`.",
-                ],
+                doc: ["Per-trade union Greeks tick -- every Greek the v3 server publishes on `option_history_trade_greeks_all`, paired with the trade-side execution columns (`sequence`, `ext_condition1..4`, `condition`, `size`, `exchange`, `price`) that identify which OPRA print each Greek was calculated against."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -527,11 +445,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             TradeGreeksFirstOrderTick {
-                doc: [
-                    "Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon",
-                    "/ lambda) paired with the trade-side execution columns identifying the",
-                    "OPRA print each Greek was calculated against.",
-                ],
+                doc: ["Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon / lambda) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -562,11 +476,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             TradeGreeksSecondOrderTick {
-                doc: [
-                    "Per-trade second-order Greeks tick (gamma / vanna / charm / vomma /",
-                    "veta) paired with the trade-side execution columns identifying the OPRA",
-                    "print each Greek was calculated against.",
-                ],
+                doc: ["Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / veta) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -596,12 +506,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             TradeGreeksThirdOrderTick {
-                doc: [
-                    "Per-trade third-order Greeks tick (speed / zomma / color / ultima)",
-                    "paired with the trade-side execution columns identifying the OPRA print",
-                    "each Greek was calculated against. The vendor's third-order schema does",
-                    "not publish `vera`.",
-                ],
+                doc: ["Per-trade third-order Greeks tick (speed / zomma / color / ultima) paired with the trade-side execution columns identifying the OPRA print each Greek was calculated against. The vendor's third-order schema does not publish `vera`."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -630,12 +535,7 @@ macro_rules! __ticks {
             }
             #[contract_id]
             TradeGreeksImpliedVolatilityTick {
-                doc: [
-                    "Per-trade implied-volatility tick (single `implied_volatility` +",
-                    "`iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled",
-                    "`IvTick`) paired with the trade-side execution columns identifying the",
-                    "OPRA print the IV was calculated against.",
-                ],
+                doc: ["Per-trade implied-volatility tick (single `implied_volatility` + `iv_error` pair, NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`) paired with the trade-side execution columns identifying the OPRA print the IV was calculated against."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -670,17 +570,7 @@ macro_rules! __ticks {
                 flags: [],
             }
             IndexPriceAtTimeTick {
-                doc: [
-                    "Index price-at-time tick -- the trade-shaped row the v3 server",
-                    "publishes on `index_at_time_price`. The bare `PriceTick` (3 fields:",
-                    "`ms_of_day`, `price`, `date`) silently dropped seven server-emitted",
-                    "columns -- `sequence`, `ext_condition1..4`, `condition`, `size`,",
-                    "`exchange` -- including the SIP-exchange attribution field.",
-                    "",
-                    "The `timestamp` -> `ms_of_day` and `timestamp` -> `date` mappings are",
-                    "applied through the existing `HEADER_ALIASES` rows in",
-                    "`thetadatadx-rs/src/mdds/decode/headers.rs`.",
-                ],
+                doc: ["Index price-at-time tick -- the trade-shaped row the v3 server publishes on `index_at_time_price`."],
                 required: [ms_of_day price],
                 columns: [
                     ms_of_day: i32 "Milliseconds since midnight Eastern Time.",
@@ -701,12 +591,7 @@ macro_rules! __ticks {
             CalendarDay {
                 doc: [
                     "Calendar day" -- 4 fields. "Market open/close schedule.",
-                    "",
-                    "`status` carries the vendor's own day-type vocabulary (`open` /",
-                    "`early_close` / `full_close` / `weekend`); unknown wire text fails",
-                    "decode loudly rather than degrading to a sentinel. `date` is `0` on",
-                    "the single-row `calendar_on_date` / `calendar_open_today` responses,",
-                    "where the server omits the date column.",
+                    "`status` carries the vendor's own day-type vocabulary (`open` / `early_close` / `full_close` / `weekend`); unknown wire text fails decode loudly rather than degrading to a sentinel. `date` is `0` on the single-row `calendar_on_date` / `calendar_open_today` responses, where the server omits the date column.",
                 ],
                 required: [],
                 columns: [
@@ -719,16 +604,7 @@ macro_rules! __ticks {
                 flags: [],
             }
             InterestRateTick {
-                doc: [
-                    "Interest rate tick" -- 2 fields. "End-of-day interest rate (percent).",
-                    "",
-                    "Wire layout per `docs.thetadata.us/operations/interest_rate_history_eod.html`:",
-                    "",
-                    "The `date` decode flows through `thetadatadx::decode::row_date`, which",
-                    "accepts `Number`, `Timestamp`, and `Text` cells uniformly; so this tick",
-                    "decodes either the documented Text-ISO shape or any future",
-                    "Number/Timestamp narrowing without a per-parser branch.",
-                ],
+                doc: ["Interest rate tick" -- 2 fields. "End-of-day interest rate (percent)."],
                 required: [created],
                 columns: [
                     created(date): i32 "Report creation date as a YYYYMMDD integer.",
@@ -739,11 +615,7 @@ macro_rules! __ticks {
             }
             #[owned]
             OptionContract {
-                doc: [
-                    "Option contract" -- 4 fields. "Contract specification.",
-                    "",
-                    "Cannot be `Copy` because of the `String` symbol field.",
-                ],
+                doc: ["Option contract" -- 4 fields. "Contract specification."],
                 required: [],
                 columns: [
                     root(symbol): String "Underlying symbol of the contract.",
@@ -758,11 +630,7 @@ macro_rules! __ticks {
             IntervalQuoteTick {
                 doc: [
                     "Interval quote tick" -- 14 fields. "The NBBO in effect at one interval.",
-                    "",
-                    "Returned by the quote flat files (`*_flat_file_quote`), which carry one row",
-                    "per interval in which a new quote was reported. Each row holds two times:",
-                    "`interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`,",
-                    "when the quote in effect at that interval was reported.",
+                    "Returned by the quote flat files (`*_flat_file_quote`), which carry one row per interval in which a new quote was reported. Each row holds two times: `interval_ms_of_day`, the interval the row samples, and `quote_ms_of_day`, when the quote in effect at that interval was reported.",
                 ],
                 required: [interval_ms_of_day bid ask],
                 columns: [
@@ -797,9 +665,9 @@ macro_rules! __ticks {
 ///
 /// - `kind` is `pod` for a `Copy` row and `owned` for an `#[owned]` one.
 /// - `contract` holds `expiration strike right` on a `#[contract_id]` row.
-/// - `doc` is the first doc line as `[head [count?] [tail?]]`, `summary` the
-///   same line without the field count, as the pieces to join, and `more` the
-///   other lines.
+/// - `doc` is the first paragraph as `[head [count?] [tail?]]`, `summary` the
+///   same paragraph without the field count, as the pieces to join, and `more`
+///   the other paragraphs.
 /// - A nullable column carries the name of its presence flag.
 #[doc(hidden)]
 #[macro_export]

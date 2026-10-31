@@ -115,15 +115,10 @@ pub(crate) fn render_python_tick_stubs() -> String {
 fn render_row(out: &mut String, tick: &Tick) {
     let name = tick.name;
     writeln!(out, "\n\n@final\nclass {name}:").unwrap();
-    // The summary and the first paragraph: the later ones describe the decode.
-    let doc: Vec<&str> = std::iter::once(tick.summary)
-        .chain(
-            tick.more
-                .iter()
-                .copied()
-                .take_while(|line| !line.is_empty()),
-        )
-        .collect();
+    let mut doc = vec![tick.summary];
+    for paragraph in tick.more {
+        doc.extend(["", paragraph]);
+    }
     write_docstring(out, "    ", &doc);
 
     // Every column is a keyword argument with the row's zero value as its
