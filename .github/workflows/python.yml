@@ -149,17 +149,6 @@ jobs:
           args: --release -m thetadatadx-py/Cargo.toml -o dist/ --interpreter python${{ matrix.python }}
           manylinux: ${{ endsWith(matrix.python, 't') && '2_28' || '2014' }}
           target: x86_64
-          # Neither manylinux image ships `protoc`, which `prost-build`
-          # needs to compile `proto/mdds.proto`. Install a pinned prebuilt
-          # binary before maturin starts.
-          before-script-linux: |
-            set -euo pipefail
-            PROTOC_VERSION=29.3
-            curl -fsSL --retry 5 --retry-delay 10 -o /tmp/protoc.zip \
-              "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-            unzip -q /tmp/protoc.zip -d /usr/local
-            chmod 0755 /usr/local/bin/protoc
-            protoc --version
       - name: Build wheel (macOS / Windows)
         if: matrix.os != 'ubuntu-latest'
         shell: bash

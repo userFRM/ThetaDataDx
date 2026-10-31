@@ -175,7 +175,6 @@ jobs:
         with:
           python-version: "3.12"
       - uses: Swatinem/rust-cache@v2
-      - uses: ./.github/actions/install-protoc
       - name: Materialize creds.txt
         shell: python
         env:

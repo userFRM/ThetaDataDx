@@ -71,10 +71,6 @@ jobs:
           # separate cache.
           key: ${{ matrix.target }}
 
-      # `thetadatadx` builds its gRPC client from `proto/mdds.proto` via
-      # prost-build, which needs the protobuf compiler on every runner.
-      - uses: ./.github/actions/install-protoc
-
       # musl is not a host target on the ubuntu runners. `musl-tools`
       # provides the `musl-gcc` wrapper that ring / zstd's C build invokes
       # when targeting the `*-unknown-linux-musl` triples.
