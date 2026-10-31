@@ -3789,7 +3789,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "socket2",
- "sonic-rs",
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",

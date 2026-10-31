@@ -1550,10 +1550,10 @@ async fn handle_request(
 ///
 /// Surfaces any serialisation failure as a JSON-RPC `-32603` Internal Error
 /// so the LLM client never receives a successful but empty `tools/call`
-/// result. A non-finite f64 cannot reach the tree (see `json_canon`), so it
-/// serialises as JSON `null`. Kept separate from the `tools/call` arm so a
-/// test can exercise the serialisation path without spinning up a live
-/// `Client` client.
+/// result. A non-finite f64 cannot reach the tree: `sonic_rs` turns one into
+/// `null` when a row is built, so it serialises as JSON `null`. Kept separate
+/// from the `tools/call` arm so a test can exercise the serialisation path
+/// without spinning up a live `Client` client.
 fn build_tool_call_response(id: Value, result: &Value) -> JsonRpcResponse {
     match sonic_rs::to_string(result) {
         Ok(text) => JsonRpcResponse::success(
@@ -2872,22 +2872,18 @@ mod tests {
     #[test]
     fn tools_call_response_serialises_nan_cell_as_null_not_empty() {
         // Mimic an `option_snapshot_greeks_*` row that came back with a
-        // non-finite vega from the upstream solver. Before the fix, the
-        // outer `sonic_rs::to_string(...).unwrap_or_default()` would have
+        // non-finite vega from the upstream solver, built the way the row
+        // builders build one. Before the fix, the outer
+        // `sonic_rs::to_string(...).unwrap_or_default()` would have
         // collapsed the entire serialise result to an empty string and the
         // MCP client would have seen `result.content[0].text = ""`.
-        let mut tool_result = sonic_rs::json!({
+        let tool_result = sonic_rs::json!({
             "ticks": [{
                 "symbol": "AAPL",
                 "delta": 0.5_f64,
-                "vega": Value::new_null(),
+                "vega": f64::NAN,
             }]
         });
-        if let Some(ticks) = tool_result.get_mut("ticks").and_then(|v| v.as_array_mut())
-            && let Some(row) = ticks.first_mut().and_then(|v| v.as_object_mut())
-        {
-            row.insert("vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
-        }
 
         let id = sonic_rs::json!(42);
         let resp = build_tool_call_response(id, &tool_result);

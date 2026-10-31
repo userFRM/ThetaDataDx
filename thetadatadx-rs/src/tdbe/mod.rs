@@ -18,10 +18,6 @@ pub mod codec;
 pub mod conditions;
 pub mod exchange;
 pub mod flags;
-// Only the workspace tools reach the canonical-JSON helpers, through the
-// `__internal` re-export.
-#[cfg(feature = "__internal")]
-pub mod json_canon;
 pub mod right;
 pub mod sequences;
 pub mod time;
