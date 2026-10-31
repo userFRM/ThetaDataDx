@@ -4225,28 +4225,6 @@ components:
               format: int64
               description: Nanosecond monotonic receipt timestamp
 
-    Error:
-      type: object
-      description: |
-        The JSON body of the failures the server answers with an envelope: a
-        query string it cannot accept, any failure on the flat-file routes, and
-        an internal fault while rendering a response. `error_type` is the
-        discriminator a client branches on; see the error codes page for the
-        values. Every other failed request is answered with an HTTP status and
-        a plain-text description.
-      required: [header, response]
-      properties:
-        header:
-          type: object
-          properties:
-            error_type:
-              type: string
-            error_msg:
-              type: string
-        response:
-          type: array
-          maxItems: 0
-
   parameters:
     symbol:
       <<: *symbol-param

@@ -1,6 +1,6 @@
 ---
 title: "Server: HTTP API"
-description: The v3 REST route surface, response formats, and the error envelope.
+description: The v3 REST route surface, response formats, and error responses.
 ---
 
 # HTTP API
