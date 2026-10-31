@@ -17,23 +17,17 @@
 # Every `ignore` entry requires a `# Reason:` comment explaining why the
 # advisory does not apply to our use. No silent pins.
 #
-# CI runs the same command on every PR (`.github/workflows/ci.yml`), and a
-# RustSec scan of the lockfile runs on a weekly Monday 03:00 UTC cron
-# (`.github/workflows/security-audit.yml`). A newly-published advisory on a
-# transitive dependency is surfaced by the cron job before it reaches a
-# release; do not downgrade the
-# `yanked = "deny"` bar without a matching `# Reason:` entry below.
+# CI runs the same command on every pull request, every push to main and
+# every night (`.github/workflows/ci.yml`), so an advisory published against
+# a version already in Cargo.lock fails the nightly run before it reaches a
+# release. Do not downgrade the `yanked = "deny"` bar without a matching
+# `# Reason:` entry below.
 
 [graph]
-# Check every target triple we actually build against -- the FFI and SDK
-# matrix touches Linux, macOS (aarch64 + x86_64) and both Windows ABIs.
-targets = [
-    { triple = "x86_64-unknown-linux-gnu" },
-    { triple = "aarch64-apple-darwin" },
-    { triple = "x86_64-apple-darwin" },
-    { triple = "x86_64-pc-windows-msvc" },
-    { triple = "x86_64-pc-windows-gnu" },
-]
+# No `targets` filter: the graph spans every platform a dependency declares,
+# so an advisory against a crate that only one target compiles is reported
+# too, such as the Android or wasm32 dependencies a downstream build of the
+# published crate pulls in.
 all-features = false
 no-default-features = false
 

@@ -22,7 +22,9 @@ on:
   schedule:
     # Off-peak, off-minute nightly run of the full heavy lane so the
     # cross-platform builds, semver check, and bench gate are proven
-    # daily even when every PR that day skipped them on path grounds.
+    # daily even when every PR that day skipped them on path grounds,
+    # and so cargo-deny reports an advisory published against a version
+    # already in Cargo.lock without waiting for a dependency change.
     - cron: "23 6 * * *"
 
 permissions:
