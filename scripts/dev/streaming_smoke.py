@@ -11,7 +11,7 @@ import time
 
 
 def _subscriptions_snapshot(client) -> set[tuple[str, str]]:
-    return {(entry["kind"], entry["contract"]) for entry in client.stream.active_subscriptions()}
+    return {(entry.kind, str(entry.contract)) for entry in client.stream.active_subscriptions()}
 
 
 def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str, str]:
