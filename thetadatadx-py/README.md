@@ -107,7 +107,7 @@ con.sql("SELECT AVG(close) FROM eod").show()
 
 List endpoints (`stock_list_symbols`, `option_list_expirations`, …) return a `StringList` with the same terminals; the single column is named by the endpoint (`symbol`, `expiration`, …). Empty results still convert to a zero-row frame with the full typed schema.
 
-For multi-day backfills, stream the response instead of buffering it. Every market-data builder exposes `.stream(handler)` / `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals; the handler is called once per chunk with the same typed list a whole result returns, whose frames lead with each row's root when the response carries roots, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
+For multi-day backfills, stream the response instead of buffering it. The builders of the history, at-time and flat-file endpoints, and of `option_list_contracts`, expose `.stream(handler)` / `.stream_async(handler)` beside the buffered `.list()` / `.list_async()` every builder has; the handler is called once per chunk with the same typed list a whole result returns, whose frames lead with each row's root when the response carries roots, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
 
 ```python
 def on_chunk(ticks):
