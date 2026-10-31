@@ -97,7 +97,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
 | Streaming latency | `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Event-buffer capacity and I/O timeouts. |
 | Streaming consumer | `wait_mode`, `park_interval_us`, `consumer_cpu` | How the event-ring consumer waits when idle. `spin` (default) and `busyspin` both hold ~100% of one core and differ only in jitter; `park` and `backoff` lower idle CPU (`backoff` stays low-latency while events flow, so it is the hands-free choice for a 24/7 consumer), sleeping `park_interval_us` microseconds when idle (default `1000` = 1 ms, validated `[50, 1000000]`; the OS timer floor is ~50 us and a 100 us park costs a few percent of a core). |
-| Observability | `metrics_port` (Rust only) | Local Prometheus exporter port, behind the `metrics` cargo feature. Not exposed on the C ABI, C++, Python or TypeScript surfaces. |
+| Observability | `metrics_port` (Rust only) | Local Prometheus exporter port, behind the `metrics-prometheus` cargo feature. Not exposed on the C ABI, C++, Python or TypeScript surfaces. |
 | Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |
 
 Every field above is available on all four language surfaces under the naming convention shown earlier, except where the table marks one Rust only; unknown values fail at configuration time, not at first request.

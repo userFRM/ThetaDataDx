@@ -835,8 +835,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// which needs a real connection. To exercise the batching / linger /
 /// backpressure / reader machinery without a network, this harness wires the
 /// exact same [`Shared`] queue, [`BatchSink`], and reader-side drain logic to
-/// a synthetic producer that the test drives directly — mirroring how the
-/// streaming benches drive the ring offline.
+/// a synthetic producer that the test drives directly.
 #[cfg(test)]
 pub(crate) mod test_harness {
     use super::stream_batch_schema;
