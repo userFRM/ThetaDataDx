@@ -1,67 +1,152 @@
-//! Python type-stub emitter for the `MarketDataView` endpoint surface.
+//! Python type-stub emitter for the market-data endpoint surface.
 //!
-//! Renders the body of `class MarketDataView` in
-//! `thetadatadx-py/python/thetadatadx/__init__.pyi`. The runtime
-//! `MarketDataView` carries every market-data endpoint as a real
-//! `#[pymethods]` method (sync, `*_async`, and `*_builder`), expanded from
-//! the same endpoint table by `thetadatadx-py/src/market_data.rs`.
-//! This emitter projects the identical surface into precise type stubs so
-//! `client.market_data.<endpoint>(...)` and its `_async` / `_builder`
-//! companions type-check under mypy / pyright, and so `mypy.stubtest`
-//! verifies the stub against the runtime without relying on the
-//! missing-stub escape hatch.
+//! Renders the region of `thetadatadx-py/python/thetadatadx/__init__.pyi`
+//! that `thetadatadx-py/src/market_data.rs` expands from the same endpoint
+//! table: `StringList`, one builder class per endpoint, and `MarketDataView`
+//! with every endpoint's sync, `*_async` and `*_builder` method, so
+//! `client.market_data.<endpoint>(...)`, its companions and the builder chain
+//! type-check under mypy / pyright and `mypy.stubtest` verifies them against
+//! the runtime.
 //!
 //! The signatures mirror the `#[pyo3(signature = ...)]` on each generated
 //! pymethod exactly: required parameters stay positional, every optional
-//! builder kwarg and `timeout_ms` is keyword-only (after `*`) with a
-//! `None` default. Return types follow the same three shapes the runtime
-//! produces: the chainable `<Tick>List` wrapper for parsed lists, a
-//! `StringList` for list-of-string endpoints, and a plain `List[<row>]`
-//! for the snapshot fast path.
+//! kwarg and `timeout_ms` is keyword-only (after `*`). Return types follow
+//! the three shapes the runtime produces: the chainable `<Tick>List` wrapper
+//! for parsed lists, a `StringList` for list-of-string endpoints, and a plain
+//! `List[<row>]` for the snapshot fast path.
 
 use std::fmt::Write as _;
 
-use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint, to_pascal_case};
-use super::super::sdk_helpers::{
-    builder_params, is_time_arg, method_params, python_pyclass_list_class,
-    python_pyclass_row_class, sdk_method_arg_name, snapshot_returns_plain_pylist,
+use super::super::helpers::{
+    compose_endpoint_doc, endpoint_streams, is_simple_list_endpoint, is_streaming_endpoint,
+    to_pascal_case,
 };
-use super::super::table::{GeneratedEndpoint, GeneratedParam};
+use super::super::sdk_helpers::{
+    builder_params, method_params, python_pyclass_list_class, python_pyclass_row_class,
+    sdk_method_arg_name, snapshot_returns_plain_pylist,
+};
+use super::super::table::{ENUMS, GeneratedEndpoint, GeneratedParam};
 
-/// Marker comments bounding the generated module-scope region that holds
-/// the result-type aliases and the entire `MarketDataView` class. Everything
+/// Marker comments bounding the generated module-scope region. Everything
 /// between the two markers is owned by this emitter; the rest of
 /// `__init__.pyi` stays hand-maintained.
 pub(super) const STUB_BEGIN_MARKER: &str =
     "# --- BEGIN GENERATED MARKET DATA VIEW (endpoint table) ---";
 pub(super) const STUB_END_MARKER: &str = "# --- END GENERATED MARKET DATA VIEW ---";
 
-/// Render the generated region (markers included): the result-type aliases
-/// plus the full `MarketDataView` class with one precise stub per endpoint
-/// method (sync, `*_async`, `*_builder`). Spliced into `__init__.pyi`
-/// between the two markers by [`super::sdk_files`].
+/// `StringList` and the terminals every builder has, declared once: the
+/// builders derive from `_Builder` or `_ChunkedBuilder`, which do not exist
+/// at runtime.
+const SHARED_CLASSES: &str = "
+@final
+class StringList:
+    \"\"\"The strings a list endpoint returns. Supports `len()`, indexing, slicing and
+    iteration, and converts with `.to_list()`, `.to_arrow()`, `.to_pandas()` and
+    `.to_polars()` into one column named for what the list holds.
+    \"\"\"
+
+    def __len__(self) -> int: ...
+    def __bool__(self) -> bool: ...
+    def __repr__(self) -> str: ...
+    @overload
+    def __getitem__(self, key: int) -> str: ...
+    @overload
+    def __getitem__(self, key: slice) -> StringList: ...
+    def __iter__(self) -> Iterator[str]: ...
+    def to_list(self) -> List[str]:
+        \"\"\"Return a plain Python `list` of the strings.\"\"\"
+        ...
+
+    def to_arrow(self) -> Any:
+        \"\"\"Return a one-column `pyarrow.Table` of the strings.\"\"\"
+        ...
+
+    def to_pandas(self) -> Any:
+        \"\"\"Return a one-column `pandas.DataFrame` of the strings. Requires pandas and pyarrow.\"\"\"
+        ...
+
+    def to_polars(self) -> Any:
+        \"\"\"Return a one-column `polars.DataFrame` of the strings. Requires polars and pyarrow.\"\"\"
+        ...
+
+
+_Result = TypeVar(\"_Result\")
+
+
+class _Builder(Generic[_Result]):
+    \"\"\"Chain the setters, then run the request with `.list()` or `.list_async()`.\"\"\"
+
+    def timeout_ms(self, value: int) -> Self:
+        \"\"\"Apply a per-request deadline in milliseconds.\"\"\"
+        ...
+
+    def list(self) -> _Result:
+        \"\"\"Run the request and return its result.\"\"\"
+        ...
+
+    def list_async(self) -> Awaitable[_Result]:
+        \"\"\"Awaitable companion of `list()`.\"\"\"
+        ...
+
+
+class _ChunkedBuilder(_Builder[_Result]):
+    \"\"\"A builder whose response can also be streamed chunk by chunk.\"\"\"
+
+    def stream(self, handler: Callable[[_Result], object]) -> None:
+        \"\"\"Call `handler` once per response chunk, with the chunk's rows in the typed
+        list a whole result returns, without holding the full response in memory.
+        An exception raised by `handler` stops the stream and is raised from this call.
+        \"\"\"
+        ...
+
+    def stream_async(self, handler: Callable[[_Result], object]) -> Awaitable[None]:
+        \"\"\"Awaitable companion of `stream()`, resolving to `None` once the response
+        finishes. `handler` runs on a worker thread, one chunk at a time; cancelling
+        the awaitable fetches no further chunks.
+        \"\"\"
+        ...
+";
+
+/// Render the generated region (markers included): `StringList`, the builder
+/// classes, the awaitable methods `MarketDataView` shares with `AsyncClient`,
+/// and `MarketDataView` itself.
 pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint]) -> String {
+    let endpoints: Vec<&GeneratedEndpoint> = endpoints
+        .iter()
+        .filter(|endpoint| !is_streaming_endpoint(endpoint))
+        .collect();
     let mut out = String::new();
     out.push_str(STUB_BEGIN_MARKER);
     out.push('\n');
     out.push_str(
         "# Generated from the endpoint table; do not edit by hand. Run\n\
-         # `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.\n\
-         #\n\
-         # The fluent builder classes and `StringList` returned below are\n\
-         # registered at runtime by the compiled extension and resolve through\n\
-         # the module-level `__getattr__`; they are aliased to `Any` here so the\n\
-         # method signatures stay precise without re-enumerating their surface.\n\
-         # The tick rows and their typed lists are stubbed above.\n",
+         # `cargo run -p xtask --bin generate_sdk_surfaces` to refresh.\n",
     );
+    out.push_str(SHARED_CLASSES);
 
-    for alias in collect_result_type_aliases(endpoints) {
-        writeln!(out, "{alias} = Any").unwrap();
+    for endpoint in &endpoints {
+        out.push_str("\n\n");
+        out.push_str(&render_builder_class(endpoint));
     }
 
-    out.push('\n');
-    out.push_str("@final\n");
-    out.push_str("class MarketDataView:\n");
+    out.push_str(
+        "\n\n\
+         class _AsyncMarketData:\n\
+         \x20   \"\"\"The awaitable market-data methods of :class:`MarketDataView`, which\n\
+         \x20   :class:`AsyncClient` forwards. It does not exist at runtime.\n\
+         \x20   \"\"\"\n",
+    );
+    for endpoint in &endpoints {
+        out.push('\n');
+        out.push_str(&render_stub_async(endpoint));
+        if endpoint.subcategory == "flat_file" {
+            out.push('\n');
+            out.push_str(&render_stub_to_path(endpoint, true));
+        }
+    }
+
+    out.push_str("\n\n@final\n");
+    out.push_str("class MarketDataView(_AsyncMarketData):\n");
     out.push_str(
         "    \"\"\"Market-data sub-namespace returned by :attr:`Client.market_data`.\n\
          \n\
@@ -72,20 +157,14 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
          \x20   so the stubs cannot drift from the installed extension.\n\
          \x20   \"\"\"\n",
     );
-
-    for endpoint in endpoints
-        .iter()
-        .filter(|endpoint| !is_streaming_endpoint(endpoint))
-    {
+    for endpoint in &endpoints {
         out.push('\n');
         out.push_str(&render_stub_sync(endpoint));
-        out.push('\n');
-        out.push_str(&render_stub_async(endpoint));
         out.push('\n');
         out.push_str(&render_stub_builder(endpoint));
         if endpoint.subcategory == "flat_file" {
             out.push('\n');
-            out.push_str(&render_stub_to_path(endpoint));
+            out.push_str(&render_stub_to_path(endpoint, false));
         }
     }
 
@@ -94,42 +173,53 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
     out
 }
 
-/// Distinct return / builder class names referenced by the generated
-/// signatures, in first-appearance order, other than the tick rows and
-/// lists the stub declares. Each name is aliased to `Any` so the precise
-/// method signatures compile without enumerating every class's surface.
-fn collect_result_type_aliases(endpoints: &[GeneratedEndpoint]) -> Vec<String> {
-    let mut seen: std::collections::HashSet<String> = crate::ticks::table::TICKS
+/// One endpoint's builder class: a setter per parameter it can change, over
+/// the shared terminals. A list endpoint's builder sets only its required
+/// parameters, as the runtime's does.
+fn render_builder_class(endpoint: &GeneratedEndpoint) -> String {
+    let base = if endpoint_streams(endpoint) {
+        "_ChunkedBuilder"
+    } else {
+        "_Builder"
+    };
+    let result = if is_simple_list_endpoint(endpoint) {
+        "StringList".to_string()
+    } else {
+        python_pyclass_list_class(endpoint.return_type)
+    };
+    let mut out = String::new();
+    writeln!(
+        out,
+        "@final\nclass {}({base}[{result}]):",
+        endpoint_builder_class(endpoint.name)
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "    \"\"\"Fluent builder for :meth:`MarketDataView.{}`.\"\"\"",
+        endpoint.name
+    )
+    .unwrap();
+    for param in endpoint
+        .params
         .iter()
-        .flat_map(|tick| [tick.name.to_string(), format!("{}List", tick.name)])
-        .collect();
-    let mut aliases = Vec::new();
-    for endpoint in endpoints
-        .iter()
-        .filter(|endpoint| !is_streaming_endpoint(endpoint))
+        .filter(|param| param.required || !is_simple_list_endpoint(endpoint))
     {
-        let return_type = stub_return_type(endpoint);
-        for name in referenced_class_names(&return_type) {
-            if seen.insert(name.clone()) {
-                aliases.push(name);
-            }
-        }
-        let builder = endpoint_builder_class(endpoint.name);
-        if seen.insert(builder.clone()) {
-            aliases.push(builder);
-        }
+        // The stub imports `date` as `_date` too: a `date` setter shadows
+        // `date` for the setters after it.
+        let value_type = match param.param_type {
+            "Date" | "Expiration" => "Union[str, _date, datetime]".to_string(),
+            _ => stub_value_type(param),
+        };
+        writeln!(
+            out,
+            "\n    def {}(self, value: {value_type}) -> Self:",
+            sdk_method_arg_name(param),
+        )
+        .unwrap();
+        write_docstring(&mut out, param.description);
     }
-    aliases
-}
-
-/// Extract the bare class identifiers from a return annotation, stripping
-/// the `List[...]` wrapper used by the snapshot fast path.
-fn referenced_class_names(annotation: &str) -> Vec<String> {
-    let inner = annotation
-        .strip_prefix("List[")
-        .and_then(|rest| rest.strip_suffix(']'))
-        .unwrap_or(annotation);
-    vec![inner.to_string()]
+    out
 }
 
 // ───────────────────────── Per-variant stub bodies ─────────────────────────
@@ -189,10 +279,9 @@ fn render_stub_builder(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-/// A flat file's `<endpoint>_to_path` method and its `_async` companion.
-fn render_stub_to_path(endpoint: &GeneratedEndpoint) -> String {
-    let mut out = String::new();
-    let doc = format!(
+/// A flat file's `<endpoint>_to_path` method, or its `_async` companion.
+fn render_stub_to_path(endpoint: &GeneratedEndpoint, awaitable: bool) -> String {
+    let mut doc = format!(
         "Write the `{}` file for `date` to `path` as the terminal writes it, \
          and return the path written.\n\n``format`` is ``\"csv\"`` (the default), \
          ``\"json\"``, ``\"json_legacy\"``, ``\"ndjson\"`` (or ``\"jsonl\"``) or \
@@ -200,23 +289,24 @@ fn render_stub_to_path(endpoint: &GeneratedEndpoint) -> String {
          only once complete; a path without an extension gets the format's.",
         endpoint.name
     );
-    let async_doc = format!(
-        "{doc}\n\nAwaitable companion of the sync variant. The returned object \
-         resolves to the path written, so a running event loop keeps servicing \
-         other coroutines while the file streams to disk."
-    );
-    for (suffix, return_type, doc) in [("", "str", doc), ("_async", "Awaitable[str]", async_doc)] {
-        if !out.is_empty() {
-            out.push('\n');
-        }
-        writeln!(out, "    def {}_to_path{suffix}(", endpoint.name).unwrap();
-        out.push_str(
-            "        self,\n        date: Union[str, date, datetime],\n        \
-             path: Union[str, PathLike[str]],\n        format: Optional[str] = None,\n",
+    let (suffix, return_type) = if awaitable {
+        doc.push_str(
+            "\n\nAwaitable companion of the sync variant. The returned object \
+             resolves to the path written, so a running event loop keeps servicing \
+             other coroutines while the file streams to disk.",
         );
-        writeln!(out, "    ) -> {return_type}:").unwrap();
-        write_docstring(&mut out, &doc);
-    }
+        ("_async", "Awaitable[str]")
+    } else {
+        ("", "str")
+    };
+    let mut out = String::new();
+    writeln!(out, "    def {}_to_path{suffix}(", endpoint.name).unwrap();
+    out.push_str(
+        "        self,\n        date: Union[str, date, datetime],\n        \
+         path: Union[str, PathLike[str]],\n        format: Optional[str] = None,\n",
+    );
+    writeln!(out, "    ) -> {return_type}:").unwrap();
+    write_docstring(&mut out, &doc);
     out
 }
 
@@ -229,8 +319,8 @@ enum SignatureKind {
     /// `#[pyo3(signature = ...)]` exactly.
     SyncMethod,
     /// Async endpoint method: same shape as the sync variant, but every
-    /// kwarg defaults to `None` (the runtime resolves the upstream default
-    /// inside the awaitable, matching the generated `*_async` signature).
+    /// kwarg defaults to `None`, as the generated `*_async` signature does;
+    /// an omitted kwarg leaves the upstream default to the server.
     AsyncMethod,
     /// `*_builder` constructor: required positional args only.
     Builder,
@@ -250,7 +340,7 @@ fn write_signature(
 
     let positional: Vec<String> = method_params
         .iter()
-        .map(|param| format!("{}: {}", sdk_method_arg_name(param), stub_arg_type(param)))
+        .map(|param| format!("{}: {}", sdk_method_arg_name(param), stub_value_type(param)))
         .collect();
 
     let honor_defaults = matches!(kind, SignatureKind::SyncMethod);
@@ -263,7 +353,7 @@ fn write_signature(
                     format!(
                         "{}: Optional[{}] = {}",
                         param.name,
-                        stub_optional_inner_type(param),
+                        stub_value_type(param),
                         stub_kwarg_default(param, honor_defaults)
                     )
                 })
@@ -318,30 +408,22 @@ fn write_docstring(out: &mut String, doc: &str) {
 
 // ───────────────────────── Type tables ─────────────────────────────────────
 
-/// Python type annotation for a required positional endpoint argument.
-/// Mirrors the runtime coercion: date / time arguments accept the
-/// matching `datetime` objects as well as the wire string, and the
-/// multi-symbol argument accepts a single symbol or a sequence.
-fn stub_arg_type(param: &GeneratedParam) -> &'static str {
+/// Python type of an endpoint argument, wherever it is passed: as a method
+/// argument, a keyword (wrapped in `Optional[...]` by the caller) or a builder
+/// setter's value. Mirrors the runtime coercion in `coerce.rs`: a multi-symbol
+/// argument takes a single symbol or a sequence, a date or time argument the
+/// matching `datetime` objects as well as the wire string, and an enum
+/// argument its enum class as well as the wire string.
+fn stub_value_type(param: &GeneratedParam) -> String {
     match param.param_type {
-        "Symbols" => "Union[str, Sequence[str]]",
-        "Date" | "Expiration" => "Union[str, date, datetime]",
-        _ if is_time_arg(param) => "Union[str, time, datetime]",
-        _ => "str",
-    }
-}
-
-/// Inner type of an optional keyword-only argument (wrapped in
-/// `Optional[...]` by the caller). Scalar kwargs map to their Python
-/// scalar; date / time kwargs accept the matching `datetime` objects.
-fn stub_optional_inner_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type {
-        "Int" => "int",
-        "Float" => "float",
-        "Bool" => "bool",
-        "Date" | "Expiration" => "Union[str, date, datetime]",
-        _ if is_time_arg(param) => "Union[str, time, datetime]",
-        _ => "str",
+        "Symbols" => "Union[str, Sequence[str]]".into(),
+        "Int" => "int".into(),
+        "Float" => "float".into(),
+        "Bool" => "bool".into(),
+        "Date" | "Expiration" => "Union[str, date, datetime]".into(),
+        "Time" => "Union[str, time, datetime]".into(),
+        name if ENUMS.iter().any(|spec| spec.name == name) => format!("Union[str, {name}]"),
+        _ => "str".into(),
     }
 }
 
@@ -365,10 +447,10 @@ fn endpoint_builder_class(name: &str) -> String {
 }
 
 /// Default expression for an optional keyword-only argument. Mirrors the
-/// runtime `python_signature_kwarg`: when `honor_defaults` is set (the sync
-/// variant) a scalar param surfaces its upstream default; otherwise — and
-/// for every non-scalar param — the default is `None`. Bool literals are
-/// rendered in Python casing.
+/// `@sig` arms of `py_endpoint!` in `market_data.rs`: when `honor_defaults`
+/// is set (the sync variant) a scalar param surfaces its upstream default;
+/// otherwise, and for every non-scalar param, the default is `None`. Bool
+/// literals are rendered in Python casing.
 fn stub_kwarg_default(param: &GeneratedParam, honor_defaults: bool) -> String {
     if !honor_defaults {
         return "None".to_string();

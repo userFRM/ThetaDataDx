@@ -4,10 +4,9 @@
 # fluent `Contract` / `Subscription` / `SecType` types, the string enums,
 # streaming context managers and the typed exception hierarchy by hand,
 # and the streaming event classes, the `Config` properties, the tick rows
-# and their `<Tick>List` wrappers and the market-data methods generated
-# from the tables the runtime is built from. The market-data builders and
-# the `<Tick>ListIter` iterators are exposed via the module-level
-# `__getattr__` fallback to `Any`.
+# and their `<Tick>List` wrappers, `StringList`, the market-data methods
+# and their builders generated from the tables the runtime is built from.
+# The `<Tick>ListIter` iterators are left undeclared.
 #
 # The CI gate runs::
 #
@@ -17,8 +16,9 @@
 #         --ignore-disjoint-bases \
 #         --ignore-positional-only
 #
-# `--ignore-missing-stub` covers the generator-emitted surface (the
-# hundreds of classes the stub deliberately doesn't enumerate).
+# `--ignore-missing-stub` covers what the stub deliberately does not
+# declare: the `<Tick>ListIter` iterators and the private test and bench
+# hooks.
 # `--ignore-disjoint-bases` is a PEP 800 marker stubtest emits on
 # every pyo3 class; pyclasses are always disjoint by construction.
 # `--ignore-positional-only` covers the asymmetry between pyo3's
@@ -47,12 +47,9 @@ thetadatadx\.Credentials\.__new__
 thetadatadx\.Client\.__init__
 thetadatadx\.AsyncClient\.__init__
 thetadatadx\.AsyncClient\.__new__
-thetadatadx\.AsyncClient\.__getattr__
-# `Client.__getattr__` is intentionally NOT stubbed —
-# every public method on the unified client is hand-listed in the
-# .pyi so stubtest catches drift on the load-bearing pyclass (C6
-# closure). Generator-emitted market-data builders reach the module
-# via the module-level `__getattr__` instead.
+# `AsyncClient.__getattr__` forwards `streaming` to `Client.streaming`, so
+# the method the stub declares is not an attribute of the class.
+thetadatadx\.AsyncClient\.streaming
 thetadatadx\.StreamingClient\.__init__
 thetadatadx\.StreamingClient\.__new__
 thetadatadx\.MarketDataClient\.__init__
