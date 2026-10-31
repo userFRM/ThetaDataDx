@@ -34,6 +34,8 @@ option_list_dates option_list_dates request_type=trade&symbol=SPY&expiration=202
 option_list_expirations option_list_expirations symbol=SPY
 option_list_strikes option_list_strikes symbol=SPY&expiration=20240621
 option_list_contracts option_list_contracts request_type=trade&symbol=SPY&date=20240614
+# A symbol filter naming several tickers, longer than any one ticker.
+option_list_contracts_symbol_list option_list_contracts request_type=trade&symbol=AAPL,MSFT,NVDA,TSLA&date=20240614
 
 # Option snapshots name a contract that is still listed when they are recorded.
 option_snapshot_ohlc option_snapshot_ohlc symbol=SPY&expiration=20261218&strike=600&right=call

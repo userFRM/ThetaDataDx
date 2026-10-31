@@ -1,0 +1,48 @@
+200 OK
+content-type: text/html; charset=utf-8
+
+<!DOCTYPE html><html lang="en">
+<head><title>Theta Data</title></head>
+<body>
+<table style="width:100%; text-align: center;"><thead><tr><th>symbol</th><th>expiration</th><th>strike</th><th>right</th></tr></thead>
+<tbody><tr><td>AAPL</td><td>2024-10-18</td><td>220.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-10-18</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2025-09-19</td><td>215.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2025-09-19</td><td>215.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-11-15</td><td>220.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-11-15</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-06-14</td><td>222.500</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-06-14</td><td>222.500</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-09-20</td><td>90.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2026-06-18</td><td>80.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2025-03-21</td><td>350.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2025-03-21</td><td>220.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2025-03-21</td><td>220.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-06-14</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-06-14</td><td>225.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-06-28</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-06-28</td><td>225.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-07-12</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>AAPL</td><td>2024-07-12</td><td>225.000</td><td>PUT</td></tr>
+<tr><td>AAPL</td><td>2024-07-26</td><td>225.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-10-18</td><td>75.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2025-09-19</td><td>70.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-11-15</td><td>75.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2024-06-28</td><td>340.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-07-12</td><td>340.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-09-20</td><td>470.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2025-03-21</td><td>205.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-07-26</td><td>340.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2026-06-18</td><td>460.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-06-14</td><td>210.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-06-14</td><td>210.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2024-06-28</td><td>210.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-06-28</td><td>210.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2025-09-19</td><td>465.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-07-12</td><td>210.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2024-07-12</td><td>210.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2024-09-20</td><td>340.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2025-03-21</td><td>75.000</td><td>CALL</td></tr>
+<tr><td>TSLA</td><td>2025-03-21</td><td>75.000</td><td>PUT</td></tr>
+<tr><td>TSLA</td><td>2024-07-26</td><td>210.000</td><td>PUT</td></tr>
+</tbody></table></body></html>

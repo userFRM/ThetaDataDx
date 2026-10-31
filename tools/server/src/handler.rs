@@ -22,7 +22,6 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::format;
 use crate::state::AppState;
-use crate::validation;
 
 // ---------------------------------------------------------------------------
 //  Helpers
@@ -162,7 +161,7 @@ pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) ->
 /// the registry takes ~10 params (`option_history_trade_quote` + format /
 /// pagination knobs); 32 leaves generous headroom without letting a caller
 /// allocate ~MB of `HashMap` slack via `?a=1&b=2&...` with thousands of
-/// unique 60-byte keys that each pass the 64-byte per-param cap.
+/// unique keys.
 pub(crate) const MAX_QUERY_PARAMS: usize = 32;
 
 // ---------------------------------------------------------------------------
@@ -296,30 +295,6 @@ pub(crate) fn build_endpoint_args(
             "request has {} query parameters; max is {MAX_QUERY_PARAMS}",
             params.len()
         )));
-    }
-
-    // Length-cap every incoming query-param BEFORE parsing. This bounds
-    // memory-DoS on malicious inputs (`?root=<1 MB string>`) at the edge
-    // and keeps format errors below (`?right=garbage`) surfaced as 400
-    // instead of 500.
-    //
-    // Length checks are server-side and orthogonal to the semantic
-    // validators in `thetadatadx::validate`, which enforce *format*
-    // (digit-count, right vocabulary, strike wildcard) but accept
-    // arbitrarily long strings.
-    //
-    // Params declared in `ep.params` dispatch on the registry
-    // `ParamType` — the param NAME alone cannot pick the right cap
-    // (`symbol` is a single 16-byte ticker on market-data endpoints but
-    // a 512-byte comma-separated list on the snapshot endpoints).
-    // Params outside the registry metadata (`format`, unknown keys)
-    // fall back to the name-based table, whose generic 64-byte cap
-    // blocks `?format=<megabytes>` style floods.
-    for (name, raw) in params {
-        match ep.params.iter().find(|param| param.name == name) {
-            Some(param) => validation::validate_param_value(param, raw)?,
-            None => validation::validate_query_param(name, raw)?,
-        }
     }
 
     let mut args = EndpointArgs::new();
@@ -521,8 +496,7 @@ pub(crate) fn csv_attachment_filename(
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
 ///    URL parse so `?a=1&b=2&...` flood attacks can't force a multi-MB
 ///    HashMap allocation before the cap trips.
-/// 2. Validates query params against `EndpointMeta.params` (length caps
-///    included — `format` falls under the generic 64-byte cap here).
+/// 2. Validates query params against `EndpointMeta.params`.
 /// 3. Negotiates the response format (`csv` default, `json`,
 ///    `ndjson`/`jsonl`, `html`); unknown `format` values are a 400.
 /// 4. Invokes the shared endpoint runtime.
@@ -616,10 +590,6 @@ where
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    // Format negotiation runs AFTER `build_endpoint_args` on purpose:
-    // the length validators in there cap `format` at the generic
-    // 64-byte bound, so the lowercase copy and the echoed-value 400
-    // below can never amplify an oversized query value.
     let response_format = match parse_response_format(params) {
         Ok(f) => f,
         Err(error) => return endpoint_error_response(ep, error),
@@ -951,56 +921,6 @@ mod tests {
                 assert!(
                     msg.contains(&MAX_QUERY_PARAMS.to_string()),
                     "error message should mention the cap: {msg}"
-                );
-            }
-            other => panic!("expected InvalidParams, got {other:?}"),
-        }
-    }
-
-    /// Registry-declared params dispatch on `ParamType`, so the
-    /// multi-symbol snapshot endpoints (param NAME `symbol`, registry
-    /// type `Symbols`) accept comma-separated lists past the 16-byte
-    /// single-ticker cap. Name-based dispatch used to reject any list
-    /// with more than ~3 tickers.
-    #[test]
-    fn build_endpoint_args_accepts_multi_symbol_snapshot_lists() {
-        let ep = thetadatadx::find("stock_snapshot_ohlc")
-            .expect("snapshot endpoint must exist in the registry");
-        let mut params: HashMap<String, String> = HashMap::new();
-        params.insert(
-            "symbol".to_string(),
-            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA".to_string(),
-        );
-
-        let args = build_endpoint_args(ep, &params)
-            .expect("six-ticker list must pass the Symbols-typed cap");
-        assert_eq!(
-            args.required_str("symbol").unwrap(),
-            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA"
-        );
-    }
-
-    /// Single-ticker endpoints keep the tight 16-byte cap — the typed
-    /// dispatch must not loosen the market-data surface.
-    #[test]
-    fn build_endpoint_args_keeps_single_symbol_cap_on_market_data_endpoints() {
-        let ep = thetadatadx::find("stock_history_eod")
-            .expect("market-data endpoint must exist in the registry");
-        let mut params: HashMap<String, String> = HashMap::new();
-        params.insert(
-            "symbol".to_string(),
-            "AAPL,MSFT,TSLA,GOOG,AMZN,NVDA".to_string(),
-        );
-        params.insert("start_date".to_string(), "20260101".to_string());
-        params.insert("end_date".to_string(), "20260301".to_string());
-
-        let err = build_endpoint_args(ep, &params)
-            .expect_err("comma list must overflow the single-ticker cap");
-        match err {
-            EndpointError::InvalidParams(msg) => {
-                assert!(
-                    msg.contains("'symbol'") && msg.contains("16"),
-                    "expected the 16-byte single-ticker rejection: {msg}"
                 );
             }
             other => panic!("expected InvalidParams, got {other:?}"),

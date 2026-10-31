@@ -26,7 +26,6 @@ mod handler;
 mod logging;
 mod router;
 mod state;
-mod validation;
 mod ws;
 
 #[cfg(test)]
