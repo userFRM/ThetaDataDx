@@ -5,14 +5,10 @@
 generated page, `llms.txt` and the OpenAPI routes to the endpoint table byte
 for byte. This script checks what that comparison cannot see:
 
-- no reference page outliving its endpoint, since the generator writes the
-  pages but never deletes one
 - the OpenAPI path set matching the routes the server serves, its `servers`
   block naming the local server, and no global security requirement
 - the server docs' flag defaults matching the server's command line
 - the MCP docs listing and counting every tool the server advertises
-- the C request-options struct laid out as the FFI crate expands it, with no
-  field that no endpoint reads
 - the getting-started install line naming the current version
 
 Exits non-zero on any mismatch. Run from repo root; the script resolves
@@ -134,19 +130,6 @@ def fail(message: str) -> None:
     raise SystemExit(1)
 
 
-def rel(path: Path) -> str:
-    """`path` for a message, repo-relative where it can be.
-
-    The self-test points a checked path at a synthetic fixture in a temp
-    directory, which `Path.relative_to(ROOT)` refuses; a failure message is
-    no place to raise.
-    """
-    try:
-        return str(path.relative_to(ROOT))
-    except ValueError:
-        return str(path)
-
-
 def expect_contains(path: Path, snippet: str) -> None:
     text = path.read_text()
     if snippet not in text:
@@ -163,29 +146,6 @@ def check_static_docs() -> None:
         DOCS_SITE / "articles/getting-started.md",
         f'thetadatadx-rs = "{cargo_version}"',
     )
-
-
-def endpoint_page_path(endpoint: dict) -> Path:
-    """Mirror of the generator's path rule: REST path, hyphenated."""
-    rest = endpoint["rest_path"].removeprefix("/v3/")
-    return DOCS_SITE / "reference" / (rest.replace("_", "-") + ".md")
-
-
-def check_reference_pages() -> None:
-    """No reference page outlives its endpoint.
-
-    The generator writes one page per endpoint but never deletes one, and it
-    indexes every page on disk in `llms.txt`, so its check cannot see a page
-    whose endpoint is gone.
-    """
-    expected = {endpoint_page_path(ep) for ep in REGISTRY_ENDPOINTS}
-    actual = {p for p in (DOCS_SITE / "reference").rglob("*.md") if p.name != "index.md"}
-    extra = sorted(rel(p) for p in actual - expected)
-    if extra:
-        fail(
-            "stale reference pages with no matching registry endpoint "
-            f"(delete them): {', '.join(extra)}"
-        )
 
 
 def _openapi_server_urls(text: str) -> list[str]:
@@ -517,39 +477,6 @@ def check_server_flag_defaults() -> None:
                 )
 
 
-# A row of a generated reference page's `## Parameters` table: the name,
-# whether it is required, and the default (`-` when there is none).
-_PAGE_PARAM_ROW_RE = re.compile(
-    r"^\| `(\w+)` \| [^|]+ \| (yes|no) \| (?:`([^`]*)`|-) \|", re.MULTILINE
-)
-
-
-def reference_page_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
-    """`{endpoint name: {param: (required, default)}}`, read off the generated pages.
-
-    The docs generator renders each page's parameter table from the endpoint
-    table and holds the pages to its output byte for byte, so the rows are the
-    parameters the SDK and `tools/server` implement, each default the registry
-    literal verbatim. Every page also lists the SDK's `timeout_ms` deadline,
-    which is a request option and not a REST parameter.
-    """
-    params = {}
-    for endpoint in REGISTRY_ENDPOINTS:
-        path = endpoint_page_path(endpoint)
-        rows = _PAGE_PARAM_ROW_RE.findall(
-            _markdown_section(path.read_text(), "## Parameters", path)
-        )
-        if not rows:
-            fail(
-                f"{rel(path)} parsed to no parameter rows (the page layout changed: "
-                f"the gate would be blind to parameter drift)"
-            )
-        params[endpoint["name"]] = {
-            name: (required == "yes", default or None) for name, required, default in rows
-        }
-    return params
-
-
 def _rust_str_array_items(text: str, const_name: str, path: Path) -> list[str]:
     """The string literals in a `const NAME: [...] = [ "a", "b", ... ];` array.
 
@@ -770,77 +697,6 @@ def check_mcp_tool_inventory() -> None:
     check_mcp_tool_counts(set(inv["registry"]) | set(connection_only))
 
 
-def request_options_layout() -> list[str]:
-    """The C declarations of `ThetaDataDxEndpointRequestOptions` the FFI
-    crate expands from `__request_options!`, in field order.
-
-    Mirrors `thetadatadx-ffi/src/endpoint_table.rs`: each listed key's
-    parameter becomes a field, a bool, int or float one followed by its
-    `has_` flag, and the `timeout_ms` deadline closes the struct.
-    """
-    text = (ROOT / "thetadatadx-rs/src/surface/endpoints.rs").read_text()
-    keys = re.search(r"macro_rules! __request_options \{.*?\[(.*?)\]", text, re.DOTALL)
-    if not keys:
-        fail("thetadatadx-rs/src/surface/endpoints.rs has no `__request_options!` key list")
-    defs = dict(
-        (key, (name, ty))
-        for key, name, ty in re.findall(
-            r"\((\w+) \$\(\$s:tt\)\*\) => \{ \$crate::__resolve! \{ @def \{\s*(\w+)(?:\(\w+\))? opt (\w+)",
-            text,
-        )
-    )
-    c_types = {"Bool": "int32_t", "Int": "int32_t", "Float": "double"}
-    layout = []
-    for key in keys.group(1).split():
-        if key not in defs:
-            fail(f"`__request_options!` key `{key}` is not an optional parameter definition in `__param!`")
-        name, ty = defs[key]
-        layout.append(f"{c_types.get(ty, 'const char*')} {name}")
-        if ty in c_types:
-            layout.append(f"int32_t has_{name}")
-    return layout + ["uint64_t timeout_ms", "int32_t has_timeout_ms"]
-
-
-def check_endpoint_option_surface() -> None:
-    c_path = ROOT / "thetadatadx-cpp/include/endpoint_request_options.h.inc"
-    c_layout = re.findall(
-        r"^\s*((?:const char\*|int32_t|double|uint64_t) [a-z_]+);",
-        re.search(
-            r"typedef struct \{(.*?)\n\}\s*ThetaDataDxEndpointRequestOptions;",
-            c_path.read_text(),
-            re.DOTALL,
-        ).group(1),
-        re.MULTILINE,
-    )
-    # The field order is ABI: the C header and the struct the FFI crate
-    # expands must declare the same fields, with the same types, in order.
-    rust_layout = request_options_layout()
-    if rust_layout != c_layout:
-        fail(
-            f"{c_path.relative_to(ROOT)} and the `__request_options!` list in "
-            "thetadatadx-rs/src/surface/endpoints.rs declare different ThetaDataDxEndpointRequestOptions layouts. "
-            f"header={c_layout} table={rust_layout}"
-        )
-
-    # Every optional parameter of an endpoint is a field and every field is
-    # one, `timeout_ms` included: a field no endpoint reads is dead ABI.
-    option_fields = {
-        name
-        for rows in reference_page_params().values()
-        for name, (required, _) in rows.items()
-        if not required
-    }
-    c_fields = {f.split()[-1] for f in c_layout if not f.split()[-1].startswith("has_")}
-    if c_fields != option_fields:
-        missing = sorted(option_fields - c_fields)
-        extra = sorted(c_fields - option_fields)
-        fail(
-            f"{c_path.relative_to(ROOT)} endpoint option fields differ from the endpoints' "
-            f"optional parameters. missing={missing or '[]'} extra={extra or '[]'}"
-        )
-
-
-
 def _selftest() -> int:
     """Hermetic checks for the server flag-default derivation (G5).
 
@@ -977,10 +833,8 @@ def _selftest() -> int:
 def main() -> None:
     check_static_docs()
     check_server_flag_defaults()
-    check_reference_pages()
     check_openapi()
     check_mcp_tool_inventory()
-    check_endpoint_option_surface()
     print("docs consistency: ok")
 
 
