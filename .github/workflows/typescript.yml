@@ -97,7 +97,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
-      - uses: ./.github/actions/install-protoc
       - working-directory: thetadatadx-ts
         run: npm install
       - name: Clippy (TypeScript SDK)
