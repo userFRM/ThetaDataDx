@@ -2471,26 +2471,11 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Introspection helper for the offline `MarketDataClient` block-list
     // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
     m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
-    // Offline streaming-saturation bench hooks (no network). Drive the real
-    // Disruptor pipeline + the production per-event GIL/marshal/callback path,
-    // plus the batched-delivery and Arrow-columnar throughput levers. Built
+    // Offline streaming-saturation bench hook (no network). Drives the real
+    // Disruptor pipeline + the production GIL/marshal/callback path. Built
     // only with the `bench` feature, so the published wheel does not carry
-    // them.
+    // it.
     #[cfg(feature = "bench")]
-    {
-        m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
-        m.add_function(wrap_pyfunction!(
-            bench_streaming::__bench_flood_events_batched_calls,
-            m
-        )?)?;
-        m.add_function(wrap_pyfunction!(
-            bench_streaming::__bench_flood_events_batched_list,
-            m
-        )?)?;
-        m.add_function(wrap_pyfunction!(
-            bench_streaming::__bench_flood_events_arrow,
-            m
-        )?)?;
-    }
+    m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
     Ok(())
 }

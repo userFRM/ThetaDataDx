@@ -15,10 +15,10 @@ publish = false
 workspace = true
 
 [features]
-# The offline streaming-throughput hooks (`__benchFloodEvents*`) the scripts
-# in `benches/` drive. Off by default so the published addon does not carry
-# them; build with `npx napi build --platform --release --features bench` to
-# run those scripts.
+# The offline streaming-throughput hook (`__benchFloodEvents`) that
+# `benches/streaming_throughput.mjs` drives. Off by default so the published
+# addon does not carry it; build with
+# `npx napi build --platform --release --features bench` to run that script.
 bench = []
 
 [lib]

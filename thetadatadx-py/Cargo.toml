@@ -16,10 +16,10 @@ publish = false
 workspace = true
 
 [features]
-# The offline streaming-throughput hooks (`__bench_flood_events*`) the scripts
-# in `benches/` drive. Off by default so the published wheel does not carry
-# them; build with `maturin develop --release --features bench` to run those
-# scripts.
+# The offline streaming-throughput hook (`__bench_flood_events`) that
+# `benches/streaming_throughput_py.py` drives. Off by default so the published
+# wheel does not carry it; build with
+# `maturin develop --release --features bench` to run that script.
 bench = ["dep:disruptor"]
 
 [lib]

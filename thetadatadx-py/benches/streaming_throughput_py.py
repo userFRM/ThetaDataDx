@@ -11,22 +11,21 @@ What is measured
 The bench-only ``thetadatadx.__bench_flood_events(n, callback)`` hook
 drives the SAME LMAX Disruptor pipeline the live FPSS consumer uses
 (single producer, single consumer thread, 131_072-slot ring = the
-production default) and, for every delivered event, runs the IDENTICAL
-per-event handover the ``start_streaming`` dispatcher runs in
-production:
+production default) and runs the IDENTICAL handover the
+``start_streaming`` dispatcher runs in production:
 
-  1. ``Python::attach`` — acquire the GIL on the consumer thread. The
-     production granularity is PER-EVENT (the FPSS callback closure in
-     ``StreamView::start_streaming`` re-attaches for each delivered
-     event), so this bench measures the same granularity.
+  1. ``Python::attach`` — acquire the GIL on the consumer thread once per
+     batch the consumer drains from the ring, as ``StreamView::start_streaming``
+     does.
   2. ``fpss_event_to_typed(py, event)`` — the exact borrowed-event ->
      typed ``#[pyclass]`` marshal the production path calls, reused (not
-     reimplemented).
-  3. ``callback.call1(py, (typed,))`` — the same 1-tuple vectorcall.
+     reimplemented), once per event.
+  3. ``callback.call1(py, (typed,))`` — the same 1-tuple vectorcall, once
+     per event.
 
 The user callback here is a Python no-op (``def _cb(_e): pass``) so the
-number is the SDK boundary ceiling: ring publish + per-event GIL acquire
-+ typed-pyclass marshal + Python call dispatch, with the user doing
+number is the SDK boundary ceiling: ring publish + the GIL acquisitions +
+typed-pyclass marshal + Python call dispatch, with the user doing
 nothing. Real integrator code does strictly more per event, so this is an
 upper bound on the Python streaming rate.
 
@@ -128,7 +127,7 @@ def main() -> int:
 
     summary = {
         "bench": "python_pyo3_gil_noop",
-        "granularity": "per_event_gil_attach",
+        "granularity": "gil_per_drained_batch",
         "events_per_iter": EVENTS_PER_ITER,
         "warmup_samples": WARMUP_SAMPLES,
         "measured_samples": MEASURED_SAMPLES,
