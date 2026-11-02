@@ -141,7 +141,7 @@ impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
             // Ramp, then park the thread for the configured interval.
             WaitMode::Park => {
                 self.spin_yield();
-                thread::sleep(self.park);
+                thread::park_timeout(self.park);
             }
         }
     }
@@ -183,6 +183,12 @@ impl DrainWaiter {
     }
 
     /// Wait after a poll found the ring momentarily empty.
+    ///
+    /// The `Park` and `Backoff` sleep is a `thread::park_timeout`, so a
+    /// delivery stage that holds events back for a busy downstream can
+    /// [`Thread::unpark`](std::thread::Thread::unpark) the draining thread
+    /// to hand them over the moment the downstream catches up, instead of
+    /// after the rest of the park interval.
     #[inline]
     pub(crate) fn on_empty(&mut self) {
         use disruptor::wait_strategies::WaitStrategy as _;
@@ -192,7 +198,7 @@ impl DrainWaiter {
                 // threshold, then park until an event resets the run.
                 let since = *self.idle_since.get_or_insert_with(Instant::now);
                 if since.elapsed() >= BACKOFF_IDLE_THRESHOLD {
-                    thread::sleep(self.strategy.park);
+                    thread::park_timeout(self.strategy.park);
                 } else {
                     self.strategy.active_wait();
                 }
@@ -482,6 +488,30 @@ mod tests {
             t2.elapsed() < Duration::from_millis(100),
             "after progress, the idle run restarts and spins"
         );
+    }
+
+    #[test]
+    fn an_idle_wait_ends_when_the_thread_is_unparked() {
+        for mode in [WaitMode::Park, WaitMode::Backoff] {
+            let strat = AdaptiveWaitStrategy::from_mode(mode, Duration::from_secs(1));
+            let mut w = DrainWaiter::new(strat);
+            // Start the idle run and let it cross the Backoff threshold.
+            w.on_empty();
+            thread::sleep(BACKOFF_IDLE_THRESHOLD);
+
+            let waiter = thread::current();
+            let waker = thread::spawn(move || {
+                thread::sleep(Duration::from_millis(20));
+                waiter.unpark();
+            });
+            let t = Instant::now();
+            w.on_empty();
+            waker.join().unwrap();
+            assert!(
+                t.elapsed() < Duration::from_millis(500),
+                "{mode:?}: an unpark must end the idle wait, not the 1 s interval"
+            );
+        }
     }
 
     #[test]
