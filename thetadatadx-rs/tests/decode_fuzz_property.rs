@@ -19,12 +19,12 @@
 //! shape guard against panics from new variants slipping into the
 //! decoder dispatch.
 
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use proptest::prelude::*;
+use rustc_hash::FxHashMap;
 
 use thetadatadx::StreamMsgType;
 use thetadatadx::fpss::__test_internals::{
@@ -43,7 +43,7 @@ fn drive_fuzz_input(bytes: Vec<u8>) {
     let mut cursor = Cursor::new(bytes);
     let authenticated = AtomicBool::new(true);
     let shutdown = AtomicBool::new(false);
-    let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
     let mut delta_state = DeltaState::new();
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
 
@@ -63,6 +63,7 @@ fn drive_fuzz_input(bytes: Vec<u8>) {
                 let _ = decode_frame(
                     code,
                     &buf[..n],
+                    0,
                     &authenticated,
                     &mut local_contracts,
                     &shutdown,

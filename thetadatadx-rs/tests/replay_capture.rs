@@ -24,11 +24,11 @@
 //! builders so they ride the same encoding path as real recorded FPSS
 //! bytes. No live credentials, no real account IDs, no network I/O.
 
-use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use rustc_hash::FxHashMap;
 use thetadatadx::{RemoveReason, SecType, StreamMsgType};
 
 use thetadatadx::fpss::__test_internals::{
@@ -226,7 +226,7 @@ fn replay_success_fixture_emits_expected_event_sequence() {
 
     let authenticated = AtomicBool::new(false);
     let shutdown = AtomicBool::new(false);
-    let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
     let mut delta_state = DeltaState::new();
     let mut frame_buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
 
@@ -238,6 +238,7 @@ fn replay_success_fixture_emits_expected_event_sequence() {
                 let primary = decode_frame(
                     code,
                     &frame_buf[..payload_len],
+                    0,
                     &authenticated,
                     &mut local_contracts,
                     &shutdown,
@@ -334,7 +335,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
 
     let authenticated = AtomicBool::new(false);
     let shutdown = AtomicBool::new(false);
-    let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
     let mut delta_state = DeltaState::new();
     let mut frame_buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
 
@@ -350,6 +351,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
                 let primary = decode_frame(
                     code,
                     &frame_buf[..payload_len],
+                    0,
                     &authenticated,
                     &mut local_contracts,
                     &shutdown,

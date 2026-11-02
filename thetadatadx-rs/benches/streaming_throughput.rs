@@ -1,12 +1,17 @@
 //! End-to-end streaming throughput across binding shapes.
 //!
-//! Times the Disruptor pipeline under the callback shapes that matter for
-//! production integrators: a no-op closure as the floor, a Rust closure
-//! that actually retains the event, a lock-free queue push, an FFI-style
-//! indirection, and the two recommended Python handover patterns
-//! (`collections.deque.append` and `queue.Queue.put_nowait`). Every
-//! variant drives the same pipeline; the only thing that changes is what
-//! the user closure does inside `catch_unwind`.
+//! The streaming client runs two threads: a reader that reads and decodes
+//! every frame, and a consumer that hands each event to the user callback,
+//! joined by the Disruptor ring. The sustained rate without drops is the
+//! slower of the two, so this bench times each side on its own:
+//!
+//! - `decode`: the reader thread's per-frame work over an in-memory capture
+//!   of a 10,000-contract option chain (frame read, clock reads, decode).
+//! - the dispatch variants: the Disruptor pipeline under the callback shapes
+//!   that matter for production integrators: a no-op closure as the floor,
+//!   a Rust closure that retains the event, and an FFI-style indirection.
+//!   Every variant drives the same pipeline; the only thing that changes is
+//!   what the user closure does inside `catch_unwind`.
 //!
 //! # Methodology
 //!
@@ -29,16 +34,21 @@
 
 use std::ffi::c_void;
 use std::hint::black_box;
+use std::io::Cursor;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use disruptor::{BusySpin, Producer, Sequence, build_single_producer};
-use thetadatadx::Price;
+use rustc_hash::FxHashMap;
+use thetadatadx::fpss::internals::{
+    DeltaState, FpssEventInternal, FrameRead, decode_frame, read_frame_into_with_stall_timeout,
+};
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
+use thetadatadx::{Price, StreamMsgType};
 
 /// Events shipped per Criterion sample. Sized so per-iteration wall
 /// clock dwarfs Criterion measurement overhead and so the consumer
@@ -160,7 +170,7 @@ fn drive_publish<P: Producer<RingSlot>>(
 // `try_publish`. We deliberately count it inside the timed region so
 // the bench reflects what an integrator actually pays. The variants
 // differ only in what the *consumer* closure does; the producer side
-// is identical across all six.
+// is identical across all of them.
 
 // ─── Variant 1: Rust no-op closure ────────────────────────────────────
 
@@ -243,6 +253,125 @@ fn run_ffi_simulated(contract: Arc<Contract>) -> (u64, Duration) {
     result
 }
 
+// ─── Reader thread: frame read + decode ───────────────────────────────
+
+/// Option contracts in the decode capture, about a whole SPXW chain near
+/// the money.
+const DECODE_CONTRACTS: i32 = 10_000;
+
+/// Delta-quote passes over every contract after its absolute rows.
+const DECODE_ROUNDS: i32 = 100;
+
+/// FIT-encode one row: decimal digits as nibbles, `0xB` between fields,
+/// `0xE` before a negative value, `0xD` at the end.
+fn fit_row(fields: &[i32]) -> Vec<u8> {
+    let mut nibbles = Vec::new();
+    for (i, value) in fields.iter().enumerate() {
+        if i > 0 {
+            nibbles.push(0xB);
+        }
+        if *value < 0 {
+            nibbles.push(0xE);
+        }
+        nibbles.extend(value.unsigned_abs().to_string().bytes().map(|b| b - b'0'));
+    }
+    nibbles.push(0xD);
+    nibbles
+        .chunks(2)
+        .map(|pair| pair[0] << 4 | pair.get(1).copied().unwrap_or(0))
+        .collect()
+}
+
+fn push_frame(wire: &mut Vec<u8>, code: StreamMsgType, payload: &[u8]) {
+    wire.push(u8::try_from(payload.len()).expect("payload fits one frame"));
+    wire.push(code as u8);
+    wire.extend_from_slice(payload);
+}
+
+/// Frames as the server sends them: each contract's assignment and one
+/// absolute quote and trade, then `DECODE_ROUNDS` passes of delta quotes
+/// with a delta trade on every 100th contract. Returns the wire bytes, the
+/// number of frames and how many of them carry a quote or a trade.
+fn decode_capture() -> (Vec<u8>, u64, u64) {
+    let mut wire = Vec::new();
+    let mut frames = 0;
+    for id in 0..DECODE_CONTRACTS {
+        let contract =
+            Contract::option_raw("SPXW", 20250428, id % 2 == 0, 4_000_000 + id / 2 * 5_000);
+        let mut assignment = id.to_be_bytes().to_vec();
+        assignment.extend(contract.to_bytes());
+        push_frame(&mut wire, StreamMsgType::Contract, &assignment);
+        let quote = [
+            id, 34_200_000, 10, 5, 12_345, 50, 12, 5, 12_445, 50, 4, 20250428,
+        ];
+        push_frame(&mut wire, StreamMsgType::Quote, &fit_row(&quote));
+        let trade = [id, 34_200_000, 1, 2, 18, 12_400, 5, 4, 20250428];
+        push_frame(&mut wire, StreamMsgType::Trade, &fit_row(&trade));
+        frames += 3;
+    }
+    for round in 0..DECODE_ROUNDS {
+        for id in 0..DECODE_CONTRACTS {
+            let d: i32 = if (round + id) % 2 == 0 { 5 } else { -5 };
+            let quote = [id, 37, d.signum(), 0, d, 0, -d.signum(), 0, d];
+            push_frame(&mut wire, StreamMsgType::Quote, &fit_row(&quote));
+            frames += 1;
+            if id % 100 == 0 {
+                let trade = [id, 41, 1, d.signum(), 0, d];
+                push_frame(&mut wire, StreamMsgType::Trade, &fit_row(&trade));
+                frames += 1;
+            }
+        }
+    }
+    (
+        wire,
+        frames,
+        frames - u64::from(DECODE_CONTRACTS.unsigned_abs()),
+    )
+}
+
+/// The reader thread's work per frame, as the live loop does it: read the
+/// frame, read the stall clock and the wall clock, decode. Returns the
+/// number of data events, so a row the decoder rejects fails the check.
+fn decode_all(wire: &[u8]) -> u64 {
+    let (authenticated, shutdown) = (AtomicBool::new(true), AtomicBool::new(false));
+    let mut contracts = FxHashMap::default();
+    let mut delta = DeltaState::new();
+    let mut buf = Vec::new();
+    let mut reader = Cursor::new(wire);
+    let mut events = 0;
+    while let FrameRead::Frame(code, len) =
+        read_frame_into_with_stall_timeout(&mut reader, &mut buf, Duration::from_secs(1))
+            .expect("in-memory read")
+    {
+        black_box(Instant::now());
+        let received_at_ns = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_nanos()).unwrap_or(u64::MAX));
+        let event = decode_frame(
+            code,
+            &buf[..len],
+            received_at_ns,
+            &authenticated,
+            &mut contracts,
+            &shutdown,
+            &mut delta,
+        );
+        events += u64::from(matches!(black_box(event), Some(FpssEventInternal::Data(_))));
+    }
+    events
+}
+
+fn bench_decode(c: &mut Criterion) {
+    let (wire, frames, data_events) = decode_capture();
+    let mut group = c.benchmark_group("streaming_throughput/decode");
+    group.throughput(Throughput::Elements(frames));
+    group.sample_size(10);
+    group.bench_function("option_chain", |b| {
+        b.iter(|| assert_eq!(decode_all(&wire), data_events));
+    });
+    group.finish();
+}
+
 // ─── Criterion driver ──────────────────────────────────────────────────
 
 /// Run `runner` exactly `iters` times, summing the in-loop wall clock
@@ -294,6 +423,7 @@ fn bench_ffi_simulated(c: &mut Criterion) {
 
 criterion_group!(
     streaming_throughput,
+    bench_decode,
     bench_rust_noop,
     bench_rust_vec_push,
     bench_ffi_simulated,

@@ -5,8 +5,9 @@
 //! This module owns the running absolute state plus the reusable scratch
 //! buffer used by [`DeltaState::decode_tick`].
 
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
+
+use rustc_hash::FxHashMap;
 
 use crate::tdbe::codec::fit::{FitReader, apply_deltas};
 
@@ -78,7 +79,7 @@ pub struct DeltaState {
     /// tick data. Stored inline (no `Vec`) so the per-tick `apply_deltas`
     /// step costs one stack copy + one in-place add loop with zero
     /// allocations on the hot path.
-    prev: HashMap<(Baseline, i32), TickFields>,
+    prev: FxHashMap<(Baseline, i32), TickFields>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
     alloc_buf: Vec<i32>,
     /// Set after `decode_tick` to indicate the last row was a DATE marker.
@@ -104,7 +105,7 @@ impl DeltaState {
         // Pre-allocate the FIT scratch buffer for the widest tick shape
         // (`MAX_DATA_FIELDS` data fields + 1 contract_id).
         Self {
-            prev: HashMap::new(),
+            prev: FxHashMap::default(),
             alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
             last_was_date: false,
             last_stop: None,
@@ -250,8 +251,10 @@ impl DeltaState {
             return None;
         }
 
+        // One lookup per row: a delta row (the common case) accumulates onto
+        // its baseline and overwrites it in place.
         let key = (baseline, contract_id);
-        let is_absolute = !self.prev.contains_key(&key);
+        let prev = self.prev.get_mut(&key);
 
         // An absolute row defines the cached field width and seeds the delta
         // baseline, so it must carry EXACTLY the tick shape's field count.
@@ -266,7 +269,7 @@ impl DeltaState {
         // here, BEFORE any `prev` insert, guarantees a
         // wrong-width row leaves no state behind so a later correct absolute
         // row can re-seed cleanly.
-        if is_absolute && tick_n != expected_fields {
+        if prev.is_none() && tick_n != expected_fields {
             // Wrong-width absolute row: reject before it seeds `prev` /
             // (a wrong cached width would mis-decode every later
             // delta row for this contract), mirroring the terminal, which
@@ -286,21 +289,22 @@ impl DeltaState {
         out.fill(0);
         out[..expected_fields].copy_from_slice(&self.alloc_buf[1..=expected_fields]);
 
-        if let Some(prev) = self.prev.get(&key) {
-            // Delta row: accumulate onto previous absolute values
-            // in-place into the caller's buffer.
-            apply_deltas(
-                &mut out[..expected_fields],
-                &prev[..expected_fields],
-                tick_n,
-            );
+        // `[i32; MAX_DATA_FIELDS]` is `Copy`, so storing the resolved row is a
+        // memcpy (or a one-time slot on the first absolute row); no
+        // `Vec::clone` per tick.
+        match prev {
+            Some(prev) => {
+                apply_deltas(
+                    &mut out[..expected_fields],
+                    &prev[..expected_fields],
+                    tick_n,
+                );
+                *prev = *out;
+            }
+            None => {
+                self.prev.insert(key, *out);
+            }
         }
-
-        // Store the resolved absolute row into `prev` for the next delta.
-        // `[i32; MAX_DATA_FIELDS]` is `Copy`, so this is a memcpy into the
-        // existing slot (or a one-time node allocation on first insert);
-        // no `Vec::clone` per tick.
-        self.prev.insert(key, *out);
 
         Some((contract_id, baseline))
     }

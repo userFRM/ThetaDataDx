@@ -3763,6 +3763,7 @@ dependencies = [
  "prost-types",
  "rand 0.10.3",
  "reqwest",
+ "rustc-hash",
  "rustls",
  "rustls-platform-verifier",
  "rustls-webpki",

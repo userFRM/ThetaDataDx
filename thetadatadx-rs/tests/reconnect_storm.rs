@@ -25,11 +25,11 @@
 //! here we cover the cross-cycle invariants the reader and decoder
 //! contribute to that path.
 
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use rustc_hash::FxHashMap;
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
@@ -98,7 +98,7 @@ fn reconnect_storm_preserves_framing_invariants() {
         // so the SDK must carry neither stale ids nor stale baselines
         // forward.
         let mut delta = DeltaState::new();
-        let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
 
         let bytes = build_session_bytes(cycle);
@@ -110,6 +110,7 @@ fn reconnect_storm_preserves_framing_invariants() {
                     let primary = decode_frame(
                         code,
                         &buf[..n],
+                        0,
                         &authenticated,
                         &mut local,
                         &shutdown,
@@ -175,7 +176,7 @@ fn post_storm_normal_operation_resumes_immediately() {
     let authenticated = AtomicBool::new(true);
     let shutdown = AtomicBool::new(false);
     let mut delta = DeltaState::new();
-    let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
 
     // Burn through 5 cycles of storm.
     for cycle in 0..5 {
@@ -185,6 +186,7 @@ fn post_storm_normal_operation_resumes_immediately() {
             let _ = decode_frame(
                 code,
                 &buf[..n],
+                0,
                 &authenticated,
                 &mut local,
                 &shutdown,
@@ -211,6 +213,7 @@ fn post_storm_normal_operation_resumes_immediately() {
         let p = decode_frame(
             code,
             &buf[..n],
+            0,
             &authenticated,
             &mut local,
             &shutdown,
