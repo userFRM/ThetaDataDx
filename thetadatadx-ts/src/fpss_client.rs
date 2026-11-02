@@ -31,7 +31,8 @@ use thetadatadx::fpss;
 
 use crate::fluent::Subscription;
 use crate::{
-    Config, Credentials, StreamEvent, StreamView, TsfnCallback, config_or_production, to_napi_err,
+    Config, Credentials, StreamEvent, StreamView, TsfnCallback, buffered_event_to_typed,
+    config_or_production, fpss_event_to_buffered, to_napi_err,
 };
 
 /// Wake first, mark second: `aborted.write()` parks behind the read guard a blocking `call` holds.
@@ -206,6 +207,68 @@ pub(crate) fn callback_delivery_outcome(
     }
 }
 
+/// The consumer-thread event handler and drain scope that hand streaming
+/// events to `callback` in arrays of up to [`crate::STREAMING_CALLBACK_BATCH`].
+///
+/// The handler converts each event to its typed napi object and hands the
+/// array over once a full batch has built up; the scope hands over the rest
+/// when a drain empties the ring, so no event waits for a later one. Each
+/// hand-over is a `Blocking` call: paired with the bounded
+/// [`crate::STREAMING_CALLBACK_QUEUE_DEPTH`], it makes the consumer wait once
+/// the call queue is full rather than parking an unbounded backlog behind a
+/// slow JS callback. While the consumer waits it stops draining the ring, so
+/// the ring fills and the FPSS reader accounts the overflow on
+/// `droppedEventCount()`; the reader itself is never blocked, so the upstream
+/// connection stays healthy. An unexpected `Closing` status is recorded with
+/// [`note_callback_delivery_status`] and folded into the drain outcome with
+/// [`callback_delivery_outcome`].
+pub(crate) fn batched_delivery(
+    callback: &Arc<TsfnCallback>,
+    closing_expected: &Arc<AtomicBool>,
+    delivery_failed: &Arc<AtomicBool>,
+) -> (
+    impl FnMut(&fpss::StreamEvent) + Send + 'static,
+    impl FnMut(&mut dyn FnMut() -> fpss::PollOutcome) -> fpss::PollOutcome + Send + 'static,
+) {
+    let deliver = {
+        let callback = Arc::clone(callback);
+        let closing_expected = Arc::clone(closing_expected);
+        let delivery_failed = Arc::clone(delivery_failed);
+        move |events: Vec<StreamEvent>| {
+            let status = callback.call(
+                events,
+                napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+            );
+            note_callback_delivery_status(status, &closing_expected, &delivery_failed);
+        }
+    };
+    // Both closures run on the consumer thread, so the lock is never contended.
+    let pending: Arc<Mutex<Vec<StreamEvent>>> = Arc::default();
+    let handler = {
+        let pending = Arc::clone(&pending);
+        let deliver = deliver.clone();
+        move |event: &fpss::StreamEvent| {
+            let mut events = pending.lock().unwrap_or_else(|e| e.into_inner());
+            events.push(buffered_event_to_typed(fpss_event_to_buffered(event)));
+            if events.len() >= crate::STREAMING_CALLBACK_BATCH {
+                let batch = std::mem::take(&mut *events);
+                drop(events);
+                deliver(batch);
+            }
+        }
+    };
+    let delivery_failed = Arc::clone(delivery_failed);
+    let scope = move |drain: &mut dyn FnMut() -> fpss::PollOutcome| {
+        let outcome = drain();
+        let rest = std::mem::take(&mut *pending.lock().unwrap_or_else(|e| e.into_inner()));
+        if !rest.is_empty() {
+            deliver(rest);
+        }
+        callback_delivery_outcome(outcome, &delivery_failed)
+    };
+    (handler, scope)
+}
+
 /// Standalone streaming-only client.
 ///
 /// Opens ONLY the streaming TLS transport, no historical data channel, no
@@ -279,25 +342,11 @@ impl StreamingClient {
     /// signals to detect a callback that cannot keep up. The receive path
     /// is never blocked by a slow callback, so the upstream connection
     /// stays healthy regardless of callback speed.
-    #[napi(js_name = "startStreaming")]
-    pub async fn start_streaming(
-        &self,
-        // The callback parameter is spelled with the inline
-        // `ThreadsafeFunction<StreamEvent, …>` rather than the
-        // `TsfnCallback` alias so napi-rs emits a typed
-        // `(event: StreamEvent) => void` signature into `index.d.ts`. A bare
-        // alias name would surface in the published types as an unresolved
-        // identifier, leaving the callback parameter untyped for callers.
-        callback: napi::threadsafe_function::ThreadsafeFunction<
-            StreamEvent,
-            (),
-            StreamEvent,
-            napi::Status,
-            false,
-            false,
-            { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
-        >,
-    ) -> napi::Result<()> {
+    #[napi(
+        js_name = "startStreaming",
+        ts_args_type = "callback: ((arg: StreamEvent) => void)"
+    )]
+    pub async fn start_streaming(&self, callback: TsfnCallback) -> napi::Result<()> {
         self.view.start_streaming(callback).await
     }
 

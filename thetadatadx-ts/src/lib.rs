@@ -963,15 +963,26 @@ fn bigint_to_i32(value: &napi::bindgen_prelude::BigInt) -> Option<i32> {
 
 // ── Unified Client client ──
 
-/// Bound on the number of `StreamEvent` deliveries that may sit in the
-/// napi callback queue between the streaming consumer thread and the Node
-/// main thread before the consumer is made to wait.
+/// Most streaming events one hop to the Node main thread carries.
+///
+/// Every hop through the napi callback queue pays a fixed cost (a queue
+/// push, a `uv_async_t` wake-up and a V8 call), so the consumer thread hands
+/// over the events it drains from the ring as one array and the wrapper in
+/// `streaming-session.js` calls the registered callback once per event, in
+/// order. A quiet stream drains one event at a time, so its events still
+/// travel alone with no added delay; a burst travels in arrays of up to this
+/// many events.
+pub(crate) const STREAMING_CALLBACK_BATCH: usize = 1_024;
+
+/// Bound on the number of event arrays that may sit in the napi callback
+/// queue between the streaming consumer thread and the Node main thread
+/// before the consumer is made to wait.
 ///
 /// This queue is the second buffer on the delivery path. The first is the
 /// streaming event ring (the `streamingRingSize` setting, 131072 slots by
-/// default), drained by the consumer thread; the consumer hands each event
-/// to the callback queue here, and the registered JS function runs later on
-/// the Node main thread. A bound is required for the `Blocking` call mode to
+/// default), drained by the consumer thread; the consumer hands the drained
+/// events to the callback queue here, and the registered JS function runs
+/// later on the Node main thread. A bound is required for the `Blocking` call mode to
 /// mean anything: with an unbounded queue the `call` never waits, so the
 /// consumer drains the ring as fast as it arrives and parks the backlog in
 /// this queue instead, where it is invisible to `ringOccupancy()` and
@@ -981,23 +992,23 @@ fn bigint_to_i32(value: &napi::bindgen_prelude::BigInt) -> Option<i32> {
 /// `droppedEventCount()`, the same observable back-pressure the bindings
 /// that run the callback directly on the consumer thread already have.
 ///
-/// The depth is half the default ring size, so a healthy callback has ample
-/// headroom before the consumer ever waits, while a wedged callback can pin
-/// at most this many in-flight events.
-pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536;
+/// The queued arrays hold at most half the default ring size in events, so a
+/// healthy callback has ample headroom before the consumer ever waits, while
+/// a wedged callback can pin at most 65,536 in-flight events.
+pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536 / STREAMING_CALLBACK_BATCH;
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
-/// `StreamEvent` deliveries onto the Node main thread via napi-rs's
-/// internal `uv_async_t` queue. The fifth const generic `false` selects
-/// `ErrorStrategy::Fatal`, so the napi-rs `call` API takes the
-/// `StreamEvent` directly (not a `Result`) and the JS side relies on
-/// its own try/catch for user-callback failures. The sixth (`false`) keeps
+/// arrays of `StreamEvent` onto the Node main thread via napi-rs's
+/// internal `uv_async_t` queue (see [`STREAMING_CALLBACK_BATCH`]). The fifth
+/// const generic `false` selects `ErrorStrategy::Fatal`, so the napi-rs
+/// `call` API takes the array directly (not a `Result`) and the JS side
+/// relies on its own try/catch for user-callback failures. The sixth (`false`) keeps
 /// the function strong, so a pending event holds the event loop open until
 /// it drains rather than being abandoned at shutdown. The seventh,
 /// [`STREAMING_CALLBACK_QUEUE_DEPTH`], bounds the call queue so the
 /// `Blocking` call mode applies real back-pressure (see that constant). The
-/// two `StreamEvent` type parameters are the wire payload and the JS-call
-/// arg type respectively; both are the same concrete object here.
+/// two `Vec<StreamEvent>` type parameters are the wire payload and the
+/// JS-call arg type respectively; both are the same concrete array here.
 ///
 /// napi-rs is the only safe path: Node's libuv requires JS callbacks
 /// on the main thread, so calling V8 from any other thread is
@@ -1005,9 +1016,9 @@ pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536;
 /// every event to this `ThreadsafeFunction`, which queues it for the
 /// main thread via `napi_call_threadsafe_function`.
 pub(crate) type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
-    StreamEvent,
+    Vec<StreamEvent>,
     (),
-    StreamEvent,
+    Vec<StreamEvent>,
     napi::Status,
     false,
     false,
@@ -1570,19 +1581,15 @@ impl StreamView {
     /// callback that cannot keep up. The receive path is never
     /// blocked by a slow callback, so the upstream connection
     /// stays healthy regardless of callback speed.
-    #[napi(js_name = "startStreaming")]
-    pub async fn start_streaming(
-        &self,
-        callback: napi::threadsafe_function::ThreadsafeFunction<
-            StreamEvent,
-            (),
-            StreamEvent,
-            napi::Status,
-            false,
-            false,
-            { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
-        >,
-    ) -> napi::Result<()> {
+    //
+    // The native function receives arrays of events; the `streaming-session.js`
+    // wrapper registers a loop that calls the user's callback once per event,
+    // which is the signature `ts_args_type` publishes.
+    #[napi(
+        js_name = "startStreaming",
+        ts_args_type = "callback: ((arg: StreamEvent) => void)"
+    )]
+    pub async fn start_streaming(&self, callback: TsfnCallback) -> napi::Result<()> {
         // Bind the callback behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
@@ -1622,7 +1629,6 @@ impl StreamView {
         // success.
         let mut reservation =
             crate::fpss_client::CallbackReservation::armed(&self.callback, &callback_arc);
-        let dispatch_cb = Arc::clone(&callback_arc);
         let callback_closing_expected = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let delivery_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
@@ -1651,56 +1657,15 @@ impl StreamView {
         // both `Send + 'static`, so the closure satisfies the
         // `spawn_blocking` bound.
         let client = Arc::clone(&self.stream);
-        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
-        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
-        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
+        let (handler, scope) = crate::fpss_client::batched_delivery(
+            &callback_arc,
+            &callback_closing_expected,
+            &delivery_failed,
+        );
         let join_result = tokio::task::spawn_blocking(move || {
-            client.stream().start_streaming_scoped(
-                move |event: &fpss::StreamEvent| {
-                    // Convert to the typed `StreamEvent` napi object on the
-                    // dispatcher thread, then hand the value
-                    // to `ThreadsafeFunction::call`. napi-rs' internal
-                    // `uv_async_t` queue routes the call onto the Node
-                    // main thread, which is the only thread allowed to
-                    // execute V8 (libuv invariant). The FPSS TLS reader
-                    // thread itself never touches V8: the streaming ring
-                    // sits between the reader and the consumer that runs
-                    // this closure.
-                    let buffered = fpss_event_to_buffered(event);
-                    let typed = buffered_event_to_typed(buffered);
-                    // `Blocking`, paired with the bounded
-                    // `STREAMING_CALLBACK_QUEUE_DEPTH` on `TsfnCallback`,
-                    // makes this consumer wait once the call queue is full
-                    // rather than parking an unbounded backlog of events
-                    // behind a slow JS callback. While the consumer waits it
-                    // stops draining the ring, so the ring fills and the FPSS
-                    // reader accounts the overflow on `droppedEventCount()`;
-                    // the reader itself is never blocked, so the upstream
-                    // connection stays healthy.
-                    //
-                    // `ErrorStrategy::Fatal` (the fifth `false` const generic
-                    // on `TsfnCallback`) means we pass `T` directly, not
-                    // `Result<T, _>`; exceptions in the JS callback are
-                    // the JS side's problem, surfaced through Node's own
-                    // `uncaughtException`.
-                    let status = dispatch_cb.call(
-                        typed,
-                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                    );
-                    crate::fpss_client::note_callback_delivery_status(
-                        status,
-                        &callback_closing_expected_for_dispatch,
-                        &delivery_failed_for_dispatch,
-                    );
-                },
-                move |drain| {
-                    crate::fpss_client::callback_delivery_outcome(
-                        drain(),
-                        &delivery_failed_for_scope,
-                    )
-                },
-                Some(teardown_hook),
-            )
+            client
+                .stream()
+                .start_streaming_scoped(handler, scope, Some(teardown_hook))
         })
         .await;
 
@@ -1834,7 +1799,6 @@ impl StreamView {
             }
         };
         crate::fpss_client::ensure_callback_open(&callback_arc)?;
-        let dispatch_cb = Arc::clone(&callback_arc);
         let callback_for_result = Arc::clone(&callback_arc);
         let callback_closing_expected = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let delivery_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1856,34 +1820,15 @@ impl StreamView {
         // handle stays in place; `reconnect_streaming` re-uses the same
         // `ThreadsafeFunction`, so there is no state shape change.
         let client = Arc::clone(&self.stream);
-        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
         let callback_closing_expected_for_result = Arc::clone(&callback_closing_expected);
-        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
-        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
+        let (handler, scope) = crate::fpss_client::batched_delivery(
+            &callback_arc,
+            &callback_closing_expected,
+            &delivery_failed,
+        );
         tokio::task::spawn_blocking(move || {
             let stream = client.stream();
-            let result = stream.reconnect_streaming_scoped(
-                move |event: &fpss::StreamEvent| {
-                    let buffered = fpss_event_to_buffered(event);
-                    let typed = buffered_event_to_typed(buffered);
-                    let status = dispatch_cb.call(
-                        typed,
-                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
-                    );
-                    crate::fpss_client::note_callback_delivery_status(
-                        status,
-                        &callback_closing_expected_for_dispatch,
-                        &delivery_failed_for_dispatch,
-                    );
-                },
-                move |drain| {
-                    crate::fpss_client::callback_delivery_outcome(
-                        drain(),
-                        &delivery_failed_for_scope,
-                    )
-                },
-                Some(teardown_hook),
-            );
+            let result = stream.reconnect_streaming_scoped(handler, scope, Some(teardown_hook));
             if callback_closing_expected_for_result.load(std::sync::atomic::Ordering::Acquire) {
                 stream.stop_streaming();
                 return Err(crate::fpss_client::aborted_callback_error());
@@ -2091,8 +2036,9 @@ mod callback_queue_tests {
             "an unbounded (zero) queue defeats the Blocking back-pressure"
         );
         assert_eq!(
-            alias_depth, 65_536,
-            "the queue depth must match its documented value (one default ring)"
+            alias_depth * STREAMING_CALLBACK_BATCH,
+            65_536,
+            "the queued arrays must hold at most the documented 65,536 events"
         );
     }
 }

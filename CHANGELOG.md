@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **TypeScript streaming callbacks keep up with a higher message rate.** The native side hands events to the Node main thread in arrays instead of waking it once per event, and the package still calls your `startStreaming` callback once per event, in order. On the offline callback benchmark (`thetadatadx-ts/benches/streaming_throughput.mjs`) a no-op callback goes from about 300k to about 460k events a second. If the callback throws, the error still reaches `uncaughtException` and the rest of the events are still delivered.
+
 ## [0.8.2] - 2026-11-02
 
 ### Changed

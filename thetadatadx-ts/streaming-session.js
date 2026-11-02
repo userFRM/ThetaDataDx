@@ -39,7 +39,7 @@
 'use strict';
 
 const native = require('./index.js');
-const { wrapStreamViewBatches } = require('./record_batch_forwarder.js');
+const { wrapStreamViewBatches, wrapStartStreaming } = require('./record_batch_forwarder.js');
 
 // ── Typed error hierarchy ─────────────────────────────────────────────
 //
@@ -737,6 +737,17 @@ if (native.StreamView && native.StreamView.prototype) {
       nativeBatches,
       RecordBatchStream,
     );
+  }
+}
+
+// The native `startStreaming` delivers events in arrays (see
+// `STREAMING_CALLBACK_BATCH` in `src/lib.rs`); the forwarder calls the
+// caller's callback once per event. Installed after the typed-error wrapping
+// above, so handshake errors still reclassify.
+for (const Klass of [native.StreamView, native.StreamingClient]) {
+  const nativeStart = Klass && Klass.prototype.startStreaming;
+  if (typeof nativeStart === 'function') {
+    Klass.prototype.startStreaming = wrapStartStreaming(nativeStart);
   }
 }
 

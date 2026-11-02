@@ -11,19 +11,19 @@
 // What is measured
 // ----------------
 // The bench-only `__benchFloodEvents(n, callback)` napi export pushes `n`
-// synthetic FPSS `Trade` events through the REAL `ThreadsafeFunction`
-// dispatch path — the same `TsfnCallback` type, the same bounded
-// 65_536-slot call queue, and the same per-event marshal
-// (`fpss_event_to_buffered` -> `buffered_event_to_typed`) the production
-// `startStreaming` dispatcher uses. The marshal + `tsfn.call(.., Blocking)`
-// run on a worker thread (off the libuv main thread), exactly as the live
-// dispatcher does; the napi `uv_async_t` queue routes each call onto the
-// Node main thread, which runs the JS `callback`.
+// synthetic FPSS `Trade` events through the REAL delivery path: the same
+// handler and drain scope the production `startStreaming` dispatcher runs,
+// so the same per-event marshal, the same arrays of up to
+// `STREAMING_CALLBACK_BATCH` events and the same bounded call queue. The
+// hand-over runs on a worker thread (off the libuv main thread), exactly as
+// the live dispatcher does; the napi `uv_async_t` queue routes each array
+// onto the Node main thread, where the package's own `forEachEvent`
+// forwarder calls the JS `callback` once per event.
 //
 // The user callback here is a no-op that only bumps a received counter, so
-// the number is the SDK boundary ceiling: per-event Rust->napi marshal +
-// threadsafe-function hop + V8 callback invocation, with the user doing
-// nothing. Real integrator code does strictly more per event, so this is
+// the number is the SDK boundary ceiling: Rust->napi marshal, the
+// threadsafe-function hops and one V8 callback invocation per event, with
+// the user doing nothing. Real integrator code does strictly more per event, so this is
 // an upper bound on the TypeScript streaming rate.
 //
 // Timing
@@ -31,7 +31,7 @@
 // `process.hrtime.bigint()` brackets the region from "flood started" to
 // "JS callback has fired exactly N times". The promise returned by
 // `__benchFloodEvents` resolves once all N events are QUEUED; the last
-// queue-depth events may still be draining, so we additionally await a
+// queued arrays may still be draining, so we additionally await a
 // `received === N` signal before stopping the clock. Module load, addon
 // init, and the synthetic-event construction inside Rust are NOT in the
 // timed region (construction is counted inside the same loop the Rust and
@@ -39,8 +39,7 @@
 //
 // Zero-drop verification (two independent checks)
 // -----------------------------------------------
-// 1. `__benchFloodEvents` returns the number of `tsfn.call` invocations
-//    that returned a non-Ok status (tsfn-boundary drops). Asserted === 0.
+// 1. `__benchFloodEvents` rejects if any hand-over failed.
 // 2. The JS callback received-count is asserted === N (receive-side check).
 //
 // The export is built only with the `bench` feature, so the published addon
@@ -53,6 +52,9 @@
 // Output is line-delimited then a final `JSON {...}` summary line.
 
 import os from 'node:os';
+import { createRequire } from 'node:module';
+
+const { forEachEvent } = createRequire(import.meta.url)('../record_batch_forwarder.js');
 
 let mod;
 try {
@@ -82,7 +84,7 @@ const WARMUP_SAMPLES = 3;
 const MEASURED_SAMPLES = 12;
 
 // Run one flood of EVENTS_PER_ITER events through the real tsfn path.
-// Returns { eventsPerSec, nsPerEvent, received, tsfnDrops }.
+// Returns { eventsPerSec, nsPerEvent, received }.
 async function runOneSample() {
   let received = 0;
   // Resolve once the JS side has been invoked exactly N times.
@@ -104,17 +106,16 @@ async function runOneSample() {
   const start = process.hrtime.bigint();
   // Kick off the flood. The export queues all N through the real bounded
   // tsfn on a worker thread; this promise resolves once all N are queued.
-  const floodDone = mod.__benchFloodEvents(EVENTS_PER_ITER, callback);
+  const floodDone = mod.__benchFloodEvents(EVENTS_PER_ITER, forEachEvent(callback));
   // Wait for BOTH: every event queued (floodDone) AND every JS callback
   // fired (allDelivered). The latter is the true end of delivery.
-  const [tsfnDropsRaw] = await Promise.all([floodDone, allDelivered]);
+  await Promise.all([floodDone, allDelivered]);
   const end = process.hrtime.bigint();
 
-  const tsfnDrops = Number(tsfnDropsRaw);
   const elapsedNs = Number(end - start);
   const eventsPerSec = EVENTS_PER_ITER / (elapsedNs / 1e9);
   const nsPerEvent = elapsedNs / EVENTS_PER_ITER;
-  return { eventsPerSec, nsPerEvent, received, tsfnDrops };
+  return { eventsPerSec, nsPerEvent, received };
 }
 
 function median(xs) {
@@ -128,9 +129,9 @@ async function main() {
   // napi queue. Discarded. Also fails loud on any drop during warmup.
   for (let i = 0; i < WARMUP_SAMPLES; i++) {
     const r = await runOneSample();
-    if (r.tsfnDrops !== 0 || r.received !== EVENTS_PER_ITER) {
+    if (r.received !== EVENTS_PER_ITER) {
       console.error(
-        `FATAL: warmup drop (tsfnDrops=${r.tsfnDrops}, received=${r.received} != ${EVENTS_PER_ITER}) — ceiling invalid`,
+        `FATAL: warmup drop (received=${r.received} != ${EVENTS_PER_ITER}) — ceiling invalid`,
       );
       process.exit(1);
     }
@@ -140,9 +141,9 @@ async function main() {
   const nsPerEvent = [];
   for (let i = 0; i < MEASURED_SAMPLES; i++) {
     const r = await runOneSample();
-    if (r.tsfnDrops !== 0 || r.received !== EVENTS_PER_ITER) {
+    if (r.received !== EVENTS_PER_ITER) {
       console.error(
-        `FATAL: sample ${i} drop (tsfnDrops=${r.tsfnDrops}, received=${r.received} != ${EVENTS_PER_ITER}) — ceiling invalid`,
+        `FATAL: sample ${i} drop (received=${r.received} != ${EVENTS_PER_ITER}) — ceiling invalid`,
       );
       process.exit(1);
     }
@@ -150,7 +151,7 @@ async function main() {
     nsPerEvent.push(r.nsPerEvent);
     console.log(
       `sample ${String(i).padStart(2)}: ${(r.eventsPerSec / 1e6).toFixed(3).padStart(8)} Melem/s   ` +
-        `${r.nsPerEvent.toFixed(2).padStart(8)} ns/event   received=${r.received} tsfnDrops=${r.tsfnDrops}`,
+        `${r.nsPerEvent.toFixed(2).padStart(8)} ns/event   received=${r.received}`,
     );
   }
 
@@ -161,7 +162,7 @@ async function main() {
 
   const summary = {
     bench: 'typescript_napi_tsfn_noop',
-    granularity: 'per_event_threadsafe_function_call',
+    granularity: 'event_arrays_per_threadsafe_function_call',
     events_per_iter: EVENTS_PER_ITER,
     warmup_samples: WARMUP_SAMPLES,
     measured_samples: MEASURED_SAMPLES,
