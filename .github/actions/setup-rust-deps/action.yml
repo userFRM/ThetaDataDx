@@ -6,6 +6,10 @@ inputs:
     description: Extra rustup components (comma-separated), e.g. "rustfmt,clippy"
     required: false
     default: ""
+  cache-key:
+    description: Extra cache key, for a job whose matrix entries build in different environments on the same runner OS
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -14,3 +18,5 @@ runs:
       with:
         components: ${{ inputs.components }}
     - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-key }}
