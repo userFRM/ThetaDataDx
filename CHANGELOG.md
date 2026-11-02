@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-02
+
 ### Changed
 
 - **Streaming decodes each message with less work.** The reader thread hashes contract ids with a faster hasher, looks each message's contract and delta baseline up once instead of two and three times, and reads the wall clock once per message instead of twice. Events, their order and their fields are unchanged; the reader keeps up with a higher message rate before the event ring fills.
@@ -589,7 +591,8 @@ The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `t
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.8.2...HEAD
+[0.8.2]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.2
 [0.8.1]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.1
 [0.8.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.8.0
 [0.7.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.7.0
