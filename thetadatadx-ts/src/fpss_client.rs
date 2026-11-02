@@ -23,7 +23,7 @@
 //! [`crate::Client`] when you need the market-data surface and Nexus
 //! session machinery side by side.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use thetadatadx::auth;
@@ -211,9 +211,14 @@ pub(crate) fn callback_delivery_outcome(
 /// events to `callback` in arrays of up to [`crate::STREAMING_CALLBACK_BATCH`].
 ///
 /// The handler converts each event to its typed napi object and hands the
-/// array over once a full batch has built up; the scope hands over the rest
-/// when a drain empties the ring, so no event waits for a later one. Each
-/// hand-over is a `Blocking` call: paired with the bounded
+/// array over once a full batch has built up. The scope hands over a partial
+/// array after a drain only while no earlier array is still waiting for the
+/// main thread: an idle main thread gets each event at once, and a busy one
+/// lets the events build up into full arrays (a held array goes out on the
+/// first drain after the main thread catches up), so the bounded queue holds
+/// about 65,536 events rather than filling with one-event arrays. A terminal
+/// drain hands over whatever is left. Each hand-over is a `Blocking` call:
+/// paired with the bounded
 /// [`crate::STREAMING_CALLBACK_QUEUE_DEPTH`], it makes the consumer wait once
 /// the call queue is full rather than parking an unbounded backlog behind a
 /// slow JS callback. While the consumer waits it stops draining the ring, so
@@ -230,15 +235,30 @@ pub(crate) fn batched_delivery(
     impl FnMut(&fpss::StreamEvent) + Send + 'static,
     impl FnMut(&mut dyn FnMut() -> fpss::PollOutcome) -> fpss::PollOutcome + Send + 'static,
 ) {
+    // Arrays handed over whose JS callback has not returned yet.
+    let in_flight = Arc::new(AtomicUsize::new(0));
     let deliver = {
         let callback = Arc::clone(callback);
         let closing_expected = Arc::clone(closing_expected);
         let delivery_failed = Arc::clone(delivery_failed);
+        let in_flight = Arc::clone(&in_flight);
         move |events: Vec<StreamEvent>| {
-            let status = callback.call(
+            in_flight.fetch_add(1, Ordering::AcqRel);
+            let delivered = Arc::clone(&in_flight);
+            let status = callback.call_with_return_value(
                 events,
                 napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                move |result, _env| {
+                    delivered.fetch_sub(1, Ordering::AcqRel);
+                    // An `Err` is a throw out of the JS forwarder; returning
+                    // it keeps Node's fatal-exception path.
+                    result
+                },
             );
+            if status != napi::Status::Ok {
+                // Never queued, so the completion above never runs.
+                in_flight.fetch_sub(1, Ordering::AcqRel);
+            }
             note_callback_delivery_status(status, &closing_expected, &delivery_failed);
         }
     };
@@ -260,9 +280,15 @@ pub(crate) fn batched_delivery(
     let delivery_failed = Arc::clone(delivery_failed);
     let scope = move |drain: &mut dyn FnMut() -> fpss::PollOutcome| {
         let outcome = drain();
-        let rest = std::mem::take(&mut *pending.lock().unwrap_or_else(|e| e.into_inner()));
-        if !rest.is_empty() {
-            deliver(rest);
+        let terminal = matches!(
+            outcome,
+            fpss::PollOutcome::Shutdown | fpss::PollOutcome::Failed
+        );
+        if terminal || in_flight.load(Ordering::Acquire) == 0 {
+            let rest = std::mem::take(&mut *pending.lock().unwrap_or_else(|e| e.into_inner()));
+            if !rest.is_empty() {
+                deliver(rest);
+            }
         }
         callback_delivery_outcome(outcome, &delivery_failed)
     };

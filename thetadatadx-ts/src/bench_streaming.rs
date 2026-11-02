@@ -7,8 +7,8 @@
 //! (`fpss_event_to_buffered` then `buffered_event_to_typed`), the same arrays
 //! of up to `STREAMING_CALLBACK_BATCH` events and the same bounded
 //! `TsfnCallback` queue. The only thing removed is the network: the events
-//! are synthesised in-process and handed over as one ring drain instead of
-//! being decoded off a TLS socket.
+//! are synthesised in-process and handed over as one ring drain, then the
+//! stream ends, instead of being decoded off a TLS socket.
 //!
 //! The hand-over runs on a `spawn_blocking` worker (OFF the libuv main
 //! thread), exactly as the live dispatcher does, so the main thread stays free
@@ -74,12 +74,14 @@ pub async fn __bench_flood_events(n: u32, callback: TsfnCallback) -> napi::Resul
         // Allocate the contract once; clone the Arc per event (refcount
         // bump only), same as the streaming contract cache hands out.
         let contract = Arc::new(Contract::stock("SPY"));
-        let outcome = scope(&mut || {
+        scope(&mut || {
             for i in 0..u64::from(n) {
                 handler(&make_event(&contract, i));
             }
             fpss::PollOutcome::Drained(n as usize)
         });
+        // End the stream so the last partial array is handed over.
+        let outcome = scope(&mut || fpss::PollOutcome::Shutdown);
         matches!(outcome, fpss::PollOutcome::Failed)
     })
     .await

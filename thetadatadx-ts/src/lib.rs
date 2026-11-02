@@ -992,9 +992,11 @@ pub(crate) const STREAMING_CALLBACK_BATCH: usize = 1_024;
 /// `droppedEventCount()`, the same observable back-pressure the bindings
 /// that run the callback directly on the consumer thread already have.
 ///
-/// The queued arrays hold at most half the default ring size in events, so a
-/// healthy callback has ample headroom before the consumer ever waits, while
-/// a wedged callback can pin at most 65,536 in-flight events.
+/// The consumer hands over a partial array only while the queue is empty
+/// (see `batched_delivery`), so every queued array but the oldest is full and
+/// the queue holds about half the default ring size in events: a healthy
+/// callback has ample headroom before the consumer ever waits, while a wedged
+/// callback can pin at most about 65,536 in-flight events.
 pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536 / STREAMING_CALLBACK_BATCH;
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
