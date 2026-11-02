@@ -118,8 +118,8 @@ fn reconnect_drop_for_decoded_event(event: &FpssEventInternal) -> Option<Session
 /// registry stays bounded: a `REQ_RESPONSE` the server suppresses, or one that
 /// echoes the uncorrelated `-1` sentinel a matching `remove` can never key on,
 /// would otherwise leave its entry resident for the life of a session that
-/// never reconnects. Stale entries are swept on insert (see
-/// [`PENDING_SUB_TTL`]).
+/// never reconnects. Stale entries are swept on insert whenever the map
+/// reaches a power of two in size (see [`PENDING_SUB_TTL`]).
 type PendingSubs = Arc<Mutex<HashMap<i32, PendingSubEntry>>>;
 
 /// A pending subscribe correlation plus the instant it was recorded.
@@ -239,7 +239,13 @@ where
         kind,
         key.clone(),
     );
-    evict_stale_pending(&mut pending);
+    // Sweeping on every insert made a bulk subscribe quadratic in the number
+    // of unanswered subscribes; sweeping each time the map reaches a power of
+    // two keeps the total linear, and the map still cannot grow past the next
+    // power of two without a sweep.
+    if pending.len().is_power_of_two() {
+        evict_stale_pending(&mut pending);
+    }
     pending.insert(
         req_id,
         PendingSubEntry {
