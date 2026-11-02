@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Streaming decodes each message with less work.** The reader thread hashes contract ids with a faster hasher, looks each message's contract and delta baseline up once instead of two and three times, and reads the wall clock once per message instead of twice. Events, their order and their fields are unchanged; the reader keeps up with a higher message rate before the event ring fills.
+
 ## [0.8.1] - 2026-10-31
 
 0.8.0 was not published to npm. 0.8.1 carries the same changes, so on npm `thetadatadx-ts` and `thetadatadx-mcp-server` go from 0.7.0 to 0.8.1; read the 0.8.0 entry below before upgrading them.

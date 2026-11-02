@@ -41,6 +41,7 @@ use std::time::{Duration, Instant};
 use disruptor::{
     EventPoller, RingBufferFull, Sequence, SingleProducerBarrier, build_single_producer,
 };
+use rustc_hash::FxHashMap;
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
@@ -856,7 +857,7 @@ where
     // Mutex locks. Downstream consumers that still want an id->contract
     // map build it from the `ContractAssigned` event stream — the SDK no
     // longer holds wire-internal `contract_id` state.
-    let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
 
     // Reusable frame payload buffer.
     let mut frame_buf: Vec<u8> = Vec::with_capacity(framing::MAX_PAYLOAD_LEN);
@@ -994,7 +995,10 @@ where
                     }
                     Ok(FrameRead::Frame(code, payload_len)) => {
                         last_frame_at = Instant::now();
-                        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
+                        // One wall-clock read per frame: the staleness clock
+                        // and the event's `received_at_ns`.
+                        let received_at_ns = unix_nanos_now();
+                        last_event_at_ns.store(received_at_ns, Ordering::Relaxed);
                         // Anchor the stable-window clock on the FIRST frame
                         // of this session (idempotent thereafter). The
                         // per-class retry budget must NOT reset on every
@@ -1011,6 +1015,7 @@ where
                         let primary = decode_frame(
                             code,
                             &frame_buf[..payload_len],
+                            received_at_ns.cast_unsigned(),
                             &authenticated,
                             &mut local_contracts,
                             &shutdown,
@@ -2039,14 +2044,32 @@ pub(crate) fn build_poller_producer(
 }
 
 /// Current wall-clock time as UNIX nanoseconds, clamped into `i64`.
-/// Feeds the shared `last_event_at_ns` staleness clock (`0` = never).
+/// Feeds the shared `last_event_at_ns` staleness clock (`0` = never) and
+/// every event's `received_at_ns`.
+///
+/// On clock skew (`SystemTime::now()` before UNIX_EPOCH, possible on a
+/// misconfigured host or a virtualised guest with a buggy paravirtual
+/// clock) this returns `0` and emits a rate-limited warning, so consumers
+/// can tell the skew sentinel from a genuine epoch-zero timestamp.
 fn unix_nanos_now() -> i64 {
-    i64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos()),
-    )
-    .unwrap_or(i64::MAX)
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => i64::try_from(d.as_nanos()).unwrap_or(i64::MAX),
+        Err(e) => {
+            static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
+            let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
+            // Rate-limit at 1024 to match the panic-count warn cadence.
+            if prev.is_multiple_of(1024) {
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    failure_count = prev + 1,
+                    error = %e,
+                    "SystemTime::now() returned a time before UNIX_EPOCH; \
+                     timestamps fall back to 0 -- check host clock configuration",
+                );
+            }
+            0
+        }
+    }
 }
 
 /// Sleep for `delay`, waking within ~100 ms of `shutdown` being

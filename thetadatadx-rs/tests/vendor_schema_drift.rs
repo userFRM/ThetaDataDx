@@ -11,11 +11,11 @@
 //! - An unbroken run of unknown opcodes is skipped in full with no
 //!   ceiling, matching the terminal, which imposes no reject limit.
 
-use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use rustc_hash::FxHashMap;
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
@@ -55,7 +55,7 @@ fn single_unknown_opcode_skipped_without_desync() {
     let mut cursor = Cursor::new(bytes);
     let authenticated = AtomicBool::new(true);
     let shutdown = AtomicBool::new(false);
-    let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
+    let mut local: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
     let mut delta = DeltaState::new();
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
     let mut events: Vec<StreamEvent> = Vec::new();
@@ -66,6 +66,7 @@ fn single_unknown_opcode_skipped_without_desync() {
                 let p = decode_frame(
                     code,
                     &buf[..n],
+                    0,
                     &authenticated,
                     &mut local,
                     &shutdown,

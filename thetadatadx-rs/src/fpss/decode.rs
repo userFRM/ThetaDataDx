@@ -6,7 +6,6 @@
 //! (code 24) and decode alongside the other events; the decoder emits
 //! no derived events (for example, no trade-to-OHLCVC).
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
 use std::time::Instant;
@@ -15,6 +14,7 @@ use crate::tdbe::types::enums::StreamMsgType;
 use crate::tdbe::types::price::Price;
 use metrics::Counter;
 use rand::RngExt;
+use rustc_hash::FxHashMap;
 
 use super::delta::{
     Baseline, DeltaState, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS, TickFields,
@@ -263,6 +263,9 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
 /// This is the frame dispatch logic of the reader thread. Tick data frames
 /// (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and delta-decompressed
 /// before being emitted as typed events.
+///
+/// `received_at_ns` is the reader's wall-clock read for this frame, stamped
+/// on every data event it emits.
 // Reason: FPSS wire protocol uses fixed integer widths; frame decode is inherently large.
 #[allow(
     clippy::cast_possible_truncation,
@@ -274,78 +277,44 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
 pub fn decode_frame(
     code: StreamMsgType,
     payload: &[u8],
+    received_at_ns: u64,
     authenticated: &AtomicBool,
-    local_contracts: &mut HashMap<i32, Arc<Contract>>,
+    local_contracts: &mut FxHashMap<i32, Arc<Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
 ) -> Option<FpssEventInternal> {
-    // Capture wall-clock timestamp once per frame for all data variants.
+    // Resolve contract_id via the thread-local cache, one lookup per tick.
+    // Hit: Arc::clone (zero-alloc refcount bump). Miss: per-tick
+    // unresolved-sentinel (`__pending:<id>`); downstream consumers detect via
+    // `sec_type == SecType::Unknown`. Misses are bounded by the brief window
+    // between first tick and the matching `ContractAssigned`.
     //
-    // On clock skew (`SystemTime::now()` before UNIX_EPOCH — possible on
-    // a misconfigured host or virtualised guest with a buggy paravirtual
-    // clock) we surface `received_at_ns = 0` and emit a rate-limited
-    // warning. Consumers distinguishing a genuine epoch-zero timestamp
-    // from the skew sentinel must cross-check the warn log.
-    let received_at_ns = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        // u128 → u64 saturates past 2554-07-21T23:34:33Z (when ns since
-        // UNIX_EPOCH first exceeds 2^64). `as u64` would wrap to a
-        // misleading early-1970 timestamp; `try_from` + `unwrap_or` clamps
-        // to the schema sentinel without panicking on the boundary.
-        Ok(d) => u64::try_from(d.as_nanos()).unwrap_or(u64::MAX),
-        Err(e) => {
-            static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
-            let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
-            // Rate-limit at 1024 to match the panic-count warn cadence.
+    // A miss outside the post-STOP suppression window warns, rate-limited at
+    // every 1024th hit (matches the slow-callback / clock-skew warn cadence).
+    // MISS_COUNT is process-global so the "1 of every 1024" rate aggregates
+    // across every StreamingClient in the same process.
+    let resolve_contract = |contract_id: i32,
+                            kind: &str,
+                            delta_state: &DeltaState,
+                            cache: &FxHashMap<i32, Arc<Contract>>|
+     -> Arc<Contract> {
+        if let Some(contract) = cache.get(&contract_id) {
+            return Arc::clone(contract);
+        }
+        if !delta_state.is_in_stop_suppression_window() {
+            static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
+            let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
             if prev.is_multiple_of(1024) {
                 tracing::warn!(
-                    target: "thetadatadx::fpss::decode",
-                    failure_count = prev + 1,
-                    error = %e,
-                    "SystemTime::now() returned a time before UNIX_EPOCH; \
-                     received_at_ns will fall back to 0 for this frame -- \
-                     check host clock configuration",
+                    contract_id,
+                    kind,
+                    miss_count = prev + 1,
+                    "no contract for ID (1 of every 1024 emitted across all streaming clients in this process)"
                 );
             }
-            0
         }
+        unresolved_sentinel(contract_id)
     };
-
-    // Resolve contract_id via the thread-local cache. Hit: Arc::clone
-    // (zero-alloc refcount bump). Miss: per-tick unresolved-sentinel
-    // (`__pending:<id>`); downstream consumers detect via
-    // `sec_type == SecType::Unknown`. Misses are bounded by the brief
-    // window between first tick and the matching `ContractAssigned`.
-    let resolve_contract =
-        |contract_id: i32, cache: &HashMap<i32, Arc<Contract>>| -> Arc<Contract> {
-            cache
-                .get(&contract_id)
-                .map(Arc::clone)
-                .unwrap_or_else(|| unresolved_sentinel(contract_id))
-        };
-
-    // Warn on contract-id misses outside the post-STOP suppression
-    // window, rate-limited at every 1024th hit (matches the slow-
-    // callback / clock-skew warn cadence). MISS_COUNT is process-
-    // global so the "1 of every 1024" rate aggregates across every
-    // StreamingClient in the same process.
-    let warn_unknown_contract =
-        |contract_id: i32,
-         kind: &str,
-         delta_state: &DeltaState,
-         cache: &HashMap<i32, Arc<Contract>>| {
-            if !cache.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
-                static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
-                let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
-                if prev.is_multiple_of(1024) {
-                    tracing::warn!(
-                        contract_id,
-                        kind,
-                        miss_count = prev + 1,
-                        "no contract for ID (1 of every 1024 emitted across all streaming clients in this process)"
-                    );
-                }
-            }
-        };
 
     // Stack-allocated tick buffer reused across every FIT-decoded arm. The
     // decoder writes the absolute field values directly here; the match arm
@@ -410,7 +379,8 @@ pub fn decode_frame(
                 &mut buf,
             ) {
                 Some(contract_id) => {
-                    warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
+                    let contract =
+                        resolve_contract(contract_id, "quote", delta_state, local_contracts);
                     let pt = buf[9];
                     let (Some(bid_f64), Some(ask_f64)) =
                         (strict_fpss_price(buf[3], pt), strict_fpss_price(buf[7], pt))
@@ -422,7 +392,7 @@ pub fn decode_frame(
                     };
                     FPSS_QUOTE_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::Quote {
-                        contract: resolve_contract(contract_id, local_contracts),
+                        contract,
                         ms_of_day: buf[0],
                         bid_size: buf[1],
                         bid_exchange: buf[2],
@@ -459,7 +429,8 @@ pub fn decode_frame(
                 &mut buf,
             ) {
                 Some(contract_id) => {
-                    warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
+                    let contract =
+                        resolve_contract(contract_id, "trade", delta_state, local_contracts);
 
                     // `decode_tick` rejects any row whose width is not exactly
                     // TRADE_FIELDS (the only stream-trade layout; the 16-field
@@ -477,9 +448,8 @@ pub fn decode_frame(
                     };
                     FPSS_TRADE_EVENTS.increment(1);
 
-                    let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = FpssEventInternal::Data(StreamData::Trade {
-                        contract: contract_arc,
+                        contract,
                         ms_of_day: buf[0],
                         sequence: buf[1],
                         condition: buf[3],
@@ -510,7 +480,7 @@ pub fn decode_frame(
                 &mut buf,
             ) {
                 Some(contract_id) => {
-                    warn_unknown_contract(
+                    let contract = resolve_contract(
                         contract_id,
                         "open_interest",
                         delta_state,
@@ -518,7 +488,7 @@ pub fn decode_frame(
                     );
                     FPSS_OI_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::OpenInterest {
-                        contract: resolve_contract(contract_id, local_contracts),
+                        contract,
                         ms_of_day: buf[0],
                         open_interest: buf[1],
                         date: buf[2],
@@ -543,7 +513,8 @@ pub fn decode_frame(
                 &mut buf,
             ) {
                 Some(contract_id) => {
-                    warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
+                    let contract =
+                        resolve_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     let pt = buf[7];
                     let (Some(o), Some(h), Some(l), Some(c)) = (
                         strict_fpss_price(buf[1], pt),
@@ -565,7 +536,7 @@ pub fn decode_frame(
                     let volume = i64::from(buf[5] as u32);
                     let count = i64::from(buf[6] as u32);
                     Some(FpssEventInternal::Data(StreamData::Ohlcvc {
-                        contract: resolve_contract(contract_id, local_contracts),
+                        contract,
                         ms_of_day: buf[0],
                         open: o,
                         high: h,
@@ -615,7 +586,7 @@ pub fn decode_frame(
                     // date. There is no bid, no ask, and so no midpoint
                     // between them. The market value served is the gateway's
                     // indicative figure, see `gateway_index_market_value`.
-                    warn_unknown_contract(
+                    let contract = resolve_contract(
                         contract_id,
                         "index_market_value",
                         delta_state,
@@ -632,7 +603,7 @@ pub fn decode_frame(
                     };
                     FPSS_MARKET_VALUE_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::IndexMarketValue {
-                        contract: resolve_contract(contract_id, local_contracts),
+                        contract,
                         ms_of_day: buf[0],
                         market_price,
                         date: buf[7],
@@ -640,12 +611,8 @@ pub fn decode_frame(
                     }))
                 }
                 Some((contract_id, _)) => {
-                    warn_unknown_contract(
-                        contract_id,
-                        "market_value",
-                        delta_state,
-                        local_contracts,
-                    );
+                    let contract =
+                        resolve_contract(contract_id, "market_value", delta_state, local_contracts);
                     let pt = buf[9];
                     // Compute market value on the raw integer bid/ask/sizes,
                     // keeping wire scale, then reassemble to dollars at the
@@ -665,7 +632,7 @@ pub fn decode_frame(
                     };
                     FPSS_MARKET_VALUE_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::MarketValue {
-                        contract: resolve_contract(contract_id, local_contracts),
+                        contract,
                         ms_of_day: buf[0],
                         market_bid,
                         market_ask,
@@ -920,7 +887,7 @@ mod tests {
             20250428, // date
         ]);
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let aapl: Arc<Contract> = Arc::new(Contract::stock("AAPL"));
         local_contracts.insert(100, Arc::clone(&aapl));
 
@@ -930,6 +897,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -987,7 +955,7 @@ mod tests {
             34200000, 12345, 50, 6, 5500000, 57, 6, 20250428, 1, 2,
         ]);
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(300, Arc::new(Contract::stock("AAPL")));
 
         let authenticated = AtomicBool::new(true);
@@ -996,6 +964,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1018,7 +987,7 @@ mod tests {
         // 9 data fields (+ contract_id = 10 FIT fields); QUOTE_FIELDS is 11.
         let fit_payload = encode_fit_row(&[400, 34200000, 10, 5, 15025, 0, 20, 6, 15030, 0]);
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(400, Arc::new(Contract::stock("AAPL")));
 
         let authenticated = AtomicBool::new(true);
@@ -1027,6 +996,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1047,7 +1017,7 @@ mod tests {
         // 7 data fields (+ contract_id = 8 FIT fields); OHLCVC_FIELDS is 9.
         let fit_payload = encode_fit_row(&[500, 34200000, 15000, 15100, 14900, 15050, 1000, 6]);
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(500, Arc::new(Contract::stock("AAPL")));
 
         let authenticated = AtomicBool::new(true);
@@ -1056,6 +1026,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Ohlcvc,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1074,13 +1045,14 @@ mod tests {
     // -----------------------------------------------------------------------
 
     fn decode_ctrl(code: StreamMsgType, payload: &[u8]) -> FpssEventInternal {
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
         let primary = decode_frame(
             code,
             payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1157,7 +1129,7 @@ mod tests {
     #[test]
     fn decode_code_31_restart_emits_typed_variant_and_clears_delta_state() {
         // Seed delta state so we can verify it was cleared.
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(42, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1168,6 +1140,7 @@ mod tests {
         let seed = decode_frame(
             StreamMsgType::Trade,
             &seed_row,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1183,6 +1156,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Restart,
             &[],
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1232,7 +1206,7 @@ mod tests {
             ])
         };
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(cid, Arc::new(Contract::stock("SPY")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1250,6 +1224,7 @@ mod tests {
         let p0 = decode_frame(
             StreamMsgType::Trade,
             &abs_row(baseline_price),
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1262,6 +1237,7 @@ mod tests {
         let rc = decode_frame(
             StreamMsgType::Reconnected,
             &[],
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1280,6 +1256,7 @@ mod tests {
         let p1 = decode_frame(
             StreamMsgType::Trade,
             &abs_row(fresh_price),
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1320,7 +1297,7 @@ mod tests {
         payload.extend_from_slice(&777i32.to_be_bytes());
         payload.extend_from_slice(&expected_contract.to_bytes());
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
@@ -1328,6 +1305,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Contract,
             &payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1390,6 +1368,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1420,7 +1399,7 @@ mod tests {
 
     #[test]
     fn quote_for_unknown_contract_id_uses_empty_contract_sentinel() {
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
@@ -1455,6 +1434,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1516,7 +1496,7 @@ mod tests {
     fn restart_clears_local_contracts() {
         use crate::fpss::protocol::Contract as ProtoContract;
 
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
@@ -1528,6 +1508,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Restart,
             &[],
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1572,6 +1553,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1603,7 +1585,7 @@ mod tests {
         let fit_payload = encode_fit_row(&[
             300, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 20, 20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(300, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1611,6 +1593,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1632,7 +1615,7 @@ mod tests {
         let fit_payload = encode_fit_row(&[
             400, 34_200_000, 12_345, 50, 6, 5_500_000, 57, 21, 20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(400, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1640,6 +1623,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1661,7 +1645,7 @@ mod tests {
         let fit_payload = encode_fit_row(&[
             600, 34_200_000, 15_025, 15_100, 14_950, 15_080, 1_000, 10, -1, 20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(600, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1669,6 +1653,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Ohlcvc,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1707,7 +1692,7 @@ mod tests {
             8,
             20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(600, Arc::new(Contract::stock("QQQ")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1715,6 +1700,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Ohlcvc,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1877,12 +1863,13 @@ mod tests {
         let shutdown = AtomicBool::new(false);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..200 {
-            let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+            let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
             local_contracts.insert(200, Arc::new(Contract::index("SPX")));
             let mut delta_state = DeltaState::new();
             let evt = decode_frame(
                 StreamMsgType::MarketValue,
                 &fit_payload,
+                0,
                 &authenticated,
                 &mut local_contracts,
                 &shutdown,
@@ -1941,7 +1928,7 @@ mod tests {
             8,          // price_type
             20_250_428, // date
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(100, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1949,6 +1936,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::MarketValue,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -1985,7 +1973,7 @@ mod tests {
         let fit_payload = encode_fit_row(&[
             300, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 20, 20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(300, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -1993,6 +1981,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::MarketValue,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
@@ -2009,7 +1998,7 @@ mod tests {
         let fit_payload = encode_fit_row(&[
             700, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 8, 20_250_428,
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let mut local_contracts: FxHashMap<i32, Arc<Contract>> = FxHashMap::default();
         local_contracts.insert(700, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
@@ -2017,6 +2006,7 @@ mod tests {
         let primary = decode_frame(
             StreamMsgType::Quote,
             &fit_payload,
+            0,
             &authenticated,
             &mut local_contracts,
             &shutdown,
