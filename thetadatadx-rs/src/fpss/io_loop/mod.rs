@@ -29,6 +29,7 @@ pub(in crate::fpss) use login::{LoginResult, wait_for_login};
 pub(in crate::fpss) use ping::ping_loop;
 
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::io::BufReader;
 use std::io::ErrorKind;
 use std::io::Write;
@@ -41,6 +42,7 @@ use std::time::{Duration, Instant};
 use disruptor::{
     EventPoller, RingBufferFull, Sequence, SingleProducerBarrier, build_single_producer,
 };
+use indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
@@ -65,17 +67,22 @@ use super::ring::{
     self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
 };
 
-/// Reference-counted per-contract tracked set. Each entry is
-/// `(kind, contract, count, generation)`: the `u32` counts the subscribes
+/// Reference-counted tracked set, keyed by `(kind, key)` and kept in subscribe
+/// order. Each value is `(count, generation)`: the `u32` counts the subscribes
 /// (in-flight or live) that reference the identity, so a rollback of one unsent
 /// subscribe can never remove an entry another concurrent subscribe put on the
 /// wire; the `u64` is a fresh monotonic generation stamped whenever the entry is
 /// created (count 0 -> 1), so an unsubscribe + re-subscribe of the same identity
 /// yields a distinguishable new instance the reconnect replay can detect. The
 /// entry is present iff its count is at least one; `active_subscriptions()`
-/// reports it once regardless of count.
-pub(in crate::fpss) type ActiveSubs =
-    Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract, u32, u64)>>>;
+/// reports it once regardless of count. Keyed so a subscribe finds its entry
+/// in constant time: a linear scan made a bulk subscribe over a whole option
+/// chain quadratic.
+pub(in crate::fpss) type TrackedSet<T> =
+    IndexMap<(super::protocol::SubscriptionKind, T), (u32, u64)>;
+
+/// The per-contract [`TrackedSet`].
+pub(in crate::fpss) type ActiveSubs = Arc<Mutex<TrackedSet<Contract>>>;
 
 /// Source of the per-identity instance generation stamped by [`inc_active`] when
 /// it creates an entry. A strictly increasing global counter guarantees a fresh
@@ -169,18 +176,9 @@ pub(in crate::fpss) fn evict_pending_for_identity(
 ) {
     map.retain(|_, entry| &entry.sub != identity);
 }
-/// Reference-counted full-stream tracked set; each entry is
-/// `(kind, sec_type, count, generation)`, mirroring [`ActiveSubs`].
-pub(in crate::fpss) type ActiveFullSubs = Arc<
-    Mutex<
-        Vec<(
-            super::protocol::SubscriptionKind,
-            crate::tdbe::types::enums::SecType,
-            u32,
-            u64,
-        )>,
-    >,
->;
+/// The full-stream [`TrackedSet`], keyed by `(kind, sec_type)`.
+pub(in crate::fpss) type ActiveFullSubs =
+    Arc<Mutex<TrackedSet<crate::tdbe::types::enums::SecType>>>;
 
 /// Add one reference to the tracked entry for `(kind, key)`, creating it at a
 /// single reference — and a fresh instance generation — when absent. Every
@@ -188,16 +186,14 @@ pub(in crate::fpss) type ActiveFullSubs = Arc<
 /// reference, so a concurrent rollback of one unsent subscribe cannot drop an
 /// entry another subscribe put on the wire. A create after a drop-to-zero stamps
 /// a new generation, marking it a distinct subscription instance.
-pub(in crate::fpss) fn inc_active<T: PartialEq>(
-    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32, u64)>,
+pub(in crate::fpss) fn inc_active<T: Hash + Eq>(
+    subs: &mut TrackedSet<T>,
     kind: super::protocol::SubscriptionKind,
     key: T,
 ) {
-    if let Some(entry) = subs.iter_mut().find(|(k, x, _, _)| *k == kind && *x == key) {
-        entry.2 += 1;
-    } else {
-        subs.push((kind, key, 1, next_active_gen()));
-    }
+    subs.entry((kind, key))
+        .and_modify(|(refs, _)| *refs += 1)
+        .or_insert_with(|| (1, next_active_gen()));
 }
 
 /// Register an in-flight subscribe and enqueue its wire frame as one atomic
@@ -218,7 +214,7 @@ pub(in crate::fpss) fn inc_active<T: PartialEq>(
 /// tracked-set mutex then the command sender, and no path takes them in reverse.
 pub(in crate::fpss) fn track_inflight_subscribe<T, F>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
+    active: &Mutex<TrackedSet<T>>,
     kind: super::protocol::SubscriptionKind,
     key: T,
     req_id: i32,
@@ -226,7 +222,7 @@ pub(in crate::fpss) fn track_inflight_subscribe<T, F>(
     send: F,
 ) -> Result<(), crate::error::Error>
 where
-    T: PartialEq + Clone,
+    T: Hash + Eq + Clone,
     F: FnOnce() -> Result<(), crate::error::Error>,
 {
     let mut pending = pending_subs
@@ -286,14 +282,14 @@ where
 /// nested inside `pending_subs`, matching every other identity mutation.
 pub(in crate::fpss) fn send_then_untrack_on_unsubscribe<T, F>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
+    active: &Mutex<TrackedSet<T>>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
     identity: &super::protocol::PendingSub,
     send: F,
 ) -> Result<(), crate::error::Error>
 where
-    T: PartialEq,
+    T: Hash + Eq + Clone,
     F: FnOnce() -> Result<(), crate::error::Error>,
 {
     let mut pending = pending_subs
@@ -304,7 +300,7 @@ where
     active
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .retain(|(k, x, _, _)| !(*k == kind && x == key));
+        .shift_remove(&(kind, key.clone()));
     evict_pending_for_identity(&mut pending, identity);
     Ok(())
 }
@@ -329,9 +325,9 @@ where
 /// and the unsubscribe's own queued frame nets out the just-written subscribe on
 /// the wire. The tracked-set mutex is nested inside `pending_subs`, matching
 /// every other identity mutation.
-fn track_replay_correlation_if_tracked<T: PartialEq>(
+fn track_replay_correlation_if_tracked<T: Hash + Eq + Clone>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
+    active: &Mutex<TrackedSet<T>>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
     snapshot_gen: u64,
@@ -344,8 +340,8 @@ fn track_replay_correlation_if_tracked<T: PartialEq>(
     let same_instance = active
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .iter()
-        .any(|(k, x, _, generation)| *k == kind && x == key && *generation == snapshot_gen);
+        .get(&(kind, key.clone()))
+        .is_some_and(|&(_, generation)| generation == snapshot_gen);
     if same_instance {
         pending.insert(
             req_id,
@@ -359,15 +355,16 @@ fn track_replay_correlation_if_tracked<T: PartialEq>(
 
 /// Drop one reference from the tracked entry for `(kind, key)`, removing the
 /// entry only once its last reference is gone.
-pub(in crate::fpss) fn dec_active<T: PartialEq>(
-    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32, u64)>,
+pub(in crate::fpss) fn dec_active<T: Hash + Eq + Clone>(
+    subs: &mut TrackedSet<T>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
 ) {
-    if let Some(pos) = subs.iter().position(|(k, x, _, _)| *k == kind && x == key) {
-        subs[pos].2 -= 1;
-        if subs[pos].2 == 0 {
-            subs.remove(pos);
+    let id = (kind, key.clone());
+    if let Some((refs, _)) = subs.get_mut(&id) {
+        *refs -= 1;
+        if *refs == 0 {
+            subs.shift_remove(&id);
         }
     }
 }
@@ -1749,8 +1746,8 @@ where
                 let mut subs = active_subs
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                for entry in subs.iter_mut() {
-                    entry.2 = 1;
+                for (refs, _) in subs.values_mut() {
+                    *refs = 1;
                 }
                 subs.clone()
             };
@@ -1758,8 +1755,8 @@ where
                 let mut full = active_full_subs
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                for entry in full.iter_mut() {
-                    entry.2 = 1;
+                for (refs, _) in full.values_mut() {
+                    *refs = 1;
                 }
                 full.clone()
             };
@@ -1788,7 +1785,7 @@ where
 
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
-        for (kind, contract, _refs, snapshot_gen) in &subs_snapshot {
+        for ((kind, contract), (_refs, snapshot_gen)) in &subs_snapshot {
             // Allocate a fresh req_id per re-subscribe so the server's
             // `ReqResponse` events on the reconnected session carry
             // correlatable ids — `-1` is indistinguishable from a
@@ -1836,7 +1833,7 @@ where
                 break 'session;
             }
         }
-        for (kind, sec_type, _refs, snapshot_gen) in &full_subs_snapshot {
+        for ((kind, sec_type), (_refs, snapshot_gen)) in &full_subs_snapshot {
             let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
             let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
@@ -3569,11 +3566,11 @@ mod tests {
         let rejected = Contract::stock("AAAA");
         let accepted = Contract::stock("BBBB");
 
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
-            (SubscriptionKind::Trade, rejected.clone(), 1, 1),
-            (SubscriptionKind::Trade, accepted.clone(), 1, 1),
-        ]));
-        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(IndexMap::from([
+            ((SubscriptionKind::Trade, rejected.clone()), (1, 1)),
+            ((SubscriptionKind::Trade, accepted.clone()), (1, 1)),
+        ])));
+        let active_full_subs: ActiveFullSubs = Arc::default();
 
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
@@ -3610,11 +3607,11 @@ mod tests {
 
         let tracked = active_subs.lock().unwrap().clone();
         assert!(
-            !tracked.iter().any(|(_, c, _, _)| *c == rejected),
+            !tracked.keys().any(|(_, c)| *c == rejected),
             "a rejected subscription must be removed from active_subs"
         );
         assert!(
-            tracked.iter().any(|(_, c, _, _)| *c == accepted),
+            tracked.keys().any(|(_, c)| *c == accepted),
             "an accepted subscription must remain tracked"
         );
 
@@ -3622,7 +3619,7 @@ mod tests {
         // is therefore not in the replay set and will not be re-attempted.
         let replay_snapshot = active_subs.lock().unwrap().clone();
         assert!(
-            !replay_snapshot.iter().any(|(_, c, _, _)| *c == rejected),
+            !replay_snapshot.keys().any(|(_, c)| *c == rejected),
             "rejected subscription must not appear in the reconnect replay set"
         );
 
@@ -3642,13 +3639,11 @@ mod tests {
         use std::collections::HashMap;
 
         let contract = Contract::stock("CCCC");
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
-            SubscriptionKind::Trade,
-            contract.clone(),
-            1,
-            1,
-        )]));
-        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(IndexMap::from([(
+            (SubscriptionKind::Trade, contract.clone()),
+            (1, 1),
+        )])));
+        let active_full_subs: ActiveFullSubs = Arc::default();
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
 
         apply_req_response(
@@ -3674,13 +3669,11 @@ mod tests {
         use crate::tdbe::types::enums::SecType;
         use std::collections::HashMap;
 
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(vec![(
-            SubscriptionKind::Trade,
-            SecType::Option,
-            1,
-            1,
-        )]));
+        let active_subs: ActiveSubs = Arc::default();
+        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(IndexMap::from([(
+            (SubscriptionKind::Trade, SecType::Option),
+            (1, 1),
+        )])));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
             7,
@@ -3723,7 +3716,7 @@ mod tests {
         use std::collections::HashMap;
 
         let contract = Contract::stock("AAPL");
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: ActiveSubs = Arc::default();
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
 
         track_inflight_subscribe(
@@ -3739,7 +3732,7 @@ mod tests {
         {
             let subs = active_subs.lock().unwrap();
             assert_eq!(subs.len(), 1, "one tracked entry");
-            assert_eq!(subs[0].2, 1, "at one reference");
+            assert_eq!(subs[0].0, 1, "at one reference");
         }
         assert!(
             pending_subs.lock().unwrap().contains_key(&1),
@@ -3760,7 +3753,7 @@ mod tests {
         {
             let subs = active_subs.lock().unwrap();
             assert_eq!(subs.len(), 1, "still one entry after a duplicate");
-            assert_eq!(subs[0].2, 2, "duplicate adds a second reference");
+            assert_eq!(subs[0].0, 2, "duplicate adds a second reference");
         }
         assert_eq!(
             pending_subs.lock().unwrap().len(),
@@ -3787,7 +3780,7 @@ mod tests {
         .expect_err("send fails");
         {
             let subs = active_subs.lock().unwrap();
-            assert_eq!(subs[0].2, 2, "a failed send rolls its reference back");
+            assert_eq!(subs[0].0, 2, "a failed send rolls its reference back");
         }
         let pending = pending_subs.lock().unwrap();
         assert!(
@@ -3814,10 +3807,10 @@ mod tests {
 
         let gone = Contract::stock("AAPL");
         let kept = Contract::stock("MSFT");
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
-            (SubscriptionKind::Trade, gone.clone(), 1, 1),
-            (SubscriptionKind::Trade, kept.clone(), 1, 1),
-        ]));
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(IndexMap::from([
+            ((SubscriptionKind::Trade, gone.clone()), (1, 1)),
+            ((SubscriptionKind::Trade, kept.clone()), (1, 1)),
+        ])));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
             1,
@@ -3849,11 +3842,11 @@ mod tests {
         {
             let subs = active_subs.lock().unwrap();
             assert!(
-                !subs.iter().any(|(_, c, _, _)| *c == gone),
+                !subs.keys().any(|(_, c)| *c == gone),
                 "the unsubscribed identity's reference must be gone"
             );
             assert!(
-                subs.iter().any(|(_, c, _, _)| *c == kept),
+                subs.keys().any(|(_, c)| *c == kept),
                 "another identity's reference must survive"
             );
             let pending = pending_subs.lock().unwrap();
@@ -3889,11 +3882,7 @@ mod tests {
         .expect_err("a failing unsubscribe send surfaces its error");
         assert!(matches!(err, crate::error::Error::Stream { .. }));
         assert!(
-            active_subs
-                .lock()
-                .unwrap()
-                .iter()
-                .any(|(_, c, _, _)| *c == kept),
+            active_subs.lock().unwrap().keys().any(|(_, c)| *c == kept),
             "a failed unsubscribe send must leave the identity tracked"
         );
     }
@@ -3920,12 +3909,10 @@ mod tests {
         let sub = PendingSub::Contract(SubscriptionKind::Trade, contract.clone());
 
         // Same instance (generation 7 at snapshot, still 7): correlation recorded.
-        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
-            SubscriptionKind::Trade,
-            contract.clone(),
-            1,
-            7,
-        )]));
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(IndexMap::from([(
+            (SubscriptionKind::Trade, contract.clone()),
+            (1, 7),
+        )])));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         track_replay_correlation_if_tracked(
             &pending_subs,
@@ -3942,7 +3929,7 @@ mod tests {
         );
 
         // Unsubscribed (entry gone): skipped.
-        let active_gone: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_gone: ActiveSubs = Arc::default();
         let pending_gone: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         track_replay_correlation_if_tracked(
             &pending_gone,
@@ -3961,12 +3948,10 @@ mod tests {
         // Unsubscribed then re-subscribed: same identity, NEW generation (9 != 7).
         // The stale replay correlation must be skipped so a later rejection of
         // req_id 6 cannot dec_active the fresh instance.
-        let active_resub: ActiveSubs = Arc::new(Mutex::new(vec![(
-            SubscriptionKind::Trade,
-            contract.clone(),
-            1,
-            9,
-        )]));
+        let active_resub: ActiveSubs = Arc::new(Mutex::new(IndexMap::from([(
+            (SubscriptionKind::Trade, contract.clone()),
+            (1, 9),
+        )])));
         let pending_resub: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         track_replay_correlation_if_tracked(
             &pending_resub,

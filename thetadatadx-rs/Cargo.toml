@@ -108,6 +108,10 @@ futures-core = "0.3"
 # contract, and the delta baselines). Their keys are ids the authenticated
 # server assigns, so SipHash's resistance to chosen keys buys nothing there.
 rustc-hash = "2"
+# Insertion-ordered map for the tracked subscription sets: keyed lookups keep a
+# bulk subscribe linear, and the order keeps `active_subscriptions()` in
+# subscribe order.
+indexmap = "2"
 
 # Async runtime
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync", "fs"] }

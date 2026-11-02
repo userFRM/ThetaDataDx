@@ -1364,8 +1364,8 @@ impl StreamingClient {
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
         let reconnects_exhausted = Arc::new(AtomicBool::new(false));
-        let active_subs: io_loop::ActiveSubs = Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: io_loop::ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: io_loop::ActiveSubs = Arc::default();
+        let active_full_subs: io_loop::ActiveFullSubs = Arc::default();
         let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
@@ -2648,8 +2648,8 @@ impl StreamingClient {
         self.active_subs
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .iter()
-            .map(|(kind, contract, _refs, _gen)| (*kind, contract.clone()))
+            .keys()
+            .map(|(kind, contract)| (*kind, contract.clone()))
             .collect()
     }
 
@@ -2661,8 +2661,8 @@ impl StreamingClient {
         self.active_full_subs
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .iter()
-            .map(|(kind, sec_type, _refs, _gen)| (*kind, *sec_type))
+            .keys()
+            .copied()
             .collect()
     }
 
@@ -2797,8 +2797,8 @@ impl StreamingClient {
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
-        let active_subs: io_loop::ActiveSubs = Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: io_loop::ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: io_loop::ActiveSubs = Arc::default();
+        let active_full_subs: io_loop::ActiveFullSubs = Arc::default();
         let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
@@ -2974,8 +2974,8 @@ impl StreamingClient {
             authenticated: Arc::new(AtomicBool::new(true)),
             reconnects_exhausted: Arc::new(AtomicBool::new(false)),
             next_req_id: Arc::new(AtomicI64::new(1)),
-            active_subs: Arc::new(Mutex::new(Vec::new())),
-            active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            active_subs: Arc::default(),
+            active_full_subs: Arc::default(),
             pending_subs: Arc::new(Mutex::new(std::collections::HashMap::new())),
             server_addr: "test://io-fault".to_owned(),
             last_event_at_ns: Arc::new(AtomicI64::new(0)),
@@ -3041,8 +3041,8 @@ impl StreamingClient {
             authenticated: Arc::new(AtomicBool::new(true)),
             reconnects_exhausted: Arc::new(AtomicBool::new(false)),
             next_req_id: Arc::new(AtomicI64::new(1)),
-            active_subs: Arc::new(Mutex::new(Vec::new())),
-            active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            active_subs: Arc::default(),
+            active_full_subs: Arc::default(),
             pending_subs: Arc::new(Mutex::new(std::collections::HashMap::new())),
             server_addr: "test://ring-occupancy".to_owned(),
             last_event_at_ns: Arc::new(AtomicI64::new(0)),
@@ -4903,8 +4903,7 @@ mod command_queue_tests {
     /// One `subscribe_many` over a whole option chain enqueues more frames than
     /// the command channel holds, faster than the I/O thread takes them. The
     /// burst must wait for room rather than fail part way and leave the session
-    /// half subscribed. Unsubscribe shares the wait with subscribe and keeps the
-    /// burst cheap here, since every subscribe also sweeps its pending map.
+    /// half subscribed.
     #[test]
     fn a_burst_larger_than_the_command_channel_waits_for_room() {
         let (client, _producer) = StreamingClient::for_ring_occupancy_test(64);
@@ -4930,9 +4929,10 @@ mod command_queue_tests {
         });
 
         let burst = CMD_CHANNEL_CAPACITY + 1_000;
-        for _ in 0..burst {
+        for strike in 0..burst {
+            let strike = i32::try_from(strike).unwrap() * 1_000;
             client
-                .unsubscribe(Contract::stock("SPY").quote())
+                .subscribe(Contract::option_raw("SPXW", 20250428, true, strike).quote())
                 .expect("a full command channel is waited out, not reported");
         }
         drop(client);
