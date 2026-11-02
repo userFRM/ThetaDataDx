@@ -24,7 +24,7 @@
 //! session machinery side by side.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use thetadatadx::auth;
 use thetadatadx::fpss;
@@ -215,7 +215,8 @@ pub(crate) fn callback_delivery_outcome(
 /// array after a drain only while no earlier array is still waiting for the
 /// main thread: an idle main thread gets each event at once, and a busy one
 /// lets the events build up into full arrays (a held array goes out on the
-/// first drain after the main thread catches up), so the bounded queue holds
+/// first drain after the main thread catches up, which also wakes the
+/// consumer from a `park` / `backoff` idle sleep), so the bounded queue holds
 /// about 65,536 events rather than filling with one-event arrays. A terminal
 /// drain hands over whatever is left. Each hand-over is a `Blocking` call:
 /// paired with the bounded
@@ -237,19 +238,28 @@ pub(crate) fn batched_delivery(
 ) {
     // Arrays handed over whose JS callback has not returned yet.
     let in_flight = Arc::new(AtomicUsize::new(0));
+    // The consumer thread, woken once the queue empties so a held array goes
+    // out at once rather than after a `park` / `backoff` idle sleep.
+    let consumer: Arc<OnceLock<std::thread::Thread>> = Arc::default();
     let deliver = {
         let callback = Arc::clone(callback);
         let closing_expected = Arc::clone(closing_expected);
         let delivery_failed = Arc::clone(delivery_failed);
         let in_flight = Arc::clone(&in_flight);
+        let consumer = Arc::clone(&consumer);
         move |events: Vec<StreamEvent>| {
             in_flight.fetch_add(1, Ordering::AcqRel);
             let delivered = Arc::clone(&in_flight);
+            let consumer = Arc::clone(&consumer);
             let status = callback.call_with_return_value(
                 events,
                 napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
                 move |result, _env| {
-                    delivered.fetch_sub(1, Ordering::AcqRel);
+                    if delivered.fetch_sub(1, Ordering::AcqRel) == 1
+                        && let Some(consumer) = consumer.get()
+                    {
+                        consumer.unpark();
+                    }
                     // An `Err` is a throw out of the JS forwarder; returning
                     // it keeps Node's fatal-exception path.
                     result
@@ -279,6 +289,7 @@ pub(crate) fn batched_delivery(
     };
     let delivery_failed = Arc::clone(delivery_failed);
     let scope = move |drain: &mut dyn FnMut() -> fpss::PollOutcome| {
+        consumer.get_or_init(std::thread::current);
         let outcome = drain();
         let terminal = matches!(
             outcome,
