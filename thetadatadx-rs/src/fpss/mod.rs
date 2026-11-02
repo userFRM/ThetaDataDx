@@ -124,21 +124,25 @@ use self::protocol::{Contract, SubscriptionKind, build_login_payload, build_subs
 /// ping thread to the I/O thread.
 ///
 /// The channel carries control-plane frames only (subscribe / unsubscribe /
-/// ping / shutdown), never market-data ticks. A subscribe burst across a full
-/// 10k-15k option watchlist enqueues one command per contract, so the bound is
-/// sized comfortably above a single large watchlist while still capping
-/// unbounded growth under a pathological control-plane storm. The I/O thread
-/// drains this queue every read-timeout cycle, so steady-state occupancy is
-/// near zero.
+/// ping / shutdown), never market-data ticks. A subscribe enqueues one command
+/// per contract and the I/O thread takes them once per read slice, so steady
+/// occupancy is near zero and the bound only caps memory under a
+/// control-plane storm; it does not cap the size of a subscribe.
 ///
 /// The ping thread and the public subscribe / unsubscribe methods all enqueue
-/// with a non-blocking `try_send`. Subscribe / unsubscribe surface a typed
-/// [`StreamErrorKind::Disconnected`] backpressure error on a full channel
-/// rather than silently dropping a command; the idempotent ping heartbeat
-/// simply skips a beat when the channel is momentarily full (the I/O thread is
-/// draining a backlog, so the connection is demonstrably alive and the next
-/// beat follows one interval later) instead of blocking the ping thread.
+/// with a non-blocking `try_send`. Subscribe / unsubscribe wait for room while
+/// the channel is full (see [`StreamingClient::send_frame_waiting_for_room`]),
+/// so one call over a whole option chain, larger than the channel, goes
+/// through; the idempotent ping heartbeat simply skips a beat when the channel
+/// is momentarily full (the I/O thread is draining a backlog, so the
+/// connection is demonstrably alive and the next beat follows one interval
+/// later) instead of blocking the ping thread.
 pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
+
+/// Pause between attempts while a subscribe or unsubscribe waits for room in
+/// the command channel: well under the I/O thread's read slice (10 ms at the
+/// least), so a waiting call resumes soon after the I/O thread makes room.
+const COMMAND_QUEUE_RETRY: Duration = Duration::from_millis(1);
 
 // ---------------------------------------------------------------------------
 // StreamError — typed error enum returned by the FPSS public surface
@@ -933,6 +937,10 @@ pub struct StreamingClient {
     /// subscribe / unsubscribe calls and keeps the bounded `try_send`
     /// backpressure decision race-free.
     cmd_tx: Mutex<std_mpsc::SyncSender<IoCommand>>,
+    /// How long a subscribe or unsubscribe waits for room in a full command
+    /// channel: the read timeout, past which an I/O thread that has taken no
+    /// commands has also read nothing and declared the session dead.
+    command_queue_wait: Duration,
     /// Handle to the I/O thread (blocking TLS read + write drain).
     io_handle: Option<JoinHandle<()>>,
     /// Handle to the ping heartbeat thread.
@@ -1598,6 +1606,7 @@ impl StreamingClient {
 
         Ok(StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
+            command_queue_wait: read_timeout,
             io_handle: Some(io_handle),
             ping_handle: Some(ping_handle),
             poller_state: Mutex::new(Some(PollerState {
@@ -2383,14 +2392,16 @@ impl StreamingClient {
         // A send failure leaves the entry tracked (still live on the wire) and
         // surfaces the error.
         if unsubscribe {
-            io_loop::send_then_untrack_on_unsubscribe(
-                &self.pending_subs,
-                &self.active_full_subs,
-                kind_for_track,
-                &sec_type,
-                &protocol::PendingSub::Full(kind_for_track, sec_type),
-                || self.send_cmd(IoCommand::WriteFrame { code, payload }),
-            )?;
+            self.send_frame_waiting_for_room(code, payload, |send| {
+                io_loop::send_then_untrack_on_unsubscribe(
+                    &self.pending_subs,
+                    &self.active_full_subs,
+                    kind_for_track,
+                    &sec_type,
+                    &protocol::PendingSub::Full(kind_for_track, sec_type),
+                    send,
+                )
+            })?;
             tracing::debug!(
                 req_id,
                 sec_type = ?sec_type,
@@ -2406,15 +2417,17 @@ impl StreamingClient {
         // reference and correlation are rolled back under the same lock; the
         // entry is reference-counted, so a duplicate full-stream subscribe adds
         // a reference rather than a second row.
-        io_loop::track_inflight_subscribe(
-            &self.pending_subs,
-            &self.active_full_subs,
-            kind_for_track,
-            sec_type,
-            req_id,
-            protocol::PendingSub::Full(kind_for_track, sec_type),
-            || self.send_cmd(IoCommand::WriteFrame { code, payload }),
-        )?;
+        self.send_frame_waiting_for_room(code, payload, |send| {
+            io_loop::track_inflight_subscribe(
+                &self.pending_subs,
+                &self.active_full_subs,
+                kind_for_track,
+                sec_type,
+                req_id,
+                protocol::PendingSub::Full(kind_for_track, sec_type),
+                send,
+            )
+        })?;
         tracing::debug!(
             req_id,
             sec_type = ?sec_type,
@@ -2446,15 +2459,17 @@ impl StreamingClient {
         // tracking and the send. The entry is reference-counted, so a duplicate
         // for an already-tracked `(kind, contract)` adds a reference; the set
         // holds one entry per identity, reported once and replayed once.
-        io_loop::track_inflight_subscribe(
-            &self.pending_subs,
-            &self.active_subs,
-            kind,
-            contract.clone(),
-            req_id,
-            protocol::PendingSub::Contract(kind, contract.clone()),
-            || self.send_cmd(IoCommand::WriteFrame { code, payload }),
-        )?;
+        self.send_frame_waiting_for_room(code, payload, |send| {
+            io_loop::track_inflight_subscribe(
+                &self.pending_subs,
+                &self.active_subs,
+                kind,
+                contract.clone(),
+                req_id,
+                protocol::PendingSub::Contract(kind, contract.clone()),
+                send,
+            )
+        })?;
 
         tracing::debug!(
             req_id,
@@ -2487,14 +2502,16 @@ impl StreamingClient {
         // send and its untrack, and the untrack would then strand that live
         // subscription. A send failure leaves the entry tracked (still live on
         // the wire) and surfaces the error.
-        io_loop::send_then_untrack_on_unsubscribe(
-            &self.pending_subs,
-            &self.active_subs,
-            kind,
-            contract,
-            &protocol::PendingSub::Contract(kind, contract.clone()),
-            || self.send_cmd(IoCommand::WriteFrame { code, payload }),
-        )?;
+        self.send_frame_waiting_for_room(code, payload, |send| {
+            io_loop::send_then_untrack_on_unsubscribe(
+                &self.pending_subs,
+                &self.active_subs,
+                kind,
+                contract,
+                &protocol::PendingSub::Contract(kind, contract.clone()),
+                send,
+            )
+        })?;
 
         tracing::debug!(
             req_id,
@@ -2900,6 +2917,7 @@ impl StreamingClient {
 
         Arc::new(StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
+            command_queue_wait: Duration::from_secs(10),
             io_handle: Some(io_handle),
             ping_handle: None,
             poller_state: Mutex::new(None),
@@ -2948,6 +2966,7 @@ impl StreamingClient {
         std::sync::atomic::fence(Ordering::Release);
         Arc::new(StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
+            command_queue_wait: Duration::from_secs(10),
             io_handle: None,
             ping_handle: None,
             poller_state: Mutex::new(None),
@@ -3010,6 +3029,7 @@ impl StreamingClient {
 
         let client = StreamingClient {
             cmd_tx: Mutex::new(cmd_tx),
+            command_queue_wait: Duration::from_secs(10),
             io_handle: None,
             ping_handle: None,
             poller_state: Mutex::new(Some(PollerState {
@@ -3062,27 +3082,73 @@ impl StreamingClient {
     /// parked behind a saturated channel while holding the command lock. A
     /// full channel and a hung-up I/O thread both map to a typed
     /// [`StreamErrorKind::Disconnected`] error: the command is reported to the
-    /// caller, never silently dropped. A full channel means the application is
-    /// issuing control-plane commands faster than the I/O thread can drain
-    /// them; the caller can retry after the queue clears.
+    /// caller, never silently dropped. Subscribe and unsubscribe frames go
+    /// through [`Self::send_frame_waiting_for_room`] instead, which waits out a
+    /// full channel.
     pub(in crate::fpss) fn send_cmd(&self, cmd: IoCommand) -> Result<(), Error> {
+        self.try_send_cmd(cmd).map_err(|e| cmd_send_error(&e))
+    }
+
+    fn try_send_cmd(&self, cmd: IoCommand) -> Result<(), std_mpsc::TrySendError<IoCommand>> {
         self.cmd_tx
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .try_send(cmd)
-            .map_err(|e| match e {
-                std_mpsc::TrySendError::Full(_) => Error::Stream {
-                    kind: crate::error::StreamErrorKind::Disconnected,
-                    message: format!(
-                        "command queue full ({CMD_CHANNEL_CAPACITY} pending); \
-                         the I/O thread is draining slower than commands arrive — retry shortly"
-                    ),
-                },
-                std_mpsc::TrySendError::Disconnected(_) => Error::Stream {
-                    kind: crate::error::StreamErrorKind::Disconnected,
-                    message: "I/O thread has exited".to_string(),
-                },
-            })
+    }
+
+    /// Queue a subscribe or unsubscribe frame through `tracked_send`, waiting
+    /// for room while the command channel is full.
+    ///
+    /// The I/O thread takes queued commands once per read slice, so a burst
+    /// larger than the free slots, such as one `subscribe_many` over a whole
+    /// option chain, fills the channel part way through. `tracked_send` makes
+    /// one attempt with the subscription lock held and rolls a refused attempt
+    /// back before it returns (see `io_loop::track_inflight_subscribe`), so the
+    /// wait happens here, between attempts, with no lock held. It ends once
+    /// the I/O thread has made room, when the client stops being connected, or
+    /// after [`Self::command_queue_wait`].
+    fn send_frame_waiting_for_room(
+        &self,
+        code: StreamMsgType,
+        payload: Vec<u8>,
+        mut tracked_send: impl FnMut(&mut dyn FnMut() -> Result<(), Error>) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let give_up_at = std::time::Instant::now() + self.command_queue_wait;
+        loop {
+            let mut full = false;
+            let result = tracked_send(&mut || {
+                let cmd = IoCommand::WriteFrame {
+                    code,
+                    payload: payload.clone(),
+                };
+                self.try_send_cmd(cmd).map_err(|e| {
+                    full = matches!(e, std_mpsc::TrySendError::Full(_));
+                    cmd_send_error(&e)
+                })
+            });
+            if !full || std::time::Instant::now() >= give_up_at {
+                return result;
+            }
+            thread::sleep(COMMAND_QUEUE_RETRY);
+            self.check_connected()?;
+        }
+    }
+}
+
+/// The typed error for a command the control channel refused.
+fn cmd_send_error(e: &std_mpsc::TrySendError<IoCommand>) -> Error {
+    match e {
+        std_mpsc::TrySendError::Full(_) => Error::Stream {
+            kind: crate::error::StreamErrorKind::Disconnected,
+            message: format!(
+                "command queue full ({CMD_CHANNEL_CAPACITY} pending); \
+                 the I/O thread is not taking commands"
+            ),
+        },
+        std_mpsc::TrySendError::Disconnected(_) => Error::Stream {
+            kind: crate::error::StreamErrorKind::Disconnected,
+            message: "I/O thread has exited".to_string(),
+        },
     }
 }
 
@@ -4822,5 +4888,58 @@ mod subscription_availability_tests {
                 "{sec_type:?} / {kind:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod command_queue_tests {
+    use std::sync::mpsc as std_mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use super::{CMD_CHANNEL_CAPACITY, IoCommand, StreamingClient};
+    use crate::fpss::protocol::Contract;
+
+    /// One `subscribe_many` over a whole option chain enqueues more frames than
+    /// the command channel holds, faster than the I/O thread takes them. The
+    /// burst must wait for room rather than fail part way and leave the session
+    /// half subscribed. Unsubscribe shares the wait with subscribe and keeps the
+    /// burst cheap here, since every subscribe also sweeps its pending map.
+    #[test]
+    fn a_burst_larger_than_the_command_channel_waits_for_room() {
+        let (client, _producer) = StreamingClient::for_ring_occupancy_test(64);
+        let (cmd_tx, cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
+        *client.cmd_tx.lock().unwrap() = cmd_tx;
+
+        // Stand-in I/O thread: takes nothing until the burst has filled the
+        // channel, then takes every queued command once per read slice.
+        let io = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(500));
+            let mut frames = 0;
+            loop {
+                loop {
+                    match cmd_rx.try_recv() {
+                        Ok(IoCommand::WriteFrame { .. }) => frames += 1,
+                        Ok(_) => {}
+                        Err(std_mpsc::TryRecvError::Empty) => break,
+                        Err(std_mpsc::TryRecvError::Disconnected) => return frames,
+                    }
+                }
+                thread::sleep(Duration::from_millis(25));
+            }
+        });
+
+        let burst = CMD_CHANNEL_CAPACITY + 1_000;
+        for _ in 0..burst {
+            client
+                .unsubscribe(Contract::stock("SPY").quote())
+                .expect("a full command channel is waited out, not reported");
+        }
+        drop(client);
+        assert_eq!(
+            io.join().unwrap(),
+            burst,
+            "every frame reaches the I/O thread"
+        );
     }
 }

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **TypeScript streaming callbacks keep up with a higher message rate.** The native side hands events to the Node main thread in arrays instead of waking it once per event, and the package still calls your `startStreaming` callback once per event, in order. On the offline callback benchmark (`thetadatadx-ts/benches/streaming_throughput.mjs`) a no-op callback goes from about 300k to about 460k events a second. If the callback throws, the error still reaches `uncaughtException` and the rest of the events are still delivered.
 
+### Fixed
+
+- **A subscribe larger than the command queue no longer fails part way.** One `subscribe_many` (`subscribeMany` in TypeScript) over a whole option chain, such as SPXW quotes and trades within 10% of spot (19,228 streams), could fail with "command queue full" and leave the session subscribed to only part of the list. Subscribe and unsubscribe now wait while the queue to the streaming connection is full, so a call of any size goes through, in every language. The error is returned only if the connection takes no commands for longer than its read timeout.
+
 ## [0.8.2] - 2026-11-02
 
 ### Changed
