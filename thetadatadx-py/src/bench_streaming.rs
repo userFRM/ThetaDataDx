@@ -1,39 +1,18 @@
-//! Offline saturation bench hooks for the Python streaming callback path.
+//! Offline saturation bench hook for the Python streaming callback path.
 //!
-//! All hooks drive the SAME LMAX Disruptor pipeline the live streaming consumer
-//! uses (single producer, single consumer thread, `RING_SIZE` slots). They
-//! differ only in HOW the consumer hands events across the Python boundary,
-//! so the numbers isolate the boundary-crossing cost (the Disruptor itself
-//! runs ~39 M events/s in the core Rust bench, far above the boundary, so it
-//! is never the bottleneck here).
+//! [`__bench_flood_events`] drives the SAME LMAX Disruptor pipeline the live
+//! streaming consumer uses (single producer, single consumer thread,
+//! `RING_SIZE` slots) and hands the events to Python at the production
+//! granularity: one `Python::attach` per batch the consumer drains from the
+//! ring, then for every event the production marshal (`fpss_event_to_typed`)
+//! and the production 1-tuple `call1((typed,))`. Production holds the GIL
+//! across the drain in `StreamView::start_streaming`; the bench copies each
+//! drained event into a buffer and attaches at the batch end, which the
+//! Disruptor marks, so it pays one `Arc` clone per event that production does
+//! not. The Disruptor itself runs ~39 M events/s in the core Rust bench, far
+//! above the boundary, so the number isolates the boundary-crossing cost.
 //!
-//! - [`__bench_flood_events`] — PER-EVENT baseline. For every delivered
-//!   event: `Python::attach` (per-event, the production granularity — see
-//!   `StreamView::start_streaming`), `fpss_event_to_typed` (the exact
-//!   production marshal, reused), `call1((typed,))` (the production
-//!   1-tuple vectorcall).
-//!
-//! - [`__bench_flood_events_batched_calls`] — LEVER 1a. Amortize only the
-//!   GIL acquire: the consumer buffers `batch_size` events, then takes ONE
-//!   `Python::attach` and loops `call1((typed,))` per event inside it. Same
-//!   per-event marshal + per-event call as the baseline; the only thing
-//!   removed is the per-event GIL reacquisition.
-//!
-//! - [`__bench_flood_events_batched_list`] — LEVER 1b. Amortize the GIL
-//!   acquire AND the call dispatch: the consumer buffers `batch_size`
-//!   events, marshals them into one Python `list`, and fires ONE
-//!   `call1((list,))` per batch. One boundary crossing per batch.
-//!
-//! - [`__bench_flood_events_arrow`] — LEVER 3. Columnar bulk delivery: the
-//!   consumer buffers `batch_size` events as `TradeTick` rows, builds ONE
-//!   Arrow `RecordBatch`, and hands it to Python zero-copy over the Arrow C
-//!   Stream Interface via the SDK's own `trade_tick_slice_to_arrow_table`
-//!   (the same path `<TickList>.to_arrow()` uses). This is a DIFFERENT
-//!   delivery model than the per-event callback — Python receives a
-//!   columnar `pyarrow.Table`, not N typed event objects — so its number is
-//!   the columnar bulk ceiling, not a like-for-like callback rate.
-//!
-//! Every hook retries the publish on `RingBufferFull` so all `n` events are
+//! The hook retries the publish on `RingBufferFull` so all `n` events are
 //! delivered (no silent drops); the delivered count is returned and the
 //! caller asserts `delivered == n`. The returned wall clock is the publish
 //! loop + drain, measured on the consumer side; interpreter spin-up, ring
@@ -41,7 +20,7 @@
 //! excluded (mirroring the `iter_custom` setup-exclusion in the core Rust
 //! bench `thetadatadx-rs/benches/streaming_throughput.rs`).
 //!
-//! These are bench-only `#[pyfunction]`s, NOT part of the public utility
+//! This is a bench-only `#[pyfunction]`, NOT part of the public utility
 //! surface.
 
 use std::sync::Arc;
@@ -50,13 +29,12 @@ use std::time::{Duration, Instant};
 
 use disruptor::{BusySpin, Producer, Sequence, build_single_producer};
 use pyo3::prelude::*;
-use pyo3::types::PyList;
 
 use thetadatadx::Price;
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent};
 
-use crate::{fpss_event_to_typed, record_batch_to_pyarrow_table};
+use crate::fpss_event_to_typed;
 
 /// Disruptor ring size. Matches the production default
 /// `FpssConfig::ring_size = 131_072` (see `thetadatadx-rs/src/config/fpss.rs`)
@@ -97,66 +75,15 @@ fn make_event(contract: &Arc<Contract>, idx: u64) -> StreamEvent {
     })
 }
 
-/// Project a `&StreamEvent::Data(Trade)` into the market-data `TradeTick`
-/// row shape the Arrow builder consumes. Non-trade events are skipped
-/// (the bench only floods trades). Field-for-field copy — same columns the
-/// `TradeTick` Arrow schema declares.
-#[inline]
-fn trade_event_to_tick(event: &StreamEvent) -> Option<thetadatadx::TradeTick> {
-    match event {
-        StreamEvent::Data(StreamData::Trade {
-            ms_of_day,
-            sequence,
-            condition,
-            size,
-            exchange,
-            price,
-            date,
-            ..
-        }) => Some(thetadatadx::TradeTick {
-            ms_of_day: *ms_of_day,
-            sequence: *sequence,
-            condition: *condition,
-            size: *size,
-            exchange: *exchange,
-            price: *price,
-            date: *date,
-            // The stream sends `condition` and `exchange` and no
-            // extended-condition, flag or option columns, so those presence
-            // flags are cleared and the absent fields zeroed.
-            has_condition: true,
-            has_exchange: true,
-            has_ext_condition1: false,
-            has_ext_condition2: false,
-            has_ext_condition3: false,
-            has_ext_condition4: false,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            expiration: 0,
-            strike: 0.0,
-            right: '\0',
-        }),
-        _ => None,
-    }
-}
-
 /// Build the Disruptor + consumer thread with a user-supplied consumer
 /// `body`, drive `n` synthetic trades through the publish loop (retry on
 /// overflow so every event is delivered), and return `(delivered,
 /// elapsed_ns)`. `body` runs on the consumer thread for every delivered
-/// event; `flush` runs once after the publish loop drains so a batching
-/// body can emit its final partial batch. Setup (ring build, thread spawn)
-/// is excluded from the timed region.
-fn run_pipeline<B, F>(py: Python<'_>, n: u64, body: B, flush: F) -> (u64, u64)
+/// event, with the Disruptor's end-of-batch flag. Setup (ring build, thread
+/// spawn) is excluded from the timed region.
+fn run_pipeline<B>(py: Python<'_>, n: u64, body: B) -> (u64, u64)
 where
-    B: FnMut(&StreamEvent) + Send + 'static,
-    F: FnOnce() + Send,
+    B: FnMut(&StreamEvent, bool) + Send + 'static,
 {
     let delivered = Arc::new(AtomicU64::new(0));
     let delivered_consumer = Arc::clone(&delivered);
@@ -165,17 +92,17 @@ where
     let mut body = body;
     let factory = || RingSlot { event: None };
     let mut producer = build_single_producer(RING_SIZE, factory, BusySpin)
-        .handle_events_with(move |slot: &RingSlot, _seq: Sequence, _eob: bool| {
+        .handle_events_with(move |slot: &RingSlot, _seq: Sequence, end_of_batch: bool| {
             if let Some(ref evt) = slot.event {
                 delivered_consumer.fetch_add(1, Ordering::Relaxed);
-                body(evt);
+                body(evt, end_of_batch);
             }
         })
         .build();
 
     // Release the GIL for the whole flood: the consumer thread re-acquires
-    // it (per event or per batch, depending on `body`). Holding it here
-    // would deadlock the consumer against its own `Python::attach`.
+    // it once per drained batch. Holding it here would deadlock the consumer
+    // against its own `Python::attach`.
     let elapsed: Duration = py.detach(|| {
         let start = Instant::now();
         for i in 0..n {
@@ -189,225 +116,43 @@ where
         }
         // Dropping the producer joins the consumer thread, so every
         // published event has been handed to `body` by the time this
-        // returns. `flush` then emits any buffered partial batch.
+        // returns; the last one carries the end-of-batch flag.
         drop(producer);
-        flush();
         start.elapsed()
     });
 
     (delivered.load(Ordering::Relaxed), elapsed.as_nanos() as u64)
 }
 
-/// PER-EVENT baseline. One `Python::attach` + one `fpss_event_to_typed` +
-/// one `call1` per delivered event. Returns `(delivered, elapsed_ns)`; the
-/// caller asserts `delivered == n` (zero-drop).
+/// Flood `n` synthetic trades through the pipeline and hand them to
+/// `callback` at the production granularity: one GIL acquisition per
+/// drained batch, one `fpss_event_to_typed` + `call1((typed,))` per event.
+/// Returns `(delivered, elapsed_ns)`; the caller asserts `delivered == n`
+/// (zero-drop).
 #[pyfunction]
 pub(crate) fn __bench_flood_events(
     py: Python<'_>,
     n: u64,
     callback: Py<PyAny>,
 ) -> PyResult<(u64, u64)> {
-    let dispatch_cb = Arc::new(callback);
-    let body = move |evt: &StreamEvent| {
-        Python::attach(|py| {
-            let typed = match fpss_event_to_typed(py, evt) {
-                Ok(obj) => obj,
-                Err(err) => {
-                    err.write_unraisable(py, None);
-                    return;
-                }
-            };
-            if let Err(err) = dispatch_cb.call1(py, (typed,)) {
-                err.write_unraisable(py, None);
-            }
-        });
-    };
-    Ok(run_pipeline(py, n, body, || {}))
-}
-
-/// Marshal + dispatch one buffered batch under ONE GIL acquisition, one
-/// `call1((typed,))` per event (Lever 1a emit). Clears `events`.
-fn emit_batch_calls(events: &mut Vec<StreamEvent>, cb: &Py<PyAny>) {
-    if events.is_empty() {
-        return;
-    }
-    Python::attach(|py| {
-        for evt in events.iter() {
-            match fpss_event_to_typed(py, evt) {
-                Ok(typed) => {
-                    if let Err(err) = cb.call1(py, (typed,)) {
-                        err.write_unraisable(py, None);
+    let mut drained: Vec<StreamEvent> = Vec::new();
+    let body = move |evt: &StreamEvent, end_of_batch: bool| {
+        drained.push(evt.clone());
+        if end_of_batch {
+            Python::attach(|py| {
+                for evt in &drained {
+                    match fpss_event_to_typed(py, evt) {
+                        Ok(typed) => {
+                            if let Err(err) = callback.call1(py, (typed,)) {
+                                err.write_unraisable(py, None);
+                            }
+                        }
+                        Err(err) => err.write_unraisable(py, None),
                     }
                 }
-                Err(err) => err.write_unraisable(py, None),
-            }
-        }
-    });
-    events.clear();
-}
-
-/// LEVER 1a — amortize the GIL acquire only. The consumer buffers
-/// `batch_size` borrowed events (cloned into an owned buffer so they
-/// outlive the ring slot), then takes ONE `Python::attach` and fires one
-/// `call1((typed,))` per event inside it. Per-event marshal + per-event
-/// call are unchanged from the baseline; only the per-event GIL
-/// reacquisition is removed.
-#[pyfunction]
-pub(crate) fn __bench_flood_events_batched_calls(
-    py: Python<'_>,
-    n: u64,
-    batch_size: u64,
-    callback: Py<PyAny>,
-) -> PyResult<(u64, u64)> {
-    let dispatch_cb = Arc::new(callback);
-    let cap = batch_size.max(1) as usize;
-    let buf: Arc<std::sync::Mutex<Vec<StreamEvent>>> =
-        Arc::new(std::sync::Mutex::new(Vec::with_capacity(cap)));
-
-    let flush_buf = Arc::clone(&buf);
-    let flush_cb = Arc::clone(&dispatch_cb);
-    let body = move |evt: &StreamEvent| {
-        let mut v = buf.lock().unwrap_or_else(|e| e.into_inner());
-        v.push(evt.clone());
-        if v.len() >= cap {
-            emit_batch_calls(&mut v, &dispatch_cb);
+            });
+            drained.clear();
         }
     };
-    let flush = move || {
-        let mut v = flush_buf.lock().unwrap_or_else(|e| e.into_inner());
-        emit_batch_calls(&mut v, &flush_cb);
-    };
-    Ok(run_pipeline(py, n, body, flush))
-}
-
-/// Marshal one buffered batch into a single Python `list` and fire ONE
-/// `call1((list,))` (Lever 1b emit). Clears `events`.
-fn emit_batch_list(events: &mut Vec<StreamEvent>, cb: &Py<PyAny>) {
-    if events.is_empty() {
-        return;
-    }
-    Python::attach(|py| {
-        let items: Vec<Py<PyAny>> = events
-            .iter()
-            .filter_map(|evt| match fpss_event_to_typed(py, evt) {
-                Ok(typed) => Some(typed),
-                Err(err) => {
-                    err.write_unraisable(py, None);
-                    None
-                }
-            })
-            .collect();
-        match PyList::new(py, items) {
-            Ok(list) => {
-                if let Err(err) = cb.call1(py, (list,)) {
-                    err.write_unraisable(py, None);
-                }
-            }
-            Err(err) => err.write_unraisable(py, None),
-        }
-    });
-    events.clear();
-}
-
-/// LEVER 1b — amortize the GIL acquire AND the call dispatch. The consumer
-/// buffers `batch_size` events, marshals them into one Python `list` of
-/// typed event objects, and fires ONE `call1((list,))` per batch. One
-/// boundary crossing per batch instead of per event.
-#[pyfunction]
-pub(crate) fn __bench_flood_events_batched_list(
-    py: Python<'_>,
-    n: u64,
-    batch_size: u64,
-    callback: Py<PyAny>,
-) -> PyResult<(u64, u64)> {
-    let dispatch_cb = Arc::new(callback);
-    let cap = batch_size.max(1) as usize;
-    let buf: Arc<std::sync::Mutex<Vec<StreamEvent>>> =
-        Arc::new(std::sync::Mutex::new(Vec::with_capacity(cap)));
-
-    let flush_buf = Arc::clone(&buf);
-    let flush_cb = Arc::clone(&dispatch_cb);
-    let body = move |evt: &StreamEvent| {
-        let mut v = buf.lock().unwrap_or_else(|e| e.into_inner());
-        v.push(evt.clone());
-        if v.len() >= cap {
-            emit_batch_list(&mut v, &dispatch_cb);
-        }
-    };
-    let flush = move || {
-        let mut v = flush_buf.lock().unwrap_or_else(|e| e.into_inner());
-        emit_batch_list(&mut v, &flush_cb);
-    };
-    Ok(run_pipeline(py, n, body, flush))
-}
-
-/// LEVER 3 — columnar bulk delivery over the Arrow C Stream Interface. The
-/// consumer buffers `batch_size` events as `TradeTick` rows, builds ONE
-/// Arrow `RecordBatch` via the SDK's `trade_tick_slice_to_arrow_table`
-/// (zero-copy export to a `pyarrow.Table` over `FFI_ArrowArrayStream`), and
-/// fires ONE `call1((table,))` per batch.
-///
-/// DIFFERENT delivery model than the per-event callback: Python receives a
-/// columnar `pyarrow.Table`, not typed event objects. The number is the
-/// columnar bulk ceiling, not a like-for-like callback rate.
-#[pyfunction]
-pub(crate) fn __bench_flood_events_arrow(
-    py: Python<'_>,
-    n: u64,
-    batch_size: u64,
-    callback: Py<PyAny>,
-) -> PyResult<(u64, u64)> {
-    let dispatch_cb = Arc::new(callback);
-    let cap = batch_size.max(1) as usize;
-    let buf: Arc<std::sync::Mutex<Vec<thetadatadx::TradeTick>>> =
-        Arc::new(std::sync::Mutex::new(Vec::with_capacity(cap)));
-
-    let flush_buf = Arc::clone(&buf);
-    let flush_cb = Arc::clone(&dispatch_cb);
-    let body = move |evt: &StreamEvent| {
-        if let Some(tick) = trade_event_to_tick(evt) {
-            let mut v = buf.lock().unwrap_or_else(|e| e.into_inner());
-            v.push(tick);
-            if v.len() >= cap {
-                emit_batch_arrow(&mut v, &dispatch_cb);
-            }
-        }
-    };
-    let flush = move || {
-        let mut v = flush_buf.lock().unwrap_or_else(|e| e.into_inner());
-        emit_batch_arrow(&mut v, &flush_cb);
-    };
-    Ok(run_pipeline(py, n, body, flush))
-}
-
-/// The rows as a `pyarrow.Table` with every `TradeTick` column, built with
-/// the GIL released.
-fn trade_tick_slice_to_arrow_table(
-    py: Python<'_>,
-    rows: &[thetadatadx::TradeTick],
-) -> PyResult<Py<PyAny>> {
-    use thetadatadx::frames_api::TicksArrowExt;
-
-    let batch = py
-        .detach(|| rows.to_arrow())
-        .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-    record_batch_to_pyarrow_table(py, batch)
-}
-
-/// Build one Arrow `RecordBatch` from a buffered `TradeTick` slice and hand
-/// it to Python zero-copy via the SDK's `trade_tick_slice_to_arrow_table`,
-/// then fire ONE `call1((table,))` (Lever 3 emit). Clears `rows`.
-fn emit_batch_arrow(rows: &mut Vec<thetadatadx::TradeTick>, cb: &Py<PyAny>) {
-    if rows.is_empty() {
-        return;
-    }
-    Python::attach(|py| match trade_tick_slice_to_arrow_table(py, rows) {
-        Ok(table) => {
-            if let Err(err) = cb.call1(py, (table,)) {
-                err.write_unraisable(py, None);
-            }
-        }
-        Err(err) => err.write_unraisable(py, None),
-    });
-    rows.clear();
+    Ok(run_pipeline(py, n, body))
 }
