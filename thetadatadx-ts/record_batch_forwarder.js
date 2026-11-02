@@ -21,15 +21,23 @@ function wrapStreamViewBatches(nativeBatches, RecordBatchStream) {
 // in arrays, one hop per array, so a burst pays the hop cost once per array
 // rather than once per event. `forEachEvent` turns the caller's per-event
 // callback into the array handler the native method registers: it calls the
-// callback once per event, in order. A throw from the callback is rethrown on
-// the next tick, so it still reaches Node's `uncaughtException` while the rest
-// of the array is delivered.
+// callback once per event, in order. A throw from the callback that nothing
+// handles ends the process at that event, as it did when every event was
+// delivered on its own. With an `uncaughtException` handler installed, the
+// throw is rethrown on the next tick instead, so the handler still sees it
+// and the rest of the array is still delivered.
 function forEachEvent(callback) {
   return (events) => {
     for (const event of events) {
       try {
         callback(event);
       } catch (err) {
+        if (
+          process.listenerCount('uncaughtException') === 0 &&
+          !process.hasUncaughtExceptionCaptureCallback()
+        ) {
+          throw err;
+        }
         process.nextTick(() => {
           throw err;
         });
