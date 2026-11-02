@@ -24,7 +24,7 @@ use super::contract::Contract;
 ///
 /// Wire codes: `Quote` = 21, `Trade` = 22, `OpenInterest` = 23,
 /// `MarketValue` = 25.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SubscriptionKind {
     /// Top-of-book quote (bid/ask) stream for the contract.

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **A subscribe larger than the command queue no longer fails part way.** One `subscribe_many` (`subscribeMany` in TypeScript) over a whole option chain, such as SPXW quotes and trades within 10% of spot (19,228 streams), could fail with "command queue full" and leave the session subscribed to only part of the list. Subscribe and unsubscribe now wait while the queue to the streaming connection is full, so a call of any size goes through, in every language. The error is returned only if the connection takes no commands for longer than its read timeout.
+- **A large subscribe no longer spends seconds on bookkeeping.** Each subscribe searched every subscription already made and swept every unanswered one, so one `subscribe_many` over a whole option chain took time that grew with the square of its size, seconds of CPU on the calling thread for the 19,228-stream SPXW chain. Both lookups are now constant time, and the same subscribe takes milliseconds. In Rust, `SubscriptionKind` now implements `Hash`.
 
 ## [0.8.2] - 2026-11-02
 

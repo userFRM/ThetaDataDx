@@ -3754,6 +3754,7 @@ dependencies = [
  "http",
  "hyper",
  "hyper-util",
+ "indexmap",
  "metrics",
  "metrics-exporter-prometheus",
  "pastey",
