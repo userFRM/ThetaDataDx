@@ -998,7 +998,10 @@ where
                         // One wall-clock read per frame: the staleness clock
                         // and the event's `received_at_ns`.
                         let received_at_ns = unix_nanos_now();
-                        last_event_at_ns.store(received_at_ns, Ordering::Relaxed);
+                        last_event_at_ns.store(
+                            i64::try_from(received_at_ns).unwrap_or(i64::MAX),
+                            Ordering::Relaxed,
+                        );
                         // Anchor the stable-window clock on the FIRST frame
                         // of this session (idempotent thereafter). The
                         // per-class retry budget must NOT reset on every
@@ -1015,7 +1018,7 @@ where
                         let primary = decode_frame(
                             code,
                             &frame_buf[..payload_len],
-                            received_at_ns.cast_unsigned(),
+                            received_at_ns,
                             &authenticated,
                             &mut local_contracts,
                             &shutdown,
@@ -1939,7 +1942,10 @@ where
         // The handshake + replay just exchanged frames — feed the
         // staleness clock so `millis_since_last_event()` reflects the live
         // session immediately.
-        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
+        last_event_at_ns.store(
+            i64::try_from(unix_nanos_now()).unwrap_or(i64::MAX),
+            Ordering::Relaxed,
+        );
 
         // Publish reconnection events. Drain every handshake-time typed
         // control frame (`Connected` / `Ping` / `ReconnectedServer` /
@@ -2043,17 +2049,17 @@ pub(crate) fn build_poller_producer(
     (SequencedProducer::new(builder.build(), cursors), poller)
 }
 
-/// Current wall-clock time as UNIX nanoseconds, clamped into `i64`.
-/// Feeds the shared `last_event_at_ns` staleness clock (`0` = never) and
-/// every event's `received_at_ns`.
+/// Current wall-clock time as UNIX nanoseconds, saturating at `u64::MAX`.
+/// Feeds every event's `received_at_ns` and, clamped into `i64`, the shared
+/// `last_event_at_ns` staleness clock (`0` = never).
 ///
 /// On clock skew (`SystemTime::now()` before UNIX_EPOCH, possible on a
 /// misconfigured host or a virtualised guest with a buggy paravirtual
 /// clock) this returns `0` and emits a rate-limited warning, so consumers
 /// can tell the skew sentinel from a genuine epoch-zero timestamp.
-fn unix_nanos_now() -> i64 {
+fn unix_nanos_now() -> u64 {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-        Ok(d) => i64::try_from(d.as_nanos()).unwrap_or(i64::MAX),
+        Ok(d) => u64::try_from(d.as_nanos()).unwrap_or(u64::MAX),
         Err(e) => {
             static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
             let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
