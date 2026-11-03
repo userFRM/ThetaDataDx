@@ -4899,19 +4899,30 @@ mod command_queue_tests {
 
     use super::{CMD_CHANNEL_CAPACITY, IoCommand, StreamingClient};
     use crate::fpss::protocol::Contract;
+    use crate::tdbe::types::enums::StreamMsgType;
 
-    /// One `subscribe_many` over a whole option chain enqueues more frames than
-    /// the command channel holds, faster than the I/O thread takes them. The
-    /// burst must wait for room rather than fail part way and leave the session
-    /// half subscribed.
+    /// One `subscribe_many` over a whole option chain enqueues frames faster
+    /// than the I/O thread takes them, so it reaches a full command channel. A
+    /// subscribe that finds the channel full must wait for room rather than
+    /// fail part way and leave the session half subscribed.
     #[test]
-    fn a_burst_larger_than_the_command_channel_waits_for_room() {
+    fn a_subscribe_into_a_full_command_channel_waits_for_room() {
         let (client, _producer) = StreamingClient::for_ring_occupancy_test(64);
         let (cmd_tx, cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
+        // Filled before anything takes from it, so the first subscribe is
+        // refused whatever the scheduling.
+        for _ in 0..CMD_CHANNEL_CAPACITY {
+            cmd_tx
+                .try_send(IoCommand::WriteFrame {
+                    code: StreamMsgType::Ping,
+                    payload: Vec::new(),
+                })
+                .unwrap();
+        }
         *client.cmd_tx.lock().unwrap() = cmd_tx;
 
-        // Stand-in I/O thread: takes nothing until the burst has filled the
-        // channel, then takes every queued command once per read slice.
+        // Stand-in I/O thread: takes nothing while the subscribes start, then
+        // takes every queued command once per read slice.
         let io = thread::spawn(move || {
             thread::sleep(Duration::from_millis(500));
             let mut frames = 0;
@@ -4928,17 +4939,15 @@ mod command_queue_tests {
             }
         });
 
-        let burst = CMD_CHANNEL_CAPACITY + 1_000;
-        for strike in 0..burst {
-            let strike = i32::try_from(strike).unwrap() * 1_000;
+        for strike in 0..1_000 {
             client
-                .subscribe(Contract::option_raw("SPXW", 20250428, true, strike).quote())
+                .subscribe(Contract::option_raw("SPXW", 20250428, true, strike * 1_000).quote())
                 .expect("a full command channel is waited out, not reported");
         }
         drop(client);
         assert_eq!(
             io.join().unwrap(),
-            burst,
+            CMD_CHANNEL_CAPACITY + 1_000,
             "every frame reaches the I/O thread"
         );
     }
