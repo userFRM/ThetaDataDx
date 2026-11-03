@@ -21,6 +21,10 @@
 //! (`thetadatadx::registry`). When ThetaData adds a new RPC, add
 //! one entry to the registry and this server picks it up automatically.
 
+// The EOD Greeks row is too long for `json!` at the default macro recursion
+// limit of 128.
+#![recursion_limit = "256"]
+
 use std::io::Write as _;
 use std::sync::Arc;
 
@@ -685,6 +689,16 @@ fn code_or_null(code: i32, present: bool) -> Value {
     }
 }
 
+/// The source of a binomial Greeks row's implied volatility, or `null` on a
+/// route that does not send one.
+fn source_or_null(source: thetadatadx::ImpliedVolSource, present: bool) -> Value {
+    if present {
+        Value::from(source.as_str())
+    } else {
+        Value::new_null()
+    }
+}
+
 /// The most rows one tool call returns.
 ///
 /// A tool result is one JSON-RPC message that the server builds in memory and
@@ -915,6 +929,7 @@ fn greeks_all_row(t: &thetadatadx::GreeksAllTick) -> Value {
         "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
         "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
+        "implied_vol_source": source_or_null(t.implied_vol_source, t.has_implied_vol_source),
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
     row
@@ -939,6 +954,7 @@ fn greeks_eod_row(t: &thetadatadx::GreeksEodTick) -> Value {
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
         "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
+        "implied_vol_source": source_or_null(t.implied_vol_source, t.has_implied_vol_source),
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
     row
@@ -954,6 +970,7 @@ fn greeks_first_order_row(t: &thetadatadx::GreeksFirstOrderTick) -> Value {
         "iv_error": t.iv_error,
         "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
+        "implied_vol_source": source_or_null(t.implied_vol_source, t.has_implied_vol_source),
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
     row
@@ -969,6 +986,7 @@ fn greeks_second_order_row(t: &thetadatadx::GreeksSecondOrderTick) -> Value {
         "iv_error": t.iv_error,
         "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
+        "implied_vol_source": source_or_null(t.implied_vol_source, t.has_implied_vol_source),
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
     row
@@ -984,6 +1002,7 @@ fn greeks_third_order_row(t: &thetadatadx::GreeksThirdOrderTick) -> Value {
         "iv_error": t.iv_error,
         "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
+        "implied_vol_source": source_or_null(t.implied_vol_source, t.has_implied_vol_source),
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
     row
@@ -1951,6 +1970,8 @@ mod tests {
             underlying_price: 0.0,
             date: 20221219,
             underlying_date: 20221220,
+            implied_vol_source: thetadatadx::ImpliedVolSource::Interpolated,
+            has_implied_vol_source: true,
             expiration,
             strike,
             right,
@@ -2862,6 +2883,11 @@ mod tests {
         ] {
             assert!(row.get(key).is_some(), "missing Greek: {key}");
         }
+        assert_eq!(
+            row.get("implied_vol_source")
+                .and_then(|v: &Value| v.as_str()),
+            Some("interpolated")
+        );
     }
 
     // -----------------------------------------------------------------------

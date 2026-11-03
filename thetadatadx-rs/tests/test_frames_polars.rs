@@ -125,13 +125,15 @@ fn greeks_first_order_tick_to_polars() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OutOfTheMoney,
+        has_implied_vol_source: true,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 18);
+    assert_eq!(df.width(), 19);
     assert_eq!(
         columns(&df),
         vec![
@@ -150,6 +152,7 @@ fn greeks_first_order_tick_to_polars() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"
@@ -251,13 +254,15 @@ fn greeks_second_order_tick_to_polars() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OwnQuote,
+        has_implied_vol_source: false,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'P',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 17);
+    assert_eq!(df.width(), 18);
     assert_eq!(
         columns(&df),
         vec![
@@ -275,6 +280,7 @@ fn greeks_second_order_tick_to_polars() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"
@@ -325,13 +331,15 @@ fn greeks_third_order_tick_to_polars() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OwnQuote,
+        has_implied_vol_source: false,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 16);
+    assert_eq!(df.width(), 17);
     assert_eq!(
         columns(&df),
         vec![
@@ -348,6 +356,7 @@ fn greeks_third_order_tick_to_polars() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"

@@ -1180,7 +1180,7 @@ export declare class MarketDataClient {
    * Get all binomial Greeks snapshot for an option contract (from ThetaData server).
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -1191,6 +1191,7 @@ export declare class MarketDataClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1216,7 +1217,7 @@ export declare class MarketDataClient {
    * Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -1227,6 +1228,7 @@ export declare class MarketDataClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1252,7 +1254,7 @@ export declare class MarketDataClient {
    * Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
    * - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -1263,6 +1265,7 @@ export declare class MarketDataClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1288,7 +1291,7 @@ export declare class MarketDataClient {
    * Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
    *
    * - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -1299,6 +1302,7 @@ export declare class MarketDataClient {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -1438,7 +1442,7 @@ export declare class MarketDataClient {
    * Fetch end-of-day binomial Greeks history for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
    * - **Any ``expiration=*`` request must be made day by day.**
    *
@@ -1450,6 +1454,7 @@ export declare class MarketDataClient {
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
    * - `option_use_nbbo`: `true`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1482,7 +1487,7 @@ export declare class MarketDataClient {
    * Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -1496,6 +1501,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1528,7 +1534,7 @@ export declare class MarketDataClient {
    * Fetch all binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -1574,7 +1580,7 @@ export declare class MarketDataClient {
    * Fetch first-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -1588,6 +1594,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1620,7 +1627,7 @@ export declare class MarketDataClient {
    * Fetch first-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -1666,7 +1673,7 @@ export declare class MarketDataClient {
    * Fetch second-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -1680,6 +1687,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1712,7 +1720,7 @@ export declare class MarketDataClient {
    * Fetch second-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -1758,7 +1766,7 @@ export declare class MarketDataClient {
    * Fetch third-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -1772,6 +1780,7 @@ export declare class MarketDataClient {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1804,7 +1813,7 @@ export declare class MarketDataClient {
    * Fetch third-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -2466,7 +2475,7 @@ export declare class MarketDataView {
    * Get all binomial Greeks snapshot for an option contract (from ThetaData server).
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -2477,6 +2486,7 @@ export declare class MarketDataView {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2502,7 +2512,7 @@ export declare class MarketDataView {
    * Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -2513,6 +2523,7 @@ export declare class MarketDataView {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2538,7 +2549,7 @@ export declare class MarketDataView {
    * Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
    * - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -2549,6 +2560,7 @@ export declare class MarketDataView {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2574,7 +2586,7 @@ export declare class MarketDataView {
    * Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
    *
    * - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
    *
    * Defaults (upstream):
@@ -2585,6 +2597,7 @@ export declare class MarketDataView {
    * - `version`: `"latest"`
    * - `use_market_value`: `false`
    * - `current_day_only`: `false`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the root every row shares, set for option and index history and single-symbol snapshot responses), and `symbols` (the per-row roots when the rows span several, as in a multi-symbol snapshot or a flat file). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
@@ -2724,7 +2737,7 @@ export declare class MarketDataView {
    * Fetch end-of-day binomial Greeks history for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
    * - **Any ``expiration=*`` request must be made day by day.**
    *
@@ -2736,6 +2749,7 @@ export declare class MarketDataView {
    * - `version`: `"latest"`
    * - `underlyer_use_nbbo`: `false`
    * - `option_use_nbbo`: `true`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
   /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksEodTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2768,7 +2782,7 @@ export declare class MarketDataView {
    * Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -2782,6 +2796,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
   /** Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksAllTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2814,7 +2829,7 @@ export declare class MarketDataView {
    * Fetch all binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -2860,7 +2875,7 @@ export declare class MarketDataView {
    * Fetch first-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -2874,6 +2889,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksFirstOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2906,7 +2922,7 @@ export declare class MarketDataView {
    * Fetch first-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -2952,7 +2968,7 @@ export declare class MarketDataView {
    * Fetch second-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -2966,6 +2982,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
   /** Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksSecondOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2998,7 +3015,7 @@ export declare class MarketDataView {
    * Fetch second-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -3044,7 +3061,7 @@ export declare class MarketDataView {
    * Fetch third-order binomial Greeks history (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data.
@@ -3058,6 +3075,7 @@ export declare class MarketDataView {
    * - `rate_type`: `"sofr"`
    * - `binomial_steps`: `101`
    * - `version`: `"latest"`
+   * - `implied_vol_method`: `"own_quote"`
    */
   optionHistoryBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(rows: GreeksThirdOrderTick[], columns: ColumnPresence) => void` is invoked once per server chunk with the chunk's rows and the columns its wire carried: when the rows span several roots, `columns.symbols` holds the root of each row; when they share one, as in option and index history, `columns.symbol` holds it. A flat file's chunks come either way, so read whichever is set; a response that carries no root, such as stock history, sets neither. The chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method; prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -3090,7 +3108,7 @@ export declare class MarketDataView {
    * Fetch third-order binomial Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
-   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
    * - Calculates greeks for every trade reported by OPRA.
    * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
    * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -4306,6 +4324,12 @@ export interface EodTickWithColumns {
   symbols?: Array<string>
 }
 
+/** Wire string enum `ExerciseStyle`. */
+export declare const enum ExerciseStyle {
+  American = 'american',
+  European = 'european',
+}
+
 /**
  * Full union Greeks tick -- every Greek the v3 server publishes on the `option_*_greeks_all` endpoints.
  *
@@ -4341,6 +4365,7 @@ export interface GreeksAllTick {
   underlyingPrice: number
   date: number
   underlyingDate: number
+  impliedVolSource?: string
   expiration?: number
   strike?: number
   right?: string
@@ -4467,6 +4492,7 @@ export interface GreeksEodTick {
   underlyingPrice: number
   date: number
   underlyingDate: number
+  impliedVolSource?: string
   expiration?: number
   strike?: number
   right?: string
@@ -4567,6 +4593,7 @@ export interface GreeksFirstOrderTick {
   underlyingPrice: number
   date: number
   underlyingDate: number
+  impliedVolSource?: string
   expiration?: number
   strike?: number
   right?: string
@@ -4666,6 +4693,7 @@ export interface GreeksSecondOrderTick {
   underlyingPrice: number
   date: number
   underlyingDate: number
+  impliedVolSource?: string
   expiration?: number
   strike?: number
   right?: string
@@ -4764,6 +4792,7 @@ export interface GreeksThirdOrderTick {
   underlyingPrice: number
   date: number
   underlyingDate: number
+  impliedVolSource?: string
   expiration?: number
   strike?: number
   right?: string
@@ -4845,6 +4874,12 @@ export interface GreeksThirdOrderTickWithColumns {
    * `undefined`. Pass straight to `<tick>ToArrowIpcProjected`'s `symbols`.
    */
   symbols?: Array<string>
+}
+
+/** Wire string enum `ImpliedVolMethod`. */
+export declare const enum ImpliedVolMethod {
+  OwnQuote = 'own_quote',
+  OutOfTheMoney = 'out_of_the_money',
 }
 
 /**
@@ -5971,6 +6006,10 @@ export interface OptionHistoryBinomialGreeksAllOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6011,6 +6050,10 @@ export interface OptionHistoryBinomialGreeksEodOptions {
   strikeRange?: number
   /** Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted. */
   optionUseNbbo?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6057,6 +6100,10 @@ export interface OptionHistoryBinomialGreeksFirstOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6103,6 +6150,10 @@ export interface OptionHistoryBinomialGreeksSecondOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6149,6 +6200,10 @@ export interface OptionHistoryBinomialGreeksThirdOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6197,6 +6252,8 @@ export interface OptionHistoryBinomialTradeGreeksAllOptions {
   endDate?: string
   /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   perfBoostIntraday?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6245,6 +6302,8 @@ export interface OptionHistoryBinomialTradeGreeksFirstOrderOptions {
   endDate?: string
   /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   perfBoostIntraday?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6293,6 +6352,8 @@ export interface OptionHistoryBinomialTradeGreeksSecondOrderOptions {
   endDate?: string
   /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   perfBoostIntraday?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -6341,6 +6402,8 @@ export interface OptionHistoryBinomialTradeGreeksThirdOrderOptions {
   endDate?: string
   /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   perfBoostIntraday?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7181,6 +7244,10 @@ export interface OptionSnapshotBinomialGreeksAllOptions {
   useMarketValue?: boolean
   /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   currentDayOnly?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7225,6 +7292,10 @@ export interface OptionSnapshotBinomialGreeksFirstOrderOptions {
   useMarketValue?: boolean
   /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   currentDayOnly?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7269,6 +7340,10 @@ export interface OptionSnapshotBinomialGreeksSecondOrderOptions {
   useMarketValue?: boolean
   /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   currentDayOnly?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -7313,6 +7388,10 @@ export interface OptionSnapshotBinomialGreeksThirdOrderOptions {
   useMarketValue?: boolean
   /** When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted. */
   currentDayOnly?: boolean
+  /** Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. */
+  exerciseStyle?: string
+  /** Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. */
+  impliedVolMethod?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request

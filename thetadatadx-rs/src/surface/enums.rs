@@ -67,6 +67,14 @@ macro_rules! __enums {
                 Latest "latest" LATEST [],
                 V1 "1" V1 [],
             }
+            ExerciseStyle {
+                American "american" AMERICAN [],
+                European "european" EUROPEAN [],
+            }
+            ImpliedVolMethod {
+                OwnQuote "own_quote" OWN_QUOTE [],
+                OutOfTheMoney "out_of_the_money" OUT_OF_THE_MONEY [],
+            }
         }
     };
 }

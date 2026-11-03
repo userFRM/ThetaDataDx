@@ -89,6 +89,8 @@ pub enum ParamType {
     Float,
     RateType,
     Version,
+    ExerciseStyle,
+    ImpliedVolMethod,
     Year,
 }
 
@@ -144,6 +146,8 @@ pub fn param_type_to_json_type(pt: ParamType) -> &'static str {
         ParamType::Float => "number",
         ParamType::RateType => "string",
         ParamType::Version => "string",
+        ParamType::ExerciseStyle => "string",
+        ParamType::ImpliedVolMethod => "string",
         ParamType::Year => "string",
     }
 }

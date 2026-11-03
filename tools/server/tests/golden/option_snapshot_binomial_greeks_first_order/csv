@@ -2,5 +2,5 @@
 content-type: text/csv; charset=utf-8
 content-disposition: attachment; filename="option_snapshot_binomial_greeks_first_order.csv"
 
-symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price
-SPY,2026-12-18,600.000,CALL,2026-10-29T16:15:00.082,168.6600,171.3700,0.9571,-0.1663,25.8944,76.9433,-100.2323,4.3049,0.4082,0.0000,2026-10-29T17:09:39.990,764.6300
+symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price,implied_vol_source
+SPY,2026-12-18,600.000,CALL,2026-11-02T16:14:59.035,155.7900,159.5700,0.9290,-0.2418,36.2503,67.9767,-87.8488,4.4221,0.4656,0.0000,2026-11-03T07:12:34.702,750.5100,own_quote

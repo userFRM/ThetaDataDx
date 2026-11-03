@@ -491,6 +491,8 @@ message OptionSnapshotBinomialGreeksAllRequestQuery {
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
   optional double annual_dividend_amount = 14;
+  optional string exercise_style = 15;
+  optional string implied_vol_method = 16;
 }
 
 message OptionSnapshotBinomialGreeksAllRequest {
@@ -534,6 +536,8 @@ message OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
   optional double annual_dividend_amount = 14;
+  optional string exercise_style = 15;
+  optional string implied_vol_method = 16;
 }
 
 message OptionSnapshotBinomialGreeksFirstOrderRequest {
@@ -577,6 +581,8 @@ message OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
   optional double annual_dividend_amount = 14;
+  optional string exercise_style = 15;
+  optional string implied_vol_method = 16;
 }
 
 message OptionSnapshotBinomialGreeksSecondOrderRequest {
@@ -620,6 +626,8 @@ message OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
   optional bool use_market_value = 12;
   optional bool current_day_only = 13;
   optional double annual_dividend_amount = 14;
+  optional string exercise_style = 15;
+  optional string implied_vol_method = 16;
 }
 
 message OptionSnapshotBinomialGreeksThirdOrderRequest {
@@ -763,6 +771,8 @@ message OptionHistoryBinomialGreeksEodRequestQuery {
   optional int32 strike_range = 12;
   optional bool option_use_nbbo = 13;
   optional double annual_dividend_amount = 14;
+  optional string exercise_style = 15;
+  optional string implied_vol_method = 16;
 }
 
 message OptionHistoryBinomialGreeksEodRequest {
@@ -808,6 +818,8 @@ message OptionHistoryBinomialGreeksAllRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional double annual_dividend_amount = 15;
+  optional string exercise_style = 16;
+  optional string implied_vol_method = 17;
 }
 
 message OptionHistoryBinomialGreeksAllRequest {
@@ -855,6 +867,7 @@ message OptionHistoryBinomialTradeGreeksAllRequestQuery {
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
   optional double annual_dividend_amount = 16;
+  optional string exercise_style = 17;
 }
 
 message OptionHistoryBinomialTradeGreeksAllRequest {
@@ -903,6 +916,8 @@ message OptionHistoryBinomialGreeksFirstOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional double annual_dividend_amount = 15;
+  optional string exercise_style = 16;
+  optional string implied_vol_method = 17;
 }
 
 message OptionHistoryBinomialGreeksFirstOrderRequest {
@@ -950,6 +965,7 @@ message OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery {
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
   optional double annual_dividend_amount = 16;
+  optional string exercise_style = 17;
 }
 
 message OptionHistoryBinomialTradeGreeksFirstOrderRequest {
@@ -995,6 +1011,8 @@ message OptionHistoryBinomialGreeksSecondOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional double annual_dividend_amount = 15;
+  optional string exercise_style = 16;
+  optional string implied_vol_method = 17;
 }
 
 message OptionHistoryBinomialGreeksSecondOrderRequest {
@@ -1042,6 +1060,7 @@ message OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery {
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
   optional double annual_dividend_amount = 16;
+  optional string exercise_style = 17;
 }
 
 message OptionHistoryBinomialTradeGreeksSecondOrderRequest {
@@ -1087,6 +1106,8 @@ message OptionHistoryBinomialGreeksThirdOrderRequestQuery {
   optional string start_date = 13;
   optional string end_date = 14;
   optional double annual_dividend_amount = 15;
+  optional string exercise_style = 16;
+  optional string implied_vol_method = 17;
 }
 
 message OptionHistoryBinomialGreeksThirdOrderRequest {
@@ -1134,6 +1155,7 @@ message OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery {
   optional string end_date = 14;
   optional bool perf_boost_intraday = 15;
   optional double annual_dividend_amount = 16;
+  optional string exercise_style = 17;
 }
 
 message OptionHistoryBinomialTradeGreeksThirdOrderRequest {

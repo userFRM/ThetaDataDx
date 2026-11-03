@@ -34,6 +34,9 @@ macro_rules! ts_tick {
     (@cols $st:tt $done:tt []) => {
         ts_tick! { @emit $st $done }
     };
+    (@col $st:tt [$($done:tt)*] $rest:tt $f:ident implied_vol_source [$has:ident]) => {
+        ts_tick! { @cols $st [$($done)* { $f [Option<String>] vol_source [$has] }] $rest }
+    };
     (@col $st:tt [$($done:tt)*] $rest:tt $f:ident $ty:ident [$has:ident]) => {
         ts_tick! { @cols $st [$($done)* { $f [Option<f64>] optional [$has] }] $rest }
     };
@@ -215,6 +218,7 @@ macro_rules! ts_tick {
     (@to_js right $t:tt $f:ident []) => { if $t.$f == '\0' { String::new() } else { $t.$f.to_string() } };
     (@to_js status $t:tt $f:ident []) => { $t.$f.as_str().to_string() };
     (@to_js optional $t:tt $f:ident [$has:ident]) => { if $t.$has { Some(f64::from($t.$f)) } else { None } };
+    (@to_js vol_source $t:tt $f:ident [$has:ident]) => { $t.$has.then(|| $t.$f.as_str().to_string()) };
 
     // JavaScript object to core row, rejecting a value the core type cannot
     // hold. An absent nullable value returns as the column's zero beside a
@@ -240,6 +244,18 @@ macro_rules! ts_tick {
                 "[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}",
                 $r.$f
             ))),
+        }
+    };
+    (@from_js vol_source $r:tt $f:ident) => {
+        match $r.$f.as_deref() {
+            None => thetadatadx::ImpliedVolSource::OwnQuote,
+            Some(text) => match thetadatadx::ImpliedVolSource::from_wire_text(text) {
+                Some(source) => source,
+                None => return Err(napi::Error::from_reason(format!(
+                    "[InvalidParameterError] {} must be one of own_quote, out_of_the_money, interpolated, extrapolated; got {text:?}",
+                    stringify!($f)
+                ))),
+            },
         }
     };
     (@from_js optional $r:tt $f:ident) => {

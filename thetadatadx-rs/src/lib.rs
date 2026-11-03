@@ -419,8 +419,8 @@ pub use crate::tdbe::types::tick::{
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 pub use crate::tdbe::types::enums::{
-    Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
-    StreamResponseType, Venue, Version,
+    ExerciseStyle, ImpliedVolMethod, ImpliedVolSource, Interval, RateType, RemoveReason,
+    RequestType, Right, SecType, StreamMsgType, StreamResponseType, Venue, Version,
 };
 /// Variable-precision fixed-point price encoding (`value` / `price_type`
 /// mantissa-and-exponent pair) and its supporting types: the validated

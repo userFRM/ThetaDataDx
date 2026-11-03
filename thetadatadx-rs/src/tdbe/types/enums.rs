@@ -410,6 +410,52 @@ impl std::fmt::Display for CalendarStatus {
     }
 }
 
+/// Where a binomial Greeks row's implied volatility came from.
+///
+/// Carries the vendor's `implied_vol_source` vocabulary, which the binomial
+/// Greeks routes send as text on every row; unknown text fails decode.
+/// `#[repr(i32)]` keeps the C ABI field a plain `int32_t`, and the
+/// discriminants are its codes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum ImpliedVolSource {
+    /// Solved from the contract's own quote midpoint.
+    OwnQuote = 0,
+    /// Taken from the out-of-the-money option at the same strike.
+    OutOfTheMoney = 1,
+    /// Filled between quoted strikes.
+    Interpolated = 2,
+    /// Filled past the quoted strikes.
+    Extrapolated = 3,
+}
+
+impl ImpliedVolSource {
+    /// The vendor's text for this source, as the bindings and the HTTP
+    /// server write it.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OwnQuote => "own_quote",
+            Self::OutOfTheMoney => "out_of_the_money",
+            Self::Interpolated => "interpolated",
+            Self::Extrapolated => "extrapolated",
+        }
+    }
+
+    /// Parse the vendor's text. Returns `None` outside the documented
+    /// vocabulary.
+    #[must_use]
+    pub fn from_wire_text(text: &str) -> Option<Self> {
+        match text {
+            "own_quote" => Some(Self::OwnQuote),
+            "out_of_the_money" => Some(Self::OutOfTheMoney),
+            "interpolated" => Some(Self::Interpolated),
+            "extrapolated" => Some(Self::Extrapolated),
+            _ => None,
+        }
+    }
+}
+
 /// Expands `__enums!` into the parameter enums, with their wire strings and
 /// the spellings each parses.
 macro_rules! wire_enums {

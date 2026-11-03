@@ -58,8 +58,9 @@ fn docs_field_type(column_type: &str) -> &'static str {
         "f64" | "price" | "eod_price" => "f64",
         // Logical columns document their cross-language shape: the
         // option right is a one-character string ("C" / "P"), the
-        // calendar day type is the vendor vocabulary string.
-        "String" | "right" | "calendar_status" => "string",
+        // calendar day type and the implied-volatility source are the
+        // vendor vocabulary strings.
+        "String" | "right" | "calendar_status" | "implied_vol_source" => "string",
         other => panic!("unmapped tick column type {other}"),
     }
 }

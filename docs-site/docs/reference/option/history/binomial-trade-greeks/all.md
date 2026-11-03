@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/binomial_trade_greeks/all",
   method: { rust: "option_history_binomial_trade_greeks_all", python: "option_history_binomial_trade_greeks_all", ts: "optionHistoryBinomialTradeGreeksAll", cpp: "option_history_binomial_trade_greeks_all" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }, { key: "exercise_style", type: "string", default: "" }],
   print: ["ms_of_day", "price", "delta", "implied_volatility"],
   returns: "TradeGreeksAllTick",
   sample: [
@@ -29,7 +29,7 @@ const cfg = {
 Fetch all binomial Greeks on each trade for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
-- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
 - Calculates greeks for every trade reported by OPRA.
 - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -58,6 +58,7 @@ Fetch all binomial Greeks on each trade for an option contract.
 | `start_date` | date | no | - | Start date YYYYMMDD |
 | `end_date` | date | no | - | End date YYYYMMDD |
 | `perf_boost_intraday` | bool | no | `false` | When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. |
+| `exercise_style` | string | no | - | Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

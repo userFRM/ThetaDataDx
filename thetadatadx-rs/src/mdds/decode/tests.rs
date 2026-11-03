@@ -965,6 +965,38 @@ fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
     assert!((ticks[0].delta - 0.5).abs() < 1e-10);
 }
 
+/// The binomial Greeks routes name the source of each row's implied
+/// volatility; the Black-Scholes routes send no such column, and a source
+/// outside the vendor's vocabulary is refused rather than read as another.
+#[test]
+fn parse_greeks_first_order_ticks_reads_the_implied_vol_source() {
+    use crate::tdbe::types::enums::ImpliedVolSource;
+    let binomial = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "implied_vol_source".into()],
+        data_table: vec![
+            row_of(vec![dv_number(34_200_000), dv_text("out_of_the_money")]),
+            row_of(vec![dv_number(34_200_000), dv_text("extrapolated")]),
+        ],
+    };
+    let ticks = parse_greeks_first_order_ticks(&binomial).unwrap();
+    assert!(ticks.iter().all(|t| t.has_implied_vol_source));
+    assert_eq!(ticks[0].implied_vol_source, ImpliedVolSource::OutOfTheMoney);
+    assert_eq!(ticks[1].implied_vol_source, ImpliedVolSource::Extrapolated);
+
+    let black_scholes = proto::DataTable {
+        headers: vec!["ms_of_day".into()],
+        data_table: vec![row_of(vec![dv_number(34_200_000)])],
+    };
+    let ticks = parse_greeks_first_order_ticks(&black_scholes).unwrap();
+    assert!(!ticks[0].has_implied_vol_source);
+
+    let drifted = proto::DataTable {
+        headers: vec!["ms_of_day".into(), "implied_vol_source".into()],
+        data_table: vec![row_of(vec![dv_number(34_200_000), dv_text("midpoint")])],
+    };
+    assert!(parse_greeks_first_order_ticks(&drifted).is_err());
+}
+
 /// Pin the `implied_vol -> implied_volatility` and
 /// `underlying_timestamp -> {underlying_ms_of_day, underlying_date}`
 /// aliases in `HEADER_ALIASES` by decoding a wire payload whose headers

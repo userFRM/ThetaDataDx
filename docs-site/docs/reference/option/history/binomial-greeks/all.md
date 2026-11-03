@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/binomial_greeks/all",
   method: { rust: "option_history_binomial_greeks_all", python: "option_history_binomial_greeks_all", ts: "optionHistoryBinomialGreeksAll", cpp: "option_history_binomial_greeks_all" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "20250303" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "annual_dividend_amount", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "exercise_style", type: "string", default: "" }, { key: "implied_vol_method", type: "string", default: "" }],
   print: ["date", "delta", "gamma", "theta", "implied_volatility"],
   returns: "GreeksAllTick",
   sample: [
@@ -28,7 +28,7 @@ const cfg = {
 Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
-- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
 - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
 - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
@@ -56,6 +56,8 @@ Fetch all binomial Greeks history for an option contract (intraday, sampled by i
 | `strike_range` | int | no | - | Strike range filter |
 | `start_date` | date | no | - | Start date YYYYMMDD |
 | `end_date` | date | no | - | End date YYYYMMDD |
+| `exercise_style` | string | no | - | Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`. |
+| `implied_vol_method` | string | no | `own_quote` | Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`. |
 | `timeout_ms` | int | no | - | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
@@ -93,6 +95,7 @@ Rows of `GreeksAllTick`:
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `underlying_date` | i32 | Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions. |
+| `implied_vol_source` | string | Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route. |
 
 Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

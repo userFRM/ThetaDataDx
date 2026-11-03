@@ -42,7 +42,8 @@
 //!   `has_<field>` flag that tells a reported zero from an absent value.
 //! - The column types are `i32`, `i64` and `f64`; `price`, a price cell read
 //!   as `f64`; `String`; `right`, an option right held as a `char`;
-//!   `calendar_status`, the vendor's day type; and the end-of-day report
+//!   `calendar_status`, the vendor's day type; `implied_vol_source`, where a
+//!   binomial row's implied volatility came from; and the end-of-day report
 //!   shapes `eod_num`, `eod_num64`, `eod_date` and `eod_price`, which also
 //!   accept a price or timestamp cell.
 //! - `timestamps` lists the epoch accessors, each joining a date field and a
@@ -251,6 +252,7 @@ macro_rules! __ticks {
                     underlying_price: price "Underlying price used in the calculation (midpoint of the underlying).",
                     date: i32 "Trading date as a YYYYMMDD integer.",
                     underlying_date: i32 "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.",
+                    #[nullable] implied_vol_source: implied_vol_source "Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route.",
                 ],
                 timestamps: [timestamp_ms(date, ms_of_day), underlying_timestamp_ms(underlying_date, underlying_ms_of_day)],
                 flags: [],
@@ -301,6 +303,7 @@ macro_rules! __ticks {
                     underlying_price: price "Underlying price used in the calculation (midpoint of the underlying).",
                     date: i32 "Trading date as a YYYYMMDD integer.",
                     underlying_date: i32 "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.",
+                    #[nullable] implied_vol_source: implied_vol_source "Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route.",
                 ],
                 timestamps: [timestamp_ms(date, ms_of_day), underlying_timestamp_ms(underlying_date, underlying_ms_of_day)],
                 flags: [],
@@ -325,6 +328,7 @@ macro_rules! __ticks {
                     underlying_price: price "Underlying price used in the calculation (midpoint of the underlying).",
                     date: i32 "Trading date as a YYYYMMDD integer.",
                     underlying_date: i32 "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.",
+                    #[nullable] implied_vol_source: implied_vol_source "Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route.",
                 ],
                 timestamps: [timestamp_ms(date, ms_of_day), underlying_timestamp_ms(underlying_date, underlying_ms_of_day)],
                 flags: [],
@@ -348,6 +352,7 @@ macro_rules! __ticks {
                     underlying_price: price "Underlying price used in the calculation (midpoint of the underlying).",
                     date: i32 "Trading date as a YYYYMMDD integer.",
                     underlying_date: i32 "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.",
+                    #[nullable] implied_vol_source: implied_vol_source "Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route.",
                 ],
                 timestamps: [timestamp_ms(date, ms_of_day), underlying_timestamp_ms(underlying_date, underlying_ms_of_day)],
                 flags: [],
@@ -370,6 +375,7 @@ macro_rules! __ticks {
                     underlying_price: price "Underlying price used in the calculation (midpoint of the underlying).",
                     date: i32 "Trading date as a YYYYMMDD integer.",
                     underlying_date: i32 "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.",
+                    #[nullable] implied_vol_source: implied_vol_source "Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route.",
                 ],
                 timestamps: [timestamp_ms(date, ms_of_day), underlying_timestamp_ms(underlying_date, underlying_ms_of_day)],
                 flags: [],
