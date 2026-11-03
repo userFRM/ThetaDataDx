@@ -124,13 +124,15 @@ fn greeks_first_order_tick_to_arrow() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OutOfTheMoney,
+        has_implied_vol_source: true,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 18);
+    assert_eq!(batch.num_columns(), 19);
     assert_eq!(
         columns(&batch),
         vec![
@@ -149,6 +151,7 @@ fn greeks_first_order_tick_to_arrow() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"
@@ -214,6 +217,14 @@ fn greeks_first_order_tick_to_arrow() {
         .downcast_ref::<StringArray>()
         .unwrap();
     assert_eq!(right_arr.value(0), "C");
+    assert_eq!(dtype_of(&batch, "implied_vol_source"), DataType::Utf8);
+    let source = batch
+        .column_by_name("implied_vol_source")
+        .unwrap()
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(source.value(0), "out_of_the_money");
 }
 
 /// `GreeksSecondOrderTick` to_arrow: same shape guarantees as the
@@ -236,13 +247,15 @@ fn greeks_second_order_tick_to_arrow() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OwnQuote,
+        has_implied_vol_source: false,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'P',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 17);
+    assert_eq!(batch.num_columns(), 18);
     assert_eq!(
         columns(&batch),
         vec![
@@ -260,6 +273,7 @@ fn greeks_second_order_tick_to_arrow() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"
@@ -303,6 +317,13 @@ fn greeks_second_order_tick_to_arrow() {
         .downcast_ref::<StringArray>()
         .unwrap();
     assert_eq!(right_arr.value(0), "P");
+    // A row from a route that sends no source reads as null, not as a source.
+    assert!(
+        batch
+            .column_by_name("implied_vol_source")
+            .unwrap()
+            .is_null(0)
+    );
 }
 
 /// `GreeksThirdOrderTick` to_arrow: same shape guarantees. Third-order
@@ -324,13 +345,15 @@ fn greeks_third_order_tick_to_arrow() {
         underlying_price: 58.0025,
         date: 20_240_614,
         underlying_date: 20_240_615,
+        implied_vol_source: tick::ImpliedVolSource::OwnQuote,
+        has_implied_vol_source: false,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 16);
+    assert_eq!(batch.num_columns(), 17);
     assert_eq!(
         columns(&batch),
         vec![
@@ -347,6 +370,7 @@ fn greeks_third_order_tick_to_arrow() {
             "underlying_price",
             "date",
             "underlying_date",
+            "implied_vol_source",
             "expiration",
             "strike",
             "right"

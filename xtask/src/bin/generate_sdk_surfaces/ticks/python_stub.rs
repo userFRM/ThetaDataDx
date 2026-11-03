@@ -53,7 +53,7 @@ fn py_type(ty: &str) -> &'static str {
     match ty {
         "i32" | "i64" | "eod_num" | "eod_num64" | "eod_date" => "int",
         "f64" | "price" | "eod_price" => "float",
-        "String" | "right" | "calendar_status" => "str",
+        "String" | "right" | "calendar_status" | "implied_vol_source" => "str",
         other => panic!("no Python type for tick column type '{other}'"),
     }
 }

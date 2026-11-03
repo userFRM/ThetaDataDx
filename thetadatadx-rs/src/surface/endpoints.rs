@@ -277,6 +277,14 @@ macro_rules! __param {
         binomial_steps opt Int [101]
         "Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."
     } $($s)* } };
+    (exercise_style_input $($s:tt)*) => { $crate::__resolve! { @def {
+        exercise_style opt ExerciseStyle []
+        "Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."
+    } $($s)* } };
+    (implied_vol_method_input $($s:tt)*) => { $crate::__resolve! { @def {
+        implied_vol_method opt ImpliedVolMethod ["own_quote"]
+        "Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."
+    } $($s)* } };
     (perf_boost_intraday_flag $($s:tt)*) => { $crate::__resolve! { @def {
         perf_boost_intraday opt Bool [false]
         "When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."
@@ -295,11 +303,11 @@ macro_rules! __param {
     (stock_flat_file $($s:tt)*) => { $crate::__resolve! { @keys [required_date] $($s)* } };
     (option_snapshot_standard $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity max_dte_filter strike_range_filter min_time_filter current_day_only_flag] $($s)* } };
     (option_snapshot_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity option_snapshot_greeks_inputs max_dte_filter strike_range_filter min_time_filter use_market_value_flag current_day_only_flag] $($s)* } };
-    (option_snapshot_binomial_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity option_greeks_rate_inputs stock_price_input binomial_steps_input version_input max_dte_filter strike_range_filter min_time_filter use_market_value_flag current_day_only_flag] $($s)* } };
+    (option_snapshot_binomial_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity option_greeks_rate_inputs stock_price_input binomial_steps_input version_input max_dte_filter strike_range_filter min_time_filter use_market_value_flag current_day_only_flag exercise_style_input implied_vol_method_input] $($s)* } };
     (option_history_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date interval history_time_filters option_history_greeks_inputs strike_range_filter date_range_optional] $($s)* } };
     (option_history_trade_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date history_time_filters option_history_greeks_inputs max_dte_filter strike_range_filter date_range_optional perf_boost_intraday_flag] $($s)* } };
-    (option_history_binomial_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date interval history_time_filters option_greeks_rate_inputs binomial_steps_input version_input strike_range_filter date_range_optional] $($s)* } };
-    (option_history_binomial_trade_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date history_time_filters option_greeks_rate_inputs binomial_steps_input version_input max_dte_filter strike_range_filter date_range_optional perf_boost_intraday_flag] $($s)* } };
+    (option_history_binomial_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date interval history_time_filters option_greeks_rate_inputs binomial_steps_input version_input strike_range_filter date_range_optional exercise_style_input implied_vol_method_input] $($s)* } };
+    (option_history_binomial_trade_greeks $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity optional_date history_time_filters option_greeks_rate_inputs binomial_steps_input version_input max_dte_filter strike_range_filter date_range_optional perf_boost_intraday_flag exercise_style_input] $($s)* } };
     (option_at_time $($s:tt)*) => { $crate::__resolve! { @keys [contract_identity date_range_required time_of_day max_dte_filter strike_range_filter] $($s)* } };
     (option_flat_file $($s:tt)*) => { $crate::__resolve! { @keys [required_date] $($s)* } };
     (index_snapshot $($s:tt)*) => { $crate::__resolve! { @keys [multi_symbol min_time_filter current_day_only_flag] $($s)* } };
@@ -323,6 +331,7 @@ macro_rules! __request_options {
             max_dte_filter strike_range_filter annual_dividend_input annual_dividend_amount_input
             rate_type_input rate_value_input stock_price_input version_input use_market_value_flag
             binomial_steps_input underlyer_use_nbbo_flag option_use_nbbo_flag perf_boost_intraday_flag
+            exercise_style_input implied_vol_method_input
         ] => $m { $($ctx)* } }
     };
 }
@@ -693,7 +702,7 @@ macro_rules! __endpoints {
                     "Get all binomial Greeks snapshot for an option contract (from ThetaData server).",
                     "",
                     "- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.",
                 ],
             }
@@ -718,7 +727,7 @@ macro_rules! __endpoints {
                     "Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.",
                     "",
                     "- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.",
                 ],
             }
@@ -743,7 +752,7 @@ macro_rules! __endpoints {
                     "Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.",
                     "",
                     "- Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.",
                 ],
             }
@@ -768,7 +777,7 @@ macro_rules! __endpoints {
                     "Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.",
                     "",
                     "- Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.",
                 ],
             }
@@ -874,12 +883,12 @@ macro_rules! __endpoints {
                 group: option / history_greeks,
                 rest: "/v3/option/history/binomial_greeks/eod",
                 returns: GreeksEodTick,
-                params: [contract_identity date_range_required option_greeks_rate_inputs binomial_steps_input version_input underlyer_use_nbbo_flag max_dte_filter strike_range_filter option_use_nbbo_flag],
+                params: [contract_identity date_range_required option_greeks_rate_inputs binomial_steps_input version_input underlyer_use_nbbo_flag max_dte_filter strike_range_filter option_use_nbbo_flag exercise_style_input implied_vol_method_input],
                 doc: [
                     "Fetch end-of-day binomial Greeks history for an option contract.",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.",
                     "- **Any ``expiration=*`` request must be made day by day.**",
                 ],
@@ -909,7 +918,7 @@ macro_rules! __endpoints {
                     "Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration. ",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. ",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data.",
@@ -940,7 +949,7 @@ macro_rules! __endpoints {
                     "Fetch all binomial Greeks on each trade for an option contract.",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculates greeks for every trade reported by OPRA.",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data, and must specify an expiration.",
@@ -971,7 +980,7 @@ macro_rules! __endpoints {
                     "Fetch first-order binomial Greeks history (intraday, sampled by interval).",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration. ",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. ",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data.",
@@ -1002,7 +1011,7 @@ macro_rules! __endpoints {
                     "Fetch first-order binomial Greeks on each trade for an option contract.",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculates greeks for every trade reported by OPRA.",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data, and must specify an expiration.",
@@ -1033,7 +1042,7 @@ macro_rules! __endpoints {
                     "Fetch second-order binomial Greeks history (intraday, sampled by interval).",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration. ",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. ",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data.",
@@ -1064,7 +1073,7 @@ macro_rules! __endpoints {
                     "Fetch second-order binomial Greeks on each trade for an option contract.",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculates greeks for every trade reported by OPRA.",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data, and must specify an expiration.",
@@ -1095,7 +1104,7 @@ macro_rules! __endpoints {
                     "Fetch third-order binomial Greeks history (intraday, sampled by interval).",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration. ",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. ",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data.",
@@ -1126,7 +1135,7 @@ macro_rules! __endpoints {
                     "Fetch third-order binomial Greeks on each trade for an option contract.",
                     "",
                     "- Returns the data for all contracts that share the same provided symbol and expiration.",
-                    "- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.",
+                    "- Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.",
                     "- Calculates greeks for every trade reported by OPRA.",
                     "- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).",
                     "- Multi-day requests are limited to 1 month of data, and must specify an expiration.",

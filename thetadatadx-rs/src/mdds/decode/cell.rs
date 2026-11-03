@@ -556,6 +556,44 @@ pub(crate) fn row_contract_right(
     }
 }
 
+/// Decode an `implied_vol_source` cell to its [`ImpliedVolSource`].
+///
+/// The binomial Greeks routes send the source as `Text`. `NullValue` yields
+/// `Ok(None)`.
+///
+/// # Errors
+///
+/// Returns [`DecodeError::UnknownEnumVariant`] for text outside the vendor's
+/// vocabulary, [`DecodeError::TypeMismatch`] on any other variant, and
+/// [`DecodeError::MissingCell`] when the row is shorter than `idx`.
+///
+/// [`ImpliedVolSource`]: crate::tdbe::types::enums::ImpliedVolSource
+#[inline]
+pub(crate) fn row_implied_vol_source(
+    row: &proto::DataValueList,
+    idx: usize,
+) -> Result<Option<crate::tdbe::types::enums::ImpliedVolSource>, DecodeError> {
+    let Some(dv) = row.values.get(idx) else {
+        return Err(DecodeError::MissingCell { column: idx });
+    };
+    match dv.data_type.as_ref() {
+        Some(proto::data_value::DataType::Text(s)) => {
+            crate::tdbe::types::enums::ImpliedVolSource::from_wire_text(s)
+                .map(Some)
+                .ok_or_else(|| DecodeError::UnknownEnumVariant {
+                    field: "implied_vol_source",
+                    raw: s.clone(),
+                })
+        }
+        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
+        other => Err(DecodeError::TypeMismatch {
+            column: idx,
+            expected: "Text",
+            observed: observed_name(other),
+        }),
+    }
+}
+
 // The tick decoders, expanded from the tick table: one two-phase parser per
 // type, plus its wire-column presence and chain sort key.
 //
@@ -693,6 +731,7 @@ macro_rules! tick_decoder {
     };
     (@seed String) => { String::new() };
     (@seed right) => { '\0' };
+    (@seed implied_vol_source) => { crate::tdbe::types::enums::ImpliedVolSource::OwnQuote };
     (@seed f64) => { 0.0 };
     (@seed price) => { 0.0 };
     (@seed eod_price) => { 0.0 };
@@ -705,6 +744,7 @@ macro_rules! tick_decoder {
     (@decoder $f:ident price) => { row_price_f64 };
     (@decoder $f:ident String) => { row_text };
     (@decoder $f:ident right) => { row_contract_right };
+    (@decoder $f:ident implied_vol_source) => { row_implied_vol_source };
     (@decoder $f:ident eod_num) => { row_eod_number };
     (@decoder $f:ident eod_num64) => { row_eod_number_i64 };
     (@decoder $f:ident eod_date) => { row_eod_date };

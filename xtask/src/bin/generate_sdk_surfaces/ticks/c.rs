@@ -10,7 +10,7 @@ use super::table::ticks_by_name;
 /// The C type of a table column type and its size in bytes.
 fn c_type(ty: &str) -> (&'static str, usize) {
     match ty {
-        "i32" | "eod_num" | "eod_date" | "calendar_status" => ("int32_t", 4),
+        "i32" | "eod_num" | "eod_date" | "calendar_status" | "implied_vol_source" => ("int32_t", 4),
         "i64" | "eod_num64" => ("int64_t", 8),
         "f64" | "price" | "eod_price" => ("double", 8),
         other => panic!("no C type for tick column type '{other}'"),
@@ -47,6 +47,12 @@ pub(super) fn render_c_ticks() -> String {
                     "    /* One of the THETADATADX_CALENDAR_STATUS_* codes; string form via\n",
                 );
                 out.push_str("     * thetadatadx_calendar_status_name(). */\n");
+            }
+            if column.ty == "implied_vol_source" {
+                out.push_str(
+                    "    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;\n",
+                );
+                out.push_str("     * read only when has_implied_vol_source is set. */\n");
             }
             writeln!(out, "    {ty} {field};").unwrap();
             end = offset(layout.offsets, column.field) + size;

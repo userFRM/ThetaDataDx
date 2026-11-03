@@ -77,6 +77,7 @@ Rows of `GreeksSecondOrderTick`:
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `underlying_date` | i32 | Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions. |
+| `implied_vol_source` | string | Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Only the binomial Greeks routes send it, so it is absent on every other route. |
 
 Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

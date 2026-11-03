@@ -161,6 +161,9 @@ const IV_UNDERLYING: [Column; 4] = [
     value("underlying_timestamp"),
     price("underlying_price"),
 ];
+/// Closes every row of the binomial Greeks routes, which name the source of
+/// each row's implied volatility.
+const IV_SOURCE: [Column; 1] = [value("implied_vol_source")];
 
 /// The columns one endpoint writes, in the terminal's order.
 struct Layout {
@@ -337,10 +340,14 @@ impl Layout {
                 unreachable!("{} is a flat file, served by flatfile_routes", ep.name)
             }
         };
+        let mut body = body.concat();
+        if ep.rest_path.contains("/binomial_greeks/") {
+            body.extend(IV_SOURCE);
+        }
         Self {
             keys,
             keys_after_timestamp,
-            body: body.concat(),
+            body,
             required,
             request_symbol: list("_list_expirations") || list("_list_strikes"),
             grouped: option_tick,

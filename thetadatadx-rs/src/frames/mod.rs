@@ -324,7 +324,9 @@ macro_rules! tick_frame {
     (@elem String []) => { String };
     (@elem right []) => { String };
     (@elem calendar_status []) => { String };
+    (@elem implied_vol_source []) => { &'static str };
     (@elem $ty:ident []) => { i32 };
+    (@value $t:ident $f:ident implied_vol_source [$has:ident]) => { $t.$has.then(|| $t.$f.as_str()) };
     (@value $t:ident $f:ident $ty:ident [$has:ident]) => { $t.$has.then_some($t.$f) };
     (@value $t:ident $f:ident String []) => { $t.$f.clone() };
     (@value $t:ident $f:ident right []) => { if $t.$f == '\0' { String::new() } else { $t.$f.to_string() } };
@@ -338,6 +340,7 @@ macro_rules! tick_frame {
     (@datatype String) => { DataType::Utf8 };
     (@datatype right) => { DataType::Utf8 };
     (@datatype calendar_status) => { DataType::Utf8 };
+    (@datatype implied_vol_source) => { DataType::Utf8 };
     (@datatype $ty:ident) => { DataType::Int32 };
     (@nullable []) => { false };
     (@nullable [$has:ident]) => { true };
@@ -349,6 +352,7 @@ macro_rules! tick_frame {
     (@array String $col:ident) => { Arc::new(StringArray::from($col)) as ArrayRef };
     (@array right $col:ident) => { Arc::new(StringArray::from($col)) as ArrayRef };
     (@array calendar_status $col:ident) => { Arc::new(StringArray::from($col)) as ArrayRef };
+    (@array implied_vol_source $col:ident) => { Arc::new(StringArray::from($col)) as ArrayRef };
     (@array $ty:ident $col:ident) => { Arc::new(Int32Array::from($col)) as ArrayRef };
 }
 

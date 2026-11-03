@@ -56,6 +56,10 @@ const OPTIONAL_VALUES: &[(&str, &str)] = &[
     ("annual_dividend_amount", "0.96"),
     ("option_use_nbbo", "false"),
     ("use_time_based_trade_quote", "false"),
+    ("exercise_style", "european"),
+    // `out_of_the_money` needs `strike=*` and `right=both`, which the
+    // concrete fixture contract does not set.
+    ("implied_vol_method", "own_quote"),
 ];
 
 /// The arguments each wildcard mode sets in place of the concrete fixture.

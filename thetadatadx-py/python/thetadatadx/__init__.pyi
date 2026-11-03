@@ -838,6 +838,68 @@ class Version:
 
 
 @final
+class ExerciseStyle:
+    """Exercise style of the binomial Greeks tree."""
+
+    AMERICAN: ExerciseStyle
+    """Early exercise at every node."""
+    EUROPEAN: ExerciseStyle
+    """Exercise only at expiration."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this style (e.g. ``"american"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"american"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"ExerciseStyle.american"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same style."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
+class ImpliedVolMethod:
+    """Where a binomial Greeks row takes its implied volatility from."""
+
+    OWN_QUOTE: ImpliedVolMethod
+    """The contract's own midpoint."""
+    OUT_OF_THE_MONEY: ImpliedVolMethod
+    """The out-of-the-money option at the same strike."""
+
+    @property
+    def value(self) -> str:
+        """The wire token for this method (e.g. ``"own_quote"``)."""
+        ...
+
+    def __str__(self) -> str:
+        """Return the wire token (e.g. ``"own_quote"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation (e.g. ``"ImpliedVolMethod.own_quote"``)."""
+        ...
+
+    def __eq__(self, other: object) -> bool:
+        """Return whether ``other`` is the same method."""
+        ...
+
+    def __hash__(self) -> int:
+        """Return a hash consistent with :meth:`__eq__`."""
+        ...
+
+
+@final
 class Subscription:
     """Typed market-data subscription (per-contract or full-stream)."""
 
@@ -1616,6 +1678,7 @@ class GreeksAllTick:
         underlying_price: float = ...,
         date: int = ...,
         underlying_date: int = ...,
+        implied_vol_source: Optional[str] = ...,
         expiration: Optional[int] = ...,
         strike: Optional[float] = ...,
         right: Optional[str] = ...,
@@ -1679,6 +1742,8 @@ class GreeksAllTick:
     """Trading date as a YYYYMMDD integer."""
     underlying_date: int
     """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    implied_vol_source: Optional[str]
+    """Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). `None` when the response carried no such column."""
     expiration: Optional[int]
     """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
     strike: Optional[float]
@@ -1754,6 +1819,7 @@ class GreeksEodTick:
         underlying_price: float = ...,
         date: int = ...,
         underlying_date: int = ...,
+        implied_vol_source: Optional[str] = ...,
         expiration: Optional[int] = ...,
         strike: Optional[float] = ...,
         right: Optional[str] = ...,
@@ -1841,6 +1907,8 @@ class GreeksEodTick:
     """Trading date as a YYYYMMDD integer."""
     underlying_date: int
     """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    implied_vol_source: Optional[str]
+    """Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). `None` when the response carried no such column."""
     expiration: Optional[int]
     """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
     strike: Optional[float]
@@ -1890,6 +1958,7 @@ class GreeksFirstOrderTick:
         underlying_price: float = ...,
         date: int = ...,
         underlying_date: int = ...,
+        implied_vol_source: Optional[str] = ...,
         expiration: Optional[int] = ...,
         strike: Optional[float] = ...,
         right: Optional[str] = ...,
@@ -1925,6 +1994,8 @@ class GreeksFirstOrderTick:
     """Trading date as a YYYYMMDD integer."""
     underlying_date: int
     """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    implied_vol_source: Optional[str]
+    """Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). `None` when the response carried no such column."""
     expiration: Optional[int]
     """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
     strike: Optional[float]
@@ -1973,6 +2044,7 @@ class GreeksSecondOrderTick:
         underlying_price: float = ...,
         date: int = ...,
         underlying_date: int = ...,
+        implied_vol_source: Optional[str] = ...,
         expiration: Optional[int] = ...,
         strike: Optional[float] = ...,
         right: Optional[str] = ...,
@@ -2006,6 +2078,8 @@ class GreeksSecondOrderTick:
     """Trading date as a YYYYMMDD integer."""
     underlying_date: int
     """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    implied_vol_source: Optional[str]
+    """Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). `None` when the response carried no such column."""
     expiration: Optional[int]
     """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
     strike: Optional[float]
@@ -2053,6 +2127,7 @@ class GreeksThirdOrderTick:
         underlying_price: float = ...,
         date: int = ...,
         underlying_date: int = ...,
+        implied_vol_source: Optional[str] = ...,
         expiration: Optional[int] = ...,
         strike: Optional[float] = ...,
         right: Optional[str] = ...,
@@ -2084,6 +2159,8 @@ class GreeksThirdOrderTick:
     """Trading date as a YYYYMMDD integer."""
     underlying_date: int
     """Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions."""
+    implied_vol_source: Optional[str]
+    """Where `implied_volatility` came from: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). `None` when the response carried no such column."""
     expiration: Optional[int]
     """Expiration of the row's contract as a YYYYMMDD integer on a wildcard option response; `None` when the response names a single contract."""
     strike: Optional[float]
@@ -4243,6 +4320,14 @@ class OptionSnapshotBinomialGreeksAllBuilder(_Builder[GreeksAllTickList]):
         """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
+        ...
+
 
 @final
 class OptionSnapshotGreeksFirstOrderBuilder(_Builder[GreeksFirstOrderTickList]):
@@ -4375,6 +4460,14 @@ class OptionSnapshotBinomialGreeksFirstOrderBuilder(_Builder[GreeksFirstOrderTic
 
     def current_day_only(self, value: bool) -> Self:
         """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -4511,6 +4604,14 @@ class OptionSnapshotBinomialGreeksSecondOrderBuilder(_Builder[GreeksSecondOrderT
         """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
+        ...
+
 
 @final
 class OptionSnapshotGreeksThirdOrderBuilder(_Builder[GreeksThirdOrderTickList]):
@@ -4643,6 +4744,14 @@ class OptionSnapshotBinomialGreeksThirdOrderBuilder(_Builder[GreeksThirdOrderTic
 
     def current_day_only(self, value: bool) -> Self:
         """When true, only snapshot data from the current trading day (New York date) is returned. Applied before `min_time`. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -5065,6 +5174,14 @@ class OptionHistoryBinomialGreeksEodBuilder(_ChunkedBuilder[GreeksEodTickList]):
         """Selects the option price used in the Greeks calculation: true uses the midpoint of the closing NBBO, false uses the last trade price. Defaults to true, matching the terminal, which sends true when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
+        ...
+
 
 @final
 class OptionHistoryGreeksAllBuilder(_ChunkedBuilder[GreeksAllTickList]):
@@ -5205,6 +5322,14 @@ class OptionHistoryBinomialGreeksAllBuilder(_ChunkedBuilder[GreeksAllTickList]):
 
     def end_date(self, value: Union[str, _date, datetime]) -> Self:
         """End date YYYYMMDD"""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -5357,6 +5482,10 @@ class OptionHistoryBinomialTradeGreeksAllBuilder(_ChunkedBuilder[TradeGreeksAllT
         """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
 
 @final
 class OptionHistoryGreeksFirstOrderBuilder(_ChunkedBuilder[GreeksFirstOrderTickList]):
@@ -5497,6 +5626,14 @@ class OptionHistoryBinomialGreeksFirstOrderBuilder(_ChunkedBuilder[GreeksFirstOr
 
     def end_date(self, value: Union[str, _date, datetime]) -> Self:
         """End date YYYYMMDD"""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -5649,6 +5786,10 @@ class OptionHistoryBinomialTradeGreeksFirstOrderBuilder(_ChunkedBuilder[TradeGre
         """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
 
 @final
 class OptionHistoryGreeksSecondOrderBuilder(_ChunkedBuilder[GreeksSecondOrderTickList]):
@@ -5789,6 +5930,14 @@ class OptionHistoryBinomialGreeksSecondOrderBuilder(_ChunkedBuilder[GreeksSecond
 
     def end_date(self, value: Union[str, _date, datetime]) -> Self:
         """End date YYYYMMDD"""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -5941,6 +6090,10 @@ class OptionHistoryBinomialTradeGreeksSecondOrderBuilder(_ChunkedBuilder[TradeGr
         """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
         ...
 
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
 
 @final
 class OptionHistoryGreeksThirdOrderBuilder(_ChunkedBuilder[GreeksThirdOrderTickList]):
@@ -6081,6 +6234,14 @@ class OptionHistoryBinomialGreeksThirdOrderBuilder(_ChunkedBuilder[GreeksThirdOr
 
     def end_date(self, value: Union[str, _date, datetime]) -> Self:
         """End date YYYYMMDD"""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
+        ...
+
+    def implied_vol_method(self, value: Union[str, ImpliedVolMethod]) -> Self:
+        """Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`."""
         ...
 
 
@@ -6231,6 +6392,10 @@ class OptionHistoryBinomialTradeGreeksThirdOrderBuilder(_ChunkedBuilder[TradeGre
 
     def perf_boost_intraday(self, value: bool) -> Self:
         """When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."""
+        ...
+
+    def exercise_style(self, value: Union[str, ExerciseStyle]) -> Self:
+        """Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`."""
         ...
 
 
@@ -7437,12 +7602,14 @@ class _AsyncMarketData:
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksAllTick]]:
         """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
 
         - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -7453,6 +7620,7 @@ class _AsyncMarketData:
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -7516,12 +7684,14 @@ class _AsyncMarketData:
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksFirstOrderTick]]:
         """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
 
         - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -7532,6 +7702,7 @@ class _AsyncMarketData:
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -7595,12 +7766,14 @@ class _AsyncMarketData:
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksSecondOrderTick]]:
         """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
 
         - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -7611,6 +7784,7 @@ class _AsyncMarketData:
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -7674,12 +7848,14 @@ class _AsyncMarketData:
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[List[GreeksThirdOrderTick]]:
         """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
 
         - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -7690,6 +7866,7 @@ class _AsyncMarketData:
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -7953,12 +8130,14 @@ class _AsyncMarketData:
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         option_use_nbbo: Optional[bool] = True,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksEodTickList]:
         """Fetch end-of-day binomial Greeks history for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
         - **Any ``expiration=*`` request must be made day by day.**
 
@@ -7970,6 +8149,7 @@ class _AsyncMarketData:
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
         - `option_use_nbbo`: `true`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -8038,12 +8218,14 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksAllTickList]:
         """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -8057,6 +8239,7 @@ class _AsyncMarketData:
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -8127,12 +8310,13 @@ class _AsyncMarketData:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksAllTickList]:
         """Fetch all binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -8214,12 +8398,14 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksFirstOrderTickList]:
         """Fetch first-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -8233,6 +8419,7 @@ class _AsyncMarketData:
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -8303,12 +8490,13 @@ class _AsyncMarketData:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksFirstOrderTickList]:
         """Fetch first-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -8390,12 +8578,14 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksSecondOrderTickList]:
         """Fetch second-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -8409,6 +8599,7 @@ class _AsyncMarketData:
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -8479,12 +8670,13 @@ class _AsyncMarketData:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksSecondOrderTickList]:
         """Fetch second-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -8566,12 +8758,14 @@ class _AsyncMarketData:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[GreeksThirdOrderTickList]:
         """Fetch third-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -8585,6 +8779,7 @@ class _AsyncMarketData:
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -8655,12 +8850,13 @@ class _AsyncMarketData:
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksThirdOrderTickList]:
         """Fetch third-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -10064,12 +10260,14 @@ class MarketDataView(_AsyncMarketData):
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksAllTick]:
         """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
 
         - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -10080,6 +10278,7 @@ class MarketDataView(_AsyncMarketData):
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10153,12 +10352,14 @@ class MarketDataView(_AsyncMarketData):
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksFirstOrderTick]:
         """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
 
         - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -10169,6 +10370,7 @@ class MarketDataView(_AsyncMarketData):
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10242,12 +10444,14 @@ class MarketDataView(_AsyncMarketData):
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksSecondOrderTick]:
         """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
 
         - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -10258,6 +10462,7 @@ class MarketDataView(_AsyncMarketData):
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10331,12 +10536,14 @@ class MarketDataView(_AsyncMarketData):
         min_time: Optional[Union[str, time, datetime]] = None,
         use_market_value: Optional[bool] = False,
         current_day_only: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> List[GreeksThirdOrderTick]:
         """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
 
         - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 
         Defaults (upstream):
@@ -10347,6 +10554,7 @@ class MarketDataView(_AsyncMarketData):
         - `version`: `"latest"`
         - `use_market_value`: `false`
         - `current_day_only`: `false`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10654,12 +10862,14 @@ class MarketDataView(_AsyncMarketData):
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         option_use_nbbo: Optional[bool] = True,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> GreeksEodTickList:
         """Fetch end-of-day binomial Greeks history for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
         - **Any ``expiration=*`` request must be made day by day.**
 
@@ -10671,6 +10881,7 @@ class MarketDataView(_AsyncMarketData):
         - `version`: `"latest"`
         - `underlyer_use_nbbo`: `false`
         - `option_use_nbbo`: `true`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10751,12 +10962,14 @@ class MarketDataView(_AsyncMarketData):
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> GreeksAllTickList:
         """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -10770,6 +10983,7 @@ class MarketDataView(_AsyncMarketData):
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -10850,12 +11064,13 @@ class MarketDataView(_AsyncMarketData):
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksAllTickList:
         """Fetch all binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -10947,12 +11162,14 @@ class MarketDataView(_AsyncMarketData):
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> GreeksFirstOrderTickList:
         """Fetch first-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -10966,6 +11183,7 @@ class MarketDataView(_AsyncMarketData):
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -11046,12 +11264,13 @@ class MarketDataView(_AsyncMarketData):
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksFirstOrderTickList:
         """Fetch first-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -11143,12 +11362,14 @@ class MarketDataView(_AsyncMarketData):
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> GreeksSecondOrderTickList:
         """Fetch second-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -11162,6 +11383,7 @@ class MarketDataView(_AsyncMarketData):
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -11242,12 +11464,13 @@ class MarketDataView(_AsyncMarketData):
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksSecondOrderTickList:
         """Fetch second-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -11339,12 +11562,14 @@ class MarketDataView(_AsyncMarketData):
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
+        implied_vol_method: Optional[Union[str, ImpliedVolMethod]] = None,
         timeout_ms: Optional[int] = None,
     ) -> GreeksThirdOrderTickList:
         """Fetch third-order binomial Greeks history (intraday, sampled by interval).
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
@@ -11358,6 +11583,7 @@ class MarketDataView(_AsyncMarketData):
         - `rate_type`: `"sofr"`
         - `binomial_steps`: `101`
         - `version`: `"latest"`
+        - `implied_vol_method`: `"own_quote"`
         """
         ...
 
@@ -11438,12 +11664,13 @@ class MarketDataView(_AsyncMarketData):
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
         perf_boost_intraday: Optional[bool] = False,
+        exercise_style: Optional[Union[str, ExerciseStyle]] = None,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksThirdOrderTickList:
         """Fetch third-order binomial Greeks on each trade for an option contract.
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
-        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Greeks are calculated with a Leisen-Reimer binomial tree. European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American, which allows early exercise at every node; set `exercise_style` to override.
         - Calculates greeks for every trade reported by OPRA.
         - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.

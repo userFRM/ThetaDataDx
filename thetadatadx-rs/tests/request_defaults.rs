@@ -3,7 +3,8 @@
 //! Several parameters are optional on the vendor's query messages, yet the
 //! terminal fills a value in on every request: 101 `binomial_steps`,
 //! `perf_boost_intraday = false`, `current_day_only = false`,
-//! `option_use_nbbo = true` and `use_time_based_trade_quote = true`. An
+//! `option_use_nbbo = true`, `use_time_based_trade_quote = true` and
+//! `implied_vol_method = "own_quote"`. An
 //! omitted field is therefore not the same request the terminal makes, and
 //! the difference is invisible to the caller: the server applies whatever
 //! default it holds and answers normally. The values come from a declared default in
@@ -73,6 +74,15 @@ struct OptionSnapshotGreeksAllQuery {
 struct OptionHistoryGreeksEodQuery {
     #[prost(bool, optional, tag = "12")]
     option_use_nbbo: Option<bool>,
+}
+
+/// `OptionSnapshotBinomialGreeksFirstOrderRequestQuery`.
+#[derive(Clone, PartialEq, prost::Message)]
+struct OptionSnapshotBinomialGreeksQuery {
+    #[prost(string, optional, tag = "15")]
+    exercise_style: Option<String>,
+    #[prost(string, optional, tag = "16")]
+    implied_vol_method: Option<String>,
 }
 
 /// `StockHistoryTradeQuoteRequestQuery`.
@@ -198,4 +208,28 @@ async fn optional_parameters_carry_the_terminal_defaults_or_the_callers_values()
         .await;
     let query: StockHistoryTradeQuoteQuery = sent_query(&captured);
     assert_eq!(query.use_time_based_trade_quote, Some(true));
+
+    // On a binomial Greeks route the terminal always sends implied_vol_method,
+    // and exercise_style only when set, leaving the server to pick the style
+    // from the root.
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .option_snapshot_binomial_greeks_first_order("SPX", "20250321")
+        .await;
+    let query: OptionSnapshotBinomialGreeksQuery = sent_query(&captured);
+    assert_eq!(query.exercise_style, None);
+    assert_eq!(query.implied_vol_method.as_deref(), Some("own_quote"));
+
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .option_snapshot_binomial_greeks_first_order("SPX", "20250321")
+        .exercise_style("american")
+        .implied_vol_method("out_of_the_money")
+        .await;
+    let query: OptionSnapshotBinomialGreeksQuery = sent_query(&captured);
+    assert_eq!(query.exercise_style.as_deref(), Some("american"));
+    assert_eq!(
+        query.implied_vol_method.as_deref(),
+        Some("out_of_the_money")
+    );
 }

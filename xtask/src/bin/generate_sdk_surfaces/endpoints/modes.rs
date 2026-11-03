@@ -101,7 +101,9 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
         | "annual_dividend_amount"
         | "rate_type"
         | "rate_value"
-        | "stock_price" => "optional Greeks-input wiring",
+        | "stock_price"
+        | "exercise_style"
+        | "implied_vol_method" => "optional Greeks-input wiring",
         "version" => "optional Greeks-version selector wiring",
         "binomial_steps" => "optional binomial-tree step-count wiring",
         "use_market_value"

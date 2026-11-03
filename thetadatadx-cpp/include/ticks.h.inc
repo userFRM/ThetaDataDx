@@ -79,6 +79,10 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
+    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
+     * read only when has_implied_vol_source is set. */
+    int32_t implied_vol_source;
+    bool has_implied_vol_source;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
@@ -135,6 +139,10 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
+    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
+     * read only when has_implied_vol_source is set. */
+    int32_t implied_vol_source;
+    bool has_implied_vol_source;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
@@ -161,6 +169,10 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
+    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
+     * read only when has_implied_vol_source is set. */
+    int32_t implied_vol_source;
+    bool has_implied_vol_source;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
@@ -186,6 +198,10 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
+    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
+     * read only when has_implied_vol_source is set. */
+    int32_t implied_vol_source;
+    bool has_implied_vol_source;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
@@ -210,6 +226,10 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
+    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
+     * read only when has_implied_vol_source is set. */
+    int32_t implied_vol_source;
+    bool has_implied_vol_source;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,

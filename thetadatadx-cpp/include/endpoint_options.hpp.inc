@@ -70,6 +70,10 @@ struct EndpointRequestOptions {
     std::optional<bool> option_use_nbbo;
     /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
     std::optional<bool> perf_boost_intraday;
+    /// Exercise style used to price the option on the binomial tree: `american` allows early exercise at every node, `european` only at expiration. When omitted, European-style index options (such as SPX, SPXW, XSP, NDX, RUT and VIX) are priced as European and every other root as American. Accepted values: `american`, `european`.
+    std::optional<std::string> exercise_style;
+    /// Where each contract's implied volatility comes from: `own_quote` uses the contract's own midpoint, `out_of_the_money` the out-of-the-money option at the same strike, which smooths deep in-the-money Greeks. `out_of_the_money` requires `strike=*` and `right=both`, and an `interval` on history requests. Defaults to `own_quote`, matching the terminal, which sends `own_quote` when the value is omitted. Accepted values: `own_quote`, `out_of_the_money`.
+    std::optional<std::string> implied_vol_method;
     /// Per-call deadline in milliseconds.
     std::optional<uint64_t> timeout_ms;
 
@@ -181,6 +185,14 @@ struct EndpointRequestOptions {
         perf_boost_intraday = value;
         return *this;
     }
+    EndpointRequestOptions& with_exercise_style(std::string value) {
+        exercise_style = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_implied_vol_method(std::string value) {
+        implied_vol_method = std::move(value);
+        return *this;
+    }
     EndpointRequestOptions& with_timeout_ms(uint64_t value) {
         timeout_ms = value;
         return *this;
@@ -212,6 +224,8 @@ struct FfiEndpointRequestOptions {
     std::string symbol_storage;
     std::string rate_type_storage;
     std::string version_storage;
+    std::string exercise_style_storage;
+    std::string implied_vol_method_storage;
 
     explicit FfiEndpointRequestOptions(const EndpointRequestOptions& options) {
         if (options.venue) {
@@ -321,6 +335,14 @@ struct FfiEndpointRequestOptions {
         if (options.perf_boost_intraday) {
             raw.perf_boost_intraday = *options.perf_boost_intraday ? 1 : 0;
             raw.has_perf_boost_intraday = 1;
+        }
+        if (options.exercise_style) {
+            exercise_style_storage = *options.exercise_style;
+            raw.exercise_style = exercise_style_storage.c_str();
+        }
+        if (options.implied_vol_method) {
+            implied_vol_method_storage = *options.implied_vol_method;
+            raw.implied_vol_method = implied_vol_method_storage.c_str();
         }
         if (options.timeout_ms) {
             raw.timeout_ms = *options.timeout_ms;

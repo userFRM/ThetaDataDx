@@ -102,6 +102,7 @@ macro_rules! tick_struct {
     (@type String) => { String };
     (@type right) => { char };
     (@type calendar_status) => { crate::tdbe::types::enums::CalendarStatus };
+    (@type implied_vol_source) => { crate::tdbe::types::enums::ImpliedVolSource };
     (@type eod_num) => { i32 };
     (@type eod_num64) => { i64 };
     (@type eod_date) => { i32 };

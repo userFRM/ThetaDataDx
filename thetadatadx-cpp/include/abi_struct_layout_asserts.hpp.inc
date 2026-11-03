@@ -181,9 +181,13 @@ static_assert(offsetof(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) =
               "ThetaDataDxEndpointRequestOptions::perf_boost_intraday offset drifted from Rust");
 static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 244,
               "ThetaDataDxEndpointRequestOptions::has_perf_boost_intraday offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, timeout_ms) == 248,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, exercise_style) == 248,
+              "ThetaDataDxEndpointRequestOptions::exercise_style offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, implied_vol_method) == 256,
+              "ThetaDataDxEndpointRequestOptions::implied_vol_method offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, timeout_ms) == 264,
               "ThetaDataDxEndpointRequestOptions::timeout_ms offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 256,
+static_assert(offsetof(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 272,
               "ThetaDataDxEndpointRequestOptions::has_timeout_ms offset drifted from Rust");
-static_assert(sizeof(ThetaDataDxEndpointRequestOptions) == 264,
+static_assert(sizeof(ThetaDataDxEndpointRequestOptions) == 280,
               "ThetaDataDxEndpointRequestOptions total size drifted from Rust");

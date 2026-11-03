@@ -96,6 +96,9 @@ macro_rules! py_tick {
     (@col $st:tt [$($done:tt)*] $rest:tt $f:ident $pf:ident calendar_status []) => {
         py_tick! { @cols $st [$($done)* { $f $pf [String] [] status [] }] $rest }
     };
+    (@col $st:tt [$($done:tt)*] $rest:tt $f:ident $pf:ident implied_vol_source [$has:ident]) => {
+        py_tick! { @cols $st [$($done)* { $f $pf [Option<String>] [= None] vol_source [$has] }] $rest }
+    };
     (@col $st:tt [$($done:tt)*] $rest:tt $f:ident $pf:ident $ty:ident [$has:ident]) => {
         py_tick! { @cols $st [$($done)* { $f $pf [Option<$ty>] [= None] optional [$has] }] $rest }
     };
@@ -346,6 +349,9 @@ macro_rules! py_tick {
     (@repr $s:tt $name:ident [$c:tt $($cs:tt)*] [$($piece:tt)*] [{ $pf:ident copy } $($rest:tt)*]) => {
         py_tick!(@repr $s $name [$($cs)*] [$($piece)* [$pf "{}" ($s.$pf)]] [$($rest)*])
     };
+    (@repr $s:tt $name:ident [$c:tt $($cs:tt)*] [$($piece:tt)*] [{ $pf:ident vol_source } $($rest:tt)*]) => {
+        py_tick!(@repr $s $name [$($cs)*] [$($piece)* [$pf "{}" ($s.$pf.as_ref().map_or_else(|| "None".to_string(), |v| format!("{v:?}")))]] [$($rest)*])
+    };
     (@repr $s:tt $name:ident [$c:tt $($cs:tt)*] [$($piece:tt)*] [{ $pf:ident optional } $($rest:tt)*]) => {
         py_tick!(@repr $s $name [$($cs)*] [$($piece)* [$pf "{}" ($s.$pf.map_or_else(|| "None".to_string(), |v| v.to_string()))]] [$($rest)*])
     };
@@ -365,6 +371,7 @@ macro_rules! py_tick {
     (@from string $t:tt $f:ident []) => { $t.$f.clone() };
     (@from right $t:tt $f:ident []) => { if $t.$f == '\0' { String::new() } else { $t.$f.to_string() } };
     (@from status $t:tt $f:ident []) => { $t.$f.as_str().to_string() };
+    (@from vol_source $t:tt $f:ident [$has:ident]) => { $t.$has.then(|| $t.$f.as_str().to_string()) };
 
     // Row class to core row, rejecting text the core type cannot hold.
     (@to copy $t:tt $f:ident $pf:ident) => { $t.$pf };
@@ -386,6 +393,18 @@ macro_rules! py_tick {
             None => return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 concat!(stringify!($f), " must be one of open, early_close, full_close, weekend; got {:?}"), $t.$pf
             ))),
+        }
+    };
+
+    (@to vol_source $t:tt $f:ident $pf:ident) => {
+        match $t.$pf.as_deref() {
+            None => thetadatadx::ImpliedVolSource::OwnQuote,
+            Some(text) => match thetadatadx::ImpliedVolSource::from_wire_text(text) {
+                Some(source) => source,
+                None => return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    concat!(stringify!($f), " must be one of own_quote, out_of_the_money, interpolated, extrapolated; got {:?}"), text
+                ))),
+            },
         }
     };
 

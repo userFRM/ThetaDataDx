@@ -41,6 +41,8 @@ typedef struct {
     int32_t has_option_use_nbbo;
     int32_t perf_boost_intraday;
     int32_t has_perf_boost_intraday;
+    const char* exercise_style;
+    const char* implied_vol_method;
     /* Per-call deadline. Set has_timeout_ms = 1 to apply. */
     uint64_t timeout_ms;
     int32_t has_timeout_ms;

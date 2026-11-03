@@ -707,6 +707,10 @@ pub struct OptionSnapshotBinomialGreeksAllRequestQuery {
     pub current_day_only: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "15")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "16")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksAllRequest {
@@ -781,6 +785,10 @@ pub struct OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
     pub current_day_only: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "15")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "16")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksFirstOrderRequest {
@@ -857,6 +865,10 @@ pub struct OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
     pub current_day_only: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "15")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "16")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksSecondOrderRequest {
@@ -933,6 +945,10 @@ pub struct OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
     pub current_day_only: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "15")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "16")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotBinomialGreeksThirdOrderRequest {
@@ -1173,6 +1189,10 @@ pub struct OptionHistoryBinomialGreeksEodRequestQuery {
     pub option_use_nbbo: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "14")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "15")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "16")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialGreeksEodRequest {
@@ -1251,6 +1271,10 @@ pub struct OptionHistoryBinomialGreeksAllRequestQuery {
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(double, optional, tag = "15")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "16")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "17")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialGreeksAllRequest {
@@ -1333,6 +1357,8 @@ pub struct OptionHistoryBinomialTradeGreeksAllRequestQuery {
     pub perf_boost_intraday: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "16")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "17")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialTradeGreeksAllRequest {
@@ -1414,6 +1440,10 @@ pub struct OptionHistoryBinomialGreeksFirstOrderRequestQuery {
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(double, optional, tag = "15")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "16")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "17")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialGreeksFirstOrderRequest {
@@ -1498,6 +1528,8 @@ pub struct OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery {
     pub perf_boost_intraday: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "16")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "17")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialTradeGreeksFirstOrderRequest {
@@ -1578,6 +1610,10 @@ pub struct OptionHistoryBinomialGreeksSecondOrderRequestQuery {
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(double, optional, tag = "15")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "16")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "17")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialGreeksSecondOrderRequest {
@@ -1662,6 +1698,8 @@ pub struct OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery {
     pub perf_boost_intraday: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "16")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "17")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialTradeGreeksSecondOrderRequest {
@@ -1742,6 +1780,10 @@ pub struct OptionHistoryBinomialGreeksThirdOrderRequestQuery {
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(double, optional, tag = "15")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "16")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "17")]
+    pub implied_vol_method: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialGreeksThirdOrderRequest {
@@ -1826,6 +1868,8 @@ pub struct OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery {
     pub perf_boost_intraday: ::core::option::Option<bool>,
     #[prost(double, optional, tag = "16")]
     pub annual_dividend_amount: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "17")]
+    pub exercise_style: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryBinomialTradeGreeksThirdOrderRequest {

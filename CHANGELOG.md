@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Binomial Greeks take `implied_vol_method` and `exercise_style`, and each row names where its implied volatility came from.** The vendor added both parameters to its binomial Greeks routes, and the SDK could send neither: there was no setter, and its request messages lacked the fields. `implied_vol_method("out_of_the_money")` takes each strike's volatility from its out-of-the-money option, which smooths the Greeks of deep in-the-money contracts; it needs `strike="*"` and `right="both"`, and an `interval` on the history routes. `exercise_style` prices the tree as `american` or `european`; left unset, the server prices European-style index roots such as SPX, SPXW and NDX as European and every other root as American, so the route documentation no longer calls every binomial value American-style. Both parameters are on the nine binomial Greeks routes, and `exercise_style` also on the four binomial trade Greeks routes, in every language, the local server and the MCP server. As the terminal does, `implied_vol_method` is sent as `own_quote` when left unset and `exercise_style` only when set. The binomial Greeks rows now carry `implied_vol_source` (`own_quote`, `out_of_the_money`, `interpolated` or `extrapolated`), a column the server sends on every such row and the SDK used to drop; it is absent on the other Greeks routes, which do not send it. The local server writes it as the terminal does. (#1507)
+
 ### Changed
 
 - **TypeScript streaming callbacks keep up with a higher message rate.** The native side hands events to the Node main thread in arrays instead of waking it once per event, and the package still calls your `startStreaming` callback once per event, in order. On the offline callback benchmark (`thetadatadx-ts/benches/streaming_throughput.mjs`) a no-op callback goes from about 300k to about 460k events a second, and live on the dev replay server the Node main thread is about a fifth less busy at the same message rate. A callback that throws still ends the process at that event unless an `uncaughtException` handler is installed; with one, the handler gets the error and the rest of the events are still delivered.
+
+- **The five Greeks tick structs carry `implied_vol_source`, which breaks Rust code that builds or exhaustively destructures them and C or C++ code built against the previous header.** `GreeksAllTick`, `GreeksEodTick`, `GreeksFirstOrderTick`, `GreeksSecondOrderTick` and `GreeksThirdOrderTick` gain `implied_vol_source` and its presence flag `has_implied_vol_source`. In Rust a struct literal or a pattern that names every field has to add both, or `..`. Python and TypeScript only gain a field, `None` or `undefined` where the route does not send it. In C and C++ the new members move the contract identity members that follow them and change the size of the five structs, and `ThetaDataDxEndpointRequestOptions` gains the two new parameters as `const char*` members at its end, so a program built against the previous header would read the wrong bytes; rebuild against the new header.
 
 ### Fixed
 
