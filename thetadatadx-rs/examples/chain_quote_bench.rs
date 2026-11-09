@@ -151,16 +151,12 @@ async fn main() -> ExitCode {
     // excludes connect/auth and measures backend-to-first-chunk latency.
     let dispatch = Instant::now();
     let handler_progress = progress.clone();
-    // A full-day 0DTE pull can run 6-15 minutes; the config default
-    // `request_timeout_secs` (300 s) would kill it, so opt out of any deadline
-    // with `Duration::ZERO` (normalized to "no deadline" by `effective_deadline`).
     let stream_result = client
         .option_history_quote_stream(&symbol, &expiration)
         .date(&date)
         .strike("*")
         .right("both")
         .interval(&interval)
-        .with_deadline(Duration::ZERO)
         .stream(move |ticks| {
             let mut p = handler_progress.lock().expect("progress mutex poisoned");
             if p.ttfb.is_none() {

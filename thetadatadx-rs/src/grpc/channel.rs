@@ -521,12 +521,13 @@ impl Channel {
     /// Returns a [`ChannelError`] when the request cannot be built or
     /// the RPC fails to open.
     ///
-    /// A request carries no deadline of its own. The caller's deadline is
-    /// applied a layer up, where `crate::mdds::macros` wraps the whole
+    /// A request carries no deadline of its own. The caller's limits are
+    /// applied a layer up, in `crate::mdds`: a deadline wraps the whole
     /// dispatch (this open phase, the response stream and any retry) in
-    /// one `tokio::time::timeout` and surfaces `Error::Timeout`. Dropping
-    /// the returned stream on expiry sends RST_STREAM, so the server
-    /// releases its side either way.
+    /// one `tokio::time::timeout` and surfaces `Error::Timeout`, and the
+    /// silence limit bounds this open and each next message. Dropping the
+    /// returned stream on expiry sends RST_STREAM, so the server releases
+    /// its side either way.
     pub async fn server_streaming<Req, Resp>(
         &self,
         method: &'static str,

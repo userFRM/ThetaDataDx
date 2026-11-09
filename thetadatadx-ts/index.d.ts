@@ -472,14 +472,14 @@ export declare class Config {
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
-   * Set the default per-request deadline (seconds) for market-data queries.
+   * Set how long (seconds) a market-data request may wait on a silent server: for the response to start, and then for each next message.
    *
-   * It bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the deadline: it is floored to the 300-second default at request time, so the deadline always applies.
+   * A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the limit: it is floored to the 300-second default at request time.
    * Default `300n` (5 minutes).
    */
   setRequestTimeoutSecs(secs: bigint): void
   /**
-   * Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the deadline.
+   * Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the limit.
    * Default `300n` (5 minutes).
    */
   get requestTimeoutSecs(): bigint
