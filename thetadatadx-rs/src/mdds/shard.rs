@@ -306,6 +306,8 @@ pub(crate) struct ShardQuery {
     pub end_time: Option<String>,
     /// Bar / snapshot interval as issued (`tick`, `1s`, `1m`, ...).
     pub interval: Option<String>,
+    /// Implied-volatility method of a binomial Greeks query, when present.
+    pub implied_vol_method: Option<String>,
 }
 
 // ─── Wire-field projection helpers (used by the endpoint macros) ─────────
@@ -432,7 +434,8 @@ pub(crate) enum ShardDecline {
     /// bar VALUES even when the row count matches; a time-banded pull
     /// cannot reproduce the single stream. Tick pulls carry no bars and
     /// time-shard freely; date bands are unaffected (bars re-anchor at
-    /// each day's own window start either way).
+    /// each day's own window start either way), and a both-rights chain
+    /// still splits by right over the whole window.
     IntervalBars,
     /// Pull issued from inside this client's own streaming delivery
     /// handler: the outer pull holds the request pool until the handler
@@ -466,7 +469,8 @@ impl ShardDecline {
 /// fan-out, so sharding cannot win. Chain cross-products and
 /// tick-interval pulls have no such ceiling and band the range on the
 /// window alone. (The time axis never gets this far with a bounded
-/// interval — [`ShardDecline::IntervalBars`] declines it outright.)
+/// interval: it splits a both-rights chain by right over the whole
+/// window and declines everything else as [`ShardDecline::IntervalBars`].)
 const SHARD_MIN_GRID_ROWS: u64 = 10_000_000;
 
 /// Minimum wall-clock span of one time band (five minutes). The server
@@ -592,9 +596,13 @@ fn chain_cross_product(q: &ShardQuery) -> bool {
 /// `call` band and a `put` band actually halves the contract set. A chain
 /// already pinned to one right (`right = "call"` / `"put"` with a strike
 /// wildcard, or a multi-expiration single-right pull) has nothing to split
-/// on this axis and takes the time split instead.
+/// on this axis and takes the time split instead. The `out_of_the_money`
+/// implied-volatility method reads each strike's volatility from the other
+/// side, so the server refuses it on anything but `right = both`.
 fn splittable_by_right(q: &ShardQuery) -> bool {
-    chain_cross_product(q) && matches!(q.right.as_deref(), None | Some("both"))
+    chain_cross_product(q)
+        && matches!(q.right.as_deref(), None | Some("both"))
+        && q.implied_vol_method.as_deref() != Some("out_of_the_money")
 }
 
 /// Whether the query is a tick pull (no bar interval). The server accepts a
@@ -646,10 +654,10 @@ fn select_axis(q: &ShardQuery) -> Option<ShardAxis> {
 /// starts at the query's own `start_time` and the last ends at its
 /// `end_time`; band durations differ by at most 1 ms.
 ///
-/// Only tick pulls reach this cut: `plan_query` declines the time axis
-/// for bounded-interval queries outright, because interval bars
-/// accumulate from the request's window start and any mid-window seam
-/// would change bar values (see [`ShardDecline::IntervalBars`]).
+/// Only tick pulls cut the window into more than one band: interval
+/// bars accumulate from the request's window start and any mid-window
+/// seam would change bar values (see [`ShardDecline::IntervalBars`]),
+/// so a bounded-interval chain takes one whole-window band per right.
 fn time_bands(start_ms: i64, end_ms: i64, n: i64, right: Option<&str>) -> Vec<ShardBand> {
     let window = end_ms - start_ms + 1;
     (0..n)
@@ -807,8 +815,8 @@ pub(crate) fn auto_plan(
 /// `auto_plan`):
 /// an endpoint outside the shardable set, a shape with no cut axis,
 /// `width < 2`, a window too narrow for two bands of
-/// [`MIN_SHARD_BAND_MS`], a bounded-interval pull on the time axis
-/// (bar values anchor to the window start —
+/// [`MIN_SHARD_BAND_MS`], a bounded-interval pull on the time axis that
+/// is not a both-rights chain (bar values anchor to the window start —
 /// [`ShardDecline::IntervalBars`]), or a bounded-interval
 /// single-contract date-axis pull whose bar grid provably stays under
 /// [`SHARD_MIN_GRID_ROWS`].
@@ -851,8 +859,16 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             // pulls time-shard; anything else — a bounded interval or
             // an unrecognized spelling (the single stream is always
             // correct, and a fan-out is only ever a performance
-            // transform) — stays on the single stream.
+            // transform) — stays on the single stream. A both-rights
+            // chain still splits into a call band and a put band over
+            // the whole window: no seam, and each contract's bars are
+            // its own.
             if !is_tick_pull(q) {
+                if splittable_by_right(q) {
+                    let mut bands = time_bands(start_ms, end_ms, 1, Some("call"));
+                    bands.extend(time_bands(start_ms, end_ms, 1, Some("put")));
+                    return Ok(ShardPlan { bands });
+                }
                 return Err(ShardDecline::IntervalBars);
             }
             // A chain cross-product's cost is contract assembly, not
@@ -1152,9 +1168,9 @@ pub(crate) type ShardStreamFuture<'a> =
 /// state. Draining is deliberate — cancelling siblings would truncate
 /// them at arbitrary chunk boundaries, leaving ragged half-delivered
 /// windows no caller could reason about, while draining leaves exactly
-/// the failed bands' windows as the known gaps. The wall-clock cost of
-/// draining is bounded by the call's deadline
-/// (`run_with_optional_deadline` wraps the whole fan-out), and dropping
+/// the failed bands' windows as the known gaps. A sibling drains only
+/// while its server keeps sending (the silence limit), a call deadline
+/// bounds the whole fan-out (`run_with_optional_deadline`), and dropping
 /// the join future — the deadline path — still cancels every band at
 /// once.
 ///
@@ -1950,8 +1966,8 @@ mod tests {
         // Interval bars accumulate from the request's window start
         // (cumulative vwap, last-tick carry), so a mid-window band seam
         // changes bar VALUES even when the row count matches. No
-        // bounded-interval single-day pull may time-shard — concrete or
-        // chain alike.
+        // bounded-interval single-day pull may cut its window — concrete
+        // or chain alike.
         let mut concrete = chain_day_query();
         concrete.expiration = Some("20260710".into());
         concrete.strike = Some("6000".into());
@@ -1964,21 +1980,33 @@ mod tests {
         // The same contract at tick interval carries no bars and shards.
         concrete.interval = Some("tick".into());
         assert!(plan_query("option_history_quote", &concrete, 8).is_ok());
-        // A chain cross-product at a bounded interval is anchored the
-        // same way: its right-split time bands would re-anchor every
-        // bar, so it declines too.
+        // A both-rights chain at a bounded interval splits by right
+        // only: one band per right over the whole window, so no bar
+        // loses its anchor.
         let mut chain = chain_day_query();
         chain.interval = Some("1s".into());
+        let whole_window = |right: &str| ShardBand::Time {
+            start_time: "09:30:00.000".into(),
+            end_time: "16:00:00.000".into(),
+            right: Some(right.into()),
+        };
         assert_eq!(
-            plan_query("option_history_quote", &chain, 8),
+            plan_query("option_history_quote", &chain, 8).map(|p| p.bands),
+            Ok(vec![whole_window("call"), whole_window("put")])
+        );
+        // The `out_of_the_money` volatility method reads the other side,
+        // so that chain stays whole.
+        chain.implied_vol_method = Some("out_of_the_money".into());
+        assert_eq!(
+            plan_query("option_history_binomial_greeks_first_order", &chain, 8),
             Err(ShardDecline::IntervalBars)
         );
-        // An unrecognized interval spelling errs toward the single
-        // stream — it may well be a bar interval to the server, and a
-        // fan-out is only ever a performance transform.
-        chain.interval = Some("weird".into());
+        chain.implied_vol_method = None;
+        // An unrecognized interval spelling errs toward bars: it may well
+        // be a bar interval to the server, so the window stays whole.
+        concrete.interval = Some("weird".into());
         assert_eq!(
-            plan_query("option_history_quote", &chain, 8),
+            plan_query("option_history_quote", &concrete, 8),
             Err(ShardDecline::IntervalBars)
         );
         // The tick chain keeps the headline call/put fan-out.
@@ -2372,6 +2400,19 @@ mod tests {
                     right: Some("put".into()),
                 },
             ]
+        );
+        // The server refuses `out_of_the_money` on one right, so that
+        // chain keeps both rights in every band.
+        let q = ShardQuery {
+            implied_vol_method: Some("out_of_the_money".into()),
+            ..q
+        };
+        let plan = plan_query("option_history_binomial_greeks_first_order", &q, 8)
+            .expect("chain should still date-shard");
+        assert!(
+            plan.bands
+                .iter()
+                .all(|b| matches!(b, ShardBand::Date { right: None, .. }))
         );
     }
 
