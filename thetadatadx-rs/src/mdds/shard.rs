@@ -652,8 +652,18 @@ fn splittable_by_right(q: &ShardQuery) -> bool {
 
 /// The listing step of a one-day bar chain over every expiration and
 /// strike, `None` for any other shape. `window_ms` is the query's window.
-fn chain_listing(q: &ShardQuery, window_ms: i64) -> Option<ChainListing> {
-    if q.expiration.as_deref() != Some("*") || q.strike.as_deref().is_some_and(|s| s != "*") {
+///
+/// Only endpoints whose server serves an every-expiration chain on one
+/// request take it. OHLC refuses that chain, and one request per
+/// expiration would answer a pull the single stream cannot.
+fn chain_listing(endpoint: &str, q: &ShardQuery, window_ms: i64) -> Option<ChainListing> {
+    let serves_every_expiration = endpoint == "option_history_quote"
+        || endpoint.starts_with("option_history_greeks_")
+        || endpoint.starts_with("option_history_binomial_greeks_");
+    if !serves_every_expiration
+        || q.expiration.as_deref() != Some("*")
+        || q.strike.as_deref().is_some_and(|s| s != "*")
+    {
         return None;
     }
     let ivl = q.interval.as_deref().and_then(interval_ms)?;
@@ -1017,7 +1027,7 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             // Which expirations exist that day is not in the request, so the
             // plan carries a listing step that reads them first.
             if !is_tick_pull(q) {
-                let listing = chain_listing(q, end_ms - start_ms);
+                let listing = chain_listing(endpoint, q, end_ms - start_ms);
                 let mut bands = Vec::new();
                 if splittable_by_right(q) {
                     bands = time_bands(start_ms, end_ms, 1, Some("call"));
@@ -2253,6 +2263,15 @@ mod tests {
             Ok(ShardPlan {
                 bands: vec![whole_window("call"), whole_window("put")],
                 listing: Some(listing(true)),
+            })
+        );
+        // The server refuses an every-expiration OHLC chain, so it never
+        // lists.
+        assert_eq!(
+            plan_query("option_history_ohlc", &chain, 8),
+            Ok(ShardPlan {
+                bands: vec![whole_window("call"), whole_window("put")],
+                listing: None,
             })
         );
         // One expiration has nothing to list.
