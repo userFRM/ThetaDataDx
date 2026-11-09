@@ -566,16 +566,14 @@ fn format_shard_windows(bands: &[crate::ShardBand]) -> String {
         if index > 0 {
             out.push_str(", ");
         }
-        match band {
+        let right = match band {
             crate::ShardBand::Date {
                 start_date,
                 end_date,
                 right,
             } => {
                 let _ = write!(out, "{start_date}..{end_date}");
-                if let Some(right) = right {
-                    let _ = write!(out, " ({right})");
-                }
+                right
             }
             crate::ShardBand::Time {
                 start_time,
@@ -583,10 +581,15 @@ fn format_shard_windows(bands: &[crate::ShardBand]) -> String {
                 right,
             } => {
                 let _ = write!(out, "{start_time}..{end_time}");
-                if let Some(right) = right {
-                    let _ = write!(out, " ({right})");
-                }
+                right
             }
+            crate::ShardBand::Expiration { expiration, right } => {
+                let _ = write!(out, "expiration {expiration}");
+                right
+            }
+        };
+        if let Some(right) = right {
+            let _ = write!(out, " ({right})");
         }
     }
     if bands.len() > MAX_LISTED_WINDOWS {
