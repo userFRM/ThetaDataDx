@@ -11,7 +11,7 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// Default market-data silence limit in seconds (5 min).
+/// Default market-data silence limit in seconds (45 min).
 ///
 /// The floor the request-limit resolver applies when the configured
 /// `request_timeout_secs` is `0`: a `0` there would disable the gRPC hang
@@ -19,7 +19,7 @@
 /// server could hang the client forever. The per-call
 /// `with_deadline(Duration::ZERO)` opt-out is a separate, explicit path and is
 /// unaffected by this floor.
-pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
+pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 2700;
 
 /// Policy for automatic sharding of large history pulls — the buffered
 /// `.await` on a history builder and the chunk-streaming `.stream*`
@@ -170,7 +170,7 @@ pub struct MarketDataConfig {
     ///
     /// Configuring `0` here does **not** disable the guard: the request-
     /// limit resolver every market-data request routes through floors a `0`
-    /// to the production default (`300s`), regardless of whether the config
+    /// to the production default (`2700s`), regardless of whether the config
     /// was validated. Opt a single request out with the per-call escape
     /// hatch instead.
     ///
@@ -178,8 +178,9 @@ pub struct MarketDataConfig {
     /// the whole request instead, and `with_deadline(Duration::ZERO)`
     /// lifts every limit for that request.
     ///
-    /// Default `300s` (5 min): a server that is preparing a response
-    /// answers well inside it, and a wedged stream still fails.
+    /// Default `2700s` (45 min): the server prepares a large response
+    /// before its first row, which on a one-day chain of one-second bars
+    /// can take longer than five minutes, and a wedged stream still fails.
     pub request_timeout_secs: u64,
 
     /// Estimated-bytes threshold above which the buffered `.await`
@@ -294,10 +295,11 @@ impl MarketDataConfig {
             stream_window_size_kb: 8_192,
             connection_window_size_kb: 16_384,
             connect_timeout_secs: 10,
-            // 5 min — bounds a server that holds the stream open while
+            // 45 min — bounds a server that holds the stream open while
             // sending no chunks (h2 keepalive only catches a fully dead
-            // peer). Sits above the slowest realistic bulk pull;
-            // `with_deadline(Duration::ZERO)` opts a single request out.
+            // peer), with room for the long prepare of a one-second bar
+            // chain; `with_deadline(Duration::ZERO)` opts a single
+            // request out.
             request_timeout_secs: DEFAULT_REQUEST_TIMEOUT_SECS,
             // 100 MiB — empirically catches bulk pulls (multi-million
             // row option-chain or multi-day backfill responses) while

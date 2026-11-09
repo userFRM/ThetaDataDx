@@ -903,13 +903,13 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Default seeded at 300s by `MarketDataConfig::default()`.
+            // Default seeded at 2700s by `MarketDataConfig::default()`.
             let mut current: u64 = 0;
             assert_eq!(
                 super::thetadatadx_config_get_request_timeout_secs(cfg, &mut current),
                 0
             );
-            assert_eq!(current, 300);
+            assert_eq!(current, 2700);
             // Override.
             super::thetadatadx_config_set_request_timeout_secs(cfg, 45);
             assert_eq!((*cfg).inner.market_data.request_timeout_secs, 45);

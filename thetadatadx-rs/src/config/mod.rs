@@ -1127,9 +1127,9 @@ mod config_file {
         /// gRPC connect timeout (seconds). `validate` enforces the same
         /// range as the programmatic path.
         connect_timeout_secs: u64,
-        /// Per-request market-data deadline (seconds). Default `300`; not
-        /// range-limited. A `0` is stored verbatim and floored to `300` at
-        /// request time, so it does not disable the deadline.
+        /// Market-data silence limit (seconds). Default `2700`; not
+        /// range-limited. A `0` is stored verbatim and floored to `2700` at
+        /// request time, so it does not disable the limit.
         request_timeout_secs: u64,
         /// Buffered-response size (bytes) above which a warning is logged.
         /// Default `104_857_600` (100 MiB).
@@ -1830,7 +1830,7 @@ mod tests {
         fn market_data_timeouts_default_when_absent() {
             let config = DirectConfig::from_toml_str("").unwrap();
             assert_eq!(config.market_data.connect_timeout_secs, 10);
-            assert_eq!(config.market_data.request_timeout_secs, 300);
+            assert_eq!(config.market_data.request_timeout_secs, 2700);
             assert_eq!(
                 config.market_data.warn_on_buffered_threshold_bytes,
                 100 * 1024 * 1024
@@ -2399,11 +2399,11 @@ mod tests {
     fn market_data_defaults_match_production_baseline() {
         let mdds = crate::config::MarketDataConfig::production_defaults();
         // The buffered-response warn fires at 100 MiB by default, and
-        // the per-request deadline is the 300s ceiling. Channel-pool
+        // the silence limit is 45 minutes. Channel-pool
         // concurrency carries no default here — it is resolved from
         // the subscription tier at connect time.
         assert_eq!(mdds.warn_on_buffered_threshold_bytes, 100 * 1024 * 1024);
-        assert_eq!(mdds.request_timeout_secs, 300);
+        assert_eq!(mdds.request_timeout_secs, 2700);
     }
 
     // ── RetryPolicy / env var tests ──────────────────────────────────

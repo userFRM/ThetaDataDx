@@ -303,8 +303,8 @@ class Config:
     request_timeout_secs: int
     """Set how long (seconds) a market-data request may wait on a silent server: for the response to start, and then for each next message.
 
-    A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the limit: it is floored to the 300-second default at request time.
-    Default ``300`` (5 minutes).
+    A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). The default leaves room for the server to prepare a large response, such as a one-day chain of one-second bars, before its first row. Zero does not disable the limit: it is floored to the 2700-second default at request time.
+    Default ``2700`` (45 minutes).
     """
     market_data_stream_window_size_kb: int
     """Set the initial per-stream HTTP/2 flow-control window, in KB, for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time.

@@ -474,13 +474,13 @@ export declare class Config {
   /**
    * Set how long (seconds) a market-data request may wait on a silent server: for the response to start, and then for each next message.
    *
-   * A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the limit: it is floored to the 300-second default at request time.
-   * Default `300n` (5 minutes).
+   * A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). The default leaves room for the server to prepare a large response, such as a one-day chain of one-second bars, before its first row. Zero does not disable the limit: it is floored to the 2700-second default at request time.
+   * Default `2700n` (45 minutes).
    */
   setRequestTimeoutSecs(secs: bigint): void
   /**
-   * Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the limit.
-   * Default `300n` (5 minutes).
+   * Current `market_data.request_timeout_secs` value. A stored zero is floored to the 2700-second default at request time rather than disabling the limit.
+   * Default `2700n` (45 minutes).
    */
   get requestTimeoutSecs(): bigint
   /**
