@@ -17,8 +17,8 @@ TEST_CASE("Config market-data request_timeout_secs setter + getter round-trip",
     // The readback getter mirrors the Python `Config.request_timeout_secs`
     // and TypeScript `requestTimeoutSecs` surfaces, so a value set
     // through the C++ wrapper reads back through the same wrapper.
-    // Production seeds the 300s default per-request deadline.
-    REQUIRE(cfg.get_request_timeout_secs() == 300u);
+    // Production seeds the 45-minute default silence limit.
+    REQUIRE(cfg.get_request_timeout_secs() == 2700u);
     cfg.set_request_timeout_secs(45);
     REQUIRE(cfg.get_request_timeout_secs() == 45u);
     cfg.set_request_timeout_secs(600);

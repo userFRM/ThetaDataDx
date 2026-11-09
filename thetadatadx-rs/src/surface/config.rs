@@ -336,16 +336,16 @@ macro_rules! __config {
             }
             set thetadatadx_config_set_request_timeout_secs(secs: u64) [market_data.request_timeout_secs] {
                 param: secs,
-                default: 300 "5 minutes",
+                default: 2700 "45 minutes",
                 doc: [
                     "Set how long (seconds) a market-data request may wait on a silent server: for the response to start, and then for each next message.",
                     "",
-                    "A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). Zero does not disable the limit: it is floored to the 300-second default at request time.",
+                    "A request that did not set its own deadline has no limit on its total length, so a large pull that keeps streaming runs to completion, while a live-but-silent stream fails as a stall instead of blocking forever (the gRPC keepalive PING only detects a fully dead peer). The default leaves room for the server to prepare a large response, such as a one-day chain of one-second bars, before its first row. Zero does not disable the limit: it is floored to the 2700-second default at request time.",
                 ],
             }
             get thetadatadx_config_get_request_timeout_secs(out: u64) [market_data.request_timeout_secs] {
-                default: 300 "5 minutes",
-                doc: ["Current `market_data.request_timeout_secs` value. A stored zero is floored to the 300-second default at request time rather than disabling the limit."],
+                default: 2700 "45 minutes",
+                doc: ["Current `market_data.request_timeout_secs` value. A stored zero is floored to the 2700-second default at request time rather than disabling the limit."],
             }
             set thetadatadx_config_set_market_data_stream_window_size_kb(kb: usize) [market_data.stream_window_size_kb] {
                 param: kb,

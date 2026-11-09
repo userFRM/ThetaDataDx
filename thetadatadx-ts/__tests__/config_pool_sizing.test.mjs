@@ -22,9 +22,9 @@ try {
 const { Config } = mod;
 
 describe('Config.requestTimeoutSecs', () => {
-  it('defaults to 300n (5-minute per-request deadline)', () => {
+  it('defaults to 2700n (45-minute silence limit)', () => {
     const cfg = Config.production();
-    assert.equal(cfg.requestTimeoutSecs, 300n);
+    assert.equal(cfg.requestTimeoutSecs, 2700n);
   });
 
   it('round-trips through the setter; 0n disables the default', () => {

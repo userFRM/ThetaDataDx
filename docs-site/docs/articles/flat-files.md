@@ -32,15 +32,13 @@ The most recent **7 calendar days** are available; the prior day is generally re
 
 ## Pull a file
 
-A small file (stock or index EOD) comes back whole like any other endpoint. The trade-quote, quote and option files are far larger: stream them chunk by chunk, and lift the per-request deadline, which defaults to 300 seconds and would end a long download early.
+A small file (stock or index EOD) comes back whole like any other endpoint. The trade-quote, quote and option files are far larger: stream them chunk by chunk. A download that keeps streaming has no time limit; the SDK gives up only when the server sends nothing for `request_timeout_secs` (default 2700 seconds).
 
 <SdkTabs>
 
 <template #rust>
 
 ```rust
-use std::time::Duration;
-
 // A small file, whole:
 let eod = client.market_data().stock_flat_file_eod("20261021").await?;
 let df = eod.to_polars()?;  // leads with the `symbol` column
@@ -49,7 +47,6 @@ let df = eod.to_polars()?;  // leads with the `symbol` column
 client
     .market_data()
     .option_flat_file_trade_quote("20261021")
-    .with_deadline(Duration::ZERO)
     .stream(|chunk| {
         // `chunk` derefs to `&[TradeQuoteTick]`; `chunk.columns()` names each row's root
     })
@@ -69,7 +66,6 @@ def on_chunk(chunk):          # TradeQuoteTickList, like a whole result
 
 (client.market_data
     .option_flat_file_trade_quote_builder("20261021")
-    .timeout_ms(0)
     .stream(on_chunk))
 ```
 
@@ -80,7 +76,7 @@ def on_chunk(chunk):          # TradeQuoteTickList, like a whole result
 ```typescript
 const eod = await client.marketData.stockFlatFileEOD('20261021');
 
-await client.marketData.optionFlatFileTradeQuoteStream('20261021', { timeoutMs: 0 }, (rows, columns) => {
+await client.marketData.optionFlatFileTradeQuoteStream('20261021', null, (rows, columns) => {
   // rows: TradeQuoteTick[]; columns names each row's root
 });
 ```
@@ -95,8 +91,7 @@ auto eod = client.market_data().stock_flat_file_eod("20261021");
 client.market_data().option_flat_file_trade_quote_stream("20261021",
     [](auto rows, const thetadatadx::ColumnPresence& columns) {
         // rows: Span<const TradeQuoteTick>; columns names each row's root
-    },
-    thetadatadx::EndpointRequestOptions{}.with_timeout_ms(0));
+    });
 ```
 
 </template>

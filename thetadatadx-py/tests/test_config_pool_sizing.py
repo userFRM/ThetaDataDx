@@ -23,11 +23,11 @@ def _import_module():
 # ─── request_timeout_secs ───────────────────────────────────────────
 
 
-def test_request_timeout_secs_defaults_to_300():
-    """`request_timeout_secs` defaults to the 300s per-request deadline."""
+def test_request_timeout_secs_defaults_to_2700():
+    """`request_timeout_secs` defaults to the 45-minute silence limit."""
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.request_timeout_secs == 300
+    assert cfg.request_timeout_secs == 2700
 
 
 def test_request_timeout_secs_round_trips():

@@ -43,10 +43,12 @@ max_message_size = 4194304
 
 # How long a market-data request may wait on a silent server (seconds), for
 # the response to start and then for each next message; a request that keeps
-# streaming has no total limit. Default 300. A 0 is floored to 300 at request
-# time, so a silent server cannot hang a request; opt a single request out
-# with with_deadline(0) instead. Not range-limited.
-# request_timeout_secs = 300
+# streaming has no total limit. Default 2700 (45 minutes), room for the server
+# to prepare a large response such as a one-day chain of one-second bars. A 0
+# is floored to 2700 at request time, so a silent server cannot hang a
+# request; opt a single request out with with_deadline(0) instead. Not
+# range-limited.
+# request_timeout_secs = 2700
 
 # Buffered-response size (bytes) above which a warning is logged. Default
 # 104857600 (100 MiB).
