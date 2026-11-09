@@ -486,7 +486,7 @@ impl MarketDataClient {
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
             let started = std::time::Instant::now();
             let query = query?;
-            let ticks = match query.plan(self) {
+            let ticks = match super::shard::resolve_plan(self, query.plan(self)).await {
                 Some(plan) => {
                     // One independent top-level request per band. Each
                     // spawned task acquires its OWN request permit; this
@@ -652,7 +652,7 @@ impl MarketDataClient {
             let callback = tokio::sync::Mutex::new(callback);
             let stopped = AtomicBool::new(false);
             let (callback, stopped) = (&callback, &stopped);
-            match query.plan(self) {
+            match super::shard::resolve_plan(self, query.plan(self)).await {
                 Some(plan) => {
                     let policy = &self.config().retry;
                     let mut bands: Vec<ShardStreamFuture<'_>> =

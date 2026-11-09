@@ -29,6 +29,8 @@ Raise them for even fatter streams if you have memory to spare, or lower them wh
 
 A single large request does not have to be one stream. The SDK splits the requested time (or date) range into equal concurrent pieces. The split comes straight from the shape of the request, with no sizing round-trip. It then runs them in parallel across your concurrent-request pool and reassembles them into exactly the rows one request would have returned.
 
+A one-day option chain at a bar interval, such as `1s` or `1m`, is split by contract instead of by time: each bar builds up from the start of the requested window, so a piece starting mid-day would return different bars. A chain over every expiration first lists the day's contracts in one small request, then fetches each expiration as its own request, calls and puts separately. A chain with a single expiration splits into calls and puts. Either way, every contract's bars cover the whole window, exactly as one request returns them.
+
 The number of pieces is the request-pool size, which defaults to your account's allowance: the SDK sizes the pool to your subscription tier at connect time (Free 1 / Value 2 / Standard 4 / Pro 8), and setting `max_concurrent_requests` overrides that with no client-side cap, because the server enforces the real allowance. See [Concurrent Requests](/articles/concurrent-requests).
 
 On Pro, one big query becomes eight pieces fetching at once; a boosted account with `max_concurrent_requests = 32` fans out 32 ways. How much that shortens the wall clock depends on how much of the fan-out the server actually runs in parallel under current conditions; the table below shows one measured day. It scales down cleanly too: four pieces on Standard, two on Value, one on Free.

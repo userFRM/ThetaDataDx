@@ -813,6 +813,9 @@ macro_rules! shard_read_field {
     ($sq:ident, $params:ident, implied_vol_method) => {
         $sq.implied_vol_method = $crate::mdds::shard::opt_wire_str(&$params.implied_vol_method);
     };
+    ($sq:ident, $params:ident, max_dte) => {
+        $sq.max_dte = $params.max_dte;
+    };
     // NOTE: no `expiration` arm — the top-level `expiration` field on the
     // option protos is the always-empty legacy slot; the live value rides
     // in `contract_spec` and is read there.
@@ -852,11 +855,16 @@ macro_rules! shard_apply_field {
     // without a `contract_spec` never emit this arm; a band carrying no
     // `right` leaves it as issued.
     ($params:ident, $band:ident, contract_spec) => {
-        if let Some(right) = (match $band {
-            $crate::mdds::shard::ShardBand::Time { right, .. }
-            | $crate::mdds::shard::ShardBand::Date { right, .. } => right.as_deref(),
-        }) {
-            if let Some(cs) = $params.contract_spec.as_mut() {
+        if let Some(cs) = $params.contract_spec.as_mut() {
+            let right = match $band {
+                $crate::mdds::shard::ShardBand::Time { right, .. }
+                | $crate::mdds::shard::ShardBand::Date { right, .. } => right,
+                $crate::mdds::shard::ShardBand::Expiration { expiration, right } => {
+                    $crate::mdds::shard::set_wire_str(&mut cs.expiration, expiration);
+                    right
+                }
+            };
+            if let Some(right) = right {
                 $crate::mdds::shard::set_wire_str(&mut cs.right, right);
             }
         }

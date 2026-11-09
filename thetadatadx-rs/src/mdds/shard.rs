@@ -1,13 +1,16 @@
 //! Automatic sharding of large history pulls.
 //!
 //! One logical query becomes N disjoint sub-requests along a filter
-//! axis (date band, time band), dispatched concurrently across the
-//! channel pool. Bands are cut from the request shape alone —
-//! equal wall-clock duration on the time axis, equal day count on the
-//! date axis — never from a sizing query. Balance is equal span, not
-//! equal rows: a deliberate trade that costs zero extra round-trips and
-//! zero per-endpoint tuning, and the concurrency win dominates the
-//! residual row imbalance between bands. The buffered `.await` path merges the shard
+//! axis (date band, time band, expiration), dispatched concurrently
+//! across the channel pool. Date and time bands are cut from the request
+//! shape alone — equal wall-clock duration on the time axis, equal day
+//! count on the date axis — never from a sizing query. Balance is equal
+//! span, not equal rows: a deliberate trade that costs zero extra
+//! round-trips and zero per-endpoint tuning, and the concurrency win
+//! dominates the residual row imbalance between bands. The one exception
+//! is a one-day bar chain over every expiration, which no time band can
+//! cut: it lists the day's contracts first (one request) and fans out one
+//! request per expiration (see `resolve_plan`). The buffered `.await` path merges the shard
 //! responses back into exactly the rows the single-stream response would
 //! have carried — in the exact server order for single-contract / stock /
 //! index pulls, in a deterministic canonical contract order for chains
@@ -27,7 +30,8 @@
 //!    gate, axis selection, and the equal-span band cut — pure
 //!    computation, no request issued. Anything that does not clearly
 //!    benefit resolves to `None` and runs on today's single stream,
-//!    byte-identical.
+//!    byte-identical. `resolve_plan` then runs the contract list of an
+//!    expiration split, the only plan that needs one.
 //! 3. Each [`ShardBand`] is applied onto a clone of the original wire
 //!    parameters — every shard is a normal terminal-parity query differing
 //!    only in its band fields.
@@ -63,13 +67,13 @@
 //! # Semaphore safety
 //!
 //! The joining driver never holds a request permit: each shard acquires
-//! its own permit inside its spawned task. Since the semaphore is sized
-//! to the channel pool and a plan never exceeds the pool
-//! size, N shards make progress even at `pool_size == 1` (they simply
-//! serialize).
+//! its own permit inside its spawned task, so a plan of any size makes
+//! progress even at `pool_size == 1`: bands beyond the pool simply
+//! queue for a permit.
 
 use std::sync::Arc;
 
+use crate::OptionContract;
 use crate::auth::SessionToken;
 use crate::columns::{Ticks, WireColumns};
 use crate::config::{BulkFetchPolicy, RetryPolicy};
@@ -259,6 +263,16 @@ pub enum ShardBand {
         /// query's own `right` untouched.
         right: Option<String>,
     },
+    /// One expiration of an option chain over the query's whole window.
+    /// A one-day chain at a bar interval splits this way: each bar
+    /// accumulates from the window start, so a time band would change it.
+    Expiration {
+        /// The band's expiration (`YYYYMMDD`).
+        expiration: String,
+        /// `Some("call")` / `Some("put")` restricts the band to one side of
+        /// that expiration; `None` leaves the query's own `right` untouched.
+        right: Option<String>,
+    },
 }
 
 /// An equal-span fan-out plan for one logical history query: the
@@ -276,6 +290,29 @@ pub enum ShardBand {
 pub(crate) struct ShardPlan {
     /// Disjoint, exhaustive band overrides in output order.
     pub bands: Vec<ShardBand>,
+    /// Set when the chain splits by expiration. The bands then come from
+    /// the day's contract list ([`resolve_plan`]), and `bands` is what runs
+    /// when the list fails or the chain is too small for the split to pay,
+    /// an empty `bands` meaning the single stream.
+    pub listing: Option<ChainListing>,
+}
+
+/// The contract list an expiration split reads before it fans out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ChainListing {
+    /// The chain's root.
+    pub symbol: String,
+    /// The query's day (`YYYYMMDD`).
+    pub date: String,
+    /// The query's `max_dte`, forwarded so the list names exactly the
+    /// expirations the chain returns.
+    pub max_dte: Option<i32>,
+    /// The query's single right, `'C'` or `'P'`, when it names one.
+    pub right: Option<char>,
+    /// Whether each expiration splits again into a call and a put band.
+    pub split_rights: bool,
+    /// Bars one contract returns over the query's window.
+    pub bars_per_contract: u64,
 }
 
 /// Wire-level view of a history query, as consumed by the shard planner.
@@ -308,6 +345,8 @@ pub(crate) struct ShardQuery {
     pub interval: Option<String>,
     /// Implied-volatility method of a binomial Greeks query, when present.
     pub implied_vol_method: Option<String>,
+    /// Days-to-expiration cap of a chain query, when present.
+    pub max_dte: Option<i32>,
 }
 
 // ─── Wire-field projection helpers (used by the endpoint macros) ─────────
@@ -434,8 +473,8 @@ pub(crate) enum ShardDecline {
     /// bar VALUES even when the row count matches; a time-banded pull
     /// cannot reproduce the single stream. Tick pulls carry no bars and
     /// time-shard freely; date bands are unaffected (bars re-anchor at
-    /// each day's own window start either way), and a both-rights chain
-    /// still splits by right over the whole window.
+    /// each day's own window start either way), and a chain still splits
+    /// by expiration or right over the whole window.
     IntervalBars,
     /// Pull issued from inside this client's own streaming delivery
     /// handler: the outer pull holds the request pool until the handler
@@ -469,9 +508,15 @@ impl ShardDecline {
 /// fan-out, so sharding cannot win. Chain cross-products and
 /// tick-interval pulls have no such ceiling and band the range on the
 /// window alone. (The time axis never gets this far with a bounded
-/// interval: it splits a both-rights chain by right over the whole
+/// interval: it splits a chain by expiration or right over the whole
 /// window and declines everything else as [`ShardDecline::IntervalBars`].)
 const SHARD_MIN_GRID_ROWS: u64 = 10_000_000;
+
+/// Bar ceiling below which a listed one-day chain keeps the call/put pair
+/// rather than one request per expiration. A chain this small finishes in
+/// seconds on two streams, and the extra round trips of dozens of small
+/// requests would add back what the wider fan-out saves.
+const EXPIRATION_SPLIT_MIN_ROWS: u64 = 1_000_000;
 
 /// Minimum wall-clock span of one time band (five minutes). The server
 /// spends a roughly fixed prepare interval per request before the first
@@ -605,6 +650,65 @@ fn splittable_by_right(q: &ShardQuery) -> bool {
         && q.implied_vol_method.as_deref() != Some("out_of_the_money")
 }
 
+/// The listing step of a one-day bar chain over every expiration and
+/// strike, `None` for any other shape. `window_ms` is the query's window.
+fn chain_listing(q: &ShardQuery, window_ms: i64) -> Option<ChainListing> {
+    if q.expiration.as_deref() != Some("*") || q.strike.as_deref().is_some_and(|s| s != "*") {
+        return None;
+    }
+    let ivl = q.interval.as_deref().and_then(interval_ms)?;
+    let right = match q.right.as_deref() {
+        None | Some("both") => None,
+        Some("call") => Some('C'),
+        Some("put") => Some('P'),
+        Some(_) => return None,
+    };
+    Some(ChainListing {
+        symbol: q.symbol.clone()?,
+        date: q.date.clone().or_else(|| q.start_date.clone())?,
+        max_dte: q.max_dte,
+        right,
+        split_rights: splittable_by_right(q),
+        bars_per_contract: u64::try_from(window_ms / ivl + 1).ok()?,
+    })
+}
+
+/// The expiration bands for `listing` over the day's `contracts`, in
+/// ascending expiration order, calls before puts. `None` keeps the plan's
+/// fallback: a chain under two expirations has nothing to split, and one
+/// under [`EXPIRATION_SPLIT_MIN_ROWS`] does not pay for the requests.
+fn expiration_bands(
+    listing: &ChainListing,
+    contracts: &[OptionContract],
+) -> Option<Vec<ShardBand>> {
+    let in_chain = contracts
+        .iter()
+        .filter(|c| listing.right.is_none_or(|r| c.right == r));
+    let rows = u64::try_from(in_chain.clone().count())
+        .unwrap_or(u64::MAX)
+        .saturating_mul(listing.bars_per_contract);
+    let expirations: std::collections::BTreeSet<i32> = in_chain.map(|c| c.expiration).collect();
+    if expirations.len() < 2 || rows < EXPIRATION_SPLIT_MIN_ROWS {
+        return None;
+    }
+    let rights: &[Option<&str>] = if listing.split_rights {
+        &[Some("call"), Some("put")]
+    } else {
+        &[None]
+    };
+    Some(
+        expirations
+            .iter()
+            .flat_map(|e| {
+                rights.iter().map(move |r| ShardBand::Expiration {
+                    expiration: e.to_string(),
+                    right: r.map(str::to_owned),
+                })
+            })
+            .collect(),
+    )
+}
+
 /// Whether the query is a tick pull (no bar interval). The server accepts a
 /// tick *chain* only one day at a time, so a tick pull's bands must never span
 /// more than one day (Auto assembles a multi-day tick chain from single-day
@@ -657,7 +761,8 @@ fn select_axis(q: &ShardQuery) -> Option<ShardAxis> {
 /// Only tick pulls cut the window into more than one band: interval
 /// bars accumulate from the request's window start and any mid-window
 /// seam would change bar values (see [`ShardDecline::IntervalBars`]),
-/// so a bounded-interval chain takes one whole-window band per right.
+/// so a bounded-interval chain takes whole-window bands, one per right or
+/// per expiration.
 fn time_bands(start_ms: i64, end_ms: i64, n: i64, right: Option<&str>) -> Vec<ShardBand> {
     let window = end_ms - start_ms + 1;
     (0..n)
@@ -779,6 +884,8 @@ pub(crate) fn auto_plan(
             let axis = match p.bands.first() {
                 Some(ShardBand::Time { .. }) => "time",
                 Some(ShardBand::Date { .. }) => "date",
+                Some(ShardBand::Expiration { .. }) => "expiration",
+                None if p.listing.is_some() => "expiration",
                 None => "none",
             };
             tracing::debug!(
@@ -800,6 +907,45 @@ pub(crate) fn auto_plan(
     }
 }
 
+/// Finish an `auto_plan` result: a plan that carries a listing step lists the
+/// day's contracts (one request) and splits the chain into one band per
+/// expiration. A list that fails, or a chain too small for the split, keeps
+/// the plan's own bands. `None` runs the single stream.
+pub(crate) async fn resolve_plan(
+    client: &MarketDataClient,
+    plan: Option<ShardPlan>,
+) -> Option<ShardPlan> {
+    let mut plan = plan?;
+    if let Some(listing) = plan.listing.take() {
+        // Quotes rather than trades: every contract with a bar that day was
+        // quoted, so the quote list never misses an expiration the chain
+        // returns.
+        let mut list = client
+            .option_list_contracts("quote", &listing.date)
+            .symbol(&listing.symbol);
+        if let Some(max_dte) = listing.max_dte {
+            list = list.max_dte(max_dte);
+        }
+        match list.await {
+            Ok(contracts) => {
+                if let Some(bands) = expiration_bands(&listing, &contracts) {
+                    tracing::debug!(
+                        contracts = contracts.len(),
+                        shards = bands.len(),
+                        "chain split by expiration"
+                    );
+                    plan.bands = bands;
+                }
+            }
+            Err(error) => tracing::debug!(
+                %error,
+                "contract list failed; the chain is not split by expiration"
+            ),
+        }
+    }
+    (!plan.bands.is_empty()).then_some(plan)
+}
+
 /// Build the shard plan for `endpoint` and `q` at fan-out width `width`,
 /// from the request shape alone — pure computation, no request issued.
 ///
@@ -808,7 +954,9 @@ pub(crate) fn auto_plan(
 /// axis — run concurrently; it never issues a sizing query. Balance is
 /// equal span, not equal rows: a deliberate trade that costs zero extra
 /// round-trips and zero per-endpoint tuning, and the concurrency win
-/// dominates the residual row imbalance between bands.
+/// dominates the residual row imbalance between bands. A one-day bar
+/// chain over every expiration returns a listing step with its fallback
+/// bands, which [`resolve_plan`] completes.
 ///
 /// Used by [`auto_plan`]. Declines — the query should stay on a single
 /// stream — carry the gate that fired ([`ShardDecline`], logged by
@@ -816,10 +964,10 @@ pub(crate) fn auto_plan(
 /// an endpoint outside the shardable set, a shape with no cut axis,
 /// `width < 2`, a window too narrow for two bands of
 /// [`MIN_SHARD_BAND_MS`], a bounded-interval pull on the time axis that
-/// is not a both-rights chain (bar values anchor to the window start —
-/// [`ShardDecline::IntervalBars`]), or a bounded-interval
-/// single-contract date-axis pull whose bar grid provably stays under
-/// [`SHARD_MIN_GRID_ROWS`].
+/// is neither a both-rights nor an every-expiration chain (bar values
+/// anchor to the window start — [`ShardDecline::IntervalBars`]), or a
+/// bounded-interval single-contract date-axis pull whose bar grid
+/// provably stays under [`SHARD_MIN_GRID_ROWS`].
 fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan, ShardDecline> {
     if !is_shardable_history_endpoint(endpoint) {
         return Err(ShardDecline::UnlistedEndpoint);
@@ -863,13 +1011,22 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             // chain still splits into a call band and a put band over
             // the whole window: no seam, and each contract's bars are
             // its own.
+            //
+            // An every-expiration chain goes further: one request per
+            // expiration (and right) over the whole window, also seamless.
+            // Which expirations exist that day is not in the request, so the
+            // plan carries a listing step that reads them first.
             if !is_tick_pull(q) {
+                let listing = chain_listing(q, end_ms - start_ms);
+                let mut bands = Vec::new();
                 if splittable_by_right(q) {
-                    let mut bands = time_bands(start_ms, end_ms, 1, Some("call"));
+                    bands = time_bands(start_ms, end_ms, 1, Some("call"));
                     bands.extend(time_bands(start_ms, end_ms, 1, Some("put")));
-                    return Ok(ShardPlan { bands });
                 }
-                return Err(ShardDecline::IntervalBars);
+                if bands.is_empty() && listing.is_none() {
+                    return Err(ShardDecline::IntervalBars);
+                }
+                return Ok(ShardPlan { bands, listing });
             }
             // A chain cross-product's cost is contract assembly, not
             // transfer: splitting the requested window by time makes every
@@ -886,7 +1043,10 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
                     .max(1);
                 let mut bands = time_bands(start_ms, end_ms, time_n, Some("call"));
                 bands.extend(time_bands(start_ms, end_ms, time_n, Some("put")));
-                return Ok(ShardPlan { bands });
+                return Ok(ShardPlan {
+                    bands,
+                    listing: None,
+                });
             }
             // Equal-duration bands, capped so each spans at least
             // `MIN_SHARD_BAND_MS`; a window too narrow for two such
@@ -897,6 +1057,7 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             }
             Ok(ShardPlan {
                 bands: time_bands(start_ms, end_ms, n, None),
+                listing: None,
             })
         }
         ShardAxis::Date => {
@@ -947,7 +1108,10 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
                 let date_n = days.min(width / 2).max(1);
                 let mut bands = date_bands(start_ord, end_ord, date_n, Some("call"));
                 bands.extend(date_bands(start_ord, end_ord, date_n, Some("put")));
-                return Ok(ShardPlan { bands });
+                return Ok(ShardPlan {
+                    bands,
+                    listing: None,
+                });
             }
             // A tick CHAIN history pull is the single-day case: the server
             // assembles the whole chain per day and accepts a tick chain only
@@ -971,6 +1135,7 @@ fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan,
             }
             Ok(ShardPlan {
                 bands: date_bands(start_ord, end_ord, n, None),
+                listing: None,
             })
         }
     }
@@ -1003,6 +1168,11 @@ pub(crate) fn band_span(band: &ShardBand) -> tracing::Span {
             "shard_band",
             band_start = %start_time,
             band_end = %end_time,
+            band_right = ?right,
+        ),
+        ShardBand::Expiration { expiration, right } => tracing::debug_span!(
+            "shard_band",
+            band_expiration = %expiration,
             band_right = ?right,
         ),
     }
@@ -1749,7 +1919,7 @@ mod tests {
     /// The `right` override a band carries (`None` for a plain time band).
     fn band_right(b: &ShardBand) -> Option<&str> {
         match b {
-            ShardBand::Time { right, .. } => right.as_deref(),
+            ShardBand::Time { right, .. } | ShardBand::Expiration { right, .. } => right.as_deref(),
             ShardBand::Date { .. } => None,
         }
     }
@@ -1915,6 +2085,23 @@ mod tests {
             Some("put"),
             "a right-carrying date band must rewrite contract_spec.right on the wire"
         );
+
+        // An expiration band rewrites the expiration and right, and leaves
+        // the window as issued.
+        let expiration_band = ShardBand::Expiration {
+            expiration: "20260724".into(),
+            right: Some("call".into()),
+        };
+        let mut q5 = query();
+        let band = &expiration_band;
+        shard_apply_field!(q5, band, contract_spec);
+        shard_apply_field!(q5, band, start_time);
+        shard_apply_field!(q5, band, end_time);
+        let spec = q5.contract_spec.as_ref().unwrap();
+        assert_eq!(spec.expiration, "20260724");
+        assert_eq!(spec.right.as_deref(), Some("call"));
+        assert_eq!(q5.start_time.as_deref(), Some("09:30:00.000"));
+        assert_eq!(q5.end_time.as_deref(), Some("16:00:00.000"));
     }
 
     #[test]
@@ -1962,6 +2149,69 @@ mod tests {
     }
 
     #[test]
+    fn expiration_bands_cover_every_listed_expiration_once() {
+        let contract = |expiration, right| OptionContract {
+            symbol: "SPXW".into(),
+            expiration,
+            strike: 6000.0,
+            right,
+        };
+        // Unsorted, with repeats across strikes and rights.
+        let day = [
+            contract(20260717, 'P'),
+            contract(20260710, 'C'),
+            contract(20260717, 'C'),
+            contract(20260710, 'P'),
+            contract(20260724, 'P'),
+        ];
+        let band = |expiration: &str, right: Option<&str>| ShardBand::Expiration {
+            expiration: expiration.into(),
+            right: right.map(str::to_owned),
+        };
+        let listing = |right, split_rights, bars_per_contract| ChainListing {
+            symbol: "SPXW".into(),
+            date: "20260710".into(),
+            max_dte: None,
+            right,
+            split_rights,
+            bars_per_contract,
+        };
+        let big = EXPIRATION_SPLIT_MIN_ROWS;
+        assert_eq!(
+            expiration_bands(&listing(None, true, big), &day),
+            Some(vec![
+                band("20260710", Some("call")),
+                band("20260710", Some("put")),
+                band("20260717", Some("call")),
+                band("20260717", Some("put")),
+                band("20260724", Some("call")),
+                band("20260724", Some("put")),
+            ])
+        );
+        // Both rights kept whole per expiration.
+        assert_eq!(
+            expiration_bands(&listing(None, false, big), &day),
+            Some(vec![
+                band("20260710", None),
+                band("20260717", None),
+                band("20260724", None),
+            ])
+        );
+        // A call chain lists only the expirations with calls, and keeps its
+        // own right.
+        assert_eq!(
+            expiration_bands(&listing(Some('C'), false, big), &day),
+            Some(vec![band("20260710", None), band("20260717", None)])
+        );
+        // Under two expirations, or under the row floor (five contracts
+        // just below it), the plan keeps its fallback.
+        assert_eq!(expiration_bands(&listing(None, true, big), &day[..1]), None);
+        let under = (EXPIRATION_SPLIT_MIN_ROWS - 1) / 5;
+        assert_eq!(expiration_bands(&listing(None, true, under), &day), None);
+        assert!(expiration_bands(&listing(None, true, under + 1), &day).is_some());
+    }
+
+    #[test]
     fn bounded_interval_declines_the_time_axis_for_every_shape() {
         // Interval bars accumulate from the request's window start
         // (cumulative vwap, last-tick carry), so a mid-window band seam
@@ -1980,9 +2230,9 @@ mod tests {
         // The same contract at tick interval carries no bars and shards.
         concrete.interval = Some("tick".into());
         assert!(plan_query("option_history_quote", &concrete, 8).is_ok());
-        // A both-rights chain at a bounded interval splits by right
-        // only: one band per right over the whole window, so no bar
-        // loses its anchor.
+        // A both-rights chain at a bounded interval never cuts its window:
+        // every expiration lists first and splits per expiration and right,
+        // with one band per right over the whole window as the fallback.
         let mut chain = chain_day_query();
         chain.interval = Some("1s".into());
         let whole_window = |right: &str| ShardBand::Time {
@@ -1990,15 +2240,48 @@ mod tests {
             end_time: "16:00:00.000".into(),
             right: Some(right.into()),
         };
+        let listing = |split_rights| ChainListing {
+            symbol: "SPXW".into(),
+            date: "20260710".into(),
+            max_dte: None,
+            right: None,
+            split_rights,
+            bars_per_contract: 23_401,
+        };
         assert_eq!(
-            plan_query("option_history_quote", &chain, 8).map(|p| p.bands),
-            Ok(vec![whole_window("call"), whole_window("put")])
+            plan_query("option_history_quote", &chain, 8),
+            Ok(ShardPlan {
+                bands: vec![whole_window("call"), whole_window("put")],
+                listing: Some(listing(true)),
+            })
         );
-        // The `out_of_the_money` volatility method reads the other side,
-        // so that chain stays whole.
+        // One expiration has nothing to list.
+        let mut one_expiration = chain.clone();
+        one_expiration.expiration = Some("20260710".into());
+        assert_eq!(
+            plan_query("option_history_quote", &one_expiration, 8),
+            Ok(ShardPlan {
+                bands: vec![whole_window("call"), whole_window("put")],
+                listing: None,
+            })
+        );
+        // The `out_of_the_money` volatility method reads the other side, so
+        // each expiration keeps both rights and the fallback is one stream.
         chain.implied_vol_method = Some("out_of_the_money".into());
         assert_eq!(
             plan_query("option_history_binomial_greeks_first_order", &chain, 8),
+            Ok(ShardPlan {
+                bands: Vec::new(),
+                listing: Some(listing(false)),
+            })
+        );
+        one_expiration.implied_vol_method = Some("out_of_the_money".into());
+        assert_eq!(
+            plan_query(
+                "option_history_binomial_greeks_first_order",
+                &one_expiration,
+                8
+            ),
             Err(ShardDecline::IntervalBars)
         );
         chain.implied_vol_method = None;
@@ -2174,7 +2457,7 @@ mod tests {
                     Ymd::from_yyyymmdd(start_date).unwrap().to_ord(),
                     Ymd::from_yyyymmdd(end_date).unwrap().to_ord(),
                 ),
-                ShardBand::Time { .. } => panic!("expected date bands"),
+                other => panic!("expected date bands, got {other:?}"),
             })
             .collect();
         assert_eq!(ords[0].0, Ymd::from_yyyymmdd("20240101").unwrap().to_ord());
@@ -2280,7 +2563,7 @@ mod tests {
                 parse_ms_of_day(start_time).unwrap(),
                 parse_ms_of_day(end_time).unwrap(),
             ),
-            ShardBand::Date { .. } => panic!("expected time bands"),
+            other => panic!("expected time bands, got {other:?}"),
         }
     }
 
@@ -2450,7 +2733,7 @@ mod tests {
                         "no right split for a multi-day tick chain"
                     );
                 }
-                ShardBand::Time { .. } => panic!("expected date bands"),
+                other => panic!("expected date bands, got {other:?}"),
             }
         }
     }
@@ -2484,7 +2767,7 @@ mod tests {
                     end_date,
                     ..
                 } => assert_eq!(start_date, end_date, "each tick band must be a single day"),
-                ShardBand::Time { .. } => panic!("expected date bands"),
+                other => panic!("expected date bands, got {other:?}"),
             }
         }
     }
