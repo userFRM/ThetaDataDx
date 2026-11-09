@@ -31,6 +31,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Optional bulk fetch**: with `bulk_fetch = "auto"`, a large history pull runs as several concurrent requests within your account's concurrent-request allowance and is merged back into the rows one request returns. It is off by default, because which splits work depends on what the server accepts. See [Bulk Downloads](https://userfrm.github.io/ThetaDataDx/articles/bulk-downloads).
 - **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Greeks on demand**: first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **The same surface in every language**: identical methods and identical typed errors, Python through Rust.

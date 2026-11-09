@@ -35,7 +35,7 @@ use thetadatadx::wire::{
     CompressionAlgo, CompressionDescription, DataTable, DataValue, DataValueList, ResponseData,
     data_value,
 };
-use thetadatadx::{DirectConfig, Error, RetryPolicy, ShardBand};
+use thetadatadx::{BulkFetchPolicy, DirectConfig, Error, RetryPolicy, ShardBand};
 
 /// Tag-compatible mirror of the `StockHistoryTradeRequest` /
 /// `StockHistoryTradeRequestQuery` wire pair, trimmed to the band
@@ -352,6 +352,7 @@ async fn client_for_mock_with(
     retry.max_attempts = 3;
     retry.jitter = false;
     cfg.retry = retry;
+    cfg.market_data.bulk_fetch = BulkFetchPolicy::Auto;
     cfg.market_data.shard_concurrency = shard_concurrency;
     let sem = Arc::new(Semaphore::new(width));
     MarketDataClient::for_endpoint_routing_test(cfg, pool, sem)
