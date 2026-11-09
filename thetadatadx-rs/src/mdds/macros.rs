@@ -814,6 +814,9 @@ macro_rules! shard_read_field {
     ($sq:ident, $params:ident, interval) => {
         $sq.interval = $crate::mdds::shard::opt_wire_str(&$params.interval);
     };
+    ($sq:ident, $params:ident, implied_vol_method) => {
+        $sq.implied_vol_method = $crate::mdds::shard::opt_wire_str(&$params.implied_vol_method);
+    };
     // NOTE: no `expiration` arm — the top-level `expiration` field on the
     // option protos is the always-empty legacy slot; the live value rides
     // in `contract_spec` and is read there.
