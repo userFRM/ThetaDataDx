@@ -29,15 +29,37 @@ Raise them for even fatter streams if you have memory to spare, or lower them wh
 
 A single large request does not have to be one stream. The SDK splits the requested time (or date) range into equal concurrent pieces. The split comes straight from the shape of the request, with no sizing round-trip. It then runs them in parallel across your concurrent-request pool and reassembles them into exactly the rows one request would have returned.
 
-A one-day option chain at a bar interval, such as `1s` or `1m`, is split by contract instead of by time: each bar builds up from the start of the requested window, so a piece starting mid-day would return different bars. A chain over every expiration first lists the day's contracts in one small request, then fetches each expiration as its own request, calls and puts separately. A chain with a single expiration splits into calls and puts. Either way, every contract's bars cover the whole window, exactly as one request returns them.
+A one-day option chain at a bar interval, such as `1s` or `1m`, is split by contract instead of by time: each bar builds up from the start of the requested window, so a piece starting mid-day would return different bars. A chain over every expiration first lists the day's contracts in one small request, then fetches each expiration as its own request, calls and puts separately. A chain with a single expiration splits into calls and puts. Either way, every contract's bars cover the whole window, exactly as one request returns them. An OHLC chain over every expiration is one the server refuses as a single request, and the SDK returns that same error rather than working around it.
 
 The number of pieces is the request-pool size, which defaults to your account's allowance: the SDK sizes the pool to your subscription tier at connect time (Free 1 / Value 2 / Standard 4 / Pro 8), and setting `max_concurrent_requests` overrides that with no client-side cap, because the server enforces the real allowance. See [Concurrent Requests](/articles/concurrent-requests).
 
 On Pro, one big query becomes eight pieces fetching at once; a boosted account with `max_concurrent_requests = 32` fans out 32 ways. How much that shortens the wall clock depends on how much of the fan-out the server actually runs in parallel under current conditions; the table below shows one measured day. It scales down cleanly too: four pieces on Standard, two on Value, one on Free.
 
-Sharding is on by default. Small pulls stay a single request, so there is nothing to tune for them. If you want control:
+Sharding is opt-in. Which ways a request can be split depends on what the server accepts, and a change on the server side could break a split before the SDK catches up, so every query is one request until you turn it on:
 
-- `bulk_fetch = "off"` runs every query as one request, in the server's own order.
+```python
+from thetadatadx import Client, Config, Credentials
+
+cfg = Config.production()
+cfg.bulk_fetch = "auto"
+client = Client(Credentials.from_file("creds.txt"), cfg)
+```
+
+```rust
+use thetadatadx::config::{BulkFetchPolicy, DirectConfig};
+
+let mut cfg = DirectConfig::production();
+cfg.market_data.bulk_fetch = BulkFetchPolicy::Auto;
+```
+
+```typescript
+const cfg = Config.production();
+cfg.setBulkFetch("auto");
+```
+
+In a TOML config file, set `bulk_fetch = "auto"` under `[market_data]`. Small pulls stay a single request even then, so there is nothing to tune for them. If you want control:
+
+- `bulk_fetch = "off"` (the default) runs every query as one request, in the server's own order.
 - `shard_concurrency` caps how many pieces run at once (default: the full pool). Lower it to leave concurrency free for other requests running at the same time.
 
 Sharding only fills the pool you configured. It never exceeds it.
@@ -121,7 +143,7 @@ Every setup returns the same rows. A concrete single contract comes back byte-fo
 
 | Field | Default | What it does |
 |---|---|---|
-| `bulk_fetch` | `"auto"` | `"auto"` splits large pulls across the request pool; `"off"` runs one request in server order. |
+| `bulk_fetch` | `"off"` | `"auto"` splits large pulls across the request pool; `"off"` runs one request in server order. |
 | `max_concurrent_requests` | your tier | Concurrent-request pool size. Defaults to your subscription tier's allowance; set it to a boosted allowance to go wider (the server enforces the real limit). |
 | `shard_concurrency` | full pool | Caps pieces per pull. Lower to share concurrency with other requests. |
 | `stream_window_size_kb` | `8192` | Per-stream HTTP/2 flow-control window, in KB. |

@@ -25,10 +25,15 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 /// `.await` on a history builder and the chunk-streaming `.stream*`
 /// calls alike.
 ///
-/// Under `Auto` (the default) the SDK splits a large history pull into
-/// equal disjoint sub-requests along a filter axis (a date band or a
-/// time band) — cut from the request's own shape, with no sizing query
-/// — and runs them across the channel pool.
+/// The fan-out is opt-in: `Off` is the default, and `Auto` turns it on.
+/// How a pull can be split depends on what the server accepts, so a
+/// server change can break a split before this SDK can follow it.
+///
+/// Under `Auto` the SDK splits a large history pull into disjoint
+/// sub-requests and runs them across the channel pool: equal date or
+/// time bands cut from the request's own shape, or, for a one-day bar
+/// chain over every expiration, one request per expiration after a list
+/// of the day's contracts.
 ///
 /// The buffered path merges the results into exactly the rows the
 /// single stream would have returned. Row order: single-contract,
@@ -55,11 +60,10 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum BulkFetchPolicy {
-    /// Shard large history pulls across the concurrent-request budget
-    /// (default).
-    #[default]
+    /// Shard large history pulls across the concurrent-request budget.
     Auto,
-    /// Always issue a single stream per query.
+    /// Always issue a single stream per query (default).
+    #[default]
     Off,
 }
 
@@ -205,9 +209,9 @@ pub struct MarketDataConfig {
     /// Automatic bulk-fetch sharding policy for history pulls — buffered
     /// `.await` and chunk-streaming `.stream*` alike.
     ///
-    /// See [`BulkFetchPolicy`]. Default [`BulkFetchPolicy::Auto`]: large
-    /// history pulls are split into equal concurrent sub-requests across
-    /// the channel pool. Buffered
+    /// See [`BulkFetchPolicy`]. Default [`BulkFetchPolicy::Off`].
+    /// [`BulkFetchPolicy::Auto`] splits large history pulls into
+    /// concurrent sub-requests across the channel pool. Buffered
     /// pulls merge the shards back into exactly the rows of the
     /// single-stream response — single-contract, stock, and index pulls
     /// in the exact single-stream order, option-chain pulls in a
@@ -302,7 +306,7 @@ impl MarketDataConfig {
             // operator-visible "you are on the wrong API for this
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
-            bulk_fetch: BulkFetchPolicy::Auto,
+            bulk_fetch: BulkFetchPolicy::Off,
             // None = the full `max_concurrent_requests` budget.
             shard_concurrency: None,
             // None = size the pool to the account's subscription tier at

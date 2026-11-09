@@ -400,9 +400,9 @@
     }
 
     /// Set the automatic bulk-fetch sharding policy for history pulls, covering both the buffered and the chunk-streaming call paths.
-    /// Default `Auto`.
+    /// Default `Off`.
     ///
-    /// - `0` (`Auto`): a large history pull's requested time or date range is split into equal concurrent bands across the account's concurrent-request budget, decided from the request shape alone (no sizing request is issued). Buffered pulls merge the shards back into exactly the rows of the single-stream response: single-contract, stock, and index pulls keep the exact single-stream row order, while option-chain pulls come back in a deterministic canonical order (expiration, strike, right ascending; calls before puts; time-ascending within each contract). Streaming pulls forward each band's chunks to the handler as they arrive: every chunk exactly once, but chunks from different bands interleave in arrival order rather than the single stream's order. Small pulls and non-history endpoints are never sharded.
+    /// - `0` (`Auto`): a large history pull is split into concurrent requests across the account's concurrent-request budget: its requested time or date range into equal bands, decided from the request shape alone, or, for a one-day bar chain over every expiration, one request per expiration after one request that lists the day's contracts. Buffered pulls merge the shards back into exactly the rows of the single-stream response: single-contract, stock, and index pulls keep the exact single-stream row order, while option-chain pulls come back in a deterministic canonical order (expiration, strike, right ascending; calls before puts; time-ascending within each contract). Streaming pulls forward each band's chunks to the handler as they arrive: every chunk exactly once, but chunks from different bands interleave in arrival order rather than the single stream's order. Small pulls and non-history endpoints are never sharded.
     /// - `1` (`Off`): every query runs as a single stream, in the server's own row and chunk order.
     ///
     /// Throws `thetadatadx::InvalidParameterError` on any other code and `thetadatadx::ConfigError` on a null handle.
@@ -413,7 +413,7 @@
     }
 
     /// Current bulk-fetch sharding policy.
-    /// Default `Auto`.
+    /// Default `Off`.
     ///
     /// Returns the code the setter takes, or `0` on a null handle.
     int get_bulk_fetch() const {

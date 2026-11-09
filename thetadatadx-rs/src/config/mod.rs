@@ -1110,7 +1110,7 @@ mod config_file {
         keepalive_time_secs: u64,
         keepalive_timeout_secs: u64,
         max_message_size: usize,
-        /// Bulk-fetch sharding policy: `"auto"` (default) or `"off"`
+        /// Bulk-fetch sharding policy: `"off"` (default) or `"auto"`
         /// (case-insensitive). An unrecognised value is a load error.
         bulk_fetch: String,
         /// Fan-out cap for `bulk_fetch = "auto"`. `None` (key absent) uses
@@ -1756,18 +1756,18 @@ mod tests {
         fn market_data_section_sets_bulk_fetch_and_shard_concurrency() {
             let toml = r#"
                 [market_data]
-                bulk_fetch = "off"
+                bulk_fetch = "auto"
                 shard_concurrency = 4
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Off);
+            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Auto);
             assert_eq!(config.market_data.shard_concurrency, Some(4));
         }
 
         #[test]
-        fn market_data_bulk_fetch_defaults_to_auto_and_shard_none_when_absent() {
+        fn market_data_bulk_fetch_defaults_to_off_and_shard_none_when_absent() {
             let config = DirectConfig::from_toml_str("").unwrap();
-            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Auto);
+            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Off);
             assert_eq!(config.market_data.shard_concurrency, None);
         }
 
