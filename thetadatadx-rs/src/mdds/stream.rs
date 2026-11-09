@@ -29,7 +29,7 @@ use crate::proto;
 
 use super::client::MarketDataClient;
 use super::macros::{
-    effective_deadline, run_streaming_retry_loop, run_unary_retry_loop, run_with_optional_deadline,
+    request_limits, run_streaming_retry_loop, run_unary_retry_loop, run_with_optional_deadline,
     warn_buffered_response_size,
 };
 use super::shard::{ChainSortKey, ShardBand, ShardPlan, ShardStreamFuture};
@@ -69,9 +69,11 @@ pub(crate) type TickParser<T> = fn(&proto::DataTable) -> Result<Vec<T>, decode::
 /// the connection's keepalive never notices.
 const FLAT_FILE_IDLE: Duration = Duration::from_secs(60);
 
-/// Await `next`, failing once `idle` passes without it. The failure is a
-/// `DeadlineExceeded` status, as a gRPC client reports its own deadline, so
-/// the retry loop treats the stall as transient and reconnects.
+/// Await `next`, failing once `idle` passes without it: the stall guard of
+/// every flat-file download and of every market-data request without its own
+/// deadline. The failure is a `DeadlineExceeded` status, as a gRPC client
+/// reports its own deadline, so the retry loop treats the stall as transient
+/// and reconnects.
 async fn within_idle<T>(idle: Option<Duration>, next: impl Future<Output = T>) -> Result<T, Error> {
     let Some(idle) = idle else {
         return Ok(next.await);
@@ -131,8 +133,9 @@ impl MarketDataClient {
     pub(crate) async fn collect_stream(
         &self,
         stream: ServerStreaming<proto::ResponseData>,
+        idle: Option<Duration>,
     ) -> Result<proto::DataTable, Error> {
-        collect_stream_table(stream).await
+        collect_stream_table(stream, idle).await
     }
 
     /// Process streamed responses chunk-by-chunk without materializing all rows.
@@ -419,7 +422,8 @@ impl MarketDataClient {
         query: &dyn EndpointQuery,
         column: &str,
     ) -> Result<Vec<String>, Error> {
-        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        let (deadline, idle) =
+            request_limits(deadline, self.config().market_data.request_timeout_secs);
         run_with_optional_deadline(deadline, async move {
             tracing::debug!(endpoint, "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
@@ -433,11 +437,11 @@ impl MarketDataClient {
                     // The lease lives across the open, so the pool's picker
                     // counts the pending open on its channel.
                     let lease = self.channel();
-                    let stream = query
-                        .open(&lease, self.build_query_info(snap.uuid))
-                        .await
-                        .map_err(Error::from)?;
-                    self.collect_stream(stream).await
+                    let stream =
+                        within_idle(idle, query.open(&lease, self.build_query_info(snap.uuid)))
+                            .await?
+                            .map_err(Error::from)?;
+                    self.collect_stream(stream, idle).await
                 },
             )
             .await?;
@@ -475,7 +479,8 @@ impl MarketDataClient {
     where
         T: WireColumns + ChainSortKey + Clone + Send + 'static,
     {
-        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        let (deadline, idle) =
+            request_limits(deadline, self.config().market_data.request_timeout_secs);
         run_with_optional_deadline(deadline, async move {
             tracing::debug!(endpoint, "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
@@ -520,16 +525,19 @@ impl MarketDataClient {
                                         endpoint,
                                         |snap| async move {
                                             let lease = dispatch.channel();
-                                            let stream = query
-                                                .open(&lease, dispatch.query_info(snap.uuid))
-                                                .await
-                                                .map_err(Error::from)?;
+                                            let stream = within_idle(
+                                                idle,
+                                                query.open(&lease, dispatch.query_info(snap.uuid)),
+                                            )
+                                            .await?
+                                            .map_err(Error::from)?;
                                             // The rows accumulate inside the
                                             // attempt, so a band re-fetched after
                                             // a mid-collect transient starts
                                             // empty and the replay cannot
                                             // duplicate rows.
-                                            collect_stream_typed(stream, parse, band_produced).await
+                                            collect_stream_typed(stream, parse, band_produced, idle)
+                                                .await
                                         },
                                     )
                                     .await
@@ -570,11 +578,13 @@ impl MarketDataClient {
                             endpoint,
                             |snap| async move {
                                 let lease = self.channel();
-                                let stream = query
-                                    .open(&lease, self.build_query_info(snap.uuid))
-                                    .await
-                                    .map_err(Error::from)?;
-                                self.collect_stream(stream).await
+                                let stream = within_idle(
+                                    idle,
+                                    query.open(&lease, self.build_query_info(snap.uuid)),
+                                )
+                                .await?
+                                .map_err(Error::from)?;
+                                self.collect_stream(stream, idle).await
                             },
                         )
                         .await?
@@ -629,7 +639,8 @@ impl MarketDataClient {
     where
         T: WireColumns + Send,
     {
-        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        let (deadline, idle) =
+            request_limits(deadline, self.config().market_data.request_timeout_secs);
         run_with_optional_deadline(deadline, async move {
             tracing::debug!(endpoint, "gRPC streaming request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
@@ -667,8 +678,8 @@ impl MarketDataClient {
                                         &delivered,
                                         |snap| {
                                             self.deliver_ticks(
-                                                &*query, snap.uuid, parse, callback, &delivered,
-                                                stopped,
+                                                &*query, snap.uuid, idle, parse, callback,
+                                                &delivered, stopped,
                                             )
                                         },
                                     )
@@ -699,7 +710,7 @@ impl MarketDataClient {
                         &delivered,
                         |snap| {
                             self.deliver_ticks(
-                                &*query, snap.uuid, parse, callback, &delivered, stopped,
+                                &*query, snap.uuid, idle, parse, callback, &delivered, stopped,
                             )
                         },
                     )
@@ -735,6 +746,7 @@ impl MarketDataClient {
         &self,
         query: &dyn EndpointQuery,
         uuid: String,
+        idle: Option<Duration>,
         parse: TickParser<T>,
         callback: &tokio::sync::Mutex<&mut ChunkCallback<'_, T>>,
         delivered: &AtomicBool,
@@ -749,9 +761,8 @@ impl MarketDataClient {
             return Ok(());
         }
         let lease = self.channel();
-        let stream = query
-            .open(&lease, self.build_query_info(uuid))
-            .await
+        let stream = within_idle(idle, query.open(&lease, self.build_query_info(uuid)))
+            .await?
             .map_err(Error::from)?;
         let mut decode_error: Option<Error> = None;
         // Marks the callback's await as this client's delivery scope, so a
@@ -760,7 +771,7 @@ impl MarketDataClient {
         // `acquire_request_permit`).
         let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
-            .for_each_chunk_async_control(stream, None, |headers, rows| {
+            .for_each_chunk_async_control(stream, idle, |headers, rows| {
                 let mut stop_stream = decode_error.is_some();
                 let ticks = if stop_stream {
                     None
@@ -837,7 +848,8 @@ impl MarketDataClient {
         F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
         Fut: Future<Output = ControlFlow<()>>,
     {
-        let deadline = effective_deadline(deadline, self.config().market_data.request_timeout_secs);
+        let (deadline, idle) =
+            request_limits(deadline, self.config().market_data.request_timeout_secs);
         run_with_optional_deadline(deadline, async {
             tracing::debug!(endpoint, "gRPC streaming request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => endpoint).increment(1);
@@ -854,12 +866,11 @@ impl MarketDataClient {
                 |snap| async move {
                     let stream = {
                         let lease = self.channel();
-                        query
-                            .open(&lease, self.build_query_info(snap.uuid))
-                            .await
+                        within_idle(idle, query.open(&lease, self.build_query_info(snap.uuid)))
+                            .await?
                             .map_err(Error::from)?
                     };
-                    self.for_each_chunk_async_control(stream, None, |headers, rows| async move {
+                    self.for_each_chunk_async_control(stream, idle, |headers, rows| async move {
                         if !rows.is_empty() {
                             delivered.store(true, Ordering::Release);
                         }
@@ -893,6 +904,7 @@ impl MarketDataClient {
 /// Same conditions as [`MarketDataClient::collect_stream`].
 pub(crate) async fn collect_stream_table(
     mut stream: ServerStreaming<proto::ResponseData>,
+    idle: Option<Duration>,
 ) -> Result<proto::DataTable, Error> {
     let mut all_rows = Vec::new();
     let mut headers: Vec<String> = Vec::new();
@@ -900,7 +912,7 @@ pub(crate) async fn collect_stream_table(
 
     let max_message_size = stream.max_message_size();
 
-    while let Some(response) = stream.next().await {
+    while let Some(response) = within_idle(idle, stream.next()).await? {
         let response = response?;
 
         // Use original_size as a rough pre-allocation hint on the first chunk.
@@ -977,6 +989,7 @@ pub(crate) async fn collect_stream_typed<T, E, P>(
     mut stream: ServerStreaming<proto::ResponseData>,
     parser: P,
     produced: &std::sync::atomic::AtomicBool,
+    idle: Option<Duration>,
 ) -> Result<super::shard::TypedBand<T>, Error>
 where
     P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
@@ -984,7 +997,7 @@ where
 {
     let mut collect = TypedCollect::default();
     let max_message_size = stream.max_message_size();
-    while let Some(response) = stream.next().await {
+    while let Some(response) = within_idle(idle, stream.next()).await? {
         let response = response?;
         // Same first-chunk row-count hint as `collect_stream_table`
         // (~64 B per wire row), capped at the channel ceiling; the typed

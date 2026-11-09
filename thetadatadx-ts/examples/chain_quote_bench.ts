@@ -138,14 +138,11 @@ async function main(): Promise<void> {
   // so TTFB excludes connect/auth and measures backend-to-first-chunk latency.
   const dispatch = nowSecs();
 
-  // A full-day 0DTE pull can run 6-15 minutes; the config default
-  // requestTimeoutSecs (300 s) would kill it, so opt out of any deadline
-  // with timeoutMs: 0 (documented as "no deadline").
   try {
     await client.optionHistoryQuoteStream(
       symbol,
       expiration,
-      { strike: "*", right: "both", date, interval, timeoutMs: 0 },
+      { strike: "*", right: "both", date, interval },
       (chunk) => {
         const now = nowSecs();
         if (ttfbSecs === null) {

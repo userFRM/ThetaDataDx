@@ -11,13 +11,12 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// Default per-request market-data deadline in seconds (5 min).
+/// Default market-data silence limit in seconds (5 min).
 ///
-/// The floor the effective-deadline resolver applies when a caller leaves the
-/// per-request deadline unset AND the configured `request_timeout_secs` is `0`:
-/// a `0` there would disable the gRPC hang guard for every deadline-less
-/// request, so a live-but-silent server could hang the client forever. Sits
-/// above the slowest realistic bulk pull. The per-call
+/// The floor the request-limit resolver applies when the configured
+/// `request_timeout_secs` is `0`: a `0` there would disable the gRPC hang
+/// guard for every request without its own deadline, so a live-but-silent
+/// server could hang the client forever. The per-call
 /// `with_deadline(Duration::ZERO)` opt-out is a separate, explicit path and is
 /// unaffected by this floor.
 pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
@@ -152,28 +151,31 @@ pub struct MarketDataConfig {
     /// cadence.
     pub connect_timeout_secs: u64,
 
-    /// Default per-request deadline for market-data (gRPC) queries, in
-    /// seconds.
+    /// How long a market-data (gRPC) request may wait on a silent server,
+    /// in seconds: for the response to start, and then for each next
+    /// message.
     ///
-    /// A server that holds the HTTP/2 stream open while sending no
-    /// chunks would otherwise hang `collect_stream` / `stream(...)`
-    /// indefinitely: the gRPC keepalive PING only detects a fully dead
-    /// peer, not a live-but-silent one. This default bounds every
-    /// request that did not call `with_deadline(...)`, so a stalled
-    /// stream resolves to `Error::Timeout` instead of blocking forever.
+    /// A request without its own deadline has no limit on its total
+    /// length, since the server prepares a large response before its
+    /// first byte and then streams it for as long as it takes. A server
+    /// that holds the HTTP/2 stream open while sending nothing would
+    /// otherwise hang the request indefinitely: the gRPC keepalive PING
+    /// only detects a fully dead peer, not a live-but-silent one. Past
+    /// this limit the attempt fails as a `DeadlineExceeded` stall, which
+    /// the retry policy treats as transient.
     ///
-    /// Configuring `0` here does **not** disable the guard: the effective-
-    /// deadline resolver every market-data request routes through floors a `0`
-    /// to the production default (`300s`) so a deadline-less request can never
-    /// hang the client forever, regardless of whether the config was validated.
-    /// Opt a single request out with the per-call escape hatch instead.
+    /// Configuring `0` here does **not** disable the guard: the request-
+    /// limit resolver every market-data request routes through floors a `0`
+    /// to the production default (`300s`), regardless of whether the config
+    /// was validated. Opt a single request out with the per-call escape
+    /// hatch instead.
     ///
-    /// Per-call control overrides this: `with_deadline(Duration)` sets a
-    /// shorter or longer bound, and `with_deadline(Duration::ZERO)`
-    /// opts a single request out of any deadline.
+    /// Per-call control overrides this: `with_deadline(Duration)` bounds
+    /// the whole request instead, and `with_deadline(Duration::ZERO)`
+    /// lifts every limit for that request.
     ///
-    /// Default `300s` (5 min) — comfortably above the slowest realistic
-    /// multi-million-row bulk pull while still bounding a wedged stream.
+    /// Default `300s` (5 min): a server that is preparing a response
+    /// answers well inside it, and a wedged stream still fails.
     pub request_timeout_secs: u64,
 
     /// Estimated-bytes threshold above which the buffered `.await`

@@ -57,21 +57,21 @@ pub enum EndpointArgValue {
 /// deadline" from "the caller explicitly disabled the deadline" — both
 /// collapse to `None`. That ambiguity makes `with_timeout_ms(0)` silently
 /// fall back to the configured
-/// [`crate::config::MarketDataConfig::request_timeout_secs`] default instead
-/// of opting the call out of any deadline. This tri-state keeps the two
-/// intents distinct so the generated dispatch can honour each:
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] silence limit
+/// instead of opting the call out of every limit. This tri-state keeps the
+/// two intents distinct so the generated dispatch can honour each:
 ///
-/// | Variant      | Source                  | Effect on the dispatched call                                  |
-/// |--------------|-------------------------|----------------------------------------------------------------|
-/// | `Unset`      | no `with_timeout_ms`    | fall back to the configured `request_timeout_secs` default     |
-/// | `Disabled`   | `with_timeout_ms(0)`    | no deadline — the call runs unbounded (the documented opt-out) |
-/// | `Millis(n)`  | `with_timeout_ms(n>0)`  | a per-call deadline of `n` milliseconds                        |
+/// | Variant      | Source                  | Effect on the dispatched call                                         |
+/// |--------------|-------------------------|-----------------------------------------------------------------------|
+/// | `Unset`      | no `with_timeout_ms`    | no deadline; fails only after `request_timeout_secs` of silence       |
+/// | `Disabled`   | `with_timeout_ms(0)`    | no limit at all: the call runs unbounded (the documented opt-out)     |
+/// | `Millis(n)`  | `with_timeout_ms(n>0)`  | a per-call deadline of `n` milliseconds on the whole call             |
 ///
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum DeadlineSetting {
-    /// No per-call deadline was set; fall back to the configured default.
+    /// No per-call deadline was set; the configured silence limit applies.
     #[default]
     Unset,
     /// The deadline was explicitly disabled (`with_timeout_ms(0)`); the
@@ -87,12 +87,12 @@ impl DeadlineSetting {
     /// dispatch applies to an endpoint builder via `with_deadline`.
     ///
     /// - [`Self::Unset`] → `None`: the dispatch must NOT call `with_deadline`,
-    ///   so the builder falls back to the configured `request_timeout_secs`
-    ///   default.
+    ///   so the builder keeps the configured `request_timeout_secs` silence
+    ///   limit.
     /// - [`Self::Disabled`] → `Some(Duration::ZERO)`: an explicit zero, which
     ///   `with_deadline` carries through to
-    ///   [`crate::mdds::macros::effective_deadline`] where it disables the
-    ///   deadline entirely (the call runs unbounded).
+    ///   [`crate::mdds::macros::request_limits`] where it lifts every limit
+    ///   (the call runs unbounded).
     /// - [`Self::Millis`] → `Some(Duration::from_millis(n))`: the explicit
     ///   per-call bound.
     #[must_use]
@@ -140,9 +140,9 @@ impl EndpointArgs {
     /// `ms == 0` is the deadline opt-out: it records
     /// [`DeadlineSetting::Disabled`] so the dispatched call runs unbounded.
     /// This is distinct from never calling `with_timeout_ms` at all
-    /// ([`DeadlineSetting::Unset`]), which falls back to the configured
-    /// [`crate::config::MarketDataConfig::request_timeout_secs`] default. A
-    /// positive `ms` records [`DeadlineSetting::Millis`].
+    /// ([`DeadlineSetting::Unset`]), which keeps the configured
+    /// [`crate::config::MarketDataConfig::request_timeout_secs`] silence
+    /// limit. A positive `ms` records [`DeadlineSetting::Millis`].
     #[must_use]
     pub fn with_timeout_ms(mut self, ms: u64) -> Self {
         self.set_timeout_ms(ms);
@@ -535,8 +535,8 @@ pub enum EndpointOutput {
 /// threads [`EndpointArgs::deadline_setting`] onto the endpoint builder via
 /// `with_deadline`. The builder is the single deadline authority, so the
 /// three deadline intents are honoured exactly: [`DeadlineSetting::Unset`]
-/// falls back to the configured
-/// [`crate::config::MarketDataConfig::request_timeout_secs`] default,
+/// keeps the configured
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] silence limit,
 /// [`DeadlineSetting::Disabled`] (`with_timeout_ms(0)`) runs unbounded, and
 /// [`DeadlineSetting::Millis`] applies the explicit per-call bound. On expiry
 /// the in-flight future is dropped — its locals (`_permit`,
@@ -886,8 +886,8 @@ mod tests {
     /// `timeout_ms == 0` is the deadline opt-out: it records `Disabled`, a
     /// state distinct from `Unset`. The generated dispatch reads
     /// `deadline_setting()` to tell them apart — `Disabled` runs the call
-    /// unbounded while `Unset` falls back to the configured
-    /// `request_timeout_secs` default.
+    /// unbounded while `Unset` keeps the configured `request_timeout_secs`
+    /// silence limit.
     #[test]
     fn with_timeout_ms_zero_records_disabled() {
         let args = EndpointArgs::new().with_timeout_ms(0);
@@ -911,9 +911,9 @@ mod tests {
 
     /// The tri-state maps to the builder deadline the generated dispatch
     /// applies. This is the crux of the registry/FFI opt-out fix: `Unset`
-    /// must NOT apply a deadline (the builder keeps the configured default),
+    /// must NOT apply a deadline (the builder keeps the configured limit),
     /// `Disabled` must apply an explicit `Duration::ZERO` (which
-    /// `with_deadline` / `effective_deadline` resolve to "no deadline"), and
+    /// `with_deadline` / `request_limits` resolve to no limit at all), and
     /// `Millis(n)` must apply that exact bound.
     #[test]
     fn deadline_setting_maps_to_builder_deadline() {
@@ -927,21 +927,21 @@ mod tests {
             DeadlineSetting::Millis(250).builder_deadline(),
             Some(Duration::from_millis(250))
         );
-        // The disabled builder deadline must route through effective_deadline
-        // to "no deadline" even against a positive configured default, so the
-        // opt-out actually holds end-to-end.
+        // The disabled builder deadline must route through request_limits
+        // to no limit at all even against a positive configured limit, so
+        // the opt-out actually holds end-to-end.
         let disabled = DeadlineSetting::Disabled.builder_deadline();
         assert_eq!(
-            crate::mdds::macros::effective_deadline(disabled, 300),
-            None,
-            "with_timeout_ms(0) must disable the deadline, not fall back to the default"
+            crate::mdds::macros::request_limits(disabled, 300),
+            (None, None),
+            "with_timeout_ms(0) must lift every limit, not fall back to the configured one"
         );
-        // Unset routes to the configured default.
+        // Unset routes to the configured silence limit.
         let unset = DeadlineSetting::Unset.builder_deadline();
         assert_eq!(
-            crate::mdds::macros::effective_deadline(unset, 300),
-            Some(Duration::from_secs(300)),
-            "an unset deadline must fall back to the configured default"
+            crate::mdds::macros::request_limits(unset, 300),
+            (None, Some(Duration::from_secs(300))),
+            "an unset deadline must keep the configured silence limit"
         );
     }
 

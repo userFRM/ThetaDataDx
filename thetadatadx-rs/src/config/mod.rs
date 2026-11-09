@@ -1028,7 +1028,7 @@ impl DirectConfig {
         }
         // NOTE: a `0` market-data `request_timeout_secs` is NOT floored here.
         // The floor lives at the single consumption point
-        // ([`crate::mdds::macros::effective_deadline`]) so the gRPC hang guard
+        // ([`crate::mdds::macros::request_limits`]) so the gRPC hang guard
         // holds even for callers who never run `validate` — the connect paths
         // and the SDK bindings pass unvalidated config snapshots. Flooring only
         // here would leave those paths exposed.

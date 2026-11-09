@@ -14,48 +14,44 @@
 //! `_permit` releases the request-semaphore slot, the tonic `Streaming` is
 //! dropped (RST_STREAM on the underlying H2 stream), and the call returns
 //! `Err(Error::Timeout { duration_ms })`. The `MarketDataClient` is unaffected;
-//! a subsequent call on the same handle succeeds.
+//! a subsequent call on the same handle succeeds. A call that sets no
+//! deadline has none; it fails only when the server falls silent (see
+//! [`request_limits`]).
 
-/// Resolve the effective per-request deadline.
+/// Resolve one market-data call's time limits, as `(deadline, idle)`.
 ///
-/// An explicit `with_deadline(...)` always wins, including
-/// `with_deadline(Duration::ZERO)` which means "disable the deadline" and
-/// opts the request out of any deadline. A zero `explicit` duration is
-/// normalized to `None` here so the opt-out holds on every endpoint —
-/// letting a zero `Duration` reach [`tokio::time::timeout`] would fire on
-/// the first poll and time the call out instantly, the opposite of the
-/// documented contract. When the caller set nothing (`explicit == None`),
-/// fall back to the configured
-/// [`crate::config::MarketDataConfig::request_timeout_secs`] default so a
-/// server holding the stream open without sending chunks cannot hang the
-/// request indefinitely.
+/// An explicit `with_deadline(d)` bounds the whole call, and
+/// `with_deadline(Duration::ZERO)` lifts every limit: a zero `explicit` is
+/// normalized to `(None, None)` here so the opt-out holds on every
+/// endpoint, since a zero `Duration` reaching [`tokio::time::timeout`]
+/// would fire on the first poll. A call that sets nothing has no
+/// deadline: the server prepares a large response before its first byte
+/// and then streams it for as long as it takes, so a wall-clock bound
+/// would cut off healthy pulls. It fails instead when the server sends
+/// nothing for the configured
+/// [`crate::config::MarketDataConfig::request_timeout_secs`], before the
+/// response or between two messages, which a live but silent server
+/// cannot otherwise be told from a slow one.
 ///
-/// A configured default of `0` does NOT disable the fallback: it is floored to
-/// the production default here — the single
-/// point every market-data request routes through — so the gRPC hang guard
-/// holds regardless of whether [`crate::config::DirectConfig::validate`] ran
-/// on the config (the connect paths and the SDK bindings pass unvalidated
-/// snapshots). The only way to run a request with no deadline is the explicit
-/// per-call `with_deadline(Duration::ZERO)` opt-out above.
-pub(crate) fn effective_deadline(
+/// A configured `0` is floored to the production default here, the single
+/// point every market-data request routes through, so the guard holds
+/// whether or not [`crate::config::DirectConfig::validate`] ran on the
+/// config (the connect paths and the SDK bindings pass unvalidated
+/// snapshots).
+pub(crate) fn request_limits(
     explicit: Option<std::time::Duration>,
-    default_secs: u64,
-) -> Option<std::time::Duration> {
+    idle_secs: u64,
+) -> (Option<std::time::Duration>, Option<std::time::Duration>) {
     match explicit {
-        // An explicit zero is the deadline opt-out: normalize to "no
-        // deadline" rather than a zero-length timeout that fires at once.
-        Some(d) if d.is_zero() => None,
-        Some(d) => Some(d),
-        // Unset: fall back to the configured default, flooring a `0` (which
-        // would otherwise disable the guard) to the terminal-safe default so a
-        // silent-but-live server cannot hang a deadline-less request forever.
+        Some(d) if d.is_zero() => (None, None),
+        Some(d) => (Some(d), None),
         None => {
-            let secs = if default_secs == 0 {
+            let secs = if idle_secs == 0 {
                 crate::config::DEFAULT_REQUEST_TIMEOUT_SECS
             } else {
-                default_secs
+                idle_secs
             };
-            Some(std::time::Duration::from_secs(secs))
+            (None, Some(std::time::Duration::from_secs(secs)))
         }
     }
 }
@@ -620,7 +616,7 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 /// (through `IntoFuture`) runs [`MarketDataClient::fetch_list`], which drops
 /// the in-flight gRPC call on expiry and returns `Err(Error::Timeout)`. A
 /// caller who sets nothing sends the SSOT defaults under the configured
-/// [`crate::config::MarketDataConfig::request_timeout_secs`] deadline.
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] silence limit.
 macro_rules! list_endpoint {
     (
         $(#[$meta:meta])*
@@ -646,9 +642,9 @@ macro_rules! list_endpoint {
 
             /// Apply a per-call deadline.
             ///
-            /// `Duration::ZERO` disables the deadline, including the
-            /// configured `request_timeout_secs` default. Same contract as
-            /// the parsed builders.
+            /// `Duration::ZERO` lifts every limit, including the
+            /// configured `request_timeout_secs` silence limit. Same
+            /// contract as the parsed builders.
             #[must_use]
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
                 self.deadline = Some(duration);
@@ -934,20 +930,21 @@ macro_rules! parsed_endpoint {
             /// underlying `MarketDataClient` is unaffected; subsequent calls
             /// on the same handle succeed.
             ///
-            /// `Duration::ZERO` means "disable the deadline": it opts the
-            /// call out of any bound, including the configured
-            /// `request_timeout_secs` default. The explicit zero is carried
-            /// through to [`effective_deadline`], which normalizes it to "no
-            /// deadline" — leaving it to fall back to the configured default
-            /// (the behaviour of an unset deadline) would make the opt-out
-            /// silently impose a bound. Pass a positive `Duration` (e.g.
+            /// Without one the call has no deadline and fails only when
+            /// the server sends nothing for the configured
+            /// `request_timeout_secs`. `Duration::ZERO` lifts that limit
+            /// too. The explicit zero is carried through to
+            /// [`request_limits`], which resolves it to no limit at all;
+            /// leaving it to fall back to the configured limit (the
+            /// behaviour of an unset deadline) would make the opt-out
+            /// silently impose one. Pass a positive `Duration` (e.g.
             /// `Duration::from_millis(1)`) for a near-instant expiration.
             #[must_use]
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
                 // Carry the value through verbatim — including `ZERO`. A
                 // bare `None` here means "caller set nothing" and routes to
-                // the configured default; an explicit `ZERO` must instead
-                // disable the deadline, which `effective_deadline` resolves.
+                // the configured limit; an explicit `ZERO` must instead
+                // lift every limit, which `request_limits` resolves.
                 self.deadline = Some(duration);
                 self
             }
@@ -1018,9 +1015,8 @@ macro_rules! parsed_endpoint {
             /// at all, in which case the underlying error surfaces
             /// unchanged like a single-stream failure. Dropping the
             /// future (the deadline path) still cancels every band;
-            /// on a very large pull, size `with_deadline` (or the
-            /// configured `request_timeout_secs`) to the whole pull,
-            /// since it also bounds the sibling drain after a band
+            /// on a very large pull, size `with_deadline` to the whole
+            /// pull, since it also bounds the sibling drain after a band
             /// failure. For the single stream's exact chunk order, use
             /// the buffered `.await` (which merges) or set
             /// [`bulk_fetch = Off`](crate::config::BulkFetchPolicy::Off).
@@ -1217,16 +1213,16 @@ macro_rules! stream_endpoint {
             /// On expiry the in-flight gRPC stream is cancelled and the
             /// `stream(...)` call resolves to `Err(Error::Timeout)`. The
             /// underlying `MarketDataClient` is unaffected; subsequent calls on
-            /// the same handle succeed. `Duration::ZERO` opts the call out of any
-            /// bound, including the configured `request_timeout_secs` default; the
-            /// explicit zero is carried through verbatim and resolved by
-            /// `effective_deadline`.
+            /// the same handle succeed. Without one the call fails only when the
+            /// server sends nothing for the configured `request_timeout_secs`.
+            /// `Duration::ZERO` lifts that limit too; the explicit zero is carried
+            /// through verbatim and resolved by `request_limits`.
             #[must_use]
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
                 // Carry the value through verbatim, including `ZERO`. A bare
                 // `None` means "caller set nothing" and routes to the configured
-                // default; an explicit `ZERO` must instead disable the deadline,
-                // which `effective_deadline` resolves.
+                // limit; an explicit `ZERO` must instead lift every limit,
+                // which `request_limits` resolves.
                 self.deadline = Some(duration);
                 self
             }
@@ -1286,9 +1282,8 @@ macro_rules! stream_endpoint {
             /// which case the underlying error surfaces unchanged like a
             /// single-stream failure. Dropping the future (the deadline path)
             /// still cancels every band; on a very large pull, size
-            /// `with_deadline` (or the configured `request_timeout_secs`) to
-            /// the whole pull, since it also bounds the sibling drain after a
-            /// band failure. For the single stream's exact chunk order, use the
+            /// `with_deadline` to the whole pull, since it also bounds the
+            /// sibling drain after a band failure. For the single stream's exact chunk order, use the
             /// buffered sibling builder (which merges) or set
             /// [`bulk_fetch = Off`](crate::config::BulkFetchPolicy::Off).
             /// Small pulls never shard.
@@ -1553,91 +1548,31 @@ mod classify_error_tests {
 }
 
 #[cfg(test)]
-mod effective_deadline_tests {
-    use super::{effective_deadline, run_with_optional_deadline};
+mod request_limits_tests {
+    use super::request_limits;
     use std::time::Duration;
 
-    /// With no explicit `with_deadline(...)`, the configured default is
-    /// applied. This is the load-bearing assertion that a request which
-    /// set no deadline still gets one, so a server holding the stream
-    /// open without sending chunks cannot hang the call forever.
     #[test]
-    fn applies_configured_default_when_caller_set_none() {
-        assert_eq!(
-            effective_deadline(None, 300),
-            Some(Duration::from_secs(300))
-        );
-    }
-
-    /// An explicit deadline always wins over the configured default.
-    #[test]
-    fn explicit_deadline_overrides_default() {
-        assert_eq!(
-            effective_deadline(Some(Duration::from_secs(5)), 300),
-            Some(Duration::from_secs(5))
-        );
-    }
-
-    /// A configured default of `0` is FLOORED to the production default
-    /// rather than disabling the guard: a deadline-less request must never be
-    /// left unbounded just because the config carried a `0` (validated or
-    /// not). This is the single consumption-point floor — the only way to run
-    /// a request with no deadline is the explicit `with_deadline(Duration::ZERO)`
-    /// opt-out (covered separately), NOT a `0` in the config.
-    #[test]
-    fn zero_default_is_floored_to_the_production_default() {
-        assert_eq!(
-            effective_deadline(None, 0),
-            Some(Duration::from_secs(
-                crate::config::DEFAULT_REQUEST_TIMEOUT_SECS
-            )),
-        );
-    }
-
-    /// The production default seeds a positive per-request deadline, so
-    /// the market-data request path is bounded out of the box.
-    #[test]
-    fn production_default_is_positive() {
-        let cfg = crate::config::MarketDataConfig::production_defaults();
-        assert!(cfg.request_timeout_secs > 0);
-        assert_eq!(
-            effective_deadline(None, cfg.request_timeout_secs),
-            Some(Duration::from_secs(cfg.request_timeout_secs))
-        );
-    }
-
-    /// An explicit `Duration::ZERO` is the deadline opt-out and must
-    /// normalize to `None` even when a positive configured default is in
-    /// force — the explicit zero wins over the fallback. Letting the zero
-    /// flow through would wrap the call in `timeout(ZERO, ..)` and fire on
-    /// the first poll, breaking the advertised opt-out on every list
-    /// endpoint.
-    #[test]
-    fn explicit_zero_disables_deadline_over_configured_default() {
-        assert_eq!(effective_deadline(Some(Duration::ZERO), 300), None);
-    }
-
-    /// End-to-end guard for the list-endpoint deadline contract: the
-    /// builder's `with_deadline` resolves its deadline via `effective_deadline`,
-    /// so an explicit `Duration::ZERO` must yield `None` and the wrapped
-    /// future must run to completion rather than timing out on the first
-    /// poll. Drive a future that only resolves after a real `await` point
-    /// to prove the opt-out actually disables the timeout.
-    #[tokio::test]
-    async fn explicit_zero_deadline_runs_to_completion() {
-        let deadline = effective_deadline(Some(Duration::ZERO), 300);
-        assert_eq!(deadline, None, "explicit zero must disable the deadline");
-        let out: Result<u8, crate::error::Error> = run_with_optional_deadline(deadline, async {
-            // Yield once so a zero-length timeout would have a poll to
-            // fire on before this resolves.
-            tokio::task::yield_now().await;
-            Ok(7)
-        })
-        .await;
-        assert!(
-            matches!(out, Ok(7)),
-            "an explicit-zero deadline must let the call complete, got {out:?}"
-        );
+    fn request_limits_resolve_every_deadline_setting() {
+        let secs = Duration::from_secs;
+        let floor = secs(crate::config::DEFAULT_REQUEST_TIMEOUT_SECS);
+        for (explicit, configured, want) in [
+            // Unset: no deadline, only the configured silence limit, a `0`
+            // floored so the hang guard holds on an unvalidated config.
+            (None, 300, (None, Some(secs(300)))),
+            (None, 0, (None, Some(floor))),
+            // An explicit deadline bounds the whole call instead.
+            (Some(secs(5)), 300, (Some(secs(5)), None)),
+            // An explicit zero lifts every limit; a zero-length timeout
+            // would fire on the first poll.
+            (Some(Duration::ZERO), 300, (None, None)),
+        ] {
+            assert_eq!(
+                request_limits(explicit, configured),
+                want,
+                "explicit {explicit:?}, configured {configured}"
+            );
+        }
     }
 }
 

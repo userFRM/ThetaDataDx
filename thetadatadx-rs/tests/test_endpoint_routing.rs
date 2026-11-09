@@ -463,54 +463,75 @@ async fn by_name_stream_ends_at_a_break() {
     assert_eq!(chunks, 1, "the handler was called again after it broke");
 }
 
-// List endpoints honor the per-request deadline
+// List endpoints honor the per-request limits
 //
-// List RPCs (`*_list_*`) must apply the same deadline contract as the
-// tick endpoints: the configured `request_timeout_secs` bounds a call that
-// sets none, and `with_deadline` sets an explicit per-call deadline.
-// Without it a live-but-silent stream hangs the request forever (the gRPC
-// keepalive PING only detects a fully dead peer, not a stalled one).
+// List RPCs (`*_list_*`) must apply the same contract as the tick
+// endpoints: a call that sets no deadline fails once the server is silent
+// for the configured `request_timeout_secs`, and `with_deadline` sets an
+// explicit per-call deadline. Without the silence limit a live-but-silent
+// stream hangs the request forever (the gRPC keepalive PING only detects a
+// fully dead peer, not a stalled one).
 // ────────────────────────────────────────────────────────────────────
 
 use std::time::Duration;
 
 use thetadatadx::Error;
 
-/// Build a `MarketDataClient` wired to a mock that delays its response by
-/// `pre_response_delay`, with `request_timeout_secs` set on the config so
-/// the default-deadline path can be exercised deterministically.
-async fn client_for_delayed_mock(
-    response: proto::ResponseData,
-    pre_response_delay: Duration,
+/// Build a `MarketDataClient` wired to a mock that serves `chunks` after
+/// `behaviour`'s delays, with `request_timeout_secs` set on the config so
+/// the silence limit can be exercised deterministically. Retries are off,
+/// so a stall surfaces on its first attempt.
+async fn client_for_paced_mock(
+    chunks: Vec<proto::ResponseData>,
+    behaviour: mock::MockBehaviour,
     request_timeout_secs: u64,
 ) -> (mock::MockServer, MarketDataClient) {
-    let server = mock::MockServer::spawn_with_behaviour(
-        vec![response],
-        0,
-        String::new(),
-        mock::MockBehaviour {
-            pre_response_delay: Some(pre_response_delay),
-            ..mock::MockBehaviour::default()
-        },
-    )
-    .await;
+    let server = mock::MockServer::spawn_with_behaviour(chunks, 0, String::new(), behaviour).await;
     let channel = Channel::connect_h2c("127.0.0.1", server.addr.port())
         .await
         .expect("h2c connect to mock");
     let pool = ChannelPool::from_channels(vec![channel]);
     let mut cfg = DirectConfig::production();
     cfg.market_data.request_timeout_secs = request_timeout_secs;
+    cfg.retry = thetadatadx::RetryPolicy::disabled();
     let sem = Arc::new(Semaphore::new(4));
     let client = MarketDataClient::for_endpoint_routing_test(cfg, pool, sem);
     (server, client)
 }
 
+/// The mock withholds its one chunk `pre_response_delay`, then serves it.
+async fn client_for_delayed_mock(
+    response: proto::ResponseData,
+    pre_response_delay: Duration,
+    request_timeout_secs: u64,
+) -> (mock::MockServer, MarketDataClient) {
+    let behaviour = mock::MockBehaviour {
+        pre_response_delay: Some(pre_response_delay),
+        ..mock::MockBehaviour::default()
+    };
+    client_for_paced_mock(vec![response], behaviour, request_timeout_secs).await
+}
+
+/// A call that set no deadline fails once the server is silent for the
+/// configured limit, as a `DeadlineExceeded` stall.
+fn assert_silence_limit_stall<T: std::fmt::Debug>(result: Result<T, Error>) {
+    assert!(
+        matches!(
+            result,
+            Err(Error::Grpc {
+                kind: thetadatadx::GrpcStatusKind::DeadlineExceeded,
+                ..
+            })
+        ),
+        "expected a DeadlineExceeded stall from the configured limit, got {result:?}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn list_endpoint_plain_call_is_bounded_by_configured_default() {
-    // The mock holds the response 5s; the configured default deadline is
-    // 1s. The plain `stock_list_symbols()` (no explicit deadline) must
-    // surface `Error::Timeout` from the configured default rather than
-    // hang on the silent stream.
+    // The mock holds the response 5s; the configured silence limit is 1s.
+    // The plain `stock_list_symbols()` (no explicit deadline) must fail as
+    // a stall rather than hang on the silent stream.
     let (_mock, client) = client_for_delayed_mock(
         mock::make_response_data(&["AAPL"]),
         Duration::from_secs(5),
@@ -518,16 +539,31 @@ async fn list_endpoint_plain_call_is_bounded_by_configured_default() {
     )
     .await;
 
+    assert_silence_limit_stall(client.stock_list_symbols().await);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn plain_call_that_keeps_streaming_outlives_the_configured_limit() {
+    // Four chunks 400ms apart take 1.6s, past the 1s limit, but the server
+    // is never silent for 1s: a call that set no deadline must complete.
+    let behaviour = mock::MockBehaviour {
+        chunk_interval: Some(Duration::from_millis(400)),
+        ..mock::MockBehaviour::default()
+    };
+    let chunks = vec![mock::make_response_data(&["AAPL"]); 4];
+    let (_mock, client) = client_for_paced_mock(chunks, behaviour, 1).await;
+
+    let started = std::time::Instant::now();
     let result = client.stock_list_symbols().await;
-    match result {
-        Err(Error::Timeout { duration_ms }) => {
-            assert!(
-                duration_ms <= 1_000,
-                "default deadline carried the wrong bound; got {duration_ms}ms"
-            );
-        }
-        other => panic!("expected Error::Timeout from the configured default, got {other:?}"),
-    }
+    assert!(
+        result.is_ok(),
+        "a pull that keeps streaming must not time out, got {result:?}"
+    );
+    assert!(
+        started.elapsed() >= Duration::from_secs(1),
+        "the pull ended inside the limit, so it proves nothing: {:?}",
+        started.elapsed()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -560,11 +596,11 @@ async fn list_endpoint_with_deadline_bounds_the_call() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn stream_endpoint_unset_deadline_applies_configured_default() {
     // The four generated `*_stream` builders must route an unset deadline
-    // through `effective_deadline`, exactly like the parsed builders: with
-    // no explicit `with_deadline`, the configured `request_timeout_secs`
-    // (1s here) must bound the call so a live-but-silent server cannot hang
-    // it forever and starve the request-semaphore. The mock holds the
-    // response 5s.
+    // through `request_limits`, exactly like the parsed builders: with no
+    // explicit `with_deadline`, the configured `request_timeout_secs` (1s
+    // here) must bound the server's silence so a live-but-silent server
+    // cannot hang the call forever and starve the request-semaphore. The
+    // mock holds the response 5s.
     let (_mock, client) = client_for_delayed_mock(
         mock::make_response_data(&["AAPL"]),
         Duration::from_secs(5),
@@ -577,15 +613,7 @@ async fn stream_endpoint_unset_deadline_applies_configured_default() {
         .date("20240102")
         .stream(|_ticks| {})
         .await;
-    match result {
-        Err(Error::Timeout { duration_ms }) => {
-            assert!(
-                duration_ms <= 1_000,
-                "unset-deadline stream applied the wrong default bound; got {duration_ms}ms"
-            );
-        }
-        other => panic!("expected Error::Timeout from the configured default, got {other:?}"),
-    }
+    assert_silence_limit_stall(result);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

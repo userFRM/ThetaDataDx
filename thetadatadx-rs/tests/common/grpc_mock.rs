@@ -185,6 +185,9 @@ pub struct MockBehaviour {
     /// holding the stream open: a live server that has stopped sending,
     /// which the connection's keepalive cannot tell from a slow one.
     pub stall_after_head: bool,
+    /// When `Some`, the mock waits this long before each DATA frame: a
+    /// server that keeps streaming, slowly.
+    pub chunk_interval: Option<Duration>,
 }
 
 impl MockServer {
@@ -527,7 +530,9 @@ async fn handle_request(
         &status_message,
         poison_status_details,
         behaviour.http_status_code,
-    )?;
+        behaviour.chunk_interval,
+    )
+    .await?;
     Ok(())
 }
 
@@ -616,13 +621,14 @@ async fn respond_partial_then_drop(
     Ok(())
 }
 
-fn respond_chunks(
+async fn respond_chunks(
     mut respond: SendResponse<Bytes>,
     chunks: &[ResponseData],
     status_code: u32,
     status_message: &str,
     poison_status_details: bool,
     http_status_code: Option<u16>,
+    chunk_interval: Option<Duration>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut response = Response::new(());
     *response.status_mut() = StatusCode::OK;
@@ -636,6 +642,9 @@ fn respond_chunks(
     let mut send_stream = respond.send_response(response, false)?;
 
     for chunk in chunks {
+        if let Some(d) = chunk_interval {
+            tokio::time::sleep(d).await;
+        }
         let framed = frame(chunk);
         send_stream.send_data(framed, false)?;
     }

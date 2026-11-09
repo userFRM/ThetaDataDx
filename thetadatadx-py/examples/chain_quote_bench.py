@@ -154,9 +154,6 @@ def main() -> None:
                 file=sys.stderr,
             )
 
-    # A full-day 0DTE pull can run 6-15 minutes; the config default
-    # request_timeout_secs (300 s) would kill it, so opt out of any deadline
-    # with timeout_ms=0 (normalized to "no deadline" by effective_deadline).
     try:
         (
             client.option_history_quote_builder(symbol, expiration)
@@ -164,7 +161,6 @@ def main() -> None:
             .right("both")
             .date(date)
             .interval(interval)
-            .timeout_ms(0)
             .stream(on_chunk)
         )
     except Exception as e:  # noqa: BLE001
