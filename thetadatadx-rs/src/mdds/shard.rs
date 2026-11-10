@@ -673,7 +673,7 @@ fn chain_listing(endpoint: &str, q: &ShardQuery, window_ms: i64) -> Option<Chain
         return None;
     }
     let interval = q.interval.as_deref().and_then(interval_ms);
-    if greeks && !interval.is_some_and(|ms| ms >= 60_000) {
+    if greeks && interval.is_none_or(|ms| ms < 60_000) {
         return None;
     }
     let row_ms = if is_tick_pull(q) { 1_000 } else { interval? };
