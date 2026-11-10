@@ -656,26 +656,27 @@ fn splittable_by_right(q: &ShardQuery) -> bool {
 /// The listing step of a one-day chain over every expiration and strike,
 /// `None` for any other shape. `window_ms` is the query's window.
 ///
-/// Only endpoints whose server serves an every-expiration chain on one
-/// request take it. OHLC refuses that chain, and one request per
-/// expiration would answer a pull the single stream cannot. Trades are
-/// not among them: a trade chain is sparse enough that one request per
-/// expiration costs more round trips than the time bands it replaces.
+/// Only a chain the server serves on one request takes it: quotes at any
+/// interval, and Greeks at an interval of a minute or more. The server
+/// refuses an every-expiration OHLC chain, and an every-expiration Greeks
+/// chain below a minute, and one request per expiration would answer a
+/// pull the single stream cannot. Trades are not among them: a trade chain
+/// is sparse enough that one request per expiration costs more round trips
+/// than the time bands it replaces.
 fn chain_listing(endpoint: &str, q: &ShardQuery, window_ms: i64) -> Option<ChainListing> {
-    let serves_every_expiration = endpoint == "option_history_quote"
-        || endpoint.starts_with("option_history_greeks_")
+    let greeks = endpoint.starts_with("option_history_greeks_")
         || endpoint.starts_with("option_history_binomial_greeks_");
-    if !serves_every_expiration
+    if !(greeks || endpoint == "option_history_quote")
         || q.expiration.as_deref() != Some("*")
         || q.strike.as_deref().is_some_and(|s| s != "*")
     {
         return None;
     }
-    let row_ms = if is_tick_pull(q) {
-        1_000
-    } else {
-        q.interval.as_deref().and_then(interval_ms)?
-    };
+    let interval = q.interval.as_deref().and_then(interval_ms);
+    if greeks && !interval.is_some_and(|ms| ms >= 60_000) {
+        return None;
+    }
+    let row_ms = if is_tick_pull(q) { 1_000 } else { interval? };
     let right = match q.right.as_deref() {
         None | Some("both") => None,
         Some("call") => Some('C'),
@@ -1983,15 +1984,17 @@ mod tests {
         }
         // Those bands are the fallback: the quote chain lists its contracts
         // and splits by expiration, at one quote a second per contract.
-        // A trade chain is too sparse for that and keeps the time bands.
         let listing = plan
             .listing
             .expect("a quote-tick chain lists its contracts");
         assert!(listing.split_rights);
         assert_eq!(listing.rows_per_contract, 23_401);
-        let trades = plan_query("option_history_trade", &chain_day_query(), 8)
-            .expect("a trade chain shards on time");
-        assert_eq!((trades.bands.len(), trades.listing), (8, None));
+        // A trade chain is too sparse for that and a tick Greeks chain is
+        // refused over every expiration; both keep the time bands.
+        for endpoint in ["option_history_trade", "option_history_greeks_all"] {
+            let plan = plan_query(endpoint, &chain_day_query(), 8).expect("shards on time");
+            assert_eq!((plan.bands.len(), plan.listing), (8, None), "{endpoint}");
+        }
     }
 
     #[test]
@@ -2309,14 +2312,29 @@ mod tests {
                 listing: None,
             })
         );
+        // The server refuses an every-expiration Greeks chain below a
+        // minute, so a one-second Greeks chain never lists either.
+        assert_eq!(
+            plan_query("option_history_greeks_all", &chain, 8),
+            Ok(ShardPlan {
+                bands: vec![whole_window("call"), whole_window("put")],
+                listing: None,
+            })
+        );
         // The `out_of_the_money` volatility method reads the other side, so
         // each expiration keeps both rights and the fallback is one stream.
-        chain.implied_vol_method = Some("out_of_the_money".into());
+        let mut otm = chain.clone();
+        otm.interval = Some("1m".into());
+        otm.implied_vol_method = Some("out_of_the_money".into());
         assert_eq!(
-            plan_query("option_history_binomial_greeks_first_order", &chain, 8),
+            plan_query("option_history_binomial_greeks_first_order", &otm, 8),
             Ok(ShardPlan {
                 bands: Vec::new(),
-                listing: Some(listing(false)),
+                listing: Some(ChainListing {
+                    split_rights: false,
+                    rows_per_contract: 391,
+                    ..listing(false)
+                }),
             })
         );
         one_expiration.implied_vol_method = Some("out_of_the_money".into());
@@ -2328,7 +2346,6 @@ mod tests {
             ),
             Err(ShardDecline::IntervalBars)
         );
-        chain.implied_vol_method = None;
         // An unrecognized interval spelling errs toward bars: it may well
         // be a bar interval to the server, so the window stays whole.
         concrete.interval = Some("weird".into());
