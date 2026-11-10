@@ -31,9 +31,9 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 2700;
 ///
 /// Under `Auto` the SDK splits a large history pull into disjoint
 /// sub-requests and runs them across the channel pool: equal date or
-/// time bands cut from the request's own shape, or, for a one-day bar
-/// chain over every expiration, one request per expiration after a list
-/// of the day's contracts.
+/// time bands cut from the request's own shape, or, for a one-day bar or
+/// quote-tick chain over every expiration, one request per expiration
+/// after a list of the day's contracts.
 ///
 /// The buffered path merges the results into exactly the rows the
 /// single stream would have returned. Row order: single-contract,
