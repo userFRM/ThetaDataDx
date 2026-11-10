@@ -19,8 +19,9 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Optional bulk fetch**: with `config.setBulkFetch("auto")`, a large history pull runs as several concurrent requests within your account's concurrent-request allowance and is merged back into the rows one request returns. It is off by default, because which splits work depends on what the server accepts. See [Bulk Downloads](https://userfrm.github.io/ThetaDataDx/articles/bulk-downloads).
 - **Fully typed:** every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
-- **Greeks on demand:** five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
+- **Greeks on demand:** first- through third-order Greeks and implied volatility from both the Black-Scholes and binomial models, served straight from the option endpoints.
 - **Arrow on the way out:** flat-file results emit Arrow IPC for a zero-copy handoff to `apache-arrow`.
 - **No terminal to run:** prebuilt native binaries; nothing to compile, nothing to babysit locally.
 

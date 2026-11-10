@@ -18,7 +18,8 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Greeks on demand:** first- through third-order Greeks and implied volatility, served straight from the option endpoints.
+- **Optional bulk fetch**: with `market_data.bulk_fetch = BulkFetchPolicy::Auto`, a large history pull runs as several concurrent requests within your account's concurrent-request allowance and is merged back into the rows one request returns. It is off by default, because which splits work depends on what the server accepts. See [Bulk Downloads](https://userfrm.github.io/ThetaDataDx/articles/bulk-downloads).
+- **Greeks on demand:** first- through third-order Greeks and implied volatility from both the Black-Scholes and binomial models, served straight from the option endpoints.
 - **Buffer or stream:** every history builder yields a `Ticks<Tick>` (it derefs to `[Tick]`) on `.await`, or chunk-by-chunk via `.stream(handler)`.
 - **Typed errors:** one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
 - **DataFrames on demand:** opt into the `polars` / `arrow` features for a zero-copy conversion off any result.

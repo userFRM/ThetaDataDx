@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **The package pages stream a flat file without lifting its limit.** The Rust, Python, TypeScript and C++ READMEs streamed the trade-quote file with a per-call deadline of zero, which was needed while `request_timeout_secs` bounded the whole request. Since 0.9.0 a download that keeps streaming has no time limit by default, and a zero deadline only removes the silence limit, so a stalled server would hold the download open indefinitely. The examples now keep the default.
+- **The package pages list bulk fetch and both Greeks models.** The Rust, Python, TypeScript and C++ READMEs, which are the crates.io, PyPI and npm pages, never mentioned bulk fetch, and the TypeScript page described its Greeks as Black-Scholes only. Each now lists bulk fetch and how to turn it on, and the Rust and TypeScript pages name both the Black-Scholes and binomial models.
+- **The Bulk Downloads guide describes sharding as opt-in throughout.** Its opening still called sharding on by default, its buffered example built a client with sharding off, and its timing table measured a one-day quote-tick chain split by time, which the SDK now splits by expiration. The guide now says sharding is something you turn on, the examples use a client with it on, and the table, which no longer described what the SDK does, is gone.
 - **The Python package page names the platforms its wheels cover.** Wheels ship for Linux x64 (glibc), macOS arm64 and Windows x64, with the free-threaded build on Linux x64; any other platform installs from the source distribution, which needs a Rust toolchain.
 
 ## [0.9.0] - 2026-11-10
