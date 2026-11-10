@@ -19,6 +19,7 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 
 - **Complete coverage**: stocks, options, indices, and rates across 81 typed endpoints.
 - **Three access modes, one client:** point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **Optional bulk fetch**: with `config.bulk_fetch = "auto"`, a large history pull runs as several concurrent requests within your account's concurrent-request allowance and is merged back into the rows one request returns. It is off by default, because which splits work depends on what the server accepts. See [Bulk Downloads](https://userfrm.github.io/ThetaDataDx/articles/bulk-downloads).
 - **DataFrames built in:** every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Typed all the way down:** every tick is a typed object with attribute access and IDE completion, not a dict.
 - **No terminal to run:** a direct connection to ThetaData; nothing to install and babysit locally.
