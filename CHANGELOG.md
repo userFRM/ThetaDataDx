@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The package pages stream a flat file without lifting its limit.** The Rust, Python, TypeScript and C++ READMEs streamed the trade-quote file with a per-call deadline of zero, which was needed while `request_timeout_secs` bounded the whole request. Since 0.9.0 a download that keeps streaming has no time limit by default, and a zero deadline only removes the silence limit, so a stalled server would hold the download open indefinitely. The examples now keep the default.
+- **The Python package page names the platforms its wheels cover.** Wheels ship for Linux x64 (glibc), macOS arm64 and Windows x64, with the free-threaded build on Linux x64; any other platform installs from the source distribution, which needs a Rust toolchain.
+
 ## [0.9.0] - 2026-11-10
 
 ### Added

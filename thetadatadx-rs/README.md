@@ -194,12 +194,11 @@ Whole-universe files for one date. Each file the vendor serves is an endpoint li
 ```rust
 let eod = client.market_data().stock_flat_file_eod("20260428").await?;
 
-// The large files stream chunk by chunk, with the default deadline lifted.
+// The large files stream chunk by chunk; a download that keeps streaming has no time limit.
 // A chunk derefs to its rows, and `chunk.columns()` names each row's root.
 client
     .market_data()
     .option_flat_file_trade_quote("20260428")
-    .with_deadline(std::time::Duration::ZERO)
     .stream(|chunk| println!("{} rows", chunk.len()))
     .await?;
 ```

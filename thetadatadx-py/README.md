@@ -34,7 +34,7 @@ pip install thetadatadx-py[arrow]    # raw pyarrow.Table
 pip install thetadatadx-py[all]      # every optional adapter
 ```
 
-Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. Wheels use CPython's stable ABI (`abi3`), so one wheel per platform covers Python 3.12 and up; the free-threaded (`3.14t`) build runs with the GIL disabled and is selected automatically by `pip`.
+Binary wheels ship for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64, and require no Rust toolchain. Wheels use CPython's stable ABI (`abi3`), so one wheel per platform covers Python 3.12 and up; on Linux x64 the free-threaded (`3.14t`) build runs with the GIL disabled and is selected automatically by `pip`. Any other platform installs from the source distribution, which needs a Rust toolchain.
 
 ## Quick start
 
@@ -224,11 +224,10 @@ Whole-universe files for one date. Each file the vendor serves is an endpoint li
 eod = client.market_data.stock_flat_file_eod("20260428")
 df = eod.to_polars()                        # leads with each row's `symbol`
 
-# The large files stream chunk by chunk, with the default deadline lifted.
+# The large files stream chunk by chunk; a download that keeps streaming has no time limit.
 # Each chunk is a typed list like a whole result, its frames led by `symbol`.
 (client.market_data
     .option_flat_file_trade_quote_builder("20260428")
-    .timeout_ms(0)
     .stream(lambda chunk: print(len(chunk))))
 ```
 
