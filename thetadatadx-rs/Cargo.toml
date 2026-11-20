@@ -71,11 +71,11 @@ __internal = []
 pastey = "0.2.3"
 # Protobuf message types for the MDDS wire contract; the gRPC client
 # in `src/grpc/` consumes these directly.
-prost = "=0.14.4"
+prost = "=0.14.6"
 # Referenced from the prost-build-generated `proto/`-derived modules
 # (e.g. `google.protobuf.Timestamp` and oneof scaffolding). Pinned to
 # the same version as `prost` so the derive paths resolve.
-prost-types = "=0.14.4"
+prost-types = "=0.14.6"
 
 # Market-data-channel gRPC client: request framing, codec and status
 # handling only. No transport, server, router, codegen, or TLS features:

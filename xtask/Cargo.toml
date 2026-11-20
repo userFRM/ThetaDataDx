@@ -22,7 +22,7 @@ heck = "0.5.0"
 serde_json = "1.0.137"
 # The runtime `bench_latency` drives the streaming client on.
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
-prost-build = { version = "=0.14.4", optional = true }
+prost-build = { version = "=0.14.6", optional = true }
 
 [[bin]]
 name = "refresh_grpc_snapshot"
