@@ -36,6 +36,8 @@ A clean `stop_streaming()` emits no terminal event; only an unrecoverable sessio
 
 The pair matters most where the two agree on a code: a `reason` of `TimedOut` with cause `ServerSent` is the server saying the session timed out, while the same reason with cause `ReadTimeout` is this client deciding nothing arrived in time. `cause_io_error_kind` is empty and `cause_timeout_ms` is zero on the causes that do not carry them.
 
+Both are integer codes. Python reads their names as `reason_name` and `cause_name`, TypeScript as `reasonName` and `causeName`. In C and C++, compare `reason` with the `THETADATADX_DISCONNECT_REASON_*` constants (`THETADATADX_DISCONNECT_REASON_TOO_MANY_REQUESTS`, `THETADATADX_DISCONNECT_REASON_UNSPECIFIED`, ...) and `cause` with the `THETADATADX_DISCONNECT_CAUSE_*` ones (`THETADATADX_DISCONNECT_CAUSE_SERVER_SENT`, `THETADATADX_DISCONNECT_CAUSE_READ_TIMEOUT`, ...); in C++, `thetadatadx::reason_name(e.disconnected.reason)` and `thetadatadx::cause_name(e.disconnected.cause)` return the same names.
+
 ### Policy knobs
 
 All on the [configuration object](/articles/configuration), prefixed `reconnect_`:

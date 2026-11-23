@@ -50,9 +50,9 @@ pub(super) fn render_c_ticks() -> String {
             }
             if column.ty == "implied_vol_source" {
                 out.push_str(
-                    "    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;\n",
+                    "    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when\n",
                 );
-                out.push_str("     * read only when has_implied_vol_source is set. */\n");
+                out.push_str("     * has_implied_vol_source is set. */\n");
             }
             writeln!(out, "    {ty} {field};").unwrap();
             end = offset(layout.offsets, column.field) + size;

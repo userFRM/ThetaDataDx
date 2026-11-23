@@ -45,36 +45,6 @@ fn render_kind_enum_c() -> String {
     out
 }
 
-/// Emit a `THETADATADX_SEC_TYPE_<NAME>` code for every security type, named
-/// as the Python and TypeScript contracts name it and valued as
-/// `ThetaDataDxContract.sec_type` carries it.
-fn render_sec_type_codes_c() -> String {
-    use thetadatadx::SecType;
-
-    let mut out = String::from(
-        "/* Security type codes carried by `ThetaDataDxContract.sec_type`. `UNKNOWN`\n\
- * marks a data event that arrived before its contract was resolved. */\n",
-    );
-    for sec_type in [
-        SecType::Stock,
-        SecType::Option,
-        SecType::Index,
-        SecType::Rate,
-        SecType::Unknown,
-    ] {
-        let (name, code) = (sec_type.as_str(), sec_type as i32);
-        // Parenthesised when negative, as the header's other negative codes are.
-        let value = if code < 0 {
-            format!("({code})")
-        } else {
-            code.to_string()
-        };
-        writeln!(out, "#define THETADATADX_SEC_TYPE_{name} {value}").unwrap();
-    }
-    out.push('\n');
-    out
-}
-
 /// Emit the C `ThetaDataDxContract` struct mirrored from the Rust
 /// `#[repr(C)] ThetaDataDxContract` in `thetadatadx-ffi/src/stream_events.rs`.
 /// Layout must match field-for-field.
@@ -141,7 +111,6 @@ pub(super) fn render_c_fpss_event_header() -> String {
     out.push_str("#include <stdbool.h>\n\n");
 
     out.push_str(&render_kind_enum_c());
-    out.push_str(&render_sec_type_codes_c());
     out.push_str(render_contract_struct_c());
 
     for event in data_then_control() {

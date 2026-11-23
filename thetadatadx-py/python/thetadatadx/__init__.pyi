@@ -1376,7 +1376,7 @@ class ReconnectsExhausted:
 
 @final
 class ReqResponse:
-    """Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms)."""
+    """Streaming subscription response (wire code 40). `result` is the integer outcome code; read the resolved result-name field for its name, the one the local server's WebSocket publishes: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`."""
 
     req_id: int
     """Identifier of the subscription request this response answers."""
@@ -1386,6 +1386,11 @@ class ReqResponse:
     @property
     def kind(self) -> str:
         """Event kind discriminator (``"req_response"``)."""
+        ...
+
+    @property
+    def result_name(self) -> str:
+        """Resolved subscription-result name, as the local server's WebSocket publishes it: `"SUBSCRIBED"`, `"ERROR"`, `"MAX_STREAMS_REACHED"` or `"INVALID_PERMS"`. Derived from the `result` integer."""
         ...
 
     def __repr__(self) -> str:

@@ -35,14 +35,6 @@ typedef enum {
     THETADATADX_STREAM_UNKNOWN_FRAME = 22,
 } ThetaDataDxStreamEventKind;
 
-/* Security type codes carried by `ThetaDataDxContract.sec_type`. `UNKNOWN`
-* marks a data event that arrived before its contract was resolved. */
-#define THETADATADX_SEC_TYPE_STOCK 0
-#define THETADATADX_SEC_TYPE_OPTION 1
-#define THETADATADX_SEC_TYPE_INDEX 2
-#define THETADATADX_SEC_TYPE_RATE 3
-#define THETADATADX_SEC_TYPE_UNKNOWN (-1)
-
 /* Streaming Contract shared across every data event. `symbol` is a
 * NUL-terminated C string (may be null when not yet resolved);
 * optional option fields use a tagged-present bool because C has no
@@ -214,7 +206,7 @@ typedef struct {
     int32_t attempts;
 } ThetaDataDxStreamReconnectsExhausted;
 
-/* Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
+/* Streaming subscription response (wire code 40). `result` is the integer outcome code; read the resolved result-name field for its name, the one the local server's WebSocket publishes: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`. */
 typedef struct {
     int32_t req_id;
     int32_t result;

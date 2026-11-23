@@ -403,12 +403,7 @@ impl Config {
     #[getter]
     fn get_reconnect_policy(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(_) => "auto",
-            config::ReconnectPolicy::Manual => "manual",
-            config::ReconnectPolicy::Custom(_) => "custom",
-            _ => "custom",
-        }
+        guard.reconnect.policy.as_str()
     }
 
     /// Install a custom reconnect policy driven by a Python callable.
@@ -2478,4 +2473,176 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "bench")]
     m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod coded_field_tests {
+    //! Every name Python gives an integer code, held to the core's name for
+    //! that code in `thetadatadx::coded_fields()`, the table the C constants
+    //! and the C++ accessors are generated from. A field the table gains
+    //! fails here until Python reads it.
+
+    use std::sync::Arc;
+
+    use arrow::array::{Array, StringArray};
+    use pyo3::prelude::*;
+    use thetadatadx::fpss::batch_schema::StreamBatchBuilder;
+    use thetadatadx::fpss::protocol::{Contract, OptionLeg};
+    use thetadatadx::fpss::{StreamData, StreamEvent};
+    use thetadatadx::{CalendarStatus, ImpliedVolSource, SecType};
+
+    use crate::stream_events::{ContractRef, Disconnected, ReqResponse, fpss_event_to_typed};
+    use crate::{Config, config, ticks};
+
+    fn read<T: pyo3::PyClass + Into<pyo3::PyClassInitializer<T>>>(
+        py: Python<'_>,
+        object: T,
+        attr: &str,
+    ) -> String {
+        let object = Bound::new(py, object).unwrap();
+        object.as_any().getattr(attr).unwrap().extract().unwrap()
+    }
+
+    /// Python's name for `code`, read from the object that carries it. A
+    /// config setting is a name in Python, so it is set by the core's `name`
+    /// and read back.
+    fn python_name(py: Python<'_>, field: &str, code: i32, name: &str) -> String {
+        let disconnected = || Disconnected {
+            reason: code,
+            cause: code,
+            cause_io_error_kind: String::new(),
+            cause_timeout_ms: 0,
+        };
+        match field {
+            "sec_type" => {
+                let sec_type = SecType::from_code(code).unwrap_or(SecType::Unknown);
+                let contract = Contract::full_type_marker(sec_type);
+                read(py, ContractRef::from_core(&contract), "sec_type")
+            }
+            "result" => read(
+                py,
+                ReqResponse {
+                    req_id: 0,
+                    result: code,
+                },
+                "result_name",
+            ),
+            "reason" => read(py, disconnected(), "reason_name"),
+            "cause" => read(py, disconnected(), "cause_name"),
+            "implied_vol_source" => {
+                let row = thetadatadx::GreeksThirdOrderTick {
+                    ms_of_day: 0,
+                    bid: 0.0,
+                    ask: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    underlying_date: 0,
+                    implied_vol_source: ImpliedVolSource::from_code(code).unwrap(),
+                    has_implied_vol_source: true,
+                    expiration: 0,
+                    strike: 0.0,
+                    right: 'C',
+                };
+                read(
+                    py,
+                    ticks::GreeksThirdOrderTick::from(&row),
+                    "implied_vol_source",
+                )
+            }
+            "calendar_status" => {
+                let row = thetadatadx::CalendarDay {
+                    date: 0,
+                    open_time: 0,
+                    close_time: 0,
+                    status: CalendarStatus::from_code(code).unwrap(),
+                };
+                read(py, ticks::CalendarDay::from(&row), "status")
+            }
+            "wait_mode" | "bulk_fetch" | "reconnect_jitter" => {
+                let production = config::DirectConfig::try_production().unwrap();
+                let config = Bound::new(py, Config::from_direct(production)).unwrap();
+                config.setattr(field, name).unwrap();
+                config.getattr(field).unwrap().extract().unwrap()
+            }
+            "reconnect_policy" => {
+                let policy = match code {
+                    0 => config::ReconnectPolicy::default(),
+                    1 => config::ReconnectPolicy::Manual,
+                    2 => config::ReconnectPolicy::Custom(Arc::new(|_, _| None)),
+                    other => panic!("no reconnect policy has code {other}"),
+                };
+                assert_eq!(policy.code(), code);
+                let mut direct = config::DirectConfig::try_production().unwrap();
+                direct.reconnect.policy = policy;
+                read(py, Config::from_direct(direct), "reconnect_policy")
+            }
+            other => panic!("Python reads no coded field named {other}"),
+        }
+    }
+
+    #[test]
+    fn every_code_has_the_core_name() {
+        Python::initialize();
+        Python::attach(|py| {
+            for field in thetadatadx::coded_fields() {
+                for &(code, name) in &field.codes {
+                    let python = python_name(py, field.field, code, name);
+                    assert_eq!(python, name, "{} code {code}", field.field);
+                }
+            }
+        });
+    }
+
+    /// A stream batch's `sec_type` column carries the name a callback reads
+    /// from the same event's contract.
+    #[test]
+    fn batch_sec_type_matches_the_callback_contract() {
+        let leg = OptionLeg {
+            expiration: "20240920",
+            strike: "150",
+            right: "C",
+        };
+        let contracts = [
+            Contract::option("SPY", leg).unwrap(),
+            Contract::stock("SPY"),
+        ];
+        let events = contracts.map(|contract| {
+            StreamEvent::Data(StreamData::Trade {
+                contract: Arc::new(contract),
+                ms_of_day: 0,
+                sequence: 0,
+                condition: 0,
+                size: 1,
+                exchange: 0,
+                price: 1.0,
+                date: 20240315,
+                received_at_ns: 0,
+            })
+        });
+        let mut builder = StreamBatchBuilder::with_capacity(events.len());
+        for event in &events {
+            assert!(builder.append(event));
+        }
+        let batch = builder.finish().unwrap().unwrap();
+        let column = batch.column_by_name("sec_type").unwrap();
+        let batch_sec_types = column.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(batch_sec_types.len(), events.len());
+
+        Python::initialize();
+        Python::attach(|py| {
+            for (row, event) in events.iter().enumerate() {
+                let trade = fpss_event_to_typed(py, event).unwrap();
+                let contract = trade.bind(py).getattr("contract").unwrap();
+                let callback: String = contract.getattr("sec_type").unwrap().extract().unwrap();
+                assert_eq!(batch_sec_types.value(row), callback, "row {row}");
+            }
+        });
+    }
 }

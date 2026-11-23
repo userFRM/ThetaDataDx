@@ -163,6 +163,10 @@ pub(crate) mod util;
 
 mod surface;
 
+/// The coded fields table, for `generate_sdk_surfaces` and the binding tests.
+#[doc(hidden)]
+pub use surface::{CodedField, coded_fields};
+
 /// Identifier pasting for the binding crates that expand the surface tables,
 /// so they need no `pastey` dependency of their own.
 #[cfg(feature = "__internal")]

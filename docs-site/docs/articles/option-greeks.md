@@ -16,4 +16,6 @@ The `option/*/greeks/*` [reference endpoints](/reference/option/snapshot/greeks/
 - **Implied volatility** is solved numerically from the option price; each row carries an `iv_error` residual so you can judge the fit.
 - `version` selects the calculation revision; `latest` uses real time-to-expiration down to a one-hour floor.
 
+The binomial Greeks routes also report where each row's implied volatility came from, as `implied_vol_source`: `own_quote` (the contract's own midpoint), `out_of_the_money` (the out-of-the-money option at the same strike), `interpolated` or `extrapolated` (filled between or past the quoted strikes). Python and TypeScript read it as that name, absent on the routes that do not send it. In C and C++ it is an `int32_t` code, valid when `has_implied_vol_source` is set: compare it with `THETADATADX_IMPLIED_VOL_SOURCE_OWN_QUOTE`, `THETADATADX_IMPLIED_VOL_SOURCE_OUT_OF_THE_MONEY`, `THETADATADX_IMPLIED_VOL_SOURCE_INTERPOLATED` and `THETADATADX_IMPLIED_VOL_SOURCE_EXTRAPOLATED`, or pass it to `thetadatadx::implied_vol_source_name()` in C++ for the name.
+
 Greek-by-Greek field definitions appear on every Greeks reference page's response table.

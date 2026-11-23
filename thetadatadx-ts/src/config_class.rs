@@ -163,11 +163,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(_) => "auto",
-            config::ReconnectPolicy::Manual => "manual",
-            _ => "custom",
-        })
+        Ok(guard.reconnect.policy.as_str())
     }
 
     /// Install a custom reconnect policy driven by a JS callback.

@@ -52,6 +52,9 @@ set(THETADATADX_CPP_TEST_SOURCES
     # Arrow-IPC terminal on the history result vectors — cross-binding
     # parity with the Python `<TickName>List.to_arrow()` columnar exit.
     arrow_ipc.cpp
+    # The generated `<field>_name` accessors against the core's name for
+    # every integer code.
+    code_names.cpp
 )
 
 # The pull-based Arrow RecordBatch reader test needs the native arrow-cpp

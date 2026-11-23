@@ -152,7 +152,7 @@ Lifecycle and session events share the callback. The ones worth handling:
 |---|---|
 | `connected` / `login_success` | Session is up and authenticated. |
 | `contract_assigned` | The server bound a contract to the session (informational). |
-| `req_response` | Acknowledgement for a subscribe/unsubscribe, with its request id. |
+| `req_response` | Acknowledgement for a subscribe/unsubscribe, with its request id and its `result`. |
 | `market_open` / `market_close` | Session boundary notices. |
 | `disconnected` / `reconnecting` / `reconnected` | Automatic-reconnect progress; see [Reconnection & Monitoring](/streaming/reliability). |
 | `reconnects_exhausted` | The retry budget is spent; the session is down for good until you intervene. |
@@ -160,3 +160,7 @@ Lifecycle and session events share the callback. The ones worth handling:
 | `ping`, `restart`, `reconnected_server`, `unknown_frame`, `unknown_control` | Heartbeats, server restarts, and forward-compatibility fallbacks. |
 
 Unrecognized future event types arrive as `unknown_*` rather than being dropped, so a callback written today keeps working against newer servers.
+
+A `req_response` carries `result` as an integer code. Python reads its name as `result_name` and TypeScript as `resultName`: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`, the token the server's WebSocket publishes for the same response. In C and C++, compare `result` with `THETADATADX_SUBSCRIPTION_RESULT_SUBSCRIBED`, `THETADATADX_SUBSCRIPTION_RESULT_ERROR`, `THETADATADX_SUBSCRIPTION_RESULT_MAX_STREAMS_REACHED` and `THETADATADX_SUBSCRIPTION_RESULT_INVALID_PERMS`; in C++, `thetadatadx::result_name(e.req_response.result)` returns the name.
+
+In C and C++, `event.kind` is a `THETADATADX_STREAM_*` code; in C++, `thetadatadx::kind_name(event.kind)` returns the `kind` tag Python and TypeScript read, such as `"req_response"`.

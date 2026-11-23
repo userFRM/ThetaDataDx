@@ -110,6 +110,19 @@ macro_rules! py_events {
             }
         ] [] [x x x x x x] $cols }
     };
+    // The subscription response also resolves its result to its name.
+    (@class $name:ident $doc:literal [subscription_result] $cols:tt) => {
+        py_events! { @fields $name $doc [] [] [
+            /// Resolved subscription-result name, as the local server's
+            /// WebSocket publishes it: `"SUBSCRIBED"`, `"ERROR"`,
+            /// `"MAX_STREAMS_REACHED"` or `"INVALID_PERMS"`. Derived from the
+            /// `result` integer.
+            #[getter]
+            fn result_name(&self) -> &'static str {
+                thetadatadx::StreamResponseType::name_for_code(self.result)
+            }
+        ] [] [x x x x x x] $cols }
+    };
     (@class $name:ident $doc:literal [] $cols:tt) => {
         py_events! { @fields $name $doc [] [] [] [] [x x x x x x] $cols }
     };

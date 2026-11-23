@@ -2187,3 +2187,135 @@ mod connect_options_tests {
         assert!(opts.resolve().is_err());
     }
 }
+
+#[cfg(test)]
+mod coded_field_tests {
+    //! Every name TypeScript gives an integer code, held to the core's name
+    //! for that code in `thetadatadx::coded_fields()`, the table the C
+    //! constants and the C++ accessors are generated from. A field the table
+    //! gains fails here until TypeScript reads it.
+
+    use std::sync::Arc;
+
+    use thetadatadx::config::ReconnectPolicy;
+    use thetadatadx::fpss::protocol::Contract;
+    use thetadatadx::fpss::{StreamData, StreamEvent};
+    use thetadatadx::{CalendarStatus, ImpliedVolSource, SecType};
+
+    use crate::stream_events::BufferedEvent;
+    use crate::{Config, buffered_event_to_typed, fpss_event_to_buffered, ticks};
+
+    /// TypeScript's name for `code`, read from the object that carries it. A
+    /// config setting is a name in TypeScript, so it is set by the core's
+    /// `name` and read back.
+    fn typescript_name(field: &str, code: i32, name: &str) -> String {
+        let disconnected = || {
+            let event = buffered_event_to_typed(BufferedEvent::Disconnected {
+                reason: code,
+                cause: code,
+                cause_io_error_kind: String::new(),
+                cause_timeout_ms: 0,
+            });
+            event.disconnected.unwrap()
+        };
+        let config = || Config::production().unwrap();
+        match field {
+            "sec_type" => {
+                let sec_type = SecType::from_code(code).unwrap_or(SecType::Unknown);
+                let event = StreamEvent::Data(StreamData::Trade {
+                    contract: Arc::new(Contract::full_type_marker(sec_type)),
+                    ms_of_day: 0,
+                    sequence: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    date: 0,
+                    received_at_ns: 0,
+                });
+                let event = buffered_event_to_typed(fpss_event_to_buffered(&event));
+                event.trade.unwrap().contract.sec_type
+            }
+            "result" => {
+                let event = buffered_event_to_typed(BufferedEvent::ReqResponse {
+                    req_id: 0,
+                    result: code,
+                });
+                event.req_response.unwrap().result_name
+            }
+            "reason" => disconnected().reason_name,
+            "cause" => disconnected().cause_name,
+            "implied_vol_source" => {
+                let row = thetadatadx::GreeksThirdOrderTick {
+                    ms_of_day: 0,
+                    bid: 0.0,
+                    ask: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    underlying_date: 0,
+                    implied_vol_source: ImpliedVolSource::from_code(code).unwrap(),
+                    has_implied_vol_source: true,
+                    expiration: 0,
+                    strike: 0.0,
+                    right: 'C',
+                };
+                let rows = ticks::greeks_third_order_ticks_to_class_vec(&[row]);
+                rows[0].implied_vol_source.clone().unwrap()
+            }
+            "calendar_status" => {
+                let row = thetadatadx::CalendarDay {
+                    date: 0,
+                    open_time: 0,
+                    close_time: 0,
+                    status: CalendarStatus::from_code(code).unwrap(),
+                };
+                ticks::calendar_days_to_class_vec(&[row])[0].status.clone()
+            }
+            "wait_mode" => {
+                let config = config();
+                config.set_wait_mode(name.into()).unwrap();
+                config.wait_mode().unwrap().into()
+            }
+            "bulk_fetch" => {
+                let config = config();
+                config.set_bulk_fetch(name.into()).unwrap();
+                config.bulk_fetch().unwrap().into()
+            }
+            "reconnect_jitter" => {
+                let config = config();
+                config.set_reconnect_jitter(name.into()).unwrap();
+                config.reconnect_jitter().unwrap().into()
+            }
+            "reconnect_policy" => {
+                let policy = match code {
+                    0 => ReconnectPolicy::default(),
+                    1 => ReconnectPolicy::Manual,
+                    2 => ReconnectPolicy::Custom(Arc::new(|_, _| None)),
+                    other => panic!("no reconnect policy has code {other}"),
+                };
+                assert_eq!(policy.code(), code);
+                let config = config();
+                config.inner.lock().unwrap().reconnect.policy = policy;
+                config.reconnect_policy().unwrap().into()
+            }
+            other => panic!("TypeScript reads no coded field named {other}"),
+        }
+    }
+
+    #[test]
+    fn every_code_has_the_core_name() {
+        for field in thetadatadx::coded_fields() {
+            for &(code, name) in &field.codes {
+                let typescript = typescript_name(field.field, code, name);
+                assert_eq!(typescript, name, "{} code {code}", field.field);
+            }
+        }
+    }
+}

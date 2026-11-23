@@ -347,18 +347,10 @@ pub fn parse_req_response(payload: &[u8]) -> Result<(i32, StreamResponseType), E
     let req_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
     let resp_code = i32::from_be_bytes([payload[4], payload[5], payload[6], payload[7]]);
 
-    let resp_type = match resp_code {
-        0 => StreamResponseType::Subscribed,
-        1 => StreamResponseType::Error,
-        2 => StreamResponseType::MaxStreamsReached,
-        3 => StreamResponseType::InvalidPerms,
-        _ => {
-            return Err(Error::Stream {
-                kind: crate::error::StreamErrorKind::ProtocolError,
-                message: format!("unknown REQ_RESPONSE code: {resp_code}"),
-            });
-        }
-    };
+    let resp_type = StreamResponseType::from_code(resp_code).ok_or_else(|| Error::Stream {
+        kind: crate::error::StreamErrorKind::ProtocolError,
+        message: format!("unknown REQ_RESPONSE code: {resp_code}"),
+    })?;
 
     Ok((req_id, resp_type))
 }

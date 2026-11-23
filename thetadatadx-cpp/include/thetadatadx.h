@@ -65,13 +65,12 @@ typedef struct ThetaDataDxClient ThetaDataDxClient;
  * A `bool has_<field>` is false when the response carried no value for
  * <field>; zero is a valid code there, so the value alone cannot tell. */
 
-/* Calendar day-type codes carried by ThetaDataDxCalendarDay.status — the
- * vendor's own vocabulary. Resolve the text form with
- * thetadatadx_calendar_status_name(). */
-#define THETADATADX_CALENDAR_STATUS_OPEN 0
-#define THETADATADX_CALENDAR_STATUS_EARLY_CLOSE 1
-#define THETADATADX_CALENDAR_STATUS_FULL_CLOSE 2
-#define THETADATADX_CALENDAR_STATUS_WEEKEND 3
+/* Generated constants for every value the library carries as an integer code
+ * (the security type, a subscription result, a disconnect's reason and cause,
+ * the implied-volatility source, the calendar day type, the reconnect policy,
+ * the enum config settings), named as Python and TypeScript name each value.
+ * Resolve a calendar day type's text with thetadatadx_calendar_status_name(). */
+#include "codes.h.inc"
 
 /* Heap-owned byte buffer (Arrow IPC stream) returned by the per-tick
  * thetadatadx_*_to_arrow_ipc terminals. Caller MUST free with thetadatadx_arrow_bytes_free. */
@@ -424,7 +423,7 @@ void thetadatadx_config_free(ThetaDataDxConfig* config);
 
 /**
  * Set the streaming reconnect policy on a config handle.
- *   policy=0: Auto (default) -- auto-reconnect with split per-class attempt
+ *   THETADATADX_RECONNECT_POLICY_AUTO (0, default) -- auto-reconnect with split per-class attempt
  *             budgets. Generic transient failures (TimedOut, ServerRestarting,
  *             Unspecified) use the budget set by
  *             `thetadatadx_config_set_reconnect_max_attempts`; the rate-limited
@@ -432,9 +431,9 @@ void thetadatadx_config_free(ThetaDataDxConfig* config);
  *             `thetadatadx_config_set_reconnect_max_rate_limited_attempts`. Counters
  *             reset after a continuous data-flow window configured via
  *             `thetadatadx_config_set_reconnect_stable_window_secs`.
- *   policy=1: Manual -- no auto-reconnect.
+ *   THETADATADX_RECONNECT_POLICY_MANUAL (1) -- no auto-reconnect.
  * @param config Config handle to mutate.
- * @param policy Reconnect policy selector (0 = Auto, 1 = Manual).
+ * @param policy THETADATADX_RECONNECT_POLICY_AUTO or THETADATADX_RECONNECT_POLICY_MANUAL.
  * @return 0 on success, -1 on an invalid policy (outside {0, 1}) or null
  *         config. A rejected policy sets thetadatadx_last_error_code to
  *         THETADATADX_ERR_INVALID_PARAMETER so an unknown value is rejected with the
@@ -447,7 +446,9 @@ int32_t thetadatadx_config_set_reconnect_policy(ThetaDataDxConfig* config, int p
 /**
  * Read the configured reconnect policy selector.
  * @param config Config handle to read.
- * @param out_policy Receives 0 (Auto), 1 (Manual), or 2 (Custom) on success.
+ * @param out_policy Receives THETADATADX_RECONNECT_POLICY_AUTO (0),
+ *        THETADATADX_RECONNECT_POLICY_MANUAL (1) or
+ *        THETADATADX_RECONNECT_POLICY_CUSTOM (2) on success.
  * @return 0 on success, -1 if either pointer is null.
  */
 int32_t thetadatadx_config_get_reconnect_policy(const ThetaDataDxConfig* config, int32_t* out_policy);

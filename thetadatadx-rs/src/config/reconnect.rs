@@ -88,6 +88,28 @@ impl Default for ReconnectPolicy {
     }
 }
 
+impl ReconnectPolicy {
+    /// Every policy's name, at the index of its [`ReconnectPolicy::code`].
+    pub(crate) const NAMES: [&'static str; 3] = ["auto", "manual", "custom"];
+
+    /// Stable cross-binding code for this policy, the integer the C and
+    /// C++ surfaces carry.
+    #[must_use]
+    pub const fn code(&self) -> i32 {
+        match self {
+            Self::Auto(_) => 0,
+            Self::Manual => 1,
+            Self::Custom(_) => 2,
+        }
+    }
+
+    /// The name Python and TypeScript read for this policy.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        Self::NAMES[self.code() as usize]
+    }
+}
+
 /// Per-failure-class attempt budgets the [`ReconnectPolicy::Auto`] driver
 /// enforces in the FPSS I/O loop.
 ///

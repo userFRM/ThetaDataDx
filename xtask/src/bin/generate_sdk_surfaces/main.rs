@@ -11,6 +11,7 @@
 //! drift without mutating files as a side effect of `cargo build`. `--check`
 //! verifies the checked-in tree without writing.
 
+mod codes;
 mod endpoints;
 mod fpss_events;
 mod ticks;
@@ -33,11 +34,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         endpoints::check_sdk_generated_files(root)?;
         ticks::check_sdk_generated_files(root)?;
         fpss_events::check_sdk_generated_files(root)?;
+        codes::check_sdk_generated_files(root)?;
         endpoints::check_docs_site_files(root)?;
     } else {
         endpoints::write_sdk_generated_files(root)?;
         ticks::write_sdk_generated_files(root)?;
         fpss_events::write_sdk_generated_files(root)?;
+        codes::write_sdk_generated_files(root)?;
         endpoints::write_docs_site_files(root)?;
     }
     Ok(())
