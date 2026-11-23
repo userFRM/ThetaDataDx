@@ -152,8 +152,8 @@ One streaming session loaded as far as a Pro plan allows, read as Arrow record b
 2. Subscribe to quotes on the nearest 15,000 (the Pro limit for option quote streams)
 3. Rank every stock by trade count from the flat-file end-of-day report and subscribe to quotes on the top 2,000 (the Pro limit for stock quote streams)
 4. Add the full trade streams for options and stocks: every trade in both markets
-5. Run for five minutes with a live panel: events, events per second, delay from receipt to the notebook, event-ring peak, dropped events
-6. Summarize events per stream, peak second and CPU use, and chart events per second and delay
+5. Wait for the window (09:25 ET by default), then run for 15 minutes with a live panel: events, events per second, CPU, memory, delay from receipt to the notebook, event-ring peak, dropped events
+6. Summarize events per stream, minute by minute, per stock and per SPXW expiration, and chart events per second, CPU, memory and delay
 
 **Note:** Written for a Pro plan on options and stocks, during market hours. The committed outputs are from a run across the 09:30 ET open.
 
