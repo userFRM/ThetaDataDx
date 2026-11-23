@@ -3457,18 +3457,19 @@ inline std::optional<int64_t> timestamp_ms(int32_t date, int32_t ms_of_day) noex
 }
 
 /// Security type as a symbolic uppercase name (`"STOCK"` /
-/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`). Mirrors the
-/// Python / TypeScript `sec_type` string surface. Returns `"UNKNOWN"`
-/// for unrecognised discriminants so callers stay total.
+/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`) for a
+/// `THETADATADX_SEC_TYPE_*` code. Mirrors the Python / TypeScript
+/// `sec_type` string surface. Returns `"UNKNOWN"` for unrecognised
+/// discriminants so callers stay total.
 inline std::string_view sec_type_name(int32_t sec_type) noexcept {
     switch (sec_type) {
-        case 0:
+        case THETADATADX_SEC_TYPE_STOCK:
             return "STOCK";
-        case 1:
+        case THETADATADX_SEC_TYPE_OPTION:
             return "OPTION";
-        case 2:
+        case THETADATADX_SEC_TYPE_INDEX:
             return "INDEX";
-        case 3:
+        case THETADATADX_SEC_TYPE_RATE:
             return "RATE";
         default:
             return "UNKNOWN";

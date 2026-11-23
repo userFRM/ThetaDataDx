@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The streaming batch `sec_type` column is a string, and the C header names the security type codes.** `client.stream.batches()` wrote `sec_type` as an `Int32` code, 0 for a stock, 1 for an option, 2 for an index and 3 for a rate, a mapping no page documented, while the per-event contract, the local server's WebSocket and the batch's own `event_type`, `symbol` and `right` columns carry names. The column is now `Utf8` in every language and holds the name the per-event contract carries: `STOCK`, `OPTION`, `INDEX` or `RATE`, or `UNKNOWN` for an event that arrived before its contract was resolved. Migration: code that compares the column with an integer or reads it as `int32` compares it with the name instead. In C and C++, `ThetaDataDxContract.sec_type` stays an `int32_t` and the struct layout is unchanged; the header now defines `THETADATADX_SEC_TYPE_STOCK`, `THETADATADX_SEC_TYPE_OPTION`, `THETADATADX_SEC_TYPE_INDEX`, `THETADATADX_SEC_TYPE_RATE` and `THETADATADX_SEC_TYPE_UNKNOWN` to compare it with, and `thetadatadx::sec_type_name()` returns the name in C++.
+
 ### Fixed
 
 - **The package pages stream a flat file without lifting its limit.** The Rust, Python, TypeScript and C++ READMEs streamed the trade-quote file with a per-call deadline of zero, which was needed while `request_timeout_secs` bounded the whole request. Since 0.9.0 a download that keeps streaming has no time limit by default, and a zero deadline only removes the silence limit, so a stalled server would hold the download open indefinitely. The examples now keep the default.

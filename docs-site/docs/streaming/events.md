@@ -142,6 +142,8 @@ Data events carry a resolved, typed contract. Read identity straight off the eve
 | `right` | string? | `C` / `P`; options only. |
 | `strike` | int? | Over the server's WebSocket, the terminal's 1/10-cent integer (a $570 strike is `570000`), matching the terminal wire; options only. The native SDK bindings resolve it to dollars on `event.contract` (Rust `strike_dollars()`; the C ABI field is dollars). |
 
+In C and C++, `contract.sec_type` is an `int32_t` code. Compare it with the constants the C header defines, `THETADATADX_SEC_TYPE_STOCK`, `THETADATADX_SEC_TYPE_OPTION`, `THETADATADX_SEC_TYPE_INDEX` and `THETADATADX_SEC_TYPE_RATE`, plus `THETADATADX_SEC_TYPE_UNKNOWN` for an event that arrived before its contract was resolved. In C++, `thetadatadx::sec_type_name(e.contract.sec_type)` returns the name.
+
 ## Control events
 
 Lifecycle and session events share the callback. The ones worth handling:
