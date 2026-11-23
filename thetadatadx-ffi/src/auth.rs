@@ -503,14 +503,13 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_policy(
 //
 // The policy-variant selector. The per-class `Auto` attempt budgets are
 // the `limits` accessors of the config table (`src/surface/config.rs` in
-// the core); this reads the variant discriminant itself, which stays
-// hand-written.
+// the core); this reads the variant's code, which the core defines.
 
 /// Read the configured reconnect policy selector.
 ///
-/// Writes `0` (`Auto`), `1` (`Manual`), or `2` (`Custom`) into
-/// `*out_policy`. Returns `0` on success, `-1` if either pointer is
-/// null.
+/// Writes `THETADATADX_RECONNECT_POLICY_AUTO` (0), `_MANUAL` (1) or
+/// `_CUSTOM` (2) into `*out_policy`. Returns `0` on success, `-1` if
+/// either pointer is null.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
     config: *const ThetaDataDxConfig,
@@ -523,11 +522,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
         }
         // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
-        let value = match &config.inner.reconnect.policy {
-            thetadatadx::ReconnectPolicy::Auto(_) => 0,
-            thetadatadx::ReconnectPolicy::Manual => 1,
-            _ => 2,
-        };
+        let value = config.inner.reconnect.policy.code();
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
             *out_policy = value;

@@ -237,6 +237,15 @@ pub enum DisconnectCause {
 }
 
 impl DisconnectCause {
+    /// Every cause's name, at the index of its [`DisconnectCause::code`].
+    pub(crate) const NAMES: [&'static str; 5] = [
+        "ServerSent",
+        "ClosedByServer",
+        "ReadFailed",
+        "WriteFailed",
+        "ReadTimeout",
+    ];
+
     /// Stable cross-binding code for this cause. This is the integer the
     /// Python, TypeScript, C and C++ surfaces carry as `cause`, so the
     /// values are fixed once published and a new cause takes the next
@@ -262,13 +271,12 @@ impl DisconnectCause {
     /// name.
     #[must_use]
     pub const fn name_for_code(code: i32) -> &'static str {
-        match code {
-            0 => "ServerSent",
-            1 => "ClosedByServer",
-            2 => "ReadFailed",
-            3 => "WriteFailed",
-            4 => "ReadTimeout",
-            _ => "Unknown",
+        // A negative code wraps past the last index, so it names nothing.
+        let index = code as usize;
+        if index < Self::NAMES.len() {
+            Self::NAMES[index]
+        } else {
+            "Unknown"
         }
     }
 
@@ -920,11 +928,13 @@ mod tests {
             );
             assert_eq!(cause.implied_reason(), reason, "{cause:?} implied reason");
         }
-        assert_eq!(
-            DisconnectCause::name_for_code(99),
-            "Unknown",
-            "a code this build does not know still resolves to a name"
-        );
+        for unknown in [99, -1] {
+            assert_eq!(
+                DisconnectCause::name_for_code(unknown),
+                "Unknown",
+                "a code this build does not know still resolves to a name"
+            );
+        }
     }
 
     #[test]

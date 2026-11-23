@@ -94,7 +94,7 @@ TEST_CASE("FluentSubscription::kind_string is snake_case", "[fluent][offline]") 
 
 TEST_CASE("thetadatadx_contract_strike_dollars folds the presence flag", "[fluent][offline]") {
     ThetaDataDxContract option{};
-    option.sec_type = 1; // OPTION
+    option.sec_type = THETADATADX_SEC_TYPE_OPTION;
     option.has_strike = true;
     option.strike = 550.0;
     double dollars = 0.0;
@@ -107,7 +107,7 @@ TEST_CASE("thetadatadx_contract_strike_dollars folds the presence flag", "[fluen
     REQUIRE(*via_cpp == 550.0);
 
     ThetaDataDxContract stock{};
-    stock.sec_type = 0; // STOCK
+    stock.sec_type = THETADATADX_SEC_TYPE_STOCK;
     stock.has_strike = false;
     double untouched = -1.0;
     REQUIRE_FALSE(thetadatadx_contract_strike_dollars(&stock, &untouched));

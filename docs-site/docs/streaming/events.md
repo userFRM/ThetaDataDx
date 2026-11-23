@@ -142,6 +142,8 @@ Data events carry a resolved, typed contract. Read identity straight off the eve
 | `right` | string? | `C` / `P`; options only. |
 | `strike` | int? | Over the server's WebSocket, the terminal's 1/10-cent integer (a $570 strike is `570000`), matching the terminal wire; options only. The native SDK bindings resolve it to dollars on `event.contract` (Rust `strike_dollars()`; the C ABI field is dollars). |
 
+In C and C++, `contract.sec_type` is an `int32_t` code. Compare it with the constants the C header defines, `THETADATADX_SEC_TYPE_STOCK`, `THETADATADX_SEC_TYPE_OPTION`, `THETADATADX_SEC_TYPE_INDEX` and `THETADATADX_SEC_TYPE_RATE`, plus `THETADATADX_SEC_TYPE_UNKNOWN` for an event that arrived before its contract was resolved. In C++, `thetadatadx::sec_type_name(e.contract.sec_type)` returns the name.
+
 ## Control events
 
 Lifecycle and session events share the callback. The ones worth handling:
@@ -150,7 +152,7 @@ Lifecycle and session events share the callback. The ones worth handling:
 |---|---|
 | `connected` / `login_success` | Session is up and authenticated. |
 | `contract_assigned` | The server bound a contract to the session (informational). |
-| `req_response` | Acknowledgement for a subscribe/unsubscribe, with its request id. |
+| `req_response` | Acknowledgement for a subscribe/unsubscribe, with its request id and its `result`. |
 | `market_open` / `market_close` | Session boundary notices. |
 | `disconnected` / `reconnecting` / `reconnected` | Automatic-reconnect progress; see [Reconnection & Monitoring](/streaming/reliability). |
 | `reconnects_exhausted` | The retry budget is spent; the session is down for good until you intervene. |
@@ -158,3 +160,7 @@ Lifecycle and session events share the callback. The ones worth handling:
 | `ping`, `restart`, `reconnected_server`, `unknown_frame`, `unknown_control` | Heartbeats, server restarts, and forward-compatibility fallbacks. |
 
 Unrecognized future event types arrive as `unknown_*` rather than being dropped, so a callback written today keeps working against newer servers.
+
+A `req_response` carries `result` as an integer code. Python reads its name as `result_name` and TypeScript as `resultName`: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`, the token the server's WebSocket publishes for the same response. In C and C++, compare `result` with `THETADATADX_SUBSCRIPTION_RESULT_SUBSCRIBED`, `THETADATADX_SUBSCRIPTION_RESULT_ERROR`, `THETADATADX_SUBSCRIPTION_RESULT_MAX_STREAMS_REACHED` and `THETADATADX_SUBSCRIPTION_RESULT_INVALID_PERMS`; in C++, `thetadatadx::result_name(e.req_response.result)` returns the name.
+
+In C and C++, `event.kind` is a `THETADATADX_STREAM_*` code; in C++, `thetadatadx::kind_name(event.kind)` returns the `kind` tag Python and TypeScript read, such as `"req_response"`.

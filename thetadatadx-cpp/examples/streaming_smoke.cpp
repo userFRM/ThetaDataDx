@@ -24,43 +24,16 @@ constexpr const char* kRight = "C";
 constexpr auto kCollectFor = std::chrono::seconds(5);
 constexpr int kMaxEventsPrinted = 25;
 
-// Replaced the flat `THETADATADX_STREAM_CONTROL` discriminant with
-// one kind per typed `StreamControl::*` variant. Returning a friendly
-// short name keeps the smoke test's stdout compact.
-const char* event_kind_name(thetadatadx::StreamEventKind kind) {
-    switch (kind) {
-        case THETADATADX_STREAM_QUOTE: return "quote";
-        case THETADATADX_STREAM_TRADE: return "trade";
-        case THETADATADX_STREAM_OPEN_INTEREST: return "open_interest";
-        case THETADATADX_STREAM_OHLCVC: return "ohlcvc";
-        case THETADATADX_STREAM_CONNECTED: return "connected";
-        case THETADATADX_STREAM_CONTRACT_ASSIGNED: return "contract_assigned";
-        case THETADATADX_STREAM_DISCONNECTED: return "disconnected";
-        case THETADATADX_STREAM_PARSE_ERROR: return "parse_error";
-        case THETADATADX_STREAM_LOGIN_SUCCESS: return "login_success";
-        case THETADATADX_STREAM_MARKET_CLOSE: return "market_close";
-        case THETADATADX_STREAM_MARKET_OPEN: return "market_open";
-        case THETADATADX_STREAM_PING: return "ping";
-        case THETADATADX_STREAM_RECONNECTED: return "reconnected";
-        case THETADATADX_STREAM_RECONNECTED_SERVER: return "reconnected_server";
-        case THETADATADX_STREAM_RECONNECTING: return "reconnecting";
-        case THETADATADX_STREAM_REQ_RESPONSE: return "req_response";
-        case THETADATADX_STREAM_RESTART: return "restart";
-        case THETADATADX_STREAM_SERVER_ERROR: return "server_error";
-        case THETADATADX_STREAM_UNKNOWN_CONTROL: return "unknown_control";
-        case THETADATADX_STREAM_UNKNOWN_FRAME: return "unknown_frame";
-    }
-    return "unknown";
-}
-
 // Returns true when the kind is one of the typed control variants
-// (everything except the four data variants).
+// (everything except the data variants).
 bool is_control_kind(thetadatadx::StreamEventKind kind) {
     switch (kind) {
         case THETADATADX_STREAM_QUOTE:
         case THETADATADX_STREAM_TRADE:
         case THETADATADX_STREAM_OPEN_INTEREST:
         case THETADATADX_STREAM_OHLCVC:
+        case THETADATADX_STREAM_MARKET_VALUE:
+        case THETADATADX_STREAM_INDEX_MARKET_VALUE:
             return false;
         default:
             return true;
@@ -88,7 +61,7 @@ int main(int argc, char** argv) {
             }
             if (seq >= kMaxEventsPrinted) return;
             std::lock_guard<std::mutex> guard(print_mtx);
-            std::cout << "[" << seq << "] kind=" << event_kind_name(event.kind);
+            std::cout << "[" << seq << "] kind=" << thetadatadx::kind_name(event.kind);
             switch (event.kind) {
                 case THETADATADX_STREAM_QUOTE:
                     std::cout << " symbol="
@@ -127,13 +100,14 @@ int main(int argc, char** argv) {
                     break;
                 case THETADATADX_STREAM_REQ_RESPONSE:
                     std::cout << " req_id=" << event.req_response.req_id
-                              << " result=" << event.req_response.result;
+                              << " result=" << thetadatadx::result_name(event.req_response.result);
                     break;
                 case THETADATADX_STREAM_DISCONNECTED:
-                    std::cout << " reason=" << event.disconnected.reason;
+                    std::cout << " reason=" << thetadatadx::reason_name(event.disconnected.reason)
+                              << " cause=" << thetadatadx::cause_name(event.disconnected.cause);
                     break;
                 case THETADATADX_STREAM_RECONNECTING:
-                    std::cout << " reason=" << event.reconnecting.reason
+                    std::cout << " reason=" << thetadatadx::reason_name(event.reconnecting.reason)
                               << " attempt=" << event.reconnecting.attempt
                               << " delay_ms=" << event.reconnecting.delay_ms;
                     break;

@@ -104,6 +104,15 @@ macro_rules! ts_events {
             pub cause_name: String,
         ] [] }
     };
+    // The subscription response also carries its result name.
+    (@object $n:ident $doc:literal [subscription_result] [$($fld:tt)*] []) => {
+        ts_events! { @object $n $doc [] [$($fld)*
+            #[doc = " Resolved subscription-result name, as the local server's WebSocket"]
+            #[doc = " publishes it: `\"SUBSCRIBED\"`, `\"ERROR\"`, `\"MAX_STREAMS_REACHED\"` or"]
+            #[doc = " `\"INVALID_PERMS\"`. Derived from the `result` integer."]
+            pub result_name: String,
+        ] [] }
+    };
     (@object $n:ident $doc:literal [] [$($fld:tt)*] []) => {
         #[doc = $doc]
         #[must_use]
@@ -194,10 +203,18 @@ macro_rules! ts_events {
             cause_name: String::new(),
         };
         $name {
-            reason_name: thetadatadx::RemoveReason::from_code(payload.reason as i16)
-                .as_str()
-                .to_string(),
+            reason_name: thetadatadx::RemoveReason::name_for_code(payload.reason).to_string(),
             cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(payload.cause).to_string(),
+            ..payload
+        }
+    }};
+    (@typed $name:ident [subscription_result] [$({ $c:ident $t:ident })*]) => {{
+        let payload = $name {
+            $($c: ts_events!(@js $t $c),)*
+            result_name: String::new(),
+        };
+        $name {
+            result_name: thetadatadx::StreamResponseType::name_for_code(payload.result).to_string(),
             ..payload
         }
     }};

@@ -6,6 +6,21 @@
 //! `None` (or a documented sentinel) so the decoder fails loudly on schema
 //! drift rather than mis-classifying.
 
+/// Gives a fieldless enum `ALL`, every variant in declaration order. The
+/// `match` compiles only while the list names every variant, so a variant
+/// added to the enum cannot be missing from `ALL`.
+macro_rules! all_variants {
+    ($name:ident [$($variant:ident)*]) => {
+        impl $name {
+            pub(crate) const ALL: &'static [Self] = &[$(Self::$variant),*];
+        }
+
+        const _: fn($name) = |v| match v {
+            $($name::$variant)|* => {}
+        };
+    };
+}
+
 /// Security type identifier.
 ///
 /// `Unknown` is a sentinel for contracts whose shape has not yet been resolved.
@@ -65,6 +80,8 @@ impl SecType {
         }
     }
 }
+
+all_variants!(SecType [Stock Option Index Rate Unknown]);
 
 /// Streaming message types for real-time data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -168,6 +185,30 @@ pub enum StreamResponseType {
 }
 
 impl StreamResponseType {
+    /// Resolve a wire response code to its outcome; `None` for a code the
+    /// protocol does not define.
+    #[must_use]
+    pub const fn from_code(code: i32) -> Option<Self> {
+        match code {
+            0 => Some(Self::Subscribed),
+            1 => Some(Self::Error),
+            2 => Some(Self::MaxStreamsReached),
+            3 => Some(Self::InvalidPerms),
+            _ => None,
+        }
+    }
+
+    /// The token a response code is published as, which the bindings
+    /// resolve the integer `result` to; `"UNKNOWN"` for a code the protocol
+    /// does not define, so a caller stays total.
+    #[must_use]
+    pub const fn name_for_code(code: i32) -> &'static str {
+        match Self::from_code(code) {
+            Some(result) => result.as_wire_str(),
+            None => "UNKNOWN",
+        }
+    }
+
     /// Stream-request verification token this outcome is published as on
     /// the WebSocket wire.
     ///
@@ -187,6 +228,8 @@ impl StreamResponseType {
         }
     }
 }
+
+all_variants!(StreamResponseType [Subscribed Error MaxStreamsReached InvalidPerms]);
 
 impl core::fmt::Display for StreamResponseType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -264,6 +307,16 @@ impl RemoveReason {
         }
     }
 
+    /// The name of the integer `reason` a binding carries, a disconnect
+    /// event's or a reconnect callback's: `"Unspecified"` for a code the
+    /// protocol does not define, including one wider than the wire's i16.
+    #[must_use]
+    pub fn name_for_code(code: i32) -> &'static str {
+        i16::try_from(code)
+            .map_or(Self::Unspecified, Self::from_code)
+            .as_str()
+    }
+
     /// Symbolic UpperCamelCase name (`"TooManyRequests"`,
     /// `"InvalidCredentials"`, …). Used by Python and TypeScript
     /// bindings to surface the wire i16 as a readable string.
@@ -322,6 +375,13 @@ impl RemoveReason {
         }
     }
 }
+
+all_variants!(RemoveReason [
+    Unspecified InvalidCredentials InvalidLoginValues InvalidLoginSize GeneralValidationError
+    TimedOut ClientForcedDisconnect AccountAlreadyConnected SessionTokenExpired
+    InvalidSessionToken FreeAccount TooManyRequests NoStartDate LoginTimedOut ServerRestarting
+    SessionTokenNotFound ServerUserDoesNotExist InvalidCredentialsNullUser
+]);
 
 /// Market-calendar day classification.
 ///
@@ -410,6 +470,8 @@ impl std::fmt::Display for CalendarStatus {
     }
 }
 
+all_variants!(CalendarStatus [Open EarlyClose FullClose Weekend]);
+
 /// Where a binomial Greeks row's implied volatility came from.
 ///
 /// Carries the vendor's `implied_vol_source` vocabulary, which the binomial
@@ -454,7 +516,18 @@ impl ImpliedVolSource {
             _ => None,
         }
     }
+
+    /// Resolve the integer code the C ABI carries; `None` for any other.
+    #[must_use]
+    pub fn from_code(code: i32) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|&source| source as i32 == code)
+    }
 }
+
+all_variants!(ImpliedVolSource [OwnQuote OutOfTheMoney Interpolated Extrapolated]);
 
 /// Expands `__enums!` into the parameter enums, with their wire strings and
 /// the spellings each parses.

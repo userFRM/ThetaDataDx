@@ -5,8 +5,8 @@ use thetadatadx::config;
 
 /// `(reason, attempt)` argument object handed to the JS reconnect
 /// callback registered via `Config.setReconnectCallback`. `reason` is
-/// the integer disconnect code; `attempt` is the
-/// 1-based consecutive-reconnect counter.
+/// the integer disconnect code, which `Util.reconnectReasonName(reason)`
+/// names; `attempt` is the 1-based consecutive-reconnect counter.
 #[napi(object)]
 #[derive(Clone, Copy)]
 pub struct ReconnectDecisionArgs {
@@ -163,11 +163,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(_) => "auto",
-            config::ReconnectPolicy::Manual => "manual",
-            _ => "custom",
-        })
+        Ok(guard.reconnect.policy.as_str())
     }
 
     /// Install a custom reconnect policy driven by a JS callback.

@@ -206,7 +206,7 @@ typedef struct {
     int32_t attempts;
 } ThetaDataDxStreamReconnectsExhausted;
 
-/* Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
+/* Streaming subscription response (wire code 40). `result` is the integer outcome code; read the resolved result-name field for its name, the one the local server's WebSocket publishes: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`. */
 typedef struct {
     int32_t req_id;
     int32_t result;

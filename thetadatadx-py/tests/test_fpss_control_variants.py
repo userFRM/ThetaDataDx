@@ -42,7 +42,7 @@ import pytest
 CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
     ("LoginSuccess", ("permissions",)),
     ("ContractAssigned", ("id", "contract")),
-    ("ReqResponse", ("req_id", "result")),
+    ("ReqResponse", ("req_id", "result", "result_name")),
     ("MarketOpen", ()),
     ("MarketClose", ()),
     ("ServerError", ("message",)),

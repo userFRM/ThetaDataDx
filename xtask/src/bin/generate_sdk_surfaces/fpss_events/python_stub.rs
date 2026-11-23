@@ -69,6 +69,15 @@ pub(crate) fn render_python_event_stubs() -> String {
                  ...\n\n",
             );
         }
+        if event.subscription_result {
+            out.push_str(
+                "    @property\n    def result_name(self) -> str:\n        \
+                 \"\"\"Resolved subscription-result name, as the local server's WebSocket publishes it: \
+                 `\"SUBSCRIBED\"`, `\"ERROR\"`, `\"MAX_STREAMS_REACHED\"` or `\"INVALID_PERMS\"`. Derived from \
+                 the `result` integer.\"\"\"\n        \
+                 ...\n\n",
+            );
+        }
         out.push_str(
             "    def __repr__(self) -> str:\n        \
              \"\"\"Return a representation of the event.\"\"\"\n        ...\n",

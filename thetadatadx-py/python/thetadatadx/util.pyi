@@ -85,6 +85,16 @@ def calendar_status_name(code: int) -> str:
     ...
 
 
+def reconnect_reason_name(code: int) -> str:
+    """Return the name of the disconnect ``reason`` a reconnect callback receives.
+
+    Maps ``12`` to ``"TooManyRequests"``, the name a disconnect event's
+    ``reason_name`` gives the same code; returns ``"Unspecified"`` for
+    codes outside the table.
+    """
+    ...
+
+
 def timestamp_ms(date: int, ms_of_day: int) -> Optional[int]:
     """Combine an Eastern-Time ``YYYYMMDD`` ``date`` and ``ms_of_day``.
 

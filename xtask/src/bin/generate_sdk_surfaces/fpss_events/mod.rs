@@ -29,6 +29,8 @@ pub(crate) struct Event {
     pub(crate) data: bool,
     /// Carries a disconnect `reason` and `cause` (`#[disconnect]`).
     pub(crate) disconnect: bool,
+    /// Carries a subscription `result` (`#[subscription_result]`).
+    pub(crate) subscription_result: bool,
     pub(crate) doc: &'static str,
     pub(crate) columns: &'static [Column],
 }
@@ -57,15 +59,17 @@ macro_rules! event_records {
         &[$(Event {
             name: stringify!($name),
             data: event_records!(@data $kind),
-            disconnect: event_records!(@disconnect $($attr)*),
+            disconnect: event_records!(@is disconnect $($attr)*),
+            subscription_result: event_records!(@is subscription_result $($attr)*),
             doc: $doc,
             columns: &[$(Column { name: stringify!($c), ty: stringify!($t), doc: $d }),*],
         }),*]
     };
     (@data data) => { true };
     (@data control) => { false };
-    (@disconnect) => { false };
-    (@disconnect disconnect) => { true };
+    (@is disconnect disconnect) => { true };
+    (@is subscription_result subscription_result) => { true };
+    (@is $flag:ident $($attr:ident)*) => { false };
 }
 
 /// Every streaming event, in table order.

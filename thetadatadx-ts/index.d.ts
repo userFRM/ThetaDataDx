@@ -3933,6 +3933,13 @@ export declare class Util {
    */
   static calendarStatusName(code: number): string
   /**
+   * Name of the disconnect `reason` a reconnect callback receives (`12`
+   * -> `"TooManyRequests"`), the name a disconnect event's `reasonName`
+   * gives the same code. Returns `"Unspecified"` for codes outside the
+   * table.
+   */
+  static reconnectReasonName(code: number): string
+  /**
    * Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
    * into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
    * Usable with any `(date, *_ms_of_day)` pair on the tick structs.
@@ -7966,8 +7973,8 @@ export declare const enum RateType {
 /**
  * `(reason, attempt)` argument object handed to the JS reconnect
  * callback registered via `Config.setReconnectCallback`. `reason` is
- * the integer disconnect code; `attempt` is the
- * 1-based consecutive-reconnect counter.
+ * the integer disconnect code, which `Util.reconnectReasonName(reason)`
+ * names; `attempt` is the 1-based consecutive-reconnect counter.
  */
 export interface ReconnectDecisionArgs {
   reason: number
@@ -8027,10 +8034,16 @@ export interface ReconnectsExhausted {
   causeName: string
 }
 
-/** Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
+/** Streaming subscription response (wire code 40). `result` is the integer outcome code; read the resolved result-name field for its name, the one the local server's WebSocket publishes: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`. */
 export interface ReqResponse {
   reqId: number
   result: number
+  /**
+   * Resolved subscription-result name, as the local server's WebSocket
+   * publishes it: `"SUBSCRIBED"`, `"ERROR"`, `"MAX_STREAMS_REACHED"` or
+   * `"INVALID_PERMS"`. Derived from the `result` integer.
+   */
+  resultName: string
 }
 
 /** Wire string enum `RequestType`. */

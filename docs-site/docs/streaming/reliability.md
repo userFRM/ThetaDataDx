@@ -36,6 +36,8 @@ A clean `stop_streaming()` emits no terminal event; only an unrecoverable sessio
 
 The pair matters most where the two agree on a code: a `reason` of `TimedOut` with cause `ServerSent` is the server saying the session timed out, while the same reason with cause `ReadTimeout` is this client deciding nothing arrived in time. `cause_io_error_kind` is empty and `cause_timeout_ms` is zero on the causes that do not carry them.
 
+Both are integer codes. Python reads their names as `reason_name` and `cause_name`, TypeScript as `reasonName` and `causeName`. In C and C++, compare `reason` with the `THETADATADX_DISCONNECT_REASON_*` constants (`THETADATADX_DISCONNECT_REASON_TOO_MANY_REQUESTS`, `THETADATADX_DISCONNECT_REASON_UNSPECIFIED`, ...) and `cause` with the `THETADATADX_DISCONNECT_CAUSE_*` ones (`THETADATADX_DISCONNECT_CAUSE_SERVER_SENT`, `THETADATADX_DISCONNECT_CAUSE_READ_TIMEOUT`, ...); in C++, `thetadatadx::reason_name(e.disconnected.reason)` and `thetadatadx::cause_name(e.disconnected.cause)` return the same names.
+
 ### Policy knobs
 
 All on the [configuration object](/articles/configuration), prefixed `reconnect_`:
@@ -57,6 +59,17 @@ A custom policy is a callback receiving `(reason, attempt)` and returning the de
 ```python
 cfg = Config.production()
 cfg.reconnect_callback = lambda reason, attempt: min(1_000 * attempt, 60_000)
+```
+
+`reason` is the integer disconnect code, the vocabulary a disconnect event's `reason` uses. `reconnect_reason_name(reason)` returns its name (`12` is `"TooManyRequests"`): `thetadatadx.util.reconnect_reason_name` in Python, `Util.reconnectReasonName` in TypeScript, `thetadatadx::reconnect_reason_name` in C++ and `thetadatadx_reconnect_reason_name` in C, where the code also compares with the `THETADATADX_DISCONNECT_REASON_*` constants.
+
+```python
+from thetadatadx.util import reconnect_reason_name
+
+def backoff(reason, attempt):
+    if reconnect_reason_name(reason) == "TooManyRequests":
+        return 130_000
+    return min(1_000 * attempt, 60_000)
 ```
 
 Permanent failures (for example rejected credentials) never reach the callback. No policy can turn them into a retry loop.

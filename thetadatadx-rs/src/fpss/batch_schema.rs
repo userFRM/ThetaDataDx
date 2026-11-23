@@ -71,7 +71,7 @@ pub fn stream_batch_schema() -> Arc<Schema> {
         // ── discriminator + contract identity ──
         Field::new("event_type", DataType::Utf8, false),
         Field::new("symbol", DataType::Utf8, false),
-        Field::new("sec_type", DataType::Int32, false),
+        Field::new("sec_type", DataType::Utf8, false),
         Field::new("expiration", DataType::Int32, true),
         Field::new("strike", DataType::Float64, true),
         Field::new("right", DataType::Utf8, true),
@@ -113,10 +113,10 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 /// Approximate serialized bytes per row, used only to seed the Arrow IPC
 /// output buffer so it is written without re-growing from empty.
 ///
-/// Derived from the fixed [`stream_batch_schema`] columns: 15 `Int32` (4 B
-/// each = 60), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
-/// `Utf8` columns (offset plus a short value, allowed ~16 B each = 48),
-/// totalling ~220 B; rounded up to 256 to cover per-row validity bits and
+/// Derived from the fixed [`stream_batch_schema`] columns: 14 `Int32` (4 B
+/// each = 56), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 4
+/// `Utf8` columns (offset plus a short value, allowed ~16 B each = 64),
+/// totalling ~232 B; rounded up to 256 to cover per-row validity bits and
 /// alignment. This is a buffer-sizing HINT, never a correctness input — if a
 /// column is added to the schema, bump this alongside it. Sized so a full
 /// batch seeds at or above the real IPC body (no doubling regrow) while a tiny
@@ -177,7 +177,7 @@ pub struct StreamBatchBuilder {
 
     event_type: StringBuilder,
     symbol: StringBuilder,
-    sec_type: Int32Builder,
+    sec_type: StringBuilder,
     expiration: Int32Builder,
     strike: Float64Builder,
     right: StringBuilder,
@@ -231,16 +231,16 @@ impl StreamBatchBuilder {
     #[must_use]
     fn with_capacity_and_schema(capacity: usize, schema: Arc<Schema>) -> Self {
         // String builders take both an item-count and a byte-count hint;
-        // symbols are short roots (a handful of bytes), the discriminator
-        // and right tags shorter still, so the byte hints are deliberately
-        // small multiples of `capacity`.
+        // symbols are short roots (a handful of bytes), the discriminator,
+        // security-type and right tags shorter still, so the byte hints are
+        // deliberately small multiples of `capacity`.
         Self {
             schema,
             capacity,
             rows: 0,
             event_type: StringBuilder::with_capacity(capacity, capacity * 8),
             symbol: StringBuilder::with_capacity(capacity, capacity * 8),
-            sec_type: Int32Builder::with_capacity(capacity),
+            sec_type: StringBuilder::with_capacity(capacity, capacity * 8),
             expiration: Int32Builder::with_capacity(capacity),
             strike: Float64Builder::with_capacity(capacity),
             right: StringBuilder::with_capacity(capacity, capacity),
@@ -567,7 +567,7 @@ impl StreamBatchBuilder {
     ) {
         self.event_type.append_value(tag);
         self.symbol.append_value(&*contract.symbol);
-        self.sec_type.append_value(contract.sec_type as i32);
+        self.sec_type.append_value(contract.sec_type.as_str());
         // Option columns: expiration / strike / right carry a value only
         // for option contracts, null otherwise. Strike is reported in
         // dollars to match the market-data tick Arrow schema.
@@ -781,7 +781,8 @@ mod tests {
     }
 
     /// An option contract surfaces expiration / strike / right; strike is
-    /// reported in dollars.
+    /// reported in dollars. `sec_type` carries the name the per-event
+    /// contract carries, for the option row and for a stock row beside it.
     #[test]
     fn option_contract_fills_identity_columns() {
         let leg = crate::fpss::protocol::OptionLeg {
@@ -802,7 +803,19 @@ mod tests {
             date: 20240315,
             received_at_ns: 0,
         }));
-        let batch = b.finish().unwrap().expect("one row");
+        b.append(&trade(&std::sync::Arc::new(Contract::stock("SPY"))));
+        let batch = b.finish().unwrap().expect("two rows");
+
+        let sec_type = batch
+            .column_by_name("sec_type")
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .expect("sec_type is Utf8");
+        assert_eq!(
+            sec_type.iter().collect::<Vec<_>>(),
+            [Some("OPTION"), Some("STOCK")]
+        );
 
         let strike = batch
             .column_by_name("strike")

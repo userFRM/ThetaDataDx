@@ -52,7 +52,8 @@
 //! - A column's string is its documentation on the C ABI.
 //! - `#[disconnect]` marks an event that carries a disconnect `reason` and
 //!   `cause`; Python and TypeScript add their resolved `reason_name` and
-//!   `cause_name`.
+//!   `cause_name`. `#[subscription_result]` marks the one that carries a
+//!   subscription `result`; they add its resolved `result_name`.
 //!
 //! The table is in name order, which is the order of the C ABI kind tags:
 //! a tag's value is its entry's position, so an entry is never reordered.
@@ -218,8 +219,9 @@ macro_rules! __events {
                     attempts: i32 = (i32::try_from(*attempts).unwrap_or(i32::MAX)) "Number of consecutive reconnect attempts consumed before giving up.",
                 ],
             }
+            #[subscription_result]
             control ReqResponse {
-                doc: "Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).",
+                doc: "Streaming subscription response (wire code 40). `result` is the integer outcome code; read the resolved result-name field for its name, the one the local server's WebSocket publishes: `SUBSCRIBED`, `ERROR`, `MAX_STREAMS_REACHED` or `INVALID_PERMS`.",
                 from: ReqResponse { req_id, result },
                 columns: [
                     req_id: i32 = (*req_id) "Identifier of the subscription request this response answers.",

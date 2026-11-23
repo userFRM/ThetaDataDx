@@ -236,6 +236,7 @@
     "exchange_name": "*",
     "exchange_symbol": "*",
     "calendar_status_name": "*",
+    "reconnect_reason_name": "*",
     "timestamp_ms": "*",
     "sequence_signed_to_unsigned": "*",
     "sequence_unsigned_to_signed": "*",

@@ -79,8 +79,8 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
-    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
-     * read only when has_implied_vol_source is set. */
+    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when
+     * has_implied_vol_source is set. */
     int32_t implied_vol_source;
     bool has_implied_vol_source;
     int32_t expiration;
@@ -139,8 +139,8 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
-    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
-     * read only when has_implied_vol_source is set. */
+    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when
+     * has_implied_vol_source is set. */
     int32_t implied_vol_source;
     bool has_implied_vol_source;
     int32_t expiration;
@@ -169,8 +169,8 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
-    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
-     * read only when has_implied_vol_source is set. */
+    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when
+     * has_implied_vol_source is set. */
     int32_t implied_vol_source;
     bool has_implied_vol_source;
     int32_t expiration;
@@ -198,8 +198,8 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
-    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
-     * read only when has_implied_vol_source is set. */
+    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when
+     * has_implied_vol_source is set. */
     int32_t implied_vol_source;
     bool has_implied_vol_source;
     int32_t expiration;
@@ -226,8 +226,8 @@ typedef struct {
     double underlying_price;
     int32_t date;
     int32_t underlying_date;
-    /* 0 own_quote, 1 out_of_the_money, 2 interpolated, 3 extrapolated;
-     * read only when has_implied_vol_source is set. */
+    /* One of the THETADATADX_IMPLIED_VOL_SOURCE_* codes; read only when
+     * has_implied_vol_source is set. */
     int32_t implied_vol_source;
     bool has_implied_vol_source;
     int32_t expiration;

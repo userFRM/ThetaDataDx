@@ -16,7 +16,8 @@
 pub struct ThetaDataDxContract {
     /// Ticker symbol (e.g. "AAPL"). Null until ContractAssigned arrives.
     pub symbol: *const c_char,
-    /// Security type code — matches `thetadatadx::SecType`.
+    /// Security type: one of the `THETADATADX_SEC_TYPE_*` codes, the
+    /// discriminant of `thetadatadx::SecType`.
     pub sec_type: i32,
     /// Whether `expiration` is meaningful (options only).
     pub has_expiration: bool,

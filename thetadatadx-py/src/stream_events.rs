@@ -98,7 +98,7 @@ macro_rules! py_events {
             /// Derived from the wire-level `reason` integer.
             #[getter]
             fn reason_name(&self) -> &'static str {
-                thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
+                thetadatadx::RemoveReason::name_for_code(self.reason)
             }
 
             /// Resolved disconnect-cause name: `"ServerSent"`,
@@ -107,6 +107,19 @@ macro_rules! py_events {
             #[getter]
             fn cause_name(&self) -> &'static str {
                 thetadatadx::fpss::DisconnectCause::name_for_code(self.cause)
+            }
+        ] [] [x x x x x x] $cols }
+    };
+    // The subscription response also resolves its result to its name.
+    (@class $name:ident $doc:literal [subscription_result] $cols:tt) => {
+        py_events! { @fields $name $doc [] [] [
+            /// Resolved subscription-result name, as the local server's
+            /// WebSocket publishes it: `"SUBSCRIBED"`, `"ERROR"`,
+            /// `"MAX_STREAMS_REACHED"` or `"INVALID_PERMS"`. Derived from the
+            /// `result` integer.
+            #[getter]
+            fn result_name(&self) -> &'static str {
+                thetadatadx::StreamResponseType::name_for_code(self.result)
             }
         ] [] [x x x x x x] $cols }
     };

@@ -22,7 +22,7 @@ const dtsPath = resolve(__dirname, '..', 'index.d.ts');
 const CONTROL_VARIANTS = [
   { name: 'LoginSuccess',       kind: 'login_success',        payload: 'loginSuccess',       fields: ['permissions'] },
   { name: 'ContractAssigned',   kind: 'contract_assigned',    payload: 'contractAssigned',   fields: ['id', 'contract'] },
-  { name: 'ReqResponse',        kind: 'req_response',         payload: 'reqResponse',        fields: ['reqId', 'result'] },
+  { name: 'ReqResponse',        kind: 'req_response',         payload: 'reqResponse',        fields: ['reqId', 'result', 'resultName'] },
   { name: 'MarketOpen',         kind: 'market_open',          payload: 'marketOpen',         fields: [] },
   { name: 'MarketClose',        kind: 'market_close',         payload: 'marketClose',        fields: [] },
   { name: 'ServerError',        kind: 'server_error',         payload: 'serverError',        fields: ['message'] },

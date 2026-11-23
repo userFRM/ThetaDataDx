@@ -826,7 +826,8 @@ public:
      *  @throws thetadatadx::ThetaDataError if the file is unreadable. */
     static Config from_dotenv(const std::string& path);
 
-    /** Set streaming reconnect policy. 0=Auto (default), 1=Manual. Throws
+    /** Set streaming reconnect policy: `THETADATADX_RECONNECT_POLICY_AUTO`
+     *  (default) or `THETADATADX_RECONNECT_POLICY_MANUAL`. Throws
      *  @c thetadatadx::InvalidParameterError when @p policy is outside the
      *  documented `{0, 1}` set, matching the Python `ValueError` /
      *  TypeScript `InvalidParameterError` rather than silently coercing
@@ -839,7 +840,8 @@ public:
 
     #include "config_accessors.hpp.inc"
 
-    /** Current reconnect policy selector: 0=Auto, 1=Manual, 2=Custom. */
+    /** Current reconnect policy selector, a `THETADATADX_RECONNECT_POLICY_*`
+     *  code; `thetadatadx::reconnect_policy_name()` gives its name. */
     int32_t get_reconnect_policy() const {
         int32_t out{};
         thetadatadx_config_get_reconnect_policy(handle_.get(), &out);
@@ -851,6 +853,8 @@ public:
      *  on an SDK streaming thread and must be thread-safe.
      *  Return the delay in milliseconds or a negative value to stop.
      *  Pass nullptr to restore the default Auto policy.
+     *  `thetadatadx::reconnect_reason_name(reason)` names the callback's
+     *  `reason` code.
      *
      *  @warning `user_data` must outlive EVERY client built from this config,
      *           not just the config object: the config is cloned into each
@@ -3408,9 +3412,9 @@ inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
 // ── Fluent accessors over the C-ABI event structs ────────────────────
 //
 // C++ users get the same fluent surface Python and TypeScript see —
-// the strike in dollars, the option side as a `char`, `sec_type` as a
-// symbolic uppercase name, and `reason_name` / `cause_name` for
-// disconnect values. These inline helpers take the C struct by reference and
+// the strike in dollars, the option side as a `char`, and the name of
+// every integer code (`sec_type_name`, `reason_name`, `cause_name`, ...,
+// generated below). These inline helpers take the C struct by reference and
 // return the same shape Python / TypeScript bindings expose as fields.
 
 /// Strike price in dollars. Returns `std::nullopt` for non-option
@@ -3436,13 +3440,6 @@ inline std::optional<char> right(const ThetaDataDxContract& c) noexcept {
     return c.right;
 }
 
-/// Vendor vocabulary text for a `ThetaDataDxCalendarDay.status` code
-/// (`"open"` / `"early_close"` / `"full_close"` / `"weekend"`;
-/// `"UNKNOWN"` otherwise). Process-lifetime string — never freed.
-inline std::string_view calendar_status_name(int32_t status) noexcept {
-    return thetadatadx_calendar_status_name(status);
-}
-
 /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
 /// into Unix epoch milliseconds (UTC, DST-aware). Usable with any
 /// `(date, *_ms_of_day)` pair on the tick structs. Returns
@@ -3456,99 +3453,12 @@ inline std::optional<int64_t> timestamp_ms(int32_t date, int32_t ms_of_day) noex
     return epoch;
 }
 
-/// Security type as a symbolic uppercase name (`"STOCK"` /
-/// `"OPTION"` / `"INDEX"` / `"RATE"` / `"UNKNOWN"`). Mirrors the
-/// Python / TypeScript `sec_type` string surface. Returns `"UNKNOWN"`
-/// for unrecognised discriminants so callers stay total.
-inline std::string_view sec_type_name(int32_t sec_type) noexcept {
-    switch (sec_type) {
-        case 0:
-            return "STOCK";
-        case 1:
-            return "OPTION";
-        case 2:
-            return "INDEX";
-        case 3:
-            return "RATE";
-        default:
-            return "UNKNOWN";
-    }
-}
-
-/// Disconnect reason name (`"TooManyRequests"`, `"InvalidCredentials"`,
-/// ...). Mirrors the Python / TypeScript `reason_name` field surface.
-/// Returns `"Unspecified"` for unrecognised discriminants so callers
-/// stay total.
-///
-/// The reason is the server's vocabulary. For a disconnect the server
-/// never described, read @ref cause_name beside it to learn which way
-/// the connection actually ended.
-inline std::string_view reason_name(int32_t reason) noexcept {
-    switch (reason) {
-        case 0:
-            return "InvalidCredentials";
-        case 1:
-            return "InvalidLoginValues";
-        case 2:
-            return "InvalidLoginSize";
-        case 3:
-            return "GeneralValidationError";
-        case 4:
-            return "TimedOut";
-        case 5:
-            return "ClientForcedDisconnect";
-        case 6:
-            return "AccountAlreadyConnected";
-        case 7:
-            return "SessionTokenExpired";
-        case 8:
-            return "InvalidSessionToken";
-        case 9:
-            return "FreeAccount";
-        case 12:
-            return "TooManyRequests";
-        case 13:
-            return "NoStartDate";
-        case 14:
-            return "LoginTimedOut";
-        case 15:
-            return "ServerRestarting";
-        case 16:
-            return "SessionTokenNotFound";
-        case 17:
-            return "ServerUserDoesNotExist";
-        case 18:
-            return "InvalidCredentialsNullUser";
-        default:
-            return "Unspecified";
-    }
-}
-
-/// Disconnect cause name (`"ServerSent"`, `"ClosedByServer"`,
-/// `"ReadFailed"`, `"WriteFailed"`, `"ReadTimeout"`) for the `cause`
-/// field on a disconnect event. Mirrors the Python / TypeScript
-/// `cause_name` surface. Returns `"Unknown"` for unrecognised
-/// discriminants so callers stay total.
-///
-/// `ReadFailed` and `WriteFailed` carry the I/O error kind as the event's
-/// `cause_io_error_kind` string, and `ReadTimeout` carries the deadline
-/// that expired as `cause_timeout_ms`.
-inline std::string_view cause_name(int32_t cause) noexcept {
-    switch (cause) {
-        case 0:
-            return "ServerSent";
-        case 1:
-            return "ClosedByServer";
-        case 2:
-            return "ReadFailed";
-        case 3:
-            return "WriteFailed";
-        case 4:
-            return "ReadTimeout";
-        default:
-            return "Unknown";
-    }
-}
+// Generated `thetadatadx::<field>_name(code)` for every integer code
+// (`sec_type_name`, `result_name`, `reason_name`, `cause_name`,
+// `implied_vol_source_name`, `calendar_status_name`, `reconnect_policy_name`,
+// the enum config settings and the event `kind_name`): the name Python and
+// TypeScript give the code, from the same core definition.
+#include "code_names.hpp.inc"
 
 } // namespace thetadatadx
 

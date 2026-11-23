@@ -158,7 +158,7 @@ Three knobs tune it:
 - **`linger`**: the maximum time a partial batch waits before being emitted, so a quiet stream still delivers.
 - **`backpressure`**: what happens when the reader falls behind. `Block` (the default: no queue-side drops; a sustained reader stall can still overflow the upstream event ring, counted separately) or `DropOldest` (a bounded buffer of `capacity` batches that drops, and counts, the oldest on overflow).
 
-The field set is the fixed streaming schema, shared across bindings.
+The field set is the fixed streaming schema, shared across bindings. The contract identity columns carry the same values as the [contract on every data event](/streaming/events#the-contract-on-every-data-event): `symbol` and `sec_type` are strings, `sec_type` holding `STOCK`, `OPTION`, `INDEX` or `RATE` (or `UNKNOWN` for an event that arrived before its contract was resolved), and `expiration`, `strike` (in dollars) and `right` (`C` or `P`) are null on a row that is not an option.
 
 <SdkTabs>
 

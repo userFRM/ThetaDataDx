@@ -102,6 +102,8 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 
 Every field above is available on all four language surfaces under the naming convention shown earlier, except where the table marks one Rust only; unknown values fail at configuration time, not at first request.
 
+Python and TypeScript set and read `wait_mode`, `bulk_fetch`, `reconnect_jitter` and `reconnect_policy` by name. C and C++ pass an integer code, one of the `THETADATADX_WAIT_MODE_*`, `THETADATADX_BULK_FETCH_*`, `THETADATADX_RECONNECT_JITTER_*` and `THETADATADX_RECONNECT_POLICY_*` constants the C header defines (`THETADATADX_WAIT_MODE_BACKOFF`, `THETADATADX_BULK_FETCH_OFF`, `THETADATADX_RECONNECT_JITTER_NONE`, `THETADATADX_RECONNECT_POLICY_MANUAL`, ...), and in C++ `thetadatadx::wait_mode_name()`, `thetadatadx::bulk_fetch_name()`, `thetadatadx::reconnect_jitter_name()` and `thetadatadx::reconnect_policy_name()` turn a code back into the name the other bindings use.
+
 Your account's concurrent-request allowance is enforced server-side; the SDK does not cap it. The request pool defaults to your subscription tier's allowance at connect time, `max_concurrent_requests` overrides that (set it to a boosted allowance to go wider), and `shard_concurrency` only limits how much of the pool a single sharded pull consumes. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
