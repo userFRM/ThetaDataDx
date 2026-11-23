@@ -62,8 +62,6 @@ In a TOML config file, set `bulk_fetch = "auto"` under `[market_data]`. Small pu
 - `bulk_fetch = "off"` (the default) runs every query as one request, in the server's own order.
 - `shard_concurrency` caps how many pieces run at once (default: the full pool). Lower it to leave concurrency free for other requests running at the same time.
 
-Sharding only fills the pool you configured. It never exceeds it.
-
 ## Buffered or streaming
 
 There are two ways to receive a large result. Both use the large window, and both shard when bulk fetch is on. The difference is whether you get one finished frame or a sequence of chunks.
