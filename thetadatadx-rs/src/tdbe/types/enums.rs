@@ -307,6 +307,16 @@ impl RemoveReason {
         }
     }
 
+    /// The name of the integer `reason` a binding carries, a disconnect
+    /// event's or a reconnect callback's: `"Unspecified"` for a code the
+    /// protocol does not define, including one wider than the wire's i16.
+    #[must_use]
+    pub fn name_for_code(code: i32) -> &'static str {
+        i16::try_from(code)
+            .map_or(Self::Unspecified, Self::from_code)
+            .as_str()
+    }
+
     /// Symbolic UpperCamelCase name (`"TooManyRequests"`,
     /// `"InvalidCredentials"`, …). Used by Python and TypeScript
     /// bindings to surface the wire i16 as a readable string.

@@ -457,7 +457,9 @@ int32_t thetadatadx_config_get_reconnect_policy(const ThetaDataDxConfig* config,
  * Reconnect-decision callback for thetadatadx_config_set_reconnect_callback.
  * Invoked on an SDK streaming thread after each retriable involuntary
  * disconnect.
- * @param reason The disconnect-reason discriminant.
+ * @param reason The disconnect-reason code, one of the
+ *        THETADATADX_DISCONNECT_REASON_* constants;
+ *        thetadatadx_reconnect_reason_name() gives its name.
  * @param attempt The 1-based consecutive-reconnect counter.
  * @param user_data The opaque pointer registered alongside the callback.
  * @return The reconnect delay in milliseconds, or any negative value to
@@ -737,6 +739,14 @@ const char* thetadatadx_exchange_symbol(int32_t code);
  *  @return A process-lifetime string; "UNKNOWN" for unrecognised codes.
  *          Never NULL; DO NOT FREE. */
 const char* thetadatadx_calendar_status_name(int32_t code);
+
+/** Name of the disconnect reason a ThetaDataDxReconnectCallback receives
+ *  (12 -> "TooManyRequests"), one of the THETADATADX_DISCONNECT_REASON_*
+ *  codes.
+ *  @param code The reason code.
+ *  @return A process-lifetime string; "Unspecified" for unrecognised codes.
+ *          Never NULL; DO NOT FREE. */
+const char* thetadatadx_reconnect_reason_name(int32_t code);
 
 /** Combine an Eastern-Time YYYYMMDD date and milliseconds-of-day into
  *  Unix epoch milliseconds (UTC, DST-aware). Usable with any

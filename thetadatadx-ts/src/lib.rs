@@ -867,6 +867,15 @@ impl Util {
             .to_string()
     }
 
+    /// Name of the disconnect `reason` a reconnect callback receives (`12`
+    /// -> `"TooManyRequests"`), the name a disconnect event's `reasonName`
+    /// gives the same code. Returns `"Unspecified"` for codes outside the
+    /// table.
+    #[napi(js_name = "reconnectReasonName")]
+    pub fn reconnect_reason_name(code: i32) -> String {
+        thetadatadx::RemoveReason::name_for_code(code).to_string()
+    }
+
     /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
     /// into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
     /// Usable with any `(date, *_ms_of_day)` pair on the tick structs.
@@ -2244,6 +2253,7 @@ mod coded_field_tests {
                 event.req_response.unwrap().result_name
             }
             "reason" => disconnected().reason_name,
+            "reconnect_reason" => crate::Util::reconnect_reason_name(code),
             "cause" => disconnected().cause_name,
             "implied_vol_source" => {
                 let row = thetadatadx::GreeksThirdOrderTick {

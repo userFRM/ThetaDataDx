@@ -853,6 +853,8 @@ public:
      *  on an SDK streaming thread and must be thread-safe.
      *  Return the delay in milliseconds or a negative value to stop.
      *  Pass nullptr to restore the default Auto policy.
+     *  `thetadatadx::reconnect_reason_name(reason)` names the callback's
+     *  `reason` code.
      *
      *  @warning `user_data` must outlive EVERY client built from this config,
      *           not just the config object: the config is cloned into each

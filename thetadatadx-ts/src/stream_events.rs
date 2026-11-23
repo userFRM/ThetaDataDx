@@ -203,9 +203,7 @@ macro_rules! ts_events {
             cause_name: String::new(),
         };
         $name {
-            reason_name: thetadatadx::RemoveReason::from_code(payload.reason as i16)
-                .as_str()
-                .to_string(),
+            reason_name: thetadatadx::RemoveReason::name_for_code(payload.reason).to_string(),
             cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(payload.cause).to_string(),
             ..payload
         }

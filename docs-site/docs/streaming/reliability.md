@@ -61,6 +61,17 @@ cfg = Config.production()
 cfg.reconnect_callback = lambda reason, attempt: min(1_000 * attempt, 60_000)
 ```
 
+`reason` is the integer disconnect code, the vocabulary a disconnect event's `reason` uses. `reconnect_reason_name(reason)` returns its name (`12` is `"TooManyRequests"`): `thetadatadx.util.reconnect_reason_name` in Python, `Util.reconnectReasonName` in TypeScript, `thetadatadx::reconnect_reason_name` in C++ and `thetadatadx_reconnect_reason_name` in C, where the code also compares with the `THETADATADX_DISCONNECT_REASON_*` constants.
+
+```python
+from thetadatadx.util import reconnect_reason_name
+
+def backoff(reason, attempt):
+    if reconnect_reason_name(reason) == "TooManyRequests":
+        return 130_000
+    return min(1_000 * attempt, 60_000)
+```
+
 Permanent failures (for example rejected credentials) never reach the callback. No policy can turn them into a retry loop.
 
 Caller-driven recovery is always available: `reconnect()` re-opens the session and restores the saved subscription set on demand.

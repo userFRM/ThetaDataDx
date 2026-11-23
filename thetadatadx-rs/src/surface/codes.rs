@@ -23,7 +23,8 @@ const UNKNOWN: &str = "UNKNOWN";
 pub struct CodedField {
     /// The field's name; the C++ name accessor is `<field>_name`.
     pub field: &'static str,
-    /// The stem of the C constants, `THETADATADX_<c_prefix>_<NAME>`.
+    /// The stem of the C constants, `THETADATADX_<c_prefix>_<NAME>`. Two
+    /// fields of one vocabulary share it, and its constants are written once.
     pub c_prefix: String,
     /// What the codes are and where the C ABI carries them.
     pub doc: &'static str,
@@ -106,11 +107,17 @@ pub fn coded_fields() -> Vec<CodedField> {
             "DISCONNECT_REASON".into(),
             "Disconnect reason, carried by the `reason` of the disconnected, reconnecting and reconnects-exhausted events: the server's own code when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended. The `cause` beside it tells the two apart.",
             RemoveReason::ALL.iter().map(|&v| i32::from(v as i16)),
-            |code| {
-                i16::try_from(code)
-                    .map_or(RemoveReason::Unspecified, RemoveReason::from_code)
-                    .as_str()
-            },
+            RemoveReason::name_for_code,
+        ),
+        // The same vocabulary under its own accessor, so the free function
+        // every binding names a callback's code with is held to it; it
+        // shares the disconnect reason's constants.
+        CodedField::new(
+            "reconnect_reason",
+            "DISCONNECT_REASON".into(),
+            "Disconnect reason a reconnect callback receives as `reason`, from the same vocabulary as a disconnect event's `reason`.",
+            RemoveReason::ALL.iter().map(|&v| i32::from(v as i16)),
+            RemoveReason::name_for_code,
         ),
         CodedField::new(
             "cause",

@@ -3933,6 +3933,13 @@ export declare class Util {
    */
   static calendarStatusName(code: number): string
   /**
+   * Name of the disconnect `reason` a reconnect callback receives (`12`
+   * -> `"TooManyRequests"`), the name a disconnect event's `reasonName`
+   * gives the same code. Returns `"Unspecified"` for codes outside the
+   * table.
+   */
+  static reconnectReasonName(code: number): string
+  /**
    * Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day
    * into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.
    * Usable with any `(date, *_ms_of_day)` pair on the tick structs.
@@ -7966,8 +7973,8 @@ export declare const enum RateType {
 /**
  * `(reason, attempt)` argument object handed to the JS reconnect
  * callback registered via `Config.setReconnectCallback`. `reason` is
- * the integer disconnect code; `attempt` is the
- * 1-based consecutive-reconnect counter.
+ * the integer disconnect code, which `Util.reconnectReasonName(reason)`
+ * names; `attempt` is the 1-based consecutive-reconnect counter.
  */
 export interface ReconnectDecisionArgs {
   reason: number

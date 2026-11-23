@@ -5,8 +5,8 @@ use thetadatadx::config;
 
 /// `(reason, attempt)` argument object handed to the JS reconnect
 /// callback registered via `Config.setReconnectCallback`. `reason` is
-/// the integer disconnect code; `attempt` is the
-/// 1-based consecutive-reconnect counter.
+/// the integer disconnect code, which `Util.reconnectReasonName(reason)`
+/// names; `attempt` is the 1-based consecutive-reconnect counter.
 #[napi(object)]
 #[derive(Clone, Copy)]
 pub struct ReconnectDecisionArgs {

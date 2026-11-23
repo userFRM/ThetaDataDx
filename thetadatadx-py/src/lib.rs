@@ -415,6 +415,7 @@ impl Config {
     /// terminal ``ReconnectsExhausted`` event). Permanent disconnect
     /// reasons (bad credentials, account conflicts) never reach the
     /// callable. Pass ``None`` to restore the default ``Auto`` policy.
+    /// ``thetadatadx.util.reconnect_reason_name(reason)`` names the code.
     ///
     /// The callable runs off the main thread: it must be thread-safe
     /// and should return quickly — the I/O thread performs the actual
@@ -639,6 +640,16 @@ fn calendar_status_name(code: i32) -> &'static str {
         .map_or("UNKNOWN", thetadatadx::CalendarStatus::as_str)
 }
 
+/// Name of the disconnect `reason` a reconnect callback receives (`12` ->
+/// `"TooManyRequests"`), the name a disconnect event's `reason_name` gives
+/// the same code. Returns `"Unspecified"` for codes outside the table.
+/// Mirrors the C++ `thetadatadx::reconnect_reason_name` and the C ABI
+/// `thetadatadx_reconnect_reason_name`.
+#[pyfunction]
+fn reconnect_reason_name(code: i32) -> &'static str {
+    thetadatadx::RemoveReason::name_for_code(code)
+}
+
 /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
 /// Unix epoch milliseconds (UTC, DST-aware). Usable with any
 /// `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when
@@ -714,6 +725,7 @@ pub(crate) fn register_util_submodule(parent: &Bound<'_, PyModule>) -> PyResult<
     util.add_function(wrap_pyfunction!(exchange_name, &util)?)?;
     util.add_function(wrap_pyfunction!(exchange_symbol, &util)?)?;
     util.add_function(wrap_pyfunction!(calendar_status_name, &util)?)?;
+    util.add_function(wrap_pyfunction!(reconnect_reason_name, &util)?)?;
     util.add_function(wrap_pyfunction!(timestamp_ms, &util)?)?;
     util.add_function(wrap_pyfunction!(sequence_signed_to_unsigned, &util)?)?;
     util.add_function(wrap_pyfunction!(sequence_unsigned_to_signed, &util)?)?;
@@ -2528,6 +2540,7 @@ mod coded_field_tests {
                 "result_name",
             ),
             "reason" => read(py, disconnected(), "reason_name"),
+            "reconnect_reason" => crate::reconnect_reason_name(code).to_owned(),
             "cause" => read(py, disconnected(), "cause_name"),
             "implied_vol_source" => {
                 let row = thetadatadx::GreeksThirdOrderTick {

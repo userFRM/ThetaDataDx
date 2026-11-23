@@ -229,6 +229,21 @@ pub extern "C" fn thetadatadx_calendar_status_name(code: i32) -> *const c_char {
     })
 }
 
+/// Look up the name of the disconnect `reason` a reconnect callback
+/// receives (`12` -> `"TooManyRequests"`), the name Python and TypeScript
+/// give the same code.
+///
+/// Returns a NUL-terminated `'static` UTF-8 C string. The pointer is
+/// owned by the library and MUST NOT be freed. Returns `"Unspecified"` for
+/// codes outside the table; returns `NULL` if the boundary catches a
+/// panic, surfaced through `thetadatadx_last_error()`.
+#[unsafe(no_mangle)]
+pub extern "C" fn thetadatadx_reconnect_reason_name(code: i32) -> *const c_char {
+    ffi_boundary!(std::ptr::null(), {
+        static_cstr(thetadatadx::RemoveReason::name_for_code(code))
+    })
+}
+
 /// Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into
 /// Unix epoch milliseconds (UTC, DST-aware). Mirrors the
 /// `*_timestamp_ms()` accessors the Rust / Python row surfaces expose,

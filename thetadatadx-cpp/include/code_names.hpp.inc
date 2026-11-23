@@ -85,6 +85,52 @@ inline std::string_view reason_name(int32_t code) noexcept {
     }
 }
 
+/// Disconnect reason a reconnect callback receives as `reason`, from the same vocabulary as a disconnect event's `reason`.
+///
+/// Returns the name Python and TypeScript give a `THETADATADX_DISCONNECT_REASON_*` code, or `"Unspecified"` for any other code.
+inline std::string_view reconnect_reason_name(int32_t code) noexcept {
+    switch (code) {
+        case THETADATADX_DISCONNECT_REASON_UNSPECIFIED:
+            return "Unspecified";
+        case THETADATADX_DISCONNECT_REASON_INVALID_CREDENTIALS:
+            return "InvalidCredentials";
+        case THETADATADX_DISCONNECT_REASON_INVALID_LOGIN_VALUES:
+            return "InvalidLoginValues";
+        case THETADATADX_DISCONNECT_REASON_INVALID_LOGIN_SIZE:
+            return "InvalidLoginSize";
+        case THETADATADX_DISCONNECT_REASON_GENERAL_VALIDATION_ERROR:
+            return "GeneralValidationError";
+        case THETADATADX_DISCONNECT_REASON_TIMED_OUT:
+            return "TimedOut";
+        case THETADATADX_DISCONNECT_REASON_CLIENT_FORCED_DISCONNECT:
+            return "ClientForcedDisconnect";
+        case THETADATADX_DISCONNECT_REASON_ACCOUNT_ALREADY_CONNECTED:
+            return "AccountAlreadyConnected";
+        case THETADATADX_DISCONNECT_REASON_SESSION_TOKEN_EXPIRED:
+            return "SessionTokenExpired";
+        case THETADATADX_DISCONNECT_REASON_INVALID_SESSION_TOKEN:
+            return "InvalidSessionToken";
+        case THETADATADX_DISCONNECT_REASON_FREE_ACCOUNT:
+            return "FreeAccount";
+        case THETADATADX_DISCONNECT_REASON_TOO_MANY_REQUESTS:
+            return "TooManyRequests";
+        case THETADATADX_DISCONNECT_REASON_NO_START_DATE:
+            return "NoStartDate";
+        case THETADATADX_DISCONNECT_REASON_LOGIN_TIMED_OUT:
+            return "LoginTimedOut";
+        case THETADATADX_DISCONNECT_REASON_SERVER_RESTARTING:
+            return "ServerRestarting";
+        case THETADATADX_DISCONNECT_REASON_SESSION_TOKEN_NOT_FOUND:
+            return "SessionTokenNotFound";
+        case THETADATADX_DISCONNECT_REASON_SERVER_USER_DOES_NOT_EXIST:
+            return "ServerUserDoesNotExist";
+        case THETADATADX_DISCONNECT_REASON_INVALID_CREDENTIALS_NULL_USER:
+            return "InvalidCredentialsNullUser";
+        default:
+            return "Unspecified";
+    }
+}
+
 /// Where a disconnect came from, carried by the `cause` of the disconnected, reconnecting and reconnects-exhausted events. `ReadFailed` and `WriteFailed` name the I/O error kind in `cause_io_error_kind`, and `ReadTimeout` the deadline that expired in `cause_timeout_ms`.
 ///
 /// Returns the name Python and TypeScript give a `THETADATADX_DISCONNECT_CAUSE_*` code, or `"Unknown"` for any other code.

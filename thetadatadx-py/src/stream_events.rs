@@ -98,7 +98,7 @@ macro_rules! py_events {
             /// Derived from the wire-level `reason` integer.
             #[getter]
             fn reason_name(&self) -> &'static str {
-                thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
+                thetadatadx::RemoveReason::name_for_code(self.reason)
             }
 
             /// Resolved disconnect-cause name: `"ServerSent"`,

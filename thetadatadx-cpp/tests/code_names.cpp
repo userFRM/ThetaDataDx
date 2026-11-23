@@ -30,6 +30,7 @@ std::optional<std::string_view> cpp_name(std::string_view field, int32_t code) {
     if (field == "sec_type") return sec_type_name(code);
     if (field == "result") return result_name(code);
     if (field == "reason") return reason_name(code);
+    if (field == "reconnect_reason") return reconnect_reason_name(code);
     if (field == "cause") return cause_name(code);
     if (field == "implied_vol_source") return implied_vol_source_name(code);
     if (field == "calendar_status") return calendar_status_name(code);
@@ -41,6 +42,13 @@ std::optional<std::string_view> cpp_name(std::string_view field, int32_t code) {
     return std::nullopt;
 }
 
+// The fields the C ABI also names with a function of its own.
+std::optional<std::string_view> c_name(std::string_view field, int32_t code) {
+    if (field == "calendar_status") return thetadatadx_calendar_status_name(code);
+    if (field == "reconnect_reason") return thetadatadx_reconnect_reason_name(code);
+    return std::nullopt;
+}
+
 } // namespace
 
 TEST_CASE("every C++ name accessor gives each code the core's name", "[codes][offline]") {
@@ -49,5 +57,8 @@ TEST_CASE("every C++ name accessor gives each code the core's name", "[codes][of
         const auto name = cpp_name(c.field, c.code);
         REQUIRE(name.has_value());
         CHECK(*name == c.name);
+        if (const auto from_c = c_name(c.field, c.code)) {
+            CHECK(*from_c == c.name);
+        }
     }
 }
